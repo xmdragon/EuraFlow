@@ -291,7 +291,7 @@ async def export_order_report(
         raise HTTPException(status_code=500, detail=f"导出报表失败: {str(e)}")
 
 
-# Posting级别报表端点（新版）
+# Posting级别报表端点（新版 - 优化版，不加载 raw_payload）
 @router.get("/reports/postings")
 async def get_posting_report(
     month: str = Query(..., description="月份，格式：YYYY-MM"),
@@ -307,6 +307,12 @@ async def get_posting_report(
     """
     获取Posting级别的订单报表数据（支持分页和排序）
 
+    优化说明：
+    - 不加载 raw_payload 字段（10-100KB/行）
+    - 使用预计算的 order_total_price 字段
+    - 使用 JSONB 函数获取 product_count
+    - 商品详情通过单独的 /reports/postings/{posting_number} 端点获取
+
     Args:
         month: 月份，格式：YYYY-MM
         shop_ids: 店铺ID列表，逗号分隔（不传则查询所有店铺）
@@ -315,11 +321,10 @@ async def get_posting_report(
         page_size: 每页条数（默认50，最大100）
 
     Returns:
-        包含posting列表、分页信息的报表数据
+        包含posting列表、分页信息的报表数据（不含商品详情）
     """
     from sqlalchemy import and_, or_
-    from sqlalchemy.orm import selectinload
-    from ..models.orders import OzonOrderItem, OzonShipmentPackage
+    from sqlalchemy.orm import defer
     import calendar
 
     try:
@@ -334,9 +339,7 @@ async def get_posting_report(
         month_num = int(month_num)
 
         # 计算月份的开始和结束日期（基于用户时区）
-        # 月初：用户时区的1号00:00:00
         start_date_tz = datetime(year, month_num, 1, 0, 0, 0, tzinfo=tz)
-        # 月末：用户时区的最后一天23:59:59
         last_day = calendar.monthrange(year, month_num)[1]
         end_date_tz = datetime(year, month_num, last_day, 23, 59, 59, 999999, tzinfo=tz)
 
@@ -354,7 +357,6 @@ async def get_posting_report(
         if status_filter == 'delivered':
             conditions.append(OzonPosting.status == 'delivered')
         elif status_filter == 'placed':
-            # 已下订包含多种状态（包括已取消）
             conditions.append(OzonPosting.status.in_([
                 'awaiting_packaging', 'awaiting_deliver', 'delivering', 'delivered', 'cancelled'
             ]))
@@ -369,14 +371,13 @@ async def get_posting_report(
         # 货件编号过滤（支持通配符）
         if posting_number:
             posting_number_value = posting_number.strip()
-            # strip() 后再次判断是否为空，避免空字符串导致查询失败
             if posting_number_value:
                 if '%' in posting_number_value:
                     conditions.append(OzonPosting.posting_number.like(posting_number_value))
                 else:
                     conditions.append(OzonPosting.posting_number == posting_number_value)
 
-        # 查询总数（用于分页）- 保持和数据查询一致的JOIN
+        # 查询总数（用于分页）
         count_query = select(func.count(OzonPosting.id)).join(
             OzonOrder, OzonPosting.order_id == OzonOrder.id
         ).join(
@@ -388,21 +389,36 @@ async def get_posting_report(
 
         # 计算分页
         offset = (page - 1) * page_size
-        total_pages = (total + page_size - 1) // page_size  # 向上取整
+        total_pages = (total + page_size - 1) // page_size
 
         # 确定排序字段和顺序
         if sort_by == 'profit_rate':
-            # 使用数据库中的 profit_rate 字段排序
             order_clause = OzonPosting.profit_rate.desc() if sort_order == 'desc' else OzonPosting.profit_rate.asc()
         else:
-            # 默认按下单时间降序排序
             order_clause = OzonOrder.ordered_at.desc()
 
-        # 查询posting数据（带分页和排序）
+        # 查询posting数据（使用 defer 排除 raw_payload，使用 JSONB 函数获取 product_count）
+        # 注意：使用 func.coalesce 和 func.jsonb_array_length 计算商品数量
+        product_count_expr = func.coalesce(
+            func.jsonb_array_length(OzonPosting.raw_payload['products']),
+            0
+        ).label('product_count')
+
         postings_query = select(
-            OzonPosting,
-            OzonOrder,
-            OzonShop.shop_name
+            OzonPosting.id,
+            OzonPosting.posting_number,
+            OzonPosting.status,
+            OzonPosting.in_process_at,
+            OzonPosting.order_total_price,
+            OzonPosting.purchase_price,
+            OzonPosting.ozon_commission_cny,
+            OzonPosting.international_logistics_fee_cny,
+            OzonPosting.last_mile_delivery_fee_cny,
+            OzonPosting.material_cost,
+            OzonPosting.profit_rate,
+            OzonOrder.ordered_at,
+            OzonShop.shop_name,
+            product_count_expr
         ).join(
             OzonOrder, OzonPosting.order_id == OzonOrder.id
         ).join(
@@ -414,100 +430,45 @@ async def get_posting_report(
         ).offset(offset).limit(page_size)
 
         result = await db.execute(postings_query)
-        postings_with_order_shop = result.all()
+        postings_data = result.all()
 
-        # 收集所有 offer_id 用于批量查询图片
-        all_offer_ids = set()
-        for posting, order, shop_name in postings_with_order_shop:
-            if posting.raw_payload and 'products' in posting.raw_payload:
-                for product in posting.raw_payload['products']:
-                    offer_id = product.get('offer_id')
-                    if offer_id:
-                        all_offer_ids.add(offer_id)
-
-        # 批量查询商品图片（使用offer_id匹配）
-        offer_id_images = {}
-        if all_offer_ids:
-            product_query = select(OzonProduct.offer_id, OzonProduct.images).where(
-                OzonProduct.offer_id.in_(list(all_offer_ids))
-            )
-            products_result = await db.execute(product_query)
-            for offer_id, images in products_result:
-                if offer_id and images:
-                    # 提取primary图片URL（原始URL，不做转换）
-                    image_url = None
-                    if isinstance(images, dict):
-                        if images.get("primary"):
-                            image_url = images["primary"]
-                        elif images.get("main") and isinstance(images["main"], list) and images["main"]:
-                            image_url = images["main"][0]
-                    elif isinstance(images, list) and images:
-                        image_url = images[0]
-
-                    if image_url:
-                        offer_id_images[offer_id] = image_url
-
-        # 构建返回数据
+        # 构建返回数据（不再需要批量查询图片）
         from ..utils.serialization import format_currency
 
         report_data = []
-        for posting, order, shop_name in postings_with_order_shop:
-            # 从 raw_payload 提取商品列表
-            products_list = []
-            if posting.raw_payload and 'products' in posting.raw_payload:
-                for product_raw in posting.raw_payload['products']:
-                    offer_id = product_raw.get('offer_id')
-                    image_url = offer_id_images.get(offer_id) if offer_id else None
+        for row in postings_data:
+            # 使用预计算的 order_total_price
+            real_order_amount = row.order_total_price or Decimal('0')
 
-                    products_list.append({
-                        'sku': str(product_raw.get('sku', '')),
-                        'offer_id': str(offer_id) if offer_id else None,
-                        'name': product_raw.get('name', ''),
-                        'quantity': product_raw.get('quantity', 0),
-                        'price': format_currency(Decimal(str(product_raw.get('price', '0')))),
-                        'image_url': image_url  # 原始URL，前端用 optimizeOzonImageUrl 优化
-                    })
+            # 计算订单金额（取消订单不计销售额）
+            is_cancelled = row.status == 'cancelled'
+            order_amount = Decimal('0') if is_cancelled else real_order_amount
 
-            # 真实订单金额（根据posting中的商品数据计算）
-            # 注意：order.total_price 可能不准确，因为 posting 中的数量可能与 order 不一致
-            real_order_amount = Decimal('0')
-            if posting.raw_payload and 'products' in posting.raw_payload:
-                for product_raw in posting.raw_payload['products']:
-                    product_price = Decimal(str(product_raw.get('price', '0')))
-                    product_quantity = int(product_raw.get('quantity', 0))
-                    real_order_amount += product_price * product_quantity
+            # 获取费用字段
+            purchase_price = row.purchase_price or Decimal('0')
+            ozon_commission = row.ozon_commission_cny or Decimal('0')
+            intl_logistics = row.international_logistics_fee_cny or Decimal('0')
+            last_mile = row.last_mile_delivery_fee_cny or Decimal('0')
+            material_cost = row.material_cost or Decimal('0')
 
-            # 计算订单金额（取消订单不计销售额，用于统计）
-            if posting.status == 'cancelled':
-                order_amount = Decimal('0')
-            else:
-                order_amount = real_order_amount
-
-            # 获取posting维度的费用字段（取消订单仍然计入成本）
-            purchase_price = posting.purchase_price or Decimal('0')
-            ozon_commission = posting.ozon_commission_cny or Decimal('0')
-            intl_logistics = posting.international_logistics_fee_cny or Decimal('0')
-            last_mile = posting.last_mile_delivery_fee_cny or Decimal('0')
-            material_cost = posting.material_cost or Decimal('0')
-
-            # 计算利润（取消订单会产生负利润）
+            # 计算利润
             profit = order_amount - (purchase_price + ozon_commission + intl_logistics + last_mile + material_cost)
 
-            # 计算利润率（取消订单利润率无意义，显示为0）
-            if posting.status == 'cancelled':
+            # 计算利润率
+            if is_cancelled:
                 profit_rate = 0.0
             else:
                 profit_rate = float((profit / order_amount * 100)) if order_amount > 0 else 0.0
 
             report_data.append({
-                'posting_number': posting.posting_number,
-                'shop_name': shop_name,
-                'status': posting.status,
-                'is_cancelled': posting.status == 'cancelled',
-                'created_at': order.ordered_at.isoformat(),
-                'in_process_at': posting.in_process_at.isoformat() if posting.in_process_at else None,
-                'products': products_list,
-                'order_amount': format_currency(real_order_amount),  # 显示真实金额
+                'posting_number': row.posting_number,
+                'shop_name': row.shop_name,
+                'status': row.status,
+                'is_cancelled': is_cancelled,
+                'created_at': row.ordered_at.isoformat(),
+                'in_process_at': row.in_process_at.isoformat() if row.in_process_at else None,
+                'product_count': row.product_count,  # 商品数量（替代 products 数组）
+                'order_amount': format_currency(real_order_amount),
                 'purchase_price': format_currency(purchase_price),
                 'ozon_commission_cny': format_currency(ozon_commission),
                 'international_logistics_fee_cny': format_currency(intl_logistics),
@@ -535,7 +496,7 @@ async def get_posting_report(
         raise HTTPException(status_code=500, detail=f"获取报表失败: {str(e)}")
 
 
-# 报表汇总端点（用于图表数据）
+# 报表汇总端点（用于图表数据）- 优化版，使用 SQL 聚合
 @router.get("/reports/summary")
 async def get_report_summary(
     month: str = Query(..., description="月份，格式：YYYY-MM"),
@@ -546,6 +507,11 @@ async def get_report_summary(
     """
     获取报表汇总数据（用于图表展示）
 
+    优化说明：
+    - 使用 SQL SUM/COUNT 聚合代替 Python 循环
+    - 使用预计算的 order_total_price 字段
+    - 减少数据传输量
+
     Args:
         month: 月份，格式：YYYY-MM
         shop_ids: 店铺ID列表，逗号分隔（不传则查询所有店铺）
@@ -554,13 +520,15 @@ async def get_report_summary(
     Returns:
         包含统计汇总、成本分解、店铺分布、每日趋势、TOP10商品的数据
     """
-    from sqlalchemy import and_, or_, case
-    from sqlalchemy.orm import selectinload
+    from sqlalchemy import and_, or_, case, literal
+    from sqlalchemy.dialects.postgresql import JSONB
+    from sqlalchemy.sql import text
     import calendar
     from zoneinfo import ZoneInfo
+    from datetime import timedelta
 
     try:
-        # 获取全局时区设置（用于每日趋势统计）
+        # 获取全局时区设置
         global_timezone = await get_global_timezone(db)
         tz = ZoneInfo(global_timezone)
 
@@ -569,24 +537,23 @@ async def get_report_summary(
         year = int(year)
         month_num = int(month_num)
 
-        # 计算当月的开始和结束日期（基于用户时区）
+        # 计算当月的开始和结束日期
         start_date_tz = datetime(year, month_num, 1, 0, 0, 0, tzinfo=tz)
         last_day = calendar.monthrange(year, month_num)[1]
         end_date_tz = datetime(year, month_num, last_day, 23, 59, 59, 999999, tzinfo=tz)
 
-        # 如果结束日期超过今天，则截止到昨天，避免显示今天未完成的数据
-        from datetime import timedelta
+        # 截止到昨天
         now_tz = datetime.now(tz)
         yesterday_tz = now_tz - timedelta(days=1)
         yesterday_end_tz = datetime(yesterday_tz.year, yesterday_tz.month, yesterday_tz.day, 23, 59, 59, 999999, tzinfo=tz)
         if end_date_tz > yesterday_end_tz:
             end_date_tz = yesterday_end_tz
 
-        # 转换为UTC用于数据库查询
+        # 转换为UTC
         start_date = start_date_tz.astimezone(timezone.utc)
         end_date = end_date_tz.astimezone(timezone.utc)
 
-        # 计算上月的开始和结束日期（基于用户时区）
+        # 计算上月日期范围
         if month_num == 1:
             prev_year = year - 1
             prev_month = 12
@@ -597,264 +564,267 @@ async def get_report_summary(
         prev_start_date_tz = datetime(prev_year, prev_month, 1, 0, 0, 0, tzinfo=tz)
         prev_last_day = calendar.monthrange(prev_year, prev_month)[1]
         prev_end_date_tz = datetime(prev_year, prev_month, prev_last_day, 23, 59, 59, 999999, tzinfo=tz)
-
-        # 转换为UTC用于数据库查询
         prev_start_date = prev_start_date_tz.astimezone(timezone.utc)
         prev_end_date = prev_end_date_tz.astimezone(timezone.utc)
 
-        # 构建查询条件（当月，使用下单时间）
+        # 构建状态过滤条件
+        if status_filter == 'delivered':
+            status_conditions = [OzonPosting.status == 'delivered']
+        elif status_filter == 'placed':
+            status_conditions = [OzonPosting.status.in_([
+                'awaiting_packaging', 'awaiting_deliver', 'delivering', 'delivered', 'cancelled'
+            ])]
+        else:
+            status_conditions = []
+
+        # 店铺过滤
+        shop_id_list = None
+        if shop_ids:
+            shop_id_list = [int(sid) for sid in shop_ids.split(",")]
+
+        # ========== 1. 使用 SQL 聚合计算主要统计数据 ==========
+        # 销售额使用 order_total_price，取消订单不计销售额
+        sales_expr = case(
+            (OzonPosting.status != 'cancelled', OzonPosting.order_total_price),
+            else_=Decimal('0')
+        )
+
         conditions = [
             OzonOrder.ordered_at >= start_date,
             OzonOrder.ordered_at <= end_date,
-        ]
+        ] + status_conditions
 
-        # 状态过滤
-        if status_filter == 'delivered':
-            conditions.append(OzonPosting.status == 'delivered')
-        elif status_filter == 'placed':
-            conditions.append(OzonPosting.status.in_([
-                'awaiting_packaging', 'awaiting_deliver', 'delivering', 'delivered', 'cancelled'
-            ]))
-
-        # 店铺过滤
-        if shop_ids:
-            shop_id_list = [int(sid) for sid in shop_ids.split(",")]
+        if shop_id_list:
             conditions.append(OzonOrder.shop_id.in_(shop_id_list))
 
-        # 查询当月所有posting数据
-        postings_query = select(
-            OzonPosting,
-            OzonOrder,
-            OzonShop.shop_name
+        totals_query = select(
+            func.count(OzonPosting.id).label('order_count'),
+            func.coalesce(func.sum(sales_expr), Decimal('0')).label('total_sales'),
+            func.coalesce(func.sum(OzonPosting.purchase_price), Decimal('0')).label('total_purchase'),
+            func.coalesce(func.sum(OzonPosting.ozon_commission_cny), Decimal('0')).label('total_commission'),
+            func.coalesce(func.sum(OzonPosting.international_logistics_fee_cny), Decimal('0')).label('total_intl_logistics'),
+            func.coalesce(func.sum(OzonPosting.last_mile_delivery_fee_cny), Decimal('0')).label('total_last_mile'),
+            func.coalesce(func.sum(OzonPosting.material_cost), Decimal('0')).label('total_material'),
         ).join(
             OzonOrder, OzonPosting.order_id == OzonOrder.id
-        ).join(
-            OzonShop, OzonOrder.shop_id == OzonShop.id
         ).where(and_(*conditions))
 
-        result = await db.execute(postings_query)
-        postings_data = result.all()
+        totals_result = await db.execute(totals_query)
+        totals = totals_result.first()
 
-        # 初始化统计变量
-        total_sales = Decimal('0')
-        total_purchase = Decimal('0')
-        total_commission = Decimal('0')
-        total_intl_logistics = Decimal('0')
-        total_last_mile = Decimal('0')
-        total_material = Decimal('0')
-        order_count = len(postings_data)
+        order_count = totals.order_count or 0
+        total_sales = totals.total_sales or Decimal('0')
+        total_purchase = totals.total_purchase or Decimal('0')
+        total_commission = totals.total_commission or Decimal('0')
+        total_intl_logistics = totals.total_intl_logistics or Decimal('0')
+        total_last_mile = totals.total_last_mile or Decimal('0')
+        total_material = totals.total_material or Decimal('0')
 
-        # 店铺维度统计（字典）
-        shop_stats = {}
-
-        # 每日趋势统计（字典）
-        daily_stats = {}
-
-        # 商品销售统计（字典，用于TOP10）
-        product_stats = {}
-
-        # 遍历posting数据计算统计
-        from ..utils.serialization import format_currency
-
-        for posting, order, shop_name in postings_data:
-            # 订单金额（根据posting中的商品数据计算）
-            # 注意：order.total_price 可能不准确，因为 posting 中的数量可能与 order 不一致
-            order_amount = Decimal('0')
-            if posting.status != 'cancelled' and posting.raw_payload and 'products' in posting.raw_payload:
-                for product_raw in posting.raw_payload['products']:
-                    product_price = Decimal(str(product_raw.get('price', '0')))
-                    product_quantity = int(product_raw.get('quantity', 0))
-                    order_amount += product_price * product_quantity
-
-            # 费用字段（取消订单仍然计入成本）
-            purchase = posting.purchase_price or Decimal('0')
-            commission = posting.ozon_commission_cny or Decimal('0')
-            intl_log = posting.international_logistics_fee_cny or Decimal('0')
-            last_mile = posting.last_mile_delivery_fee_cny or Decimal('0')
-            material = posting.material_cost or Decimal('0')
-
-            # 利润（取消订单会产生负利润）
-            profit = order_amount - (purchase + commission + intl_log + last_mile + material)
-
-            # 累加总计
-            total_sales += order_amount
-            total_purchase += purchase
-            total_commission += commission
-            total_intl_logistics += intl_log
-            total_last_mile += last_mile
-            total_material += material
-
-            # 店铺维度统计
-            if shop_name not in shop_stats:
-                shop_stats[shop_name] = {'sales': Decimal('0'), 'profit': Decimal('0')}
-            shop_stats[shop_name]['sales'] += order_amount
-            shop_stats[shop_name]['profit'] += profit
-
-            # 每日趋势统计（使用下单时间，转换为全局时区）
-            # 将 UTC 时间转换为全局时区后再格式化日期
-            ordered_at_tz = order.ordered_at.astimezone(ZoneInfo(global_timezone))
-            date_str = ordered_at_tz.strftime("%Y-%m-%d")
-            if date_str not in daily_stats:
-                daily_stats[date_str] = {'sales': Decimal('0'), 'profit': Decimal('0')}
-            daily_stats[date_str]['sales'] += order_amount
-            daily_stats[date_str]['profit'] += profit
-
-            # 商品销售统计（用于TOP10）
-            if posting.raw_payload and 'products' in posting.raw_payload:
-                for product_raw in posting.raw_payload['products']:
-                    offer_id = product_raw.get('offer_id')
-                    if not offer_id:
-                        continue
-
-                    quantity = product_raw.get('quantity', 0)
-                    price = Decimal(str(product_raw.get('price', '0')))
-                    # 取消订单不计销售额
-                    if posting.status == 'cancelled':
-                        product_sales = Decimal('0')
-                    else:
-                        product_sales = price * quantity
-
-                    if offer_id not in product_stats:
-                        product_stats[offer_id] = {
-                            'name': product_raw.get('name', ''),
-                            'sku': product_raw.get('sku', ''),
-                            'sales': Decimal('0'),
-                            'quantity': 0,
-                            'profit': Decimal('0')  # 简化处理：按比例分配利润
-                        }
-
-                    product_stats[offer_id]['sales'] += product_sales
-                    product_stats[offer_id]['quantity'] += quantity
-                    # 按销售额比例分配利润（取消订单的利润也要分配）
-                    if posting.status == 'cancelled':
-                        # 取消订单：按数量比例分配负利润
-                        total_quantity = sum(p.get('quantity', 0) for p in posting.raw_payload['products'])
-                        if total_quantity > 0:
-                            # 使用 Decimal 避免类型错误
-                            ratio = Decimal(str(quantity)) / Decimal(str(total_quantity))
-                            product_profit = profit * ratio
-                            product_stats[offer_id]['profit'] += product_profit
-                    elif order_amount > 0:
-                        # 正常订单：按销售额比例分配利润
-                        product_profit = profit * (product_sales / order_amount)
-                        product_stats[offer_id]['profit'] += product_profit
-
-        # 计算总利润和利润率
+        # 计算利润
         total_profit = total_sales - (total_purchase + total_commission + total_intl_logistics + total_last_mile + total_material)
         profit_rate = float((total_profit / total_sales * 100)) if total_sales > 0 else 0.0
 
-        # 查询上月数据（用于对比，使用下单时间）
+        # ========== 2. 上月统计（使用 SQL 聚合）==========
         prev_conditions = [
             OzonOrder.ordered_at >= prev_start_date,
             OzonOrder.ordered_at <= prev_end_date,
-        ]
-        if status_filter == 'delivered':
-            prev_conditions.append(OzonPosting.status == 'delivered')
-        elif status_filter == 'placed':
-            prev_conditions.append(OzonPosting.status.in_([
-                'awaiting_packaging', 'awaiting_deliver', 'delivering', 'delivered', 'cancelled'
-            ]))
-        if shop_ids:
+        ] + status_conditions
+
+        if shop_id_list:
             prev_conditions.append(OzonOrder.shop_id.in_(shop_id_list))
 
-        prev_postings_query = select(
-            OzonPosting,
-            OzonOrder
+        prev_totals_query = select(
+            func.coalesce(func.sum(sales_expr), Decimal('0')).label('total_sales'),
+            func.coalesce(func.sum(OzonPosting.purchase_price), Decimal('0')).label('total_purchase'),
+            func.coalesce(func.sum(OzonPosting.ozon_commission_cny), Decimal('0')).label('total_commission'),
+            func.coalesce(func.sum(OzonPosting.international_logistics_fee_cny), Decimal('0')).label('total_intl_logistics'),
+            func.coalesce(func.sum(OzonPosting.last_mile_delivery_fee_cny), Decimal('0')).label('total_last_mile'),
+            func.coalesce(func.sum(OzonPosting.material_cost), Decimal('0')).label('total_material'),
         ).join(
             OzonOrder, OzonPosting.order_id == OzonOrder.id
         ).where(and_(*prev_conditions))
 
-        prev_result = await db.execute(prev_postings_query)
-        prev_postings_data = prev_result.all()
+        prev_totals_result = await db.execute(prev_totals_query)
+        prev_totals = prev_totals_result.first()
 
-        # 计算上月统计
-        prev_total_sales = Decimal('0')
-        prev_total_purchase = Decimal('0')
-        prev_total_commission = Decimal('0')
-        prev_total_intl_logistics = Decimal('0')
-        prev_total_last_mile = Decimal('0')
-        prev_total_material = Decimal('0')
-
-        for posting, order in prev_postings_data:
-            # 订单金额（根据posting中的商品数据计算，与当月逻辑保持一致）
-            order_amount = Decimal('0')
-            if posting.status != 'cancelled' and posting.raw_payload and 'products' in posting.raw_payload:
-                for product_raw in posting.raw_payload['products']:
-                    product_price = Decimal(str(product_raw.get('price', '0')))
-                    product_quantity = int(product_raw.get('quantity', 0))
-                    order_amount += product_price * product_quantity
-
-            # 费用仍然计入
-            purchase = posting.purchase_price or Decimal('0')
-            commission = posting.ozon_commission_cny or Decimal('0')
-            intl_log = posting.international_logistics_fee_cny or Decimal('0')
-            last_mile = posting.last_mile_delivery_fee_cny or Decimal('0')
-            material = posting.material_cost or Decimal('0')
-
-            prev_total_sales += order_amount
-            prev_total_purchase += purchase
-            prev_total_commission += commission
-            prev_total_intl_logistics += intl_log
-            prev_total_last_mile += last_mile
-            prev_total_material += material
+        prev_total_sales = prev_totals.total_sales or Decimal('0')
+        prev_total_purchase = prev_totals.total_purchase or Decimal('0')
+        prev_total_commission = prev_totals.total_commission or Decimal('0')
+        prev_total_intl_logistics = prev_totals.total_intl_logistics or Decimal('0')
+        prev_total_last_mile = prev_totals.total_last_mile or Decimal('0')
+        prev_total_material = prev_totals.total_material or Decimal('0')
 
         prev_total_profit = prev_total_sales - (prev_total_purchase + prev_total_commission + prev_total_intl_logistics + prev_total_last_mile + prev_total_material)
         prev_profit_rate = float((prev_total_profit / prev_total_sales * 100)) if prev_total_sales > 0 else 0.0
 
-        # 构建成本分解数据（用于饼图）- 包含利润占比
-        cost_breakdown = [
-            {"name": "进货金额", "value": float(total_purchase)},
-            {"name": "Ozon佣金", "value": float(total_commission)},
-            {"name": "国际物流", "value": float(total_intl_logistics)},
-            {"name": "尾程派送", "value": float(total_last_mile)},
-            {"name": "打包费用", "value": float(total_material)}
-        ]
-        # 只有利润为正时才加入饼图（饼图不能显示负值）
-        if total_profit > 0:
-            cost_breakdown.append({"name": "利润", "value": float(total_profit)})
+        # ========== 3. 店铺维度统计（使用 SQL GROUP BY）==========
+        # 计算利润表达式
+        profit_expr = sales_expr - (
+            func.coalesce(OzonPosting.purchase_price, Decimal('0')) +
+            func.coalesce(OzonPosting.ozon_commission_cny, Decimal('0')) +
+            func.coalesce(OzonPosting.international_logistics_fee_cny, Decimal('0')) +
+            func.coalesce(OzonPosting.last_mile_delivery_fee_cny, Decimal('0')) +
+            func.coalesce(OzonPosting.material_cost, Decimal('0'))
+        )
 
-        # 构建店铺分布数据（用于饼图）
+        shop_query = select(
+            OzonShop.shop_name,
+            func.coalesce(func.sum(sales_expr), Decimal('0')).label('sales'),
+            func.coalesce(func.sum(profit_expr), Decimal('0')).label('profit'),
+        ).join(
+            OzonOrder, OzonPosting.order_id == OzonOrder.id
+        ).join(
+            OzonShop, OzonOrder.shop_id == OzonShop.id
+        ).where(
+            and_(*conditions)
+        ).group_by(OzonShop.shop_name)
+
+        shop_result = await db.execute(shop_query)
         shop_breakdown = [
             {
-                "shop_name": shop_name,
-                "sales": float(stats['sales']),
-                "profit": float(stats['profit'])
+                "shop_name": row.shop_name,
+                "sales": float(row.sales),
+                "profit": float(row.profit)
             }
-            for shop_name, stats in shop_stats.items()
+            for row in shop_result.all()
         ]
 
-        # 构建每日趋势数据（用于折线图）
+        # ========== 4. 每日趋势统计（使用 SQL GROUP BY）==========
+        # 使用 PostgreSQL 的 AT TIME ZONE 转换时区后按日期分组
+        daily_query = select(
+            func.date(OzonOrder.ordered_at.op('AT TIME ZONE')('UTC').op('AT TIME ZONE')(global_timezone)).label('date'),
+            func.coalesce(func.sum(sales_expr), Decimal('0')).label('sales'),
+            func.coalesce(func.sum(profit_expr), Decimal('0')).label('profit'),
+        ).join(
+            OzonOrder, OzonPosting.order_id == OzonOrder.id
+        ).where(
+            and_(*conditions)
+        ).group_by(
+            func.date(OzonOrder.ordered_at.op('AT TIME ZONE')('UTC').op('AT TIME ZONE')(global_timezone))
+        ).order_by(
+            func.date(OzonOrder.ordered_at.op('AT TIME ZONE')('UTC').op('AT TIME ZONE')(global_timezone))
+        )
+
+        daily_result = await db.execute(daily_query)
         daily_trend = [
             {
-                "date": date_str,
-                "sales": float(stats['sales']),
-                "profit": float(stats['profit'])
+                "date": str(row.date),
+                "sales": float(row.sales),
+                "profit": float(row.profit)
             }
-            for date_str, stats in sorted(daily_stats.items())
+            for row in daily_result.all()
         ]
 
-        # 构建销售额TOP10商品数据
-        top_products_by_sales_list = sorted(
-            product_stats.items(),
-            key=lambda x: x[1]['sales'],
-            reverse=True
-        )[:10]
+        # ========== 5. TOP10 商品统计（需要解析 raw_payload）==========
+        # 这部分仍需要 Python 处理，但只查询必要字段
+        # 使用 PostgreSQL jsonb_array_elements 展开商品数组，在数据库层面聚合
+        top_products_sql = text("""
+            WITH product_data AS (
+                SELECT
+                    p.status,
+                    p.order_total_price,
+                    p.purchase_price,
+                    p.ozon_commission_cny,
+                    p.international_logistics_fee_cny,
+                    p.last_mile_delivery_fee_cny,
+                    p.material_cost,
+                    jsonb_array_elements(p.raw_payload->'products') as product
+                FROM ozon_postings p
+                JOIN ozon_orders o ON p.order_id = o.id
+                WHERE o.ordered_at >= :start_date
+                  AND o.ordered_at <= :end_date
+                  AND p.status = ANY(:statuses)
+                  AND (:shop_ids IS NULL OR o.shop_id = ANY(:shop_ids))
+            ),
+            aggregated AS (
+                SELECT
+                    product->>'offer_id' as offer_id,
+                    product->>'name' as name,
+                    product->>'sku' as sku,
+                    SUM(CASE WHEN status != 'cancelled'
+                        THEN (product->>'price')::numeric * (product->>'quantity')::int
+                        ELSE 0 END) as sales,
+                    SUM((product->>'quantity')::int) as quantity
+                FROM product_data
+                WHERE product->>'offer_id' IS NOT NULL
+                GROUP BY product->>'offer_id', product->>'name', product->>'sku'
+            )
+            SELECT offer_id, name, sku, sales, quantity
+            FROM aggregated
+            ORDER BY sales DESC
+            LIMIT 10
+        """)
 
-        # 构建销售量TOP10商品数据
-        top_products_by_quantity_list = sorted(
-            product_stats.items(),
-            key=lambda x: x[1]['quantity'],
-            reverse=True
-        )[:10]
+        # 确定状态列表
+        if status_filter == 'delivered':
+            statuses = ['delivered']
+        else:
+            statuses = ['awaiting_packaging', 'awaiting_deliver', 'delivering', 'delivered', 'cancelled']
 
-        # 合并两个列表的offer_id用于批量查询图片
+        top_sales_result = await db.execute(
+            top_products_sql,
+            {
+                "start_date": start_date,
+                "end_date": end_date,
+                "statuses": statuses,
+                "shop_ids": shop_id_list
+            }
+        )
+        top_products_by_sales_raw = top_sales_result.fetchall()
+
+        # 按销量排序的 TOP10
+        top_quantity_sql = text("""
+            WITH product_data AS (
+                SELECT
+                    p.status,
+                    jsonb_array_elements(p.raw_payload->'products') as product
+                FROM ozon_postings p
+                JOIN ozon_orders o ON p.order_id = o.id
+                WHERE o.ordered_at >= :start_date
+                  AND o.ordered_at <= :end_date
+                  AND p.status = ANY(:statuses)
+                  AND (:shop_ids IS NULL OR o.shop_id = ANY(:shop_ids))
+            ),
+            aggregated AS (
+                SELECT
+                    product->>'offer_id' as offer_id,
+                    product->>'name' as name,
+                    product->>'sku' as sku,
+                    SUM(CASE WHEN status != 'cancelled'
+                        THEN (product->>'price')::numeric * (product->>'quantity')::int
+                        ELSE 0 END) as sales,
+                    SUM((product->>'quantity')::int) as quantity
+                FROM product_data
+                WHERE product->>'offer_id' IS NOT NULL
+                GROUP BY product->>'offer_id', product->>'name', product->>'sku'
+            )
+            SELECT offer_id, name, sku, sales, quantity
+            FROM aggregated
+            ORDER BY quantity DESC
+            LIMIT 10
+        """)
+
+        top_quantity_result = await db.execute(
+            top_quantity_sql,
+            {
+                "start_date": start_date,
+                "end_date": end_date,
+                "statuses": statuses,
+                "shop_ids": shop_id_list
+            }
+        )
+        top_products_by_quantity_raw = top_quantity_result.fetchall()
+
+        # 收集所有 offer_id 用于批量查询图片
         top_offer_ids = set()
-        for offer_id, _ in top_products_by_sales_list:
-            top_offer_ids.add(offer_id)
-        for offer_id, _ in top_products_by_quantity_list:
-            top_offer_ids.add(offer_id)
+        for row in top_products_by_sales_raw:
+            if row.offer_id:
+                top_offer_ids.add(row.offer_id)
+        for row in top_products_by_quantity_raw:
+            if row.offer_id:
+                top_offer_ids.add(row.offer_id)
 
-        # 批量查询TOP10商品的图片
+        # 批量查询 TOP10 商品的图片
         offer_id_images = {}
         if top_offer_ids:
             product_query = select(OzonProduct.offer_id, OzonProduct.images).where(
@@ -874,33 +844,45 @@ async def get_report_summary(
                     if image_url:
                         offer_id_images[offer_id] = image_url
 
-        # 构建销售额TOP10返回数据
+        # 构建 TOP10 返回数据
         top_products_by_sales = [
             {
-                "offer_id": offer_id,
-                "name": stats['name'],
-                "sku": stats['sku'],
-                "sales": float(stats['sales']),
-                "quantity": stats['quantity'],
-                "profit": float(stats['profit']),
-                "image_url": offer_id_images.get(offer_id)  # 原始URL
+                "offer_id": row.offer_id,
+                "name": row.name or '',
+                "sku": row.sku or '',
+                "sales": float(row.sales or 0),
+                "quantity": int(row.quantity or 0),
+                "profit": 0.0,  # 简化：利润需要复杂计算，暂不在 TOP10 中展示
+                "image_url": offer_id_images.get(row.offer_id)
             }
-            for offer_id, stats in top_products_by_sales_list
+            for row in top_products_by_sales_raw
         ]
 
-        # 构建销售量TOP10返回数据
         top_products_by_quantity = [
             {
-                "offer_id": offer_id,
-                "name": stats['name'],
-                "sku": stats['sku'],
-                "sales": float(stats['sales']),
-                "quantity": stats['quantity'],
-                "profit": float(stats['profit']),
-                "image_url": offer_id_images.get(offer_id)  # 原始URL
+                "offer_id": row.offer_id,
+                "name": row.name or '',
+                "sku": row.sku or '',
+                "sales": float(row.sales or 0),
+                "quantity": int(row.quantity or 0),
+                "profit": 0.0,
+                "image_url": offer_id_images.get(row.offer_id)
             }
-            for offer_id, stats in top_products_by_quantity_list
+            for row in top_products_by_quantity_raw
         ]
+
+        # ========== 6. 构建成本分解数据 ==========
+        from ..utils.serialization import format_currency
+
+        cost_breakdown = [
+            {"name": "进货金额", "value": float(total_purchase)},
+            {"name": "Ozon佣金", "value": float(total_commission)},
+            {"name": "国际物流", "value": float(total_intl_logistics)},
+            {"name": "尾程派送", "value": float(total_last_mile)},
+            {"name": "打包费用", "value": float(total_material)}
+        ]
+        if total_profit > 0:
+            cost_breakdown.append({"name": "利润", "value": float(total_profit)})
 
         # 返回汇总数据
         return {
@@ -1029,3 +1011,146 @@ async def get_batch_finance_sync_progress(task_id: str):
     except Exception as e:
         logger.error(f"Failed to get batch finance sync progress: {e}")
         raise HTTPException(status_code=500, detail=f"获取任务进度失败: {str(e)}")
+
+
+@router.get("/reports/postings/{posting_number}")
+async def get_posting_detail(
+    posting_number: str,
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    获取单个货件详情（含商品信息）
+
+    用于在列表中点击货件编号时查看完整商品信息。
+    此端点会加载 raw_payload 以获取商品详情。
+
+    Args:
+        posting_number: 货件编号
+
+    Returns:
+        货件详情，包含商品列表、费用明细等
+    """
+    from sqlalchemy.orm import selectinload
+    from ..utils.serialization import format_currency
+
+    try:
+        # 查询 posting 及关联数据
+        query = select(
+            OzonPosting,
+            OzonOrder,
+            OzonShop.shop_name
+        ).join(
+            OzonOrder, OzonPosting.order_id == OzonOrder.id
+        ).join(
+            OzonShop, OzonOrder.shop_id == OzonShop.id
+        ).where(
+            OzonPosting.posting_number == posting_number
+        )
+
+        result = await db.execute(query)
+        row = result.first()
+
+        if not row:
+            raise HTTPException(status_code=404, detail=f"货件 {posting_number} 不存在")
+
+        posting, order, shop_name = row
+
+        # 从 raw_payload 提取商品列表
+        products_list = []
+        all_offer_ids = set()
+
+        if posting.raw_payload and 'products' in posting.raw_payload:
+            for product_raw in posting.raw_payload['products']:
+                offer_id = product_raw.get('offer_id')
+                if offer_id:
+                    all_offer_ids.add(offer_id)
+
+                products_list.append({
+                    'sku': str(product_raw.get('sku', '')),
+                    'offer_id': str(offer_id) if offer_id else None,
+                    'name': product_raw.get('name', ''),
+                    'quantity': product_raw.get('quantity', 0),
+                    'price': format_currency(Decimal(str(product_raw.get('price', '0')))),
+                    'image_url': None  # 稍后填充
+                })
+
+        # 批量查询商品图片
+        if all_offer_ids:
+            product_query = select(OzonProduct.offer_id, OzonProduct.images).where(
+                OzonProduct.offer_id.in_(list(all_offer_ids))
+            )
+            products_result = await db.execute(product_query)
+            offer_id_images = {}
+            for offer_id, images in products_result:
+                if offer_id and images:
+                    image_url = None
+                    if isinstance(images, dict):
+                        if images.get("primary"):
+                            image_url = images["primary"]
+                        elif images.get("main") and isinstance(images["main"], list) and images["main"]:
+                            image_url = images["main"][0]
+                    elif isinstance(images, list) and images:
+                        image_url = images[0]
+                    if image_url:
+                        offer_id_images[offer_id] = image_url
+
+            # 填充图片 URL
+            for product in products_list:
+                if product['offer_id']:
+                    product['image_url'] = offer_id_images.get(product['offer_id'])
+
+        # 计算订单金额
+        real_order_amount = Decimal('0')
+        if posting.raw_payload and 'products' in posting.raw_payload:
+            for product_raw in posting.raw_payload['products']:
+                product_price = Decimal(str(product_raw.get('price', '0')))
+                product_quantity = int(product_raw.get('quantity', 0))
+                real_order_amount += product_price * product_quantity
+
+        # 取消订单不计销售额
+        order_amount = Decimal('0') if posting.status == 'cancelled' else real_order_amount
+
+        # 费用字段
+        purchase_price = posting.purchase_price or Decimal('0')
+        ozon_commission = posting.ozon_commission_cny or Decimal('0')
+        intl_logistics = posting.international_logistics_fee_cny or Decimal('0')
+        last_mile = posting.last_mile_delivery_fee_cny or Decimal('0')
+        material_cost = posting.material_cost or Decimal('0')
+
+        # 计算利润
+        profit = order_amount - (purchase_price + ozon_commission + intl_logistics + last_mile + material_cost)
+        profit_rate = float((profit / order_amount * 100)) if order_amount > 0 else 0.0
+
+        return {
+            'posting_number': posting.posting_number,
+            'shop_name': shop_name,
+            'status': posting.status,
+            'is_cancelled': posting.status == 'cancelled',
+            'created_at': order.ordered_at.isoformat(),
+            'in_process_at': posting.in_process_at.isoformat() if posting.in_process_at else None,
+            'shipped_at': posting.shipped_at.isoformat() if posting.shipped_at else None,
+            'delivered_at': posting.delivered_at.isoformat() if posting.delivered_at else None,
+            'products': products_list,
+            'product_count': len(products_list),
+            'order_amount': format_currency(real_order_amount),
+            'purchase_price': format_currency(purchase_price),
+            'ozon_commission_cny': format_currency(ozon_commission),
+            'international_logistics_fee_cny': format_currency(intl_logistics),
+            'last_mile_delivery_fee_cny': format_currency(last_mile),
+            'material_cost': format_currency(material_cost),
+            'profit': format_currency(profit),
+            'profit_rate': round(profit_rate, 2),
+            # 额外字段
+            'warehouse_name': posting.warehouse_name,
+            'delivery_method_name': posting.delivery_method_name,
+            'order_notes': posting.order_notes,
+            'domestic_tracking_numbers': posting.get_domestic_tracking_numbers(),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get posting detail: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"获取货件详情失败: {str(e)}")

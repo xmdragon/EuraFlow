@@ -331,7 +331,7 @@ const ThirdPartyServicesTab: React.FC = () => {
               <Card className={styles.card}>
                 <Alert
                   message="汇率API用于实时获取人民币→卢布汇率"
-                  description="免费账户每月1500次请求，系统每30分钟自动刷新一次"
+                  description="免费账户每月1500次请求，系统每小时自动刷新一次"
                   type="info"
                   showIcon
                   style={{ marginBottom: 16 }}

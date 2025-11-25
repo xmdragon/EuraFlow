@@ -126,7 +126,7 @@ const ConfigGuideTab: React.FC = () => {
           <Title level={5}>使用说明</Title>
           <Paragraph>
             <ul>
-              <li>系统每30分钟自动刷新一次汇率</li>
+              <li>系统每小时自动刷新一次汇率</li>
               <li>可手动刷新获取最新汇率</li>
               <li>汇率数据缓存24小时</li>
               <li>用于选品助手、财务计算等功能</li>

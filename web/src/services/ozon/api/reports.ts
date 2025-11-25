@@ -99,3 +99,50 @@ export const getBatchFinanceSyncProgress = async (
   );
   return response.data;
 };
+
+/**
+ * 获取 Posting 详情（包含商品列表）
+ * 用于在报表列表中点击货件编号时查看完整商品信息
+ */
+export interface PostingDetailProduct {
+  sku: string;
+  offer_id?: string;
+  name: string;
+  quantity: number;
+  price: string;
+  image_url?: string;
+}
+
+export interface PostingDetailResponse {
+  posting_number: string;
+  shop_name: string;
+  status: string;
+  is_cancelled: boolean;
+  created_at: string;
+  in_process_at?: string;
+  shipped_at?: string;
+  delivered_at?: string;
+  products: PostingDetailProduct[];
+  product_count: number;
+  order_amount: string;
+  purchase_price: string;
+  ozon_commission_cny: string;
+  international_logistics_fee_cny: string;
+  last_mile_delivery_fee_cny: string;
+  material_cost: string;
+  profit: string;
+  profit_rate: number;
+  warehouse_name?: string;
+  delivery_method_name?: string;
+  order_notes?: string;
+  domestic_tracking_numbers?: string[];
+}
+
+export const getPostingDetail = async (
+  postingNumber: string,
+): Promise<PostingDetailResponse> => {
+  const response = await apiClient.get(
+    `/ozon/reports/postings/${encodeURIComponent(postingNumber)}`,
+  );
+  return response.data;
+};

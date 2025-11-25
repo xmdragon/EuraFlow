@@ -27,6 +27,7 @@ from .chatgpt_translation import ChatGPTTranslationConfig
 from .collection_record import OzonProductCollectionRecord
 from .draft_template import OzonProductTemplate
 from .cancel_return import OzonCancellation, OzonReturn
+from .stats import OzonDailyStats
 
 __all__ = [
     "OzonShop",
@@ -76,4 +77,6 @@ __all__ = [
     # Cancel & Return
     "OzonCancellation",
     "OzonReturn",
+    # Statistics
+    "OzonDailyStats",
 ]

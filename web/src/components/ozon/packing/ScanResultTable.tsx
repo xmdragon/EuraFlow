@@ -59,6 +59,12 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
   onCopy,
 }) => {
   const { formatDateTime } = useDateTime();
+
+  // 预计算选中的 row keys（避免每次渲染都重新计算）
+  const selectedRowKeys = useMemo(() => {
+    return scanSelectedPostings.map((pn) => `${pn}_0`);
+  }, [scanSelectedPostings]);
+
   // 将 scanResults 转换为表格行数据
   const scanItemRows = useMemo<ScanResultItemRow[]>(() => {
     const rows: ScanResultItemRow[] = [];
@@ -111,17 +117,19 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
       rowSelection={
         canOperate
           ? {
-              // 将 posting_number 转换为第一行的 key
-              selectedRowKeys: scanSelectedPostings.map((pn) => `${pn}_0`),
-              onChange: (selectedRowKeys) => {
-                // 从 key 中提取 posting_number
-                const postingNumbers = Array.from(
-                  new Set(
-                    (selectedRowKeys as string[]).map((key) =>
-                      key.split("_").slice(0, -1).join("_"),
-                    ),
-                  ),
-                );
+              selectedRowKeys,
+              onChange: (newSelectedRowKeys) => {
+                // 从 key 中提取 posting_number（key 格式：posting_number_index）
+                const postingNumbers: string[] = [];
+                const seen = new Set<string>();
+                for (const key of newSelectedRowKeys as string[]) {
+                  const lastUnderscoreIndex = key.lastIndexOf("_");
+                  const pn = key.substring(0, lastUnderscoreIndex);
+                  if (!seen.has(pn)) {
+                    seen.add(pn);
+                    postingNumbers.push(pn);
+                  }
+                }
                 onSelectedPostingsChange(postingNumbers);
               },
               getCheckboxProps: (row: ScanResultItemRow) => ({
@@ -572,4 +580,4 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
   );
 };
 
-export default ScanResultTable;
+export default React.memo(ScanResultTable);

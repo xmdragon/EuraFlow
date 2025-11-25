@@ -49,6 +49,10 @@ from .quick_publish_task import (
     update_product_stock_task
 )
 
+from .stats_aggregation_task import (
+    aggregate_daily_stats
+)
+
 __all__ = [
     "sync_all_promotions",
     "promotion_health_check",
@@ -67,4 +71,5 @@ __all__ = [
     "upload_images_to_storage_task",
     "update_ozon_product_images_task",
     "update_product_stock_task",
+    "aggregate_daily_stats",
 ]

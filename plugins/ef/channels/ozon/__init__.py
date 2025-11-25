@@ -811,6 +811,37 @@ async def setup(hooks) -> None:
         import traceback
         traceback.print_exc()
 
+    # 注册每日统计聚合任务
+    try:
+        from .tasks.stats_aggregation_task import aggregate_daily_stats
+
+        # 创建异步包装任务
+        async def daily_stats_aggregation_task(**kwargs):
+            """每日统计聚合定时任务"""
+            logger.info("Starting daily stats aggregation task")
+            try:
+                # 直接调用Celery任务
+                result = aggregate_daily_stats.delay()
+                task_result = result.get(timeout=300)  # 5分钟超时
+                logger.info(f"Daily stats aggregation completed: {task_result}")
+                return task_result
+            except Exception as e:
+                logger.error(f"Daily stats aggregation failed: {e}", exc_info=True)
+                return {"success": False, "error": str(e)}
+
+        # 注册每日统计聚合任务（UTC 14:00 = 北京时间 22:00）
+        await hooks.register_cron(
+            name="ef.ozon.stats.daily_aggregation",
+            cron="0 14 * * *",
+            task=daily_stats_aggregation_task
+        )
+
+        logger.info("✓ Registered daily stats aggregation task successfully")
+    except Exception as e:
+        logger.warning(f"Warning: Failed to register daily stats aggregation task: {e}")
+        import traceback
+        traceback.print_exc()
+
     # 配置信息已在上面打印
 
 

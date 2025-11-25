@@ -30,6 +30,7 @@ import {
   Tooltip,
   Progress,
   App,
+  Modal,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
@@ -52,13 +53,11 @@ import {
 
 import styles from "./OrderReport.module.scss";
 
-import OrderDetailModal from "@/components/ozon/OrderDetailModal";
 import ProductImage from "@/components/ozon/ProductImage";
 import ShopSelectorWithLabel from "@/components/ozon/ShopSelectorWithLabel";
 import PageTitle from "@/components/PageTitle";
 import { ORDER_STATUS_CONFIG } from "@/config/ozon/orderStatusConfig";
 import { useCopy } from "@/hooks/useCopy";
-import { useCurrency } from "@/hooks/useCurrency";
 import { useDateTime } from "@/hooks/useDateTime";
 import * as ozonApi from "@/services/ozon";
 import { notifySuccess, notifyError } from "@/utils/notification";
@@ -82,22 +81,15 @@ const COLORS = [
 
 // ===== 类型定义 =====
 
-interface ProductInPosting {
-  sku: string;
-  offer_id?: string;
-  name: string;
-  quantity: number;
-  price: string;
-  image_url?: string;
-}
-
+// Posting 列表项（不含商品详情，优化后的响应）
 interface PostingReportItem {
   posting_number: string;
   shop_name: string;
   status: string;
+  is_cancelled: boolean;
   created_at: string;
   in_process_at?: string;
-  products: ProductInPosting[];
+  product_count: number;  // 商品数量（替代 products 数组）
   order_amount: string;
   purchase_price: string;
   ozon_commission_cny: string;
@@ -108,13 +100,39 @@ interface PostingReportItem {
   profit_rate: number;
 }
 
-interface PostingItemRow {
-  key: string;
-  product: ProductInPosting;
-  productIndex: number;
-  posting: PostingReportItem;
-  isFirstItem: boolean;
-  itemCount: number;
+// Posting 详情（含商品列表，用于 Modal 展示）
+interface PostingDetailProduct {
+  sku: string;
+  offer_id?: string;
+  name: string;
+  quantity: number;
+  price: string;
+  image_url?: string;
+}
+
+interface PostingDetail {
+  posting_number: string;
+  shop_name: string;
+  status: string;
+  is_cancelled: boolean;
+  created_at: string;
+  in_process_at?: string;
+  shipped_at?: string;
+  delivered_at?: string;
+  products: PostingDetailProduct[];
+  product_count: number;
+  order_amount: string;
+  purchase_price: string;
+  ozon_commission_cny: string;
+  international_logistics_fee_cny: string;
+  last_mile_delivery_fee_cny: string;
+  material_cost: string;
+  profit: string;
+  profit_rate: number;
+  warehouse_name?: string;
+  delivery_method_name?: string;
+  order_notes?: string;
+  domestic_tracking_numbers?: string[];
 }
 
 interface ReportSummary {
@@ -183,66 +201,21 @@ const OrderReport: React.FC = () => {
   const [sortBy, setSortBy] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
-  // 详情Modal状态
+  // 详情Modal状态（使用新的 PostingDetail 类型）
   const [detailModalVisible, setDetailModalVisible] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState<ozonApi.Order | null>(null);
-  const [selectedPosting, setSelectedPosting] = useState<ozonApi.Posting | null>(null);
-  const [_loadingDetail, _setLoadingDetail] = useState(false);
+  const [selectedPostingDetail, setSelectedPostingDetail] = useState<PostingDetail | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
 
   // 批量同步状态
   const [batchSyncTaskId, setBatchSyncTaskId] = useState<string | null>(null);
   const [batchSyncProgress, setBatchSyncProgress] = useState<any>(null);
   const [isBatchSyncing, setIsBatchSyncing] = useState(false);
 
-  // 货币和状态配置
-  const { currency: userCurrency } = useCurrency();
+  // 状态配置
   const statusConfig = ORDER_STATUS_CONFIG;
 
   // 获取 notification 实例（用于显示进度）
   const { notification } = App.useApp();
-
-  // 格式化配送方式文本（用于白色背景显示）
-  const formatDeliveryMethodTextWhite = (text: string | undefined): React.ReactNode => {
-    if (!text) return '-';
-
-    // 如果包含括号，提取括号内的内容
-    const match = text.match(/^(.+?)[(（](.+?)[)）]$/);
-    if (!match) return text;
-
-    const mainPart = match[1].trim();
-    const detailPart = match[2].trim();
-
-    // 解析限制信息为三行：重量、价格、体积
-    const parseRestrictions = (restriction: string): string[] => {
-      // 移除"限制:"前缀
-      const content = restriction.replace(/^限制[:：]\s*/, '');
-
-      // 使用正则提取三个部分
-      const parts: string[] = [];
-      const weightMatch = content.match(/重量[:：\s]*([^，,]+)/);
-      const priceMatch = content.match(/价格[:：\s]*([^，,]+)/);
-      const volumeMatch = content.match(/体积[:：\s]*(.+)$/);
-
-      if (weightMatch) parts.push(weightMatch[1].trim());
-      if (priceMatch) parts.push(priceMatch[1].trim());
-      if (volumeMatch) parts.push(volumeMatch[1].trim());
-
-      return parts;
-    };
-
-    const restrictions = parseRestrictions(detailPart);
-
-    return (
-      <div>
-        <div>{mainPart}</div>
-        {restrictions.map((line, idx) => (
-          <div key={idx} style={{ fontSize: '12px', color: '#666' }}>
-            {line}
-          </div>
-        ))}
-      </div>
-    );
-  };
 
   // ===== 数据查询 =====
 
@@ -325,21 +298,6 @@ const OrderReport: React.FC = () => {
     }
   }, [postingReportData, page]);
 
-  // offer_id到图片的映射，从报表数据中提取
-  const offerIdImageMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    if (postingReportData?.data) {
-      postingReportData.data.forEach((posting: PostingReportItem) => {
-        posting.products.forEach((product: ProductInPosting) => {
-          if (product.offer_id && product.image_url) {
-            map[product.offer_id] = product.image_url;
-          }
-        });
-      });
-    }
-    return map;
-  }, [postingReportData]);
-
   // 查询报表汇总数据（仅在订单汇总Tab激活时查询）
   const {
     data: summaryData,
@@ -383,26 +341,18 @@ const OrderReport: React.FC = () => {
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
-  // 打开货件详情Modal - 调用 API 获取完整订单数据
-  const showPostingDetail = async (postingNumber: string, shopId?: number) => {
+  // 打开货件详情Modal - 调用新的报表详情 API
+  const showPostingDetail = async (postingNumber: string) => {
     try {
-      _setLoadingDetail(true);
-      const response = await ozonApi.getOrderDetail(postingNumber, shopId);
-
-      // response.data 应该包含完整的订单信息
-      if (response.data) {
-        const orderData = response.data;
-        // 找到对应的 posting
-        const posting = orderData.postings?.find(p => p.posting_number === postingNumber);
-
-        setSelectedOrder(orderData);
-        setSelectedPosting(posting || null);
-        setDetailModalVisible(true);
-      }
+      setLoadingDetail(true);
+      // 使用新的报表详情 API（不需要 shopId）
+      const detail = await ozonApi.getPostingDetail(postingNumber);
+      setSelectedPostingDetail(detail as PostingDetail);
+      setDetailModalVisible(true);
     } catch {
-      notifyError('加载失败', '无法加载订单详情');
+      notifyError('加载失败', '无法加载货件详情');
     } finally {
-      _setLoadingDetail(false);
+      setLoadingDetail(false);
     }
   };
 
@@ -498,220 +448,137 @@ const OrderReport: React.FC = () => {
 
   // ===== 订单明细Tab数据处理 =====
 
-  // 将posting数据转换为item行数据（类似PackingShipment的模式）
-  const postingItemRows = useMemo<PostingItemRow[]>(() => {
+  // 直接使用 allLoadedData，每个 posting 一行（优化后不再展开商品）
+  const postingRows = useMemo<PostingReportItem[]>(() => {
     if (!allLoadedData || allLoadedData.length === 0) return [];
-
-    const rows: PostingItemRow[] = [];
-    allLoadedData.forEach((posting: PostingReportItem) => {
-      const products = posting.products || [];
-      const itemCount = products.length;
-
-      products.forEach((product, index) => {
-        rows.push({
-          key: `${posting.posting_number}_${index}`,
-          product: product,
-          productIndex: index,
-          posting: posting,
-          isFirstItem: index === 0,
-          itemCount: itemCount,
-        });
-      });
-    });
-
-    return rows;
+    return allLoadedData.map((posting: PostingReportItem) => ({
+      ...posting,
+      key: posting.posting_number,
+    }));
   }, [allLoadedData]);
 
-  // ===== 订单明细Tab - 表格列定义 =====
+  // ===== 订单明细Tab - 表格列定义（优化后：每个 posting 一行）=====
 
-  const detailColumns: ColumnsType<PostingItemRow> = [
-    // 1. 图片列
+  const detailColumns: ColumnsType<PostingReportItem & { key: string }> = [
+    // 1. 日期列
     {
-      title: "图片",
+      title: "日期",
       width: 80,
       render: (_, row) => (
-        <ProductImage
-          imageUrl={row.product.image_url}
-          size="small"
-          hoverBehavior="medium"
-          name={row.product.name}
-        />
-      ),
-    },
-    // 2. 商品信息列（3行垂直布局）
-    {
-      title: "商品信息",
-      render: (_, row) => (
-        <div className={styles.productInfo}>
-          <div className={styles.shopName}>{row.posting.shop_name}</div>
-          <div className={styles.productName}>
-            <Text
-              ellipsis={{
-                tooltip:
-                  row.product.name && row.product.name.length > 50
-                    ? row.product.name
-                    : undefined,
-              }}
-            >
-              {row.product.name && row.product.name.length > 50
-                ? row.product.name.substring(0, 50) + "..."
-                : row.product.name || "-"}
-            </Text>
-          </div>
-          <div className={styles.skuContainer}>
-            <span
-              className={styles.skuLink}
-              onClick={() => openProductLink(row.product.sku)}
-            >
-              {row.product.sku} <LinkOutlined />
-            </span>
-            <CopyOutlined
-              className={styles.copyIcon}
-              onClick={(e) => {
-                e.stopPropagation();
-                copyToClipboard(row.product.sku, 'SKU');
-              }}
-            />
-          </div>
+        <div className={styles.date}>
+          {formatDate(row.created_at, "MM-DD")}
         </div>
       ),
     },
-    // 3. 货件编号（rowSpan，包含日期）
+    // 2. 店铺名称
+    {
+      title: "店铺",
+      width: 100,
+      render: (_, row) => (
+        <div className={styles.shopName}>{row.shop_name}</div>
+      ),
+    },
+    // 3. 货件编号（可点击查看详情）
     {
       title: "货件编号",
-      width: "12%",
-      render: (_, row) => {
-        if (!row.isFirstItem) return null;
-        return {
-          children: (
-            <div className={styles.postingInfo}>
-              <div className={styles.date}>
-                {formatDate(row.posting.created_at, "MM-DD")}
-              </div>
-              <div className={styles.postingNumberContainer}>
-                <span
-                  className={styles.postingNumberLink}
-                  onClick={() => showPostingDetail(row.posting.posting_number, selectedShop || undefined)}
-                >
-                  {row.posting.posting_number}
-                </span>
-                <CopyOutlined
-                  className={styles.copyIcon}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    copyToClipboard(row.posting.posting_number, 'Posting号');
-                  }}
-                />
-              </div>
-            </div>
-          ),
-          props: { rowSpan: row.itemCount },
-        };
-      },
+      width: 180,
+      render: (_, row) => (
+        <div className={styles.postingNumberContainer}>
+          <span
+            className={styles.postingNumberLink}
+            onClick={() => showPostingDetail(row.posting_number)}
+          >
+            {row.posting_number}
+          </span>
+          <CopyOutlined
+            className={styles.copyIcon}
+            onClick={(e) => {
+              e.stopPropagation();
+              copyToClipboard(row.posting_number, 'Posting号');
+            }}
+          />
+        </div>
+      ),
     },
-    // 4. 订单金额（rowSpan）
+    // 4. 商品数量（点击查看详情）
+    {
+      title: "商品",
+      width: 60,
+      align: "center",
+      render: (_, row) => (
+        <Tooltip title="点击查看商品详情">
+          <span
+            style={{ cursor: 'pointer', color: '#1890ff' }}
+            onClick={() => showPostingDetail(row.posting_number)}
+          >
+            {row.product_count} 件
+          </span>
+        </Tooltip>
+      ),
+    },
+    // 5. 订单金额
     {
       title: "订单金额",
-      width: "8%",
+      width: 100,
       align: "right",
-      render: (_, row) => {
-        if (!row.isFirstItem) return null;
-        return {
-          children: row.posting.order_amount,
-          props: { rowSpan: row.itemCount },
-        };
-      },
+      render: (_, row) => row.order_amount,
     },
-    // 5. 进货金额（rowSpan）
+    // 6. 进货金额
     {
       title: "进货金额",
-      width: "8%",
+      width: 100,
       align: "right",
-      render: (_, row) => {
-        if (!row.isFirstItem) return null;
-        return {
-          children: row.posting.purchase_price || "-",
-          props: { rowSpan: row.itemCount },
-        };
-      },
+      render: (_, row) => row.purchase_price || "-",
     },
-    // 6. Ozon佣金（rowSpan）
+    // 7. Ozon佣金
     {
       title: "Ozon佣金",
-      width: "8%",
+      width: 100,
       align: "right",
-      render: (_, row) => {
-        if (!row.isFirstItem) return null;
-        return {
-          children: row.posting.ozon_commission_cny || "-",
-          props: { rowSpan: row.itemCount },
-        };
-      },
+      render: (_, row) => row.ozon_commission_cny || "-",
     },
-    // 7. 国际物流（rowSpan）
+    // 8. 国际物流
     {
       title: "国际物流",
-      width: "8%",
+      width: 100,
       align: "right",
-      render: (_, row) => {
-        if (!row.isFirstItem) return null;
-        return {
-          children: row.posting.international_logistics_fee_cny || "-",
-          props: { rowSpan: row.itemCount },
-        };
-      },
+      render: (_, row) => row.international_logistics_fee_cny || "-",
     },
-    // 8. 尾程派送（rowSpan）
+    // 9. 尾程派送
     {
       title: "尾程派送",
-      width: "8%",
+      width: 100,
       align: "right",
-      render: (_, row) => {
-        if (!row.isFirstItem) return null;
-        return {
-          children: row.posting.last_mile_delivery_fee_cny || "-",
-          props: { rowSpan: row.itemCount },
-        };
-      },
+      render: (_, row) => row.last_mile_delivery_fee_cny || "-",
     },
-    // 9. 打包费用（rowSpan）
+    // 10. 打包费用
     {
       title: "打包费用",
-      width: "8%",
+      width: 100,
       align: "right",
-      render: (_, row) => {
-        if (!row.isFirstItem) return null;
-        return {
-          children: row.posting.material_cost || "-",
-          props: { rowSpan: row.itemCount },
-        };
-      },
+      render: (_, row) => row.material_cost || "-",
     },
-    // 10. 利润金额（rowSpan）
+    // 11. 利润金额
     {
       title: "利润金额",
-      width: "8%",
+      width: 100,
       align: "right",
       render: (_, row) => {
-        if (!row.isFirstItem) return null;
-        const profit = parseFloat(row.posting.profit || "0");
-        return {
-          children: (
-            <span
-              className={`${styles.profitCell} ${profit >= 0 ? styles.positive : styles.negative}`}
-            >
-              {row.posting.profit}
-            </span>
-          ),
-          props: { rowSpan: row.itemCount },
-        };
+        const profit = parseFloat(row.profit || "0");
+        return (
+          <span
+            className={`${styles.profitCell} ${profit >= 0 ? styles.positive : styles.negative}`}
+          >
+            {row.profit}
+          </span>
+        );
       },
     },
-    // 11. 利润比率（rowSpan，带排序）
+    // 12. 利润比率（带排序）
     {
       title: () => (
         <div className={styles.profitRateHeader}>
-          <span>利润比率</span>
+          <span>利润率</span>
           <span className={styles.sortIcons}>
             <UpOutlined
               className={`${styles.sortIcon} ${sortBy === "profit_rate" && sortOrder === "asc" ? styles.active : ""}`}
@@ -734,21 +601,17 @@ const OrderReport: React.FC = () => {
           </span>
         </div>
       ),
-      width: "10%",
+      width: 100,
       align: "right",
       render: (_, row) => {
-        if (!row.isFirstItem) return null;
-        const profitRate = row.posting.profit_rate;
-        return {
-          children: (
-            <span
-              className={`${styles.profitCell} ${profitRate >= 0 ? styles.positive : styles.negative}`}
-            >
-              {profitRate.toFixed(2)}%
-            </span>
-          ),
-          props: { rowSpan: row.itemCount },
-        };
+        const profitRate = row.profit_rate;
+        return (
+          <span
+            className={`${styles.profitCell} ${profitRate >= 0 ? styles.positive : styles.negative}`}
+          >
+            {profitRate.toFixed(2)}%
+          </span>
+        );
       },
     },
   ];
@@ -874,14 +737,15 @@ const OrderReport: React.FC = () => {
               tab={`订单明细 (${postingReportData?.total || 0})`}
               key="details"
             >
-              <Spin spinning={isLoadingPostings}>
+              <Spin spinning={isLoadingPostings || loadingDetail}>
                 <Table
-                  dataSource={postingItemRows}
+                  dataSource={postingRows}
                   columns={detailColumns}
                   rowKey="key"
                   pagination={false}
-                  scroll={{ x: "max-content" }}
+                  scroll={{ x: 1400 }}
                   loading={false}
+                  size="small"
                 />
                 {/* 加载更多提示 */}
                 {isFetching && (
@@ -1500,21 +1364,165 @@ const OrderReport: React.FC = () => {
         </div>
       </Card>
 
-      {/* 订单详情Modal（统一组件） */}
-      <OrderDetailModal
-        visible={detailModalVisible}
-        onCancel={() => setDetailModalVisible(false)}
-        selectedOrder={selectedOrder}
-        selectedPosting={selectedPosting}
-        statusConfig={statusConfig}
-        userCurrency={userCurrency}
-        offerIdImageMap={offerIdImageMap}
-        formatDeliveryMethodTextWhite={formatDeliveryMethodTextWhite}
-        onUpdate={() => {
-          // 刷新报表数据
-          refetchPostings();
+      {/* 货件详情Modal（简化版，显示商品列表） */}
+      <Modal
+        title={
+          <Space>
+            <FileTextOutlined />
+            <span>货件详情: {selectedPostingDetail?.posting_number}</span>
+          </Space>
+        }
+        open={detailModalVisible}
+        onCancel={() => {
+          setDetailModalVisible(false);
+          setSelectedPostingDetail(null);
         }}
-      />
+        footer={null}
+        width={900}
+        destroyOnClose
+      >
+        {selectedPostingDetail && (
+          <div>
+            {/* 基本信息 */}
+            <Row gutter={16} style={{ marginBottom: 16 }}>
+              <Col span={8}>
+                <Text type="secondary">店铺：</Text>
+                <Text strong>{selectedPostingDetail.shop_name}</Text>
+              </Col>
+              <Col span={8}>
+                <Text type="secondary">状态：</Text>
+                <Text strong style={{ color: selectedPostingDetail.is_cancelled ? '#ff4d4f' : '#52c41a' }}>
+                  {statusConfig[selectedPostingDetail.status]?.label || selectedPostingDetail.status}
+                </Text>
+              </Col>
+              <Col span={8}>
+                <Text type="secondary">下单时间：</Text>
+                <Text>{formatDate(selectedPostingDetail.created_at, "YYYY-MM-DD HH:mm")}</Text>
+              </Col>
+            </Row>
+
+            {/* 商品列表 */}
+            <Divider orientation="left">商品列表 ({selectedPostingDetail.product_count} 件)</Divider>
+            <Table
+              dataSource={selectedPostingDetail.products}
+              rowKey="sku"
+              pagination={false}
+              size="small"
+              columns={[
+                {
+                  title: "图片",
+                  width: 60,
+                  render: (_, product) => (
+                    <ProductImage
+                      imageUrl={product.image_url}
+                      size="small"
+                      hoverBehavior="medium"
+                      name={product.name}
+                    />
+                  ),
+                },
+                {
+                  title: "商品信息",
+                  render: (_, product) => (
+                    <div>
+                      <div style={{ fontWeight: 500 }}>{product.name}</div>
+                      <div className={styles.skuContainer}>
+                        <span
+                          className={styles.skuLink}
+                          onClick={() => openProductLink(product.sku)}
+                        >
+                          {product.sku} <LinkOutlined />
+                        </span>
+                        <CopyOutlined
+                          className={styles.copyIcon}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyToClipboard(product.sku, 'SKU');
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ),
+                },
+                {
+                  title: "单价",
+                  width: 100,
+                  align: "right" as const,
+                  render: (_, product) => product.price,
+                },
+                {
+                  title: "数量",
+                  width: 60,
+                  align: "center" as const,
+                  dataIndex: "quantity",
+                },
+              ]}
+            />
+
+            {/* 费用明细 */}
+            <Divider orientation="left">费用明细</Divider>
+            <Row gutter={[16, 8]}>
+              <Col span={8}>
+                <Text type="secondary">订单金额：</Text>
+                <Text strong>{selectedPostingDetail.order_amount}</Text>
+              </Col>
+              <Col span={8}>
+                <Text type="secondary">进货金额：</Text>
+                <Text>{selectedPostingDetail.purchase_price || "-"}</Text>
+              </Col>
+              <Col span={8}>
+                <Text type="secondary">Ozon佣金：</Text>
+                <Text>{selectedPostingDetail.ozon_commission_cny || "-"}</Text>
+              </Col>
+              <Col span={8}>
+                <Text type="secondary">国际物流：</Text>
+                <Text>{selectedPostingDetail.international_logistics_fee_cny || "-"}</Text>
+              </Col>
+              <Col span={8}>
+                <Text type="secondary">尾程派送：</Text>
+                <Text>{selectedPostingDetail.last_mile_delivery_fee_cny || "-"}</Text>
+              </Col>
+              <Col span={8}>
+                <Text type="secondary">打包费用：</Text>
+                <Text>{selectedPostingDetail.material_cost || "-"}</Text>
+              </Col>
+              <Col span={8}>
+                <Text type="secondary">利润：</Text>
+                <Text strong style={{ color: parseFloat(selectedPostingDetail.profit) >= 0 ? '#52c41a' : '#ff4d4f' }}>
+                  {selectedPostingDetail.profit}
+                </Text>
+              </Col>
+              <Col span={8}>
+                <Text type="secondary">利润率：</Text>
+                <Text strong style={{ color: selectedPostingDetail.profit_rate >= 0 ? '#52c41a' : '#ff4d4f' }}>
+                  {selectedPostingDetail.profit_rate.toFixed(2)}%
+                </Text>
+              </Col>
+            </Row>
+
+            {/* 其他信息 */}
+            {(selectedPostingDetail.warehouse_name || selectedPostingDetail.order_notes) && (
+              <>
+                <Divider orientation="left">其他信息</Divider>
+                <Row gutter={[16, 8]}>
+                  {selectedPostingDetail.warehouse_name && (
+                    <Col span={12}>
+                      <Text type="secondary">仓库：</Text>
+                      <Text>{selectedPostingDetail.warehouse_name}</Text>
+                    </Col>
+                  )}
+                  {selectedPostingDetail.order_notes && (
+                    <Col span={24}>
+                      <Text type="secondary">备注：</Text>
+                      <Text>{selectedPostingDetail.order_notes}</Text>
+                    </Col>
+                  )}
+                </Row>
+              </>
+            )}
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };
