@@ -12,7 +12,7 @@ import logging
 import calendar
 
 from ef_core.database import get_async_session
-from ..models import OzonOrder, OzonPosting, OzonProduct, OzonShop, OzonGlobalSetting
+from ..models import OzonPosting, OzonProduct, OzonShop, OzonGlobalSetting
 from ..utils.datetime_utils import utcnow, get_global_timezone
 
 router = APIRouter(tags=["ozon-reports"])
@@ -61,38 +61,35 @@ async def get_order_report(
         start_date = start_date_tz.astimezone(timezone.utc)
         end_date = end_date_tz.astimezone(timezone.utc)
 
-        # 构建查询条件
+        # 构建查询条件（使用 OzonPosting，避免 JOIN OzonOrder）
         conditions = [
-            OzonOrder.created_at >= start_date,
-            OzonOrder.created_at <= end_date,
-            # 只查询已确认或已完成的订单
-            or_(
-                OzonOrder.status.in_(['confirmed', 'processing', 'shipped', 'delivered']),
-                OzonOrder.status == 'awaiting_deliver',
-                OzonOrder.status == 'awaiting_packaging'
-            )
+            OzonPosting.created_at >= start_date,
+            OzonPosting.created_at <= end_date,
+            # 只查询已确认或已完成的订单状态
+            OzonPosting.status.in_([
+                'awaiting_packaging', 'awaiting_deliver', 'delivering', 'delivered'
+            ])
         ]
 
         # 如果指定了店铺ID
         if shop_ids:
             shop_id_list = [int(sid) for sid in shop_ids.split(",")]
-            conditions.append(OzonOrder.shop_id.in_(shop_id_list))
+            conditions.append(OzonPosting.shop_id.in_(shop_id_list))
 
-        # 查询订单数据（添加eager loading避免懒加载）
+        # 查询 posting 数据（无需 JOIN OzonOrder）
         from sqlalchemy.orm import selectinload
 
-        orders_query = select(
-            OzonOrder,
+        postings_query = select(
+            OzonPosting,
             OzonShop.shop_name
         ).join(
-            OzonShop, OzonOrder.shop_id == OzonShop.id
+            OzonShop, OzonPosting.shop_id == OzonShop.id
         ).where(and_(*conditions)).options(
-            selectinload(OzonOrder.items),
-            selectinload(OzonOrder.postings)  # 预加载postings以读取posting维度的字段
+            selectinload(OzonPosting.domestic_trackings)
         )
 
-        result = await db.execute(orders_query)
-        orders_with_shop = result.all()
+        result = await db.execute(postings_query)
+        postings_with_shop = result.all()
 
         # 计算统计数据
         total_sales = Decimal('0')  # 销售总额
@@ -103,59 +100,57 @@ async def get_order_report(
         # 构建详细数据列表
         report_data = []
 
-        for order, shop_name in orders_with_shop:
-            # 遍历每个posting（一个订单可能有多个posting）
-            postings = order.postings or []
+        for posting, shop_name in postings_with_shop:
+            # 从 posting.raw_payload.products 获取商品列表
+            products = []
+            if posting.raw_payload and 'products' in posting.raw_payload:
+                products = posting.raw_payload['products']
 
-            for posting in postings:
-                # 从 posting.raw_payload.products 获取商品列表
-                products = []
-                if posting.raw_payload and 'products' in posting.raw_payload:
-                    products = posting.raw_payload['products']
+            # 从posting读取字段（posting维度）
+            purchase_price = posting.purchase_price or Decimal('0')
+            material_cost = posting.material_cost or Decimal('0')
+            # 获取所有国内物流单号，用逗号分隔显示
+            tracking_numbers = posting.get_domestic_tracking_numbers()
+            domestic_tracking_number = ', '.join(tracking_numbers) if tracking_numbers else None
+            order_notes = posting.order_notes
+            posting_number = posting.posting_number
+            # 从 raw_payload 获取追踪号
+            tracking_number = posting.raw_payload.get('tracking_number') if posting.raw_payload else None
 
-                # 从posting读取字段（posting维度）
-                purchase_price = posting.purchase_price or Decimal('0')
-                material_cost = posting.material_cost or Decimal('0')
-                # 获取所有国内物流单号，用逗号分隔显示
-                tracking_numbers = posting.get_domestic_tracking_numbers()
-                domestic_tracking_number = ', '.join(tracking_numbers) if tracking_numbers else None
-                order_notes = posting.order_notes
-                posting_number = posting.posting_number
+            for product in products:
+                # 计算单个商品的价格
+                item_price = Decimal(str(product.get('price', 0)))
+                quantity = product.get('quantity', 1)
+                sale_price = item_price * quantity
 
-                for product in products:
-                    # 计算单个商品的价格
-                    item_price = Decimal(str(product.get('price', 0)))
-                    quantity = product.get('quantity', 1)
-                    sale_price = item_price * quantity
+                # 计算利润
+                profit = sale_price - purchase_price - material_cost
 
-                    # 计算利润
-                    profit = sale_price - purchase_price - material_cost
+                # 累加统计数据
+                total_sales += sale_price
+                total_purchase += purchase_price
+                total_cost += material_cost
+                order_count += 1
 
-                    # 累加统计数据
-                    total_sales += sale_price
-                    total_purchase += purchase_price
-                    total_cost += material_cost
-                    order_count += 1
+                from ..utils.serialization import format_currency
 
-                    from ..utils.serialization import format_currency
-
-                    # 添加到详细数据
-                    report_data.append({
-                        "date": order.created_at.strftime("%Y-%m-%d"),
-                        "shop_name": shop_name,
-                        "product_name": product.get('name', product.get('sku', '未知商品')),
-                        "posting_number": posting_number,
-                        "purchase_price": format_currency(purchase_price),
-                        "sale_price": format_currency(sale_price),
-                        "tracking_number": order.tracking_number,
-                        "domestic_tracking_number": domestic_tracking_number,
-                        "material_cost": format_currency(material_cost),
-                        "order_notes": order_notes,
-                        "profit": format_currency(profit),
-                        "sku": product.get('sku'),
-                        "quantity": quantity,
-                        "offer_id": product.get('offer_id')
-                    })
+                # 添加到详细数据
+                report_data.append({
+                    "date": posting.created_at.strftime("%Y-%m-%d"),
+                    "shop_name": shop_name,
+                    "product_name": product.get('name', product.get('sku', '未知商品')),
+                    "posting_number": posting_number,
+                    "purchase_price": format_currency(purchase_price),
+                    "sale_price": format_currency(sale_price),
+                    "tracking_number": tracking_number,
+                    "domestic_tracking_number": domestic_tracking_number,
+                    "material_cost": format_currency(material_cost),
+                    "order_notes": order_notes,
+                    "profit": format_currency(profit),
+                    "sku": product.get('sku'),
+                    "quantity": quantity,
+                    "offer_id": product.get('offer_id')
+                })
 
         # 计算利润总额和利润率
         total_profit = total_sales - total_purchase - total_cost
@@ -347,10 +342,10 @@ async def get_posting_report(
         start_date = start_date_tz.astimezone(timezone.utc)
         end_date = end_date_tz.astimezone(timezone.utc)
 
-        # 构建查询条件（使用客户下单时间，与汇总报表保持一致）
+        # 构建查询条件（使用 in_process_at 替代 ordered_at，避免 JOIN）
         conditions = [
-            OzonOrder.ordered_at >= start_date,
-            OzonOrder.ordered_at <= end_date,
+            OzonPosting.in_process_at >= start_date,
+            OzonPosting.in_process_at <= end_date,
         ]
 
         # 状态过滤逻辑
@@ -363,10 +358,10 @@ async def get_posting_report(
         else:
             raise HTTPException(status_code=400, detail=f"无效的status_filter: {status_filter}")
 
-        # 如果指定了店铺ID
+        # 如果指定了店铺ID（使用 OzonPosting.shop_id）
         if shop_ids:
             shop_id_list = [int(sid) for sid in shop_ids.split(",")]
-            conditions.append(OzonOrder.shop_id.in_(shop_id_list))
+            conditions.append(OzonPosting.shop_id.in_(shop_id_list))
 
         # 货件编号过滤（支持通配符）
         if posting_number:
@@ -377,12 +372,8 @@ async def get_posting_report(
                 else:
                     conditions.append(OzonPosting.posting_number == posting_number_value)
 
-        # 查询总数（用于分页）
-        count_query = select(func.count(OzonPosting.id)).join(
-            OzonOrder, OzonPosting.order_id == OzonOrder.id
-        ).join(
-            OzonShop, OzonOrder.shop_id == OzonShop.id
-        ).where(and_(*conditions))
+        # 查询总数（用于分页，无需 JOIN）
+        count_query = select(func.count(OzonPosting.id)).where(and_(*conditions))
 
         count_result = await db.execute(count_query)
         total = count_result.scalar() or 0
@@ -391,14 +382,13 @@ async def get_posting_report(
         offset = (page - 1) * page_size
         total_pages = (total + page_size - 1) // page_size
 
-        # 确定排序字段和顺序
+        # 确定排序字段和顺序（使用 in_process_at 替代 ordered_at）
         if sort_by == 'profit_rate':
             order_clause = OzonPosting.profit_rate.desc() if sort_order == 'desc' else OzonPosting.profit_rate.asc()
         else:
-            order_clause = OzonOrder.ordered_at.desc()
+            order_clause = OzonPosting.in_process_at.desc()
 
-        # 查询posting数据（使用 defer 排除 raw_payload，使用 JSONB 函数获取 product_count）
-        # 注意：使用 func.coalesce 和 func.jsonb_array_length 计算商品数量
+        # 查询posting数据（无需 JOIN OzonOrder）
         product_count_expr = func.coalesce(
             func.jsonb_array_length(OzonPosting.raw_payload['products']),
             0
@@ -416,13 +406,11 @@ async def get_posting_report(
             OzonPosting.last_mile_delivery_fee_cny,
             OzonPosting.material_cost,
             OzonPosting.profit_rate,
-            OzonOrder.ordered_at,
+            OzonPosting.in_process_at.label('ordered_at'),  # 兼容前端字段名
             OzonShop.shop_name,
             product_count_expr
         ).join(
-            OzonOrder, OzonPosting.order_id == OzonOrder.id
-        ).join(
-            OzonShop, OzonOrder.shop_id == OzonShop.id
+            OzonShop, OzonPosting.shop_id == OzonShop.id
         ).where(
             and_(*conditions)
         ).order_by(
@@ -589,13 +577,14 @@ async def get_report_summary(
             else_=Decimal('0')
         )
 
+        # 使用 in_process_at 替代 ordered_at，无需 JOIN OzonOrder
         conditions = [
-            OzonOrder.ordered_at >= start_date,
-            OzonOrder.ordered_at <= end_date,
+            OzonPosting.in_process_at >= start_date,
+            OzonPosting.in_process_at <= end_date,
         ] + status_conditions
 
         if shop_id_list:
-            conditions.append(OzonOrder.shop_id.in_(shop_id_list))
+            conditions.append(OzonPosting.shop_id.in_(shop_id_list))
 
         totals_query = select(
             func.count(OzonPosting.id).label('order_count'),
@@ -605,8 +594,6 @@ async def get_report_summary(
             func.coalesce(func.sum(OzonPosting.international_logistics_fee_cny), Decimal('0')).label('total_intl_logistics'),
             func.coalesce(func.sum(OzonPosting.last_mile_delivery_fee_cny), Decimal('0')).label('total_last_mile'),
             func.coalesce(func.sum(OzonPosting.material_cost), Decimal('0')).label('total_material'),
-        ).join(
-            OzonOrder, OzonPosting.order_id == OzonOrder.id
         ).where(and_(*conditions))
 
         totals_result = await db.execute(totals_query)
@@ -624,14 +611,14 @@ async def get_report_summary(
         total_profit = total_sales - (total_purchase + total_commission + total_intl_logistics + total_last_mile + total_material)
         profit_rate = float((total_profit / total_sales * 100)) if total_sales > 0 else 0.0
 
-        # ========== 2. 上月统计（使用 SQL 聚合）==========
+        # ========== 2. 上月统计（使用 SQL 聚合，无需 JOIN）==========
         prev_conditions = [
-            OzonOrder.ordered_at >= prev_start_date,
-            OzonOrder.ordered_at <= prev_end_date,
+            OzonPosting.in_process_at >= prev_start_date,
+            OzonPosting.in_process_at <= prev_end_date,
         ] + status_conditions
 
         if shop_id_list:
-            prev_conditions.append(OzonOrder.shop_id.in_(shop_id_list))
+            prev_conditions.append(OzonPosting.shop_id.in_(shop_id_list))
 
         prev_totals_query = select(
             func.coalesce(func.sum(sales_expr), Decimal('0')).label('total_sales'),
@@ -640,8 +627,6 @@ async def get_report_summary(
             func.coalesce(func.sum(OzonPosting.international_logistics_fee_cny), Decimal('0')).label('total_intl_logistics'),
             func.coalesce(func.sum(OzonPosting.last_mile_delivery_fee_cny), Decimal('0')).label('total_last_mile'),
             func.coalesce(func.sum(OzonPosting.material_cost), Decimal('0')).label('total_material'),
-        ).join(
-            OzonOrder, OzonPosting.order_id == OzonOrder.id
         ).where(and_(*prev_conditions))
 
         prev_totals_result = await db.execute(prev_totals_query)
@@ -672,9 +657,7 @@ async def get_report_summary(
             func.coalesce(func.sum(sales_expr), Decimal('0')).label('sales'),
             func.coalesce(func.sum(profit_expr), Decimal('0')).label('profit'),
         ).select_from(OzonPosting).join(
-            OzonOrder, OzonPosting.order_id == OzonOrder.id
-        ).join(
-            OzonShop, OzonOrder.shop_id == OzonShop.id
+            OzonShop, OzonPosting.shop_id == OzonShop.id
         ).where(
             and_(*conditions)
         ).group_by(OzonShop.shop_name)
@@ -689,16 +672,14 @@ async def get_report_summary(
             for row in shop_result.all()
         ]
 
-        # ========== 4. 每日趋势统计（使用 SQL GROUP BY）==========
-        # 使用 PostgreSQL 的 AT TIME ZONE 转换时区后按日期分组
-        date_expr = func.date(OzonOrder.ordered_at.op('AT TIME ZONE')('UTC').op('AT TIME ZONE')(global_timezone))
+        # ========== 4. 每日趋势统计（使用 SQL GROUP BY，无需 JOIN）==========
+        # 使用 in_process_at 替代 ordered_at
+        date_expr = func.date(OzonPosting.in_process_at.op('AT TIME ZONE')('UTC').op('AT TIME ZONE')(global_timezone))
         daily_query = select(
             date_expr.label('date'),
             func.coalesce(func.sum(sales_expr), Decimal('0')).label('sales'),
             func.coalesce(func.sum(profit_expr), Decimal('0')).label('profit'),
-        ).select_from(OzonPosting).join(
-            OzonOrder, OzonPosting.order_id == OzonOrder.id
-        ).where(
+        ).select_from(OzonPosting).where(
             and_(*conditions)
         ).group_by(
             date_expr
@@ -1036,15 +1017,12 @@ async def get_posting_detail(
     from ..utils.serialization import format_currency
 
     try:
-        # 查询 posting 及关联数据
+        # 查询 posting 及关联数据（无需 JOIN OzonOrder）
         query = select(
             OzonPosting,
-            OzonOrder,
             OzonShop.shop_name
         ).join(
-            OzonOrder, OzonPosting.order_id == OzonOrder.id
-        ).join(
-            OzonShop, OzonOrder.shop_id == OzonShop.id
+            OzonShop, OzonPosting.shop_id == OzonShop.id
         ).where(
             OzonPosting.posting_number == posting_number
         )
@@ -1055,7 +1033,7 @@ async def get_posting_detail(
         if not row:
             raise HTTPException(status_code=404, detail=f"货件 {posting_number} 不存在")
 
-        posting, order, shop_name = row
+        posting, shop_name = row
 
         # 从 raw_payload 提取商品列表
         products_list = []
@@ -1128,7 +1106,7 @@ async def get_posting_detail(
             'shop_name': shop_name,
             'status': posting.status,
             'is_cancelled': posting.status == 'cancelled',
-            'created_at': order.ordered_at.isoformat(),
+            'created_at': posting.in_process_at.isoformat() if posting.in_process_at else None,
             'in_process_at': posting.in_process_at.isoformat() if posting.in_process_at else None,
             'shipped_at': posting.shipped_at.isoformat() if posting.shipped_at else None,
             'delivered_at': posting.delivered_at.isoformat() if posting.delivered_at else None,
