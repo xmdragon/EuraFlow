@@ -81,6 +81,15 @@ interface _OrderItemRow {
   itemCount: number; // 该posting的商品总数（用于rowSpan）
 }
 
+// 格式化标签统计信息，只显示非零值
+const formatLabelStats = (total: number, cached: number, fetched: number): string => {
+  const parts: string[] = [];
+  if (cached > 0) parts.push(`缓存:${cached}`);
+  if (fetched > 0) parts.push(`新获取:${fetched}`);
+  const statsStr = parts.length > 0 ? `（${parts.join(', ')}）` : '';
+  return `成功加载${total}个标签${statsStr}`;
+};
+
 const PackingShipment: React.FC = () => {
   const queryClient = useQueryClient();
   const { modal } = App.useApp();
@@ -997,10 +1006,7 @@ const PackingShipment: React.FC = () => {
             setCurrentPrintingPostings([...scanSelectedPostings]); // 保存批量打印的postings
             setCurrentPrintingPosting(''); // 清空单个posting标记
             setShowPrintLabelModal(true);
-            notifySuccess(
-              '标签加载成功',
-              `成功加载${result.total}个标签（缓存:${result.cached_count}, 新获取:${result.fetched_count}），请在弹窗中查看并打印`
-            );
+            notifySuccess('标签加载成功', formatLabelStats(result.total, result.cached_count, result.fetched_count));
           } else if (result?.error === 'PARTIAL_FAILURE' && result.pdf_url) {
             // 部分成功 - hook已经显示了错误modal，这里只需要打开PDF
             setPrintLabelUrl(result.pdf_url);
@@ -1019,10 +1025,7 @@ const PackingShipment: React.FC = () => {
         setCurrentPrintingPostings([...scanSelectedPostings]); // 保存批量打印的postings
         setCurrentPrintingPosting(''); // 清空单个posting标记
         setShowPrintLabelModal(true);
-        notifySuccess(
-          '标签加载成功',
-          `成功加载${result.total}个标签（缓存:${result.cached_count}, 新获取:${result.fetched_count}），请在弹窗中查看并打印`
-        );
+        notifySuccess('标签加载成功', formatLabelStats(result.total, result.cached_count, result.fetched_count));
       } else if (result?.error === 'PARTIAL_FAILURE' && result.pdf_url) {
         // 部分成功 - hook已经显示了错误modal，这里只需要打开PDF
         setPrintLabelUrl(result.pdf_url);

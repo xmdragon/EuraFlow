@@ -65,6 +65,15 @@ interface OrderItemRow {
   itemCount: number; // 该posting的商品总数（用于rowSpan）
 }
 
+// 格式化标签统计信息，只显示非零值
+const formatLabelStats = (total: number, cached: number, fetched: number): string => {
+  const parts: string[] = [];
+  if (cached > 0) parts.push(`缓存:${cached}`);
+  if (fetched > 0) parts.push(`新获取:${fetched}`);
+  const statsStr = parts.length > 0 ? `（${parts.join(', ')}）` : '';
+  return `成功加载${total}个标签${statsStr}`;
+};
+
 const OrderList: React.FC = () => {
   const queryClient = useQueryClient();
   const { currency: userCurrency } = useCurrency();
@@ -881,10 +890,7 @@ const OrderList: React.FC = () => {
           window.open(result.pdf_url, '_blank');
         }
 
-        notifySuccess(
-          '打印成功',
-          `成功打印${result.total}个标签（缓存:${result.cached_count}, 新获取:${result.fetched_count}）`
-        );
+        notifySuccess('标签加载成功', formatLabelStats(result.total, result.cached_count, result.fetched_count));
 
         // 清空选择
         setSelectedPostingNumbers([]);
