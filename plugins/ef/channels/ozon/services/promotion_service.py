@@ -329,11 +329,15 @@ class PromotionService:
             db: 数据库会话
 
         Returns:
-            活动列表，包含候选和参与商品数量
+            活动列表，包含候选和参与商品数量（仅返回未过期的活动）
         """
-        # 查询活动列表
+        # 查询活动列表（仅未过期的活动，避免调用已结束活动的 API 导致 404）
+        now = utcnow()
         stmt = select(OzonPromotionAction).where(
-            OzonPromotionAction.shop_id == shop_id
+            and_(
+                OzonPromotionAction.shop_id == shop_id,
+                OzonPromotionAction.date_end > now  # 仅返回未过期的活动
+            )
         ).order_by(OzonPromotionAction.date_start.desc())
 
         result = await db.execute(stmt)
