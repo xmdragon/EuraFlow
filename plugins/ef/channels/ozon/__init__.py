@@ -57,13 +57,13 @@ async def category_sync_task(**kwargs):
     from .models.ozon_shops import OzonShop
     from .api.client import OzonAPIClient
     from .services.catalog_service import CatalogService
-    from ef_core.database import get_db_manager
+    from ef_core.database import get_task_db_manager
     from sqlalchemy import select
 
     logger.info("Starting category tree sync task")
 
     try:
-        db_manager = get_db_manager()
+        db_manager = get_task_db_manager()
         async with db_manager.get_session() as db:
             # 获取第一家启用的店铺
             result = await db.execute(
@@ -116,13 +116,13 @@ async def attributes_sync_task(**kwargs):
     from .models.ozon_shops import OzonShop
     from .api.client import OzonAPIClient
     from .services.catalog_service import CatalogService
-    from ef_core.database import get_db_manager
+    from ef_core.database import get_task_db_manager
     from sqlalchemy import select
 
     logger.info("Starting category attributes sync task")
 
     try:
-        db_manager = get_db_manager()
+        db_manager = get_task_db_manager()
         async with db_manager.get_session() as db:
             # 获取第一家启用的店铺
             result = await db.execute(
@@ -274,7 +274,7 @@ async def setup(hooks) -> None:
             """OZON促销活动同步处理函数"""
             import logging
             from datetime import datetime
-            from ef_core.database import get_db_manager
+            from ef_core.database import get_task_db_manager
             from .models import OzonShop, OzonPromotionAction
             from .services.promotion_service import PromotionService
             from sqlalchemy import select
@@ -293,7 +293,7 @@ async def setup(hooks) -> None:
 
             logger_local.info("Starting promotion sync task")
 
-            db_manager = get_db_manager()
+            db_manager = get_task_db_manager()
 
             try:
                 async with db_manager.get_session() as db:
@@ -455,7 +455,7 @@ async def setup(hooks) -> None:
             """OZON商品订单增量同步处理函数"""
             import uuid
             import logging
-            from ef_core.database import get_db_manager
+            from ef_core.database import get_task_db_manager
             from .models import OzonShop
             from sqlalchemy import select
 
@@ -464,7 +464,7 @@ async def setup(hooks) -> None:
             total_orders = 0
             shops_synced = []
 
-            db_manager = get_db_manager()
+            db_manager = get_task_db_manager()
             async with db_manager.get_session() as db:
                 result = await db.execute(
                     select(OzonShop).where(OzonShop.status == "active")
@@ -717,12 +717,12 @@ async def setup(hooks) -> None:
     try:
         async def cleanup_drafts_task(**kwargs):
             """清理过期草稿定时任务（30天未更新）"""
-            from ef_core.database import get_db_manager
+            from ef_core.database import get_task_db_manager
             from .services.draft_template_service import DraftTemplateService
 
             logger.info("Starting draft cleanup task")
             try:
-                db_manager = get_db_manager()
+                db_manager = get_task_db_manager()
                 async with db_manager.get_session() as db:
                     deleted_count = await DraftTemplateService.cleanup_old_drafts(db, days=30)
                     logger.info(f"Draft cleanup completed: deleted {deleted_count} old drafts")
@@ -851,7 +851,7 @@ async def pull_orders_task(**kwargs) -> None:
     使用 OrderSyncService 进行批量处理（避免 N+1 查询问题）
     """
     try:
-        from ef_core.database import get_db_manager
+        from ef_core.database import get_task_db_manager
         from .models import OzonShop
         from .api.client import OzonAPIClient
         from .services.order_sync import OrderSyncService
@@ -861,7 +861,7 @@ async def pull_orders_task(**kwargs) -> None:
         logger.info(f"[{current_time.isoformat()}] Pulling orders from Ozon...")
 
         # 获取所有活跃店铺
-        db_manager = get_db_manager()
+        db_manager = get_task_db_manager()
         async with db_manager.get_session() as db:
             result = await db.execute(
                 select(OzonShop).where(OzonShop.status == "active")
@@ -927,7 +927,7 @@ async def sync_inventory_task(**kwargs) -> None:
     同步库存的定时任务
     """
     try:
-        from ef_core.database import get_db_manager
+        from ef_core.database import get_task_db_manager
         from .models import OzonShop, OzonProduct
         from .api.client import OzonAPIClient
         from sqlalchemy import select
@@ -936,7 +936,7 @@ async def sync_inventory_task(**kwargs) -> None:
         logger.info(f"[{current_time.isoformat()}] Syncing inventory to Ozon...")
 
         # 获取所有活跃店铺
-        db_manager = get_db_manager()
+        db_manager = get_task_db_manager()
         async with db_manager.get_session() as db:
             result = await db.execute(
                 select(OzonShop).where(OzonShop.status == "active")
@@ -1029,7 +1029,7 @@ async def handle_shipment_request(payload: Dict[str, Any]) -> None:
         payload: 事件载荷，包含订单和发货信息
     """
     try:
-        from ef_core.database import get_db_manager
+        from ef_core.database import get_task_db_manager
         from .models import OzonShop, OzonOrder
         from .api.client import OzonAPIClient
         from sqlalchemy import select
@@ -1044,7 +1044,7 @@ async def handle_shipment_request(payload: Dict[str, Any]) -> None:
 
         logger.info(f"Processing shipment for order {order_id} with tracking {tracking_number}")
 
-        db_manager = get_db_manager()
+        db_manager = get_task_db_manager()
         async with db_manager.get_session() as db:
             # 查找订单（通过本地订单号或 Ozon 订单号）
             order_result = await db.execute(
@@ -1145,14 +1145,14 @@ async def handle_inventory_change(payload: Dict[str, Any]) -> None:
             logger.info("Invalid inventory change: missing sku")
             return
         
-        from ef_core.database import get_db_manager
+        from ef_core.database import get_task_db_manager
         from .models import OzonShop, OzonProduct
         from .api.client import OzonAPIClient
         from sqlalchemy import select
 
         logger.info(f"Processing inventory change for SKU {sku}: {quantity}")
 
-        db_manager = get_db_manager()
+        db_manager = get_task_db_manager()
         async with db_manager.get_session() as db:
             # 查找商品
             shop_id = payload.get("shop_id")  # 必须明确指定店铺ID
@@ -1232,12 +1232,12 @@ async def teardown() -> None:
     logger.info("Ozon plugin shutting down...")
 
     try:
-        from ef_core.database import get_db_manager
+        from ef_core.database import get_task_db_manager
         from .models import OzonShop
         from sqlalchemy import select, update, func
 
         # 关闭所有活跃的API客户端连接
-        db_manager = get_db_manager()
+        db_manager = get_task_db_manager()
         async with db_manager.get_session() as db:
             # 更新所有店铺的同步状态
             await db.execute(

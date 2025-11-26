@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
 from ef_core.tasks.celery_app import celery_app
-from ef_core.database import get_db_manager
+from ef_core.database import get_task_db_manager
 from ef_core.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -227,7 +227,7 @@ async def aggregate_stats_for_date_range(
     """
     from ..models.ozon_shops import OzonShop
 
-    db_manager = get_db_manager()
+    db_manager = get_task_db_manager()
 
     # 默认日期范围
     if end_date is None:

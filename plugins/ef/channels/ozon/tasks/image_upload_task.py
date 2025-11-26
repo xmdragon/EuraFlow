@@ -88,7 +88,7 @@ async def _upload_images_async(product_id: int, variant_id: Optional[int], task_
     Returns:
         dict: 上传结果
     """
-    db_manager = get_db_manager()
+    db_manager = get_task_db_manager()
 
     async with db_manager.get_session() as db:
         try:

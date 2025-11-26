@@ -9,7 +9,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from ef_core.tasks.celery_app import celery_app
-from ef_core.database import get_db_manager
+from ef_core.database import get_task_db_manager
 from ef_core.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -74,8 +74,8 @@ async def _batch_update_prices_async(
     from fastapi import HTTPException
 
     try:
-        # 使用全局数据库管理器的会话
-        db_manager = get_db_manager()
+        # 使用独立的数据库管理器（避免事件循环冲突）
+        db_manager = get_task_db_manager()
         async with db_manager.get_session() as db:
             # 获取店铺信息
             shop_result = await db.execute(

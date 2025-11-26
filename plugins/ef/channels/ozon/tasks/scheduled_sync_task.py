@@ -69,7 +69,7 @@ async def _sync_all_shop_categories():
     from ..services.catalog_service import CatalogService
     from sqlalchemy import select
 
-    db_manager = get_db_manager()
+    db_manager = get_task_db_manager()
 
     async with db_manager.get_session() as db:
         # 获取第一家启用的店铺
@@ -136,7 +136,7 @@ async def _sync_all_shop_attributes():
     from ..services.catalog_service import CatalogService
     from sqlalchemy import select
 
-    db_manager = get_db_manager()
+    db_manager = get_task_db_manager()
 
     async with db_manager.get_session() as db:
         # 获取第一家启用的店铺

@@ -12,7 +12,7 @@ from decimal import Decimal, InvalidOperation
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ef_core.database import get_db_manager
+from ef_core.database import get_task_db_manager
 from ..models.orders import OzonPosting, OzonOrder
 from ..models.ozon_shops import OzonShop
 from ..models.sync_service import SyncServiceLog
@@ -52,7 +52,7 @@ class OzonFinanceSyncService:
             "posting_numbers": []
         }
 
-        db_manager = get_db_manager()
+        db_manager = get_task_db_manager()
         async with db_manager.get_session() as session:
             # 1. 计算时间范围（3个月内）
             now = datetime.now(timezone.utc)

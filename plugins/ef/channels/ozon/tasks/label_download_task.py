@@ -4,7 +4,7 @@ Ozon 插件的 Celery 后台任务
 import os
 import base64
 from ef_core.tasks.celery_app import celery_app
-from ef_core.database import get_db_manager
+from ef_core.database import get_task_db_manager
 from ef_core.utils.logger import get_logger
 from sqlalchemy import select, update
 
@@ -39,7 +39,7 @@ async def _download_label_pdf_async(posting_number: str, shop_id: int):
     from .utils.datetime_utils import utcnow
 
     try:
-        db_manager = get_db_manager()
+        db_manager = get_task_db_manager()
         async with db_manager.get_session() as db:
             # 获取店铺信息
             shop_result = await db.execute(

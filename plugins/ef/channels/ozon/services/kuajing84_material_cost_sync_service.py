@@ -11,7 +11,7 @@ from decimal import Decimal
 from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ef_core.database import get_db_manager
+from ef_core.database import get_task_db_manager
 from ..models.orders import OzonPosting, OzonDomesticTracking
 from ..models.kuajing84_global_config import Kuajing84GlobalConfig
 from ..models.sync_service import SyncServiceLog
@@ -56,7 +56,7 @@ class Kuajing84MaterialCostSyncService:
             "posting_numbers": []  # 记录处理的posting_number列表
         }
 
-        db_manager = get_db_manager()
+        db_manager = get_task_db_manager()
         async with db_manager.get_session() as session:
             # 1. 检查跨境巴士配置是否启用
             config_result = await session.execute(

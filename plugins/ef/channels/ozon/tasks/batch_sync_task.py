@@ -245,16 +245,8 @@ async def _batch_sync_async(
     from sqlalchemy import select
 
     try:
-        # 使用全局数据库管理器的会话（手动管理事务）
-        # 重要：在新的 event loop 中，需要重新创建 async engine 以避免 "attached to a different loop" 错误
-        db_manager = get_db_manager()
-
-        # 强制重新创建异步引擎（确保绑定到当前 event loop）
-        if db_manager._async_engine is not None:
-            await db_manager._async_engine.dispose()
-            db_manager._async_engine = None
-            db_manager._async_session_factory = None
-            logger.info("Disposed old async engine, creating new one for current event loop")
+        # 使用独立的数据库管理器（避免事件循环冲突）
+        db_manager = get_task_db_manager()
 
         async with db_manager.get_session() as db:
             # 获取店铺信息
