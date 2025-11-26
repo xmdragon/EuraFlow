@@ -86,13 +86,7 @@ export const useBatchPrint = (options: UseBatchPrintOptions = {}): UseBatchPrint
       const result = await ozonApi.batchPrintLabels(postingNumbers);
 
       if (result.success) {
-        // 全部成功
-        if (result.pdf_url) {
-          notifySuccess(
-            '打印成功',
-            `成功打印${result.total}个标签（缓存:${result.cached_count}, 新获取:${result.fetched_count}）`
-          );
-        }
+        // 全部成功 - 不在这里显示通知，由调用方统一显示"标签加载成功"
         onSuccess?.(result, postingNumbers);
         return result;
       } else if (result.error === 'PARTIAL_FAILURE') {

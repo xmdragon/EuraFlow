@@ -272,6 +272,8 @@ const FinanceTransactions: React.FC = () => {
       }
     } catch {
       notifyError('加载失败', '无法加载订单详情');
+    } finally {
+      setLoadingDetail(false);
     }
   };
 

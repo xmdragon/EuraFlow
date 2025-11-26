@@ -948,6 +948,12 @@ async def search_posting_by_tracking(
                     }
                     items.append(item)
             order_dict['items'] = items
+            # 添加 products 字段（与 items 相同，兼容前端的 posting.products）
+            order_dict['products'] = items
+
+            # 添加嵌套的 order 对象（前端 PostingWithOrder 类型需要）
+            # 前端调用 showOrderDetail(posting.order, posting) 需要 posting.order 存在
+            order_dict['order'] = order.to_dict(target_posting_number=posting.posting_number)
 
             result_list.append(order_dict)
 
