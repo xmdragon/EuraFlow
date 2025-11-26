@@ -53,6 +53,66 @@ def safe_decimal_conversion(value) -> Optional[Decimal]:
         return None
 
 
+async def update_product_sales(
+    db: AsyncSession,
+    shop_id: int,
+    products_data: list,
+    delta: int,
+    order_time: Optional[datetime] = None
+) -> None:
+    """更新商品销量统计
+
+    Args:
+        db: 数据库会话
+        shop_id: 店铺ID
+        products_data: 订单商品列表 [{"sku": ..., "offer_id": ..., "quantity": ...}, ...]
+        delta: 销量变化量（+1 新订单, -1 取消订单）
+        order_time: 订单时间（仅在delta>0时更新last_sale_at）
+    """
+    if not products_data:
+        return
+
+    # 收集所有 ozon_sku
+    sku_quantity_map = {}
+    for product in products_data:
+        ozon_sku = product.get("sku")
+        if ozon_sku:
+            quantity = product.get("quantity", 1)
+            sku_quantity_map[int(ozon_sku)] = sku_quantity_map.get(int(ozon_sku), 0) + quantity
+
+    if not sku_quantity_map:
+        return
+
+    # 批量查询商品
+    result = await db.execute(
+        select(OzonProduct).where(
+            OzonProduct.shop_id == shop_id,
+            OzonProduct.ozon_sku.in_(list(sku_quantity_map.keys()))
+        )
+    )
+    products = result.scalars().all()
+
+    # 更新销量
+    for product in products:
+        quantity = sku_quantity_map.get(product.ozon_sku, 1)
+        sales_delta = delta * quantity
+
+        # 更新销量（确保不为负）
+        new_sales = (product.sales_count or 0) + sales_delta
+        product.sales_count = max(0, new_sales)
+
+        # 只有新订单(delta>0)才更新最后销售时间
+        if delta > 0 and order_time:
+            # 只有当新订单时间更晚时才更新
+            if not product.last_sale_at or order_time > product.last_sale_at:
+                product.last_sale_at = order_time
+
+    logger.debug(
+        f"Updated sales for {len(products)} products (delta={delta})",
+        extra={"shop_id": shop_id, "sku_count": len(sku_quantity_map)}
+    )
+
+
 class OzonSyncService:
     """Ozon同步服务"""
 
@@ -1559,6 +1619,10 @@ class OzonSyncService:
         )
         posting = existing_posting_result.scalar_one_or_none()
 
+        # 记录是否为新posting和旧的取消状态（用于更新商品销量）
+        is_new_posting = posting is None
+        old_is_cancelled = posting.is_cancelled if posting else False
+
         if not posting:
             # 创建新posting
             posting = OzonPosting(
@@ -1673,6 +1737,30 @@ class OzonSyncService:
             source="sync",  # 来源：同步（全量或增量）
             preserve_manual=True  # 保留用户手动标记的printed状态
         )
+
+        # ========== 更新商品销量统计 ==========
+        products = posting_data.get("products", [])
+        new_is_cancelled = posting.is_cancelled
+
+        # 计算销量变化
+        # 1. 新订单且未取消 → +1
+        # 2. 旧订单从未取消变为已取消 → -1
+        # 3. 旧订单从已取消变为未取消 → +1 (恢复订单，较少见)
+        if is_new_posting and not new_is_cancelled:
+            # 新订单，增加销量
+            order_time = posting.in_process_at or posting.shipment_date or utcnow()
+            await update_product_sales(db, shop_id, products, delta=1, order_time=order_time)
+            logger.debug(f"Increased sales for new posting {posting_number}")
+        elif not is_new_posting:
+            if not old_is_cancelled and new_is_cancelled:
+                # 订单取消，减少销量（不更新销售时间）
+                await update_product_sales(db, shop_id, products, delta=-1, order_time=None)
+                logger.debug(f"Decreased sales for cancelled posting {posting_number}")
+            elif old_is_cancelled and not new_is_cancelled:
+                # 订单恢复（罕见），增加销量
+                order_time = posting.in_process_at or posting.shipment_date or utcnow()
+                await update_product_sales(db, shop_id, products, delta=1, order_time=order_time)
+                logger.debug(f"Restored sales for uncancelled posting {posting_number}")
 
         logger.info(
             f"Synced posting {posting_number} for order {order.order_id}",

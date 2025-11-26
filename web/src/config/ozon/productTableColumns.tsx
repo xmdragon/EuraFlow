@@ -292,7 +292,48 @@ export const getProductTableColumns = (
         );
       },
     },
-    // 第六列：状态（80px）
+    // 第六列：销量（80px）
+    {
+      title: <SortableColumnTitle title="销量" field="sales_count" />,
+      key: 'sales_count',
+      width: 80,
+      render: (_, record) => {
+        const salesCount = record.sales_count || 0;
+        const lastSaleAt = record.last_sale_at;
+
+        // 格式化日期：YYYY-MM-DD
+        const formatSaleDate = (dateStr: string) => {
+          if (!dateStr) return null;
+          const date = new Date(dateStr);
+          const year = date.getFullYear();
+          const month = (date.getMonth() + 1).toString().padStart(2, '0');
+          const day = date.getDate().toString().padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        };
+
+        return (
+          <Space direction="vertical" size={2} style={{ width: '100%' }}>
+            {/* 销量 */}
+            <span
+              style={{
+                fontWeight: salesCount > 0 ? 'bold' : 'normal',
+                color: salesCount > 0 ? '#ff4d4f' : undefined,
+                fontSize: 13,
+              }}
+            >
+              {salesCount > 0 ? salesCount : '-'}
+            </span>
+            {/* 最后销售时间 */}
+            {lastSaleAt && (
+              <span style={{ fontSize: 11, color: '#999' }}>
+                {formatSaleDate(lastSaleAt)}
+              </span>
+            )}
+          </Space>
+        );
+      },
+    },
+    // 第七列：状态（80px）
     {
       title: '状态',
       dataIndex: 'status',
