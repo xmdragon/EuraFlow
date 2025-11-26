@@ -412,6 +412,10 @@ class OrderSyncService:
 
         posting.raw_payload = posting_data
 
+        # 更新 has_tracking_number（反范式化字段，避免 JSONB 查询）
+        tracking_number = posting_data.get("tracking_number")
+        posting.has_tracking_number = bool(tracking_number and tracking_number.strip())
+
         # 计算并存储 order_total_price（预计算优化，避免统计查询时循环解析 raw_payload）
         products = posting_data.get("products", [])
         if products:
