@@ -478,20 +478,6 @@ const OrderList: React.FC = () => {
 
   // 已移除旧的 useEffect 轮询逻辑，改为异步后台任务
 
-  // 发货
-  const shipOrderMutation = useMutation({
-    mutationFn: ozonApi.shipOrder,
-    onSuccess: () => {
-      notifySuccess('发货成功', '订单已成功发货');
-      setShipModalVisible(false);
-      shipForm.resetFields();
-      queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
-    },
-    onError: (error: Error) => {
-      notifyError('发货失败', `发货失败: ${error.message}`);
-    },
-  });
-
   // 取消订单
   const _cancelOrderMutation = useMutation({
     mutationFn: ({ postingNumber, reason }: { postingNumber: string; reason: string }) =>

@@ -537,11 +537,15 @@ const ProductCreate: React.FC = () => {
     if (state?.draftData && state.source === 'collection_record') {
       collectionRecordRestoredRef.current = true;
 
+      // 提取俄文类目名称用于自动匹配
+      const categoryTypeRu = state.draftData.attributes?._category_type_ru as string | undefined;
+
       loggers.ozon.info('[CollectionRecord] 从采集记录恢复数据', {
         sourceRecordId: state.sourceRecordId,
         hasDraftData: !!state.draftData,
         hasVariants: !!state.draftData.variants,
         variantsCount: state.draftData.variants?.length || 0,
+        categoryTypeRu,  // 俄文类目名称
       });
 
       // 使用 deserializeFormData 将采集记录数据填充到表单
@@ -551,12 +555,52 @@ const ProductCreate: React.FC = () => {
 
         // 清除 location.state，避免刷新页面时重复恢复
         window.history.replaceState({}, document.title);
+
+        // 如果有俄文类目名称，尝试自动匹配类目
+        if (categoryTypeRu && selectedShop) {
+          (async () => {
+            try {
+              loggers.ozon.info('[CollectionRecord] 开始自动匹配类目', { categoryTypeRu });
+
+              const result = await ozonApi.matchCategoryByName(selectedShop, categoryTypeRu);
+
+              if (result.success && result.matched && result.category && result.path_ids) {
+                // 精确匹配成功，自动选择类目
+                loggers.ozon.info('[CollectionRecord] 类目匹配成功', {
+                  categoryId: result.category.category_id,
+                  categoryName: result.category.name_zh,
+                  pathIds: result.path_ids,
+                });
+
+                // 设置类目路径（用于 Cascader 显示）
+                categoryManager.setCategoryPath(result.path_ids);
+                // 设置选中的类目 ID
+                categoryManager.setSelectedCategory(result.category.category_id);
+                // 加载类目属性
+                await categoryManager.loadCategoryAttributes(result.category.category_id);
+
+                notifySuccess('类目已匹配', `已自动匹配类目: ${result.category.name_zh || result.category.name}`);
+              } else if (result.fuzzy_matches && result.fuzzy_matches.length > 0) {
+                // 模糊匹配，提示用户手动选择
+                loggers.ozon.info('[CollectionRecord] 类目模糊匹配', {
+                  categoryTypeRu,
+                  fuzzyMatches: result.fuzzy_matches.map(m => m.name_zh),
+                });
+                notifyWarning('请选择类目', `找到 ${result.fuzzy_matches.length} 个相似类目，请手动选择`);
+              } else {
+                loggers.ozon.info('[CollectionRecord] 未匹配到类目', { categoryTypeRu });
+              }
+            } catch (error) {
+              loggers.ozon.error('[CollectionRecord] 类目匹配失败', error);
+            }
+          })();
+        }
       } catch (error) {
         loggers.ozon.error('[CollectionRecord] 恢复数据失败', error);
         notifyError('恢复失败', '从采集记录恢复数据失败，请重试');
       }
     }
-  }, [location.state, deserializeFormData]);
+  }, [location.state, deserializeFormData, selectedShop, categoryManager]);
 
   /**
    * 检查表单是否有实质性内容（排除初始状态和只有Offer ID的情况）

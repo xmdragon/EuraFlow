@@ -113,6 +113,30 @@ function generateDimensionId(name: string): number {
 }
 
 /**
+ * OZON 属性 ID 常量
+ * attribute_id=2622298 是 "Тип"（类型）属性，包含商品的类目名称（俄文）
+ */
+const OZON_TYPE_ATTRIBUTE_ID = 2622298;
+
+/**
+ * 从采集记录的 attributes 中提取 "Тип"（类型）属性值
+ * 该值是俄文类目名称，可用于匹配本地类目表的 name_ru 字段
+ *
+ * @param productData 采集记录的 product_data
+ * @returns 俄文类目名称，如果不存在则返回 undefined
+ */
+export function extractCategoryTypeFromAttributes(productData: Record<string, unknown>): string | undefined {
+  const attributes = productData.attributes as Array<{ attribute_id: number; value: string }> | undefined;
+
+  if (!attributes || !Array.isArray(attributes)) {
+    return undefined;
+  }
+
+  const typeAttr = attributes.find(attr => attr.attribute_id === OZON_TYPE_ATTRIBUTE_ID);
+  return typeAttr?.value;
+}
+
+/**
  * 将采集记录数据转换为商品表单数据
  */
 export function convertCollectionRecordToFormData(
@@ -121,12 +145,16 @@ export function convertCollectionRecordToFormData(
 ): FormData {
   const productData = (record.product_data as Record<string, unknown>) || {};
 
+  // 提取 "Тип" 属性值（俄文类目名称）用于自动匹配类目
+  const categoryTypeRu = extractCategoryTypeFromAttributes(productData);
+
   loggers.ozon.info('[CollectionRecord] 转换采集记录数据', {
     recordId: record.id,
     hasVariants: !!productData.variants,
     variantsCount: Array.isArray(productData.variants) ? productData.variants.length : 0,
     hasImages: !!productData.images,
     imagesCount: Array.isArray(productData.images) ? productData.images.length : 0,
+    categoryTypeRu,  // 俄文类目名称，用于自动匹配
   });
 
   // 处理主商品图片
@@ -228,6 +256,8 @@ export function convertCollectionRecordToFormData(
       // 保存原始采集记录ID，方便追溯
       _collection_record_id: record.id,
       _source_url: record.source_url,
+      // 俄文类目名称，用于自动匹配类目
+      _category_type_ru: categoryTypeRu,
     },
   };
 
