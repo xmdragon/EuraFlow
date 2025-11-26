@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional, Callable, Awaitable
 from functools import wraps
 
 from celery import Task
+from celery.exceptions import Retry
 from ef_core.utils.logger import get_logger, LogContext
 from ef_core.utils.errors import EuraFlowException
 
@@ -15,9 +16,12 @@ logger = get_logger(__name__)
 
 class BaseTask(Task):
     """EuraFlow 基础任务类"""
-    
+
     # 自动重试配置
+    # 注意：不能包含 Retry 异常，否则会导致无限递归
+    # Retry 异常是 Celery 用于触发重试的特殊异常，不应被 autoretry 捕获
     autoretry_for = (Exception,)
+    dont_autoretry_for = (Retry,)  # 排除 Retry 异常
     max_retries = 5
     default_retry_delay = 60
     retry_backoff = True
