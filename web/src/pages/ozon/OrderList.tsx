@@ -3,12 +3,9 @@
  */
 import {
   SyncOutlined,
-  PrinterOutlined,
-  TruckOutlined,
   SearchOutlined,
   ShoppingCartOutlined,
   CopyOutlined,
-  DownloadOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -35,8 +32,6 @@ import { formatPriceWithFallback, getCurrencySymbol } from '../../utils/currency
 
 import styles from './OrderList.module.scss';
 
-import PrintErrorModal from '@/components/ozon/order/PrintErrorModal';
-import ShipModal from '@/components/ozon/order/ShipModal';
 import OrderDetailModal from '@/components/ozon/OrderDetailModal';
 import ProductImage from '@/components/ozon/ProductImage';
 import PurchasePriceHistoryModal from '@/components/ozon/PurchasePriceHistoryModal';
@@ -49,7 +44,7 @@ import { useCopy } from '@/hooks/useCopy';
 import { usePermission } from '@/hooks/usePermission';
 import * as ozonApi from '@/services/ozon';
 import { loggers } from '@/utils/logger';
-import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
+import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
 
 const { RangePicker } = DatePicker;
 const { Text } = Typography;
@@ -65,20 +60,11 @@ interface OrderItemRow {
   itemCount: number; // 该posting的商品总数（用于rowSpan）
 }
 
-// 格式化标签统计信息，只显示非零值
-const formatLabelStats = (total: number, cached: number, fetched: number): string => {
-  const parts: string[] = [];
-  if (cached > 0) parts.push(`缓存:${cached}`);
-  if (fetched > 0) parts.push(`新获取:${fetched}`);
-  const statsStr = parts.length > 0 ? `（${parts.join(', ')}）` : '';
-  return `成功加载${total}个标签${statsStr}`;
-};
-
 const OrderList: React.FC = () => {
   const queryClient = useQueryClient();
   const { currency: userCurrency } = useCurrency();
   const { formatDateTime } = useDateTime();
-  const { canOperate, canSync, canExport } = usePermission();
+  const { canOperate, canSync } = usePermission();
   const { copyToClipboard } = useCopy();
 
   // 订单同步轮询 Hook
@@ -142,9 +128,7 @@ const OrderList: React.FC = () => {
   // 始终默认为null（全部店铺），不从localStorage读取
   const [selectedShop, setSelectedShop] = useState<number | null>(null);
   const [filterForm] = Form.useForm();
-  const [shipForm] = Form.useForm();
   const [detailModalVisible, setDetailModalVisible] = useState(false);
-  const [shipModalVisible, setShipModalVisible] = useState(false);
   const [syncConfirmVisible, setSyncConfirmVisible] = useState(false);
   const [syncFullMode, setSyncFullMode] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<ozonApi.Order | null>(null);
@@ -169,13 +153,6 @@ const OrderList: React.FC = () => {
     [key: string]: unknown;
   }
   const [searchParams, setSearchParams] = useState<OrderSearchParams>({});
-
-  // 批量打印标签状态
-  const [selectedPostingNumbers, setSelectedPostingNumbers] = useState<string[]>([]);
-  const [isPrinting, setIsPrinting] = useState(false);
-  const [printErrorModalVisible, setPrintErrorModalVisible] = useState(false);
-  const [printErrors, setPrintErrors] = useState<ozonApi.FailedPosting[]>([]);
-  const [printSuccessPostings, setPrintSuccessPostings] = useState<string[]>([]);
 
   // 查询店铺列表（用于显示店铺名称）
   const { data: shopsData } = useQuery({
@@ -868,73 +845,6 @@ const OrderList: React.FC = () => {
     }
   };
 
-  const handleBatchPrint = async () => {
-    if (selectedPostingNumbers.length === 0) {
-      notifyWarning('操作失败', '请先选择需要打印的订单');
-      return;
-    }
-
-    if (selectedPostingNumbers.length > 20) {
-      notifyError('打印失败', '最多支持同时打印20个标签');
-      return;
-    }
-
-    setIsPrinting(true);
-
-    try {
-      const result = await ozonApi.batchPrintLabels(selectedPostingNumbers);
-
-      if (result.success) {
-        // 全部成功
-        if (result.pdf_url) {
-          window.open(result.pdf_url, '_blank');
-        }
-
-        notifySuccess('标签加载成功', formatLabelStats(result.total, result.cached_count, result.fetched_count));
-
-        // 清空选择
-        setSelectedPostingNumbers([]);
-      } else if (result.error === 'PARTIAL_FAILURE') {
-        // 部分成功
-        setPrintErrors(result.failed_postings || []);
-        setPrintSuccessPostings(result.success_postings || []);
-        setPrintErrorModalVisible(true);
-
-        // 如果有成功的，打开PDF
-        if (result.pdf_url) {
-          window.open(result.pdf_url, '_blank');
-        }
-      }
-    } catch (error) {
-      // 全部失败
-      if (error.response?.status === 422) {
-        // EuraFlow统一错误格式：error.response.data.error.detail
-        const errorData = error.response.data?.error?.detail || error.response.data?.detail;
-
-        if (errorData && typeof errorData === 'object' && errorData.error === 'ALL_FAILED') {
-          // 显示详细错误信息
-          setPrintErrors(errorData.failed_postings || []);
-          setPrintSuccessPostings([]);
-          setPrintErrorModalVisible(true);
-        } else {
-          notifyWarning('打印提示', '部分标签尚未准备好，请在订单装配后45-60秒重试');
-        }
-      } else {
-        notifyError('打印失败', `打印失败: ${error.response?.data?.error?.title || error.message}`);
-      }
-    } finally {
-      setIsPrinting(false);
-    }
-  };
-
-  const handleBatchShip = () => {
-    if (selectedOrders.length === 0) {
-      notifyWarning('操作失败', '请先选择订单');
-      return;
-    }
-    notifyInfo('提示', '批量发货功能开发中');
-  };
-
   // 统计数据 - 使用API返回的全局统计数据
   const stats = ordersData?.stats || {
     total: 0,
@@ -1064,27 +974,6 @@ const OrderList: React.FC = () => {
               全量同步
             </Button>
           )}
-          {canOperate && (
-            <Button
-              icon={<TruckOutlined />}
-              onClick={handleBatchShip}
-              disabled={selectedOrders.length === 0}
-            >
-              批量发货
-            </Button>
-          )}
-          {canOperate && (
-            <Button
-              type="primary"
-              icon={<PrinterOutlined />}
-              onClick={handleBatchPrint}
-              disabled={selectedPostingNumbers.length === 0}
-              loading={isPrinting}
-            >
-              打印标签 ({selectedPostingNumbers.length}/20)
-            </Button>
-          )}
-          {canExport && <Button icon={<DownloadOutlined />}>导出订单</Button>}
         </Space>
 
         {/* 订单列表（以商品为单位显示，多商品使用rowSpan合并）*/}
@@ -1093,16 +982,6 @@ const OrderList: React.FC = () => {
           columns={columns}
           dataSource={orderItemRows}
           rowKey={(record) => record.key}
-          rowSelection={{
-            selectedRowKeys: selectedPostingNumbers,
-            onChange: (selectedKeys: React.Key[]) => {
-              setSelectedPostingNumbers(selectedKeys as string[]);
-            },
-            getCheckboxProps: (record: OrderItemRow) => ({
-              // 只在第一行显示checkbox，且只能选择"等待发运"状态的订单
-              disabled: !record.isFirstItem || record.posting.status !== 'awaiting_deliver',
-            }),
-          }}
           pagination={false} // 禁用Table内置分页，使用下方独立的Pagination组件
           scroll={{ x: 'max-content' }}
           size="small"
@@ -1142,43 +1021,12 @@ const OrderList: React.FC = () => {
         }}
       />
 
-      {/* 发货弹窗 */}
-      <ShipModal
-        visible={shipModalVisible}
-        form={shipForm}
-        selectedOrder={selectedOrder}
-        selectedPosting={selectedPosting}
-        loading={shipOrderMutation.isPending}
-        onSubmit={(values) => {
-          if (!selectedPosting) return;
-          shipOrderMutation.mutate({
-            posting_number: selectedPosting.posting_number,
-            tracking_number: values.tracking_number,
-            carrier_code: values.carrier_code,
-          });
-        }}
-        onCancel={() => setShipModalVisible(false)}
-      />
-
       {/* 进货价格历史弹窗 */}
       <PurchasePriceHistoryModal
         visible={priceHistoryModalVisible}
         onCancel={() => setPriceHistoryModalVisible(false)}
         sku={selectedSku}
         productName={selectedProductName}
-      />
-
-      {/* 批量打印错误展示Modal */}
-      <PrintErrorModal
-        visible={printErrorModalVisible}
-        onClose={() => setPrintErrorModalVisible(false)}
-        successPostings={printSuccessPostings}
-        errors={printErrors}
-        selectedPostingNumbers={selectedPostingNumbers}
-        onRemoveFailedAndContinue={(remaining) => {
-          setSelectedPostingNumbers(remaining);
-          notifyInfo('提示', '已移除失败的订单，可重新选择并打印');
-        }}
       />
 
       {/* 同步确认对话框 */}
