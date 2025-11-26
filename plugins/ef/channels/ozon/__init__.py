@@ -814,16 +814,15 @@ async def setup(hooks) -> None:
 
     # 注册每日统计聚合任务
     try:
-        from .tasks.stats_aggregation_task import aggregate_daily_stats
+        from .tasks.stats_aggregation_task import _aggregate_stats
 
         # 创建异步包装任务
         async def daily_stats_aggregation_task(**kwargs):
             """每日统计聚合定时任务"""
             logger.info("Starting daily stats aggregation task")
             try:
-                # 直接调用Celery任务
-                result = aggregate_daily_stats.delay()
-                task_result = result.get(timeout=300)  # 5分钟超时
+                # 直接调用异步聚合函数（不通过 Celery 子任务，避免 result.get() 问题）
+                task_result = await _aggregate_stats()
                 logger.info(f"Daily stats aggregation completed: {task_result}")
                 return task_result
             except Exception as e:

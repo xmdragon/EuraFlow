@@ -250,9 +250,7 @@ async def aggregate_stats_for_date_range(
         if not shops:
             return {"success": False, "error": "No shops found"}
 
-        # 复用主聚合逻辑（这里简化处理，直接调用定时任务）
-        # 实际使用时可以提取公共逻辑
         logger.info(f"Manual aggregation: shops={[s.id for s in shops]}, range={start_date} to {end_date}")
 
-    # 调用定时任务
-    return aggregate_daily_stats.delay().get(timeout=60)
+    # 直接调用异步聚合函数（避免 Celery result.get() 阻塞问题）
+    return await _aggregate_stats()
