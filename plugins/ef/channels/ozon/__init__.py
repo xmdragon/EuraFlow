@@ -194,11 +194,12 @@ async def setup(hooks) -> None:
 
     # 注册定时任务：标签预缓存（每5分钟）
     # 预先下载待打印订单的标签PDF，打印时直接读取本地文件
-    from .tasks.label_prefetch_task import prefetch_labels_task, cleanup_labels_task
+    # 注意：传入异步函数，由 register_cron 统一包装为 Celery Task
+    from .tasks.label_prefetch_task import prefetch_labels_async, cleanup_labels_async
     await hooks.register_cron(
         name="ef.ozon.labels.prefetch",
         cron="*/5 * * * *",
-        task=prefetch_labels_task
+        task=prefetch_labels_async
     )
 
     # 注册定时任务：标签缓存清理（每天凌晨4点执行）
@@ -206,7 +207,7 @@ async def setup(hooks) -> None:
     await hooks.register_cron(
         name="ef.ozon.labels.cleanup",
         cron="0 4 * * *",
-        task=cleanup_labels_task
+        task=cleanup_labels_async
     )
 
     # 订阅事件：发货请求

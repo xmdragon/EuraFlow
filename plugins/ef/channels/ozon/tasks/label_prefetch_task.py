@@ -3,13 +3,17 @@
 
 定时扫描待打印的订单，预先下载标签PDF到本地缓存
 这样用户打印时可以直接读取本地文件，无需等待 OZON API 响应
+
+注意：
+- 定时任务通过 hooks.register_cron() 注册，传入异步函数
+- register_cron 会自动包装为 Celery Task，处理事件循环
+- 不要在这里使用 @celery_app.task 装饰器，否则会导致双重包装和递归错误
 """
 import os
 import asyncio
 import logging
 from typing import List, Dict, Any
 
-from ef_core.tasks.celery_app import celery_app
 from ef_core.database import get_task_db_manager
 from sqlalchemy import select, and_
 
@@ -21,27 +25,13 @@ BATCH_SIZE = 50  # 每次最多处理的订单数
 DELAY_BETWEEN_REQUESTS = 0.5  # 请求间隔（秒），避免 API 限流
 
 
-@celery_app.task(bind=True, name="ef.ozon.labels.prefetch")
-def prefetch_labels_task(self):
+async def prefetch_labels_async() -> Dict[str, Any]:
     """
     标签预缓存定时任务
 
     扫描所有待打印（awaiting_deliver + tracking_confirmed）且未缓存标签的订单，
     预先下载标签 PDF 到本地。
     """
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-
-    try:
-        result = loop.run_until_complete(_prefetch_labels_async())
-        return result
-    finally:
-        loop.close()
-        asyncio.set_event_loop(None)
-
-
-async def _prefetch_labels_async() -> Dict[str, Any]:
-    """异步执行标签预缓存"""
     from ..models import OzonShop, OzonPosting
     from ..api.client import OzonAPIClient
     from ..services.label_service import LabelService
@@ -193,27 +183,13 @@ async def _prefetch_labels_async() -> Dict[str, Any]:
 CLEANUP_DAYS = 7  # 清理超过7天的标签文件
 
 
-@celery_app.task(bind=True, name="ef.ozon.labels.cleanup")
-def cleanup_labels_task(self):
+async def cleanup_labels_async() -> Dict[str, Any]:
     """
     标签缓存清理定时任务
 
     清理超过 7 天的标签 PDF 文件，释放磁盘空间。
     同时清理数据库中对应的 label_pdf_path 字段。
     """
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-
-    try:
-        result = loop.run_until_complete(_cleanup_labels_async())
-        return result
-    finally:
-        loop.close()
-        asyncio.set_event_loop(None)
-
-
-async def _cleanup_labels_async() -> Dict[str, Any]:
-    """异步执行标签清理"""
     import time
     from datetime import datetime, timezone
     from sqlalchemy import update
