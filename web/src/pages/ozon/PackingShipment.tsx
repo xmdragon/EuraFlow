@@ -332,14 +332,16 @@ const PackingShipment: React.FC = () => {
     staleTime: 30000, // 数据30秒内不会被认为是过期的
   });
 
-  // 当店铺、状态、搜索参数、平台筛选、采购信息筛选或排序变化时，重置分页
+  // 当店铺、状态、搜索参数、平台筛选、采购信息筛选或排序变化时，重置分页并强制刷新
   useEffect(() => {
     setCurrentPage(1);
     currentPageRef.current = 1; // 同步更新 ref
     setAllPostings([]);
     setHasMoreData(true);
     setAccumulatedImageMap({}); // 重置图片映射
-  }, [selectedShop, operationStatus, searchParams, selectedPlatform, selectedPurchaseInfo, sortOrder]);
+    // 强制使缓存失效，确保重新请求
+    queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
+  }, [selectedShop, operationStatus, searchParams, selectedPlatform, selectedPurchaseInfo, sortOrder, queryClient]);
 
   // 当收到新数据时，累积到 allPostings
   useEffect(() => {
