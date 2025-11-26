@@ -76,16 +76,13 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
     onClose();
   };
 
-  if (!record) return null;
-
-  const { product_data } = record;
+  // 提前计算派生数据（避免在条件返回后调用 hooks）
+  const product_data = record?.product_data;
   const variants = product_data?.variants || [];
   const hasVariants = variants.length > 0;
-
-  // 获取当前选中的变体或使用商品基础数据
   const currentVariant = hasVariants ? variants[selectedVariantIndex] : null;
 
-  // 提取当前变体的图片
+  // 提取当前变体的图片（useMemo 必须在条件返回之前调用）
   const currentImages = useMemo(() => {
     if (currentVariant?.images && currentVariant.images.length > 0) {
       return currentVariant.images.map(img => img.url).filter(Boolean);
@@ -95,6 +92,9 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
     }
     return [];
   }, [currentVariant, product_data?.images]);
+
+  // 条件返回必须在所有 hooks 调用之后
+  if (!record) return null;
 
   const mainImage = currentVariant?.image_url || currentImages[0] || '';
 

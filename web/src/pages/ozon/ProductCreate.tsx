@@ -24,7 +24,7 @@ import {
   Checkbox,
   Tooltip,
 } from 'antd';
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 import styles from './ProductCreate.module.scss';
@@ -109,7 +109,7 @@ const ProductCreate: React.FC = () => {
   // 使用类目管理 Hook
   const categoryManager = useCategoryManager({
     selectedShop,
-    variantManager,
+    autoAddVariantDimensions: variantManager.autoAddVariantDimensions,
     setSpecialFieldDescriptions,
   });
 
@@ -521,7 +521,13 @@ const ProductCreate: React.FC = () => {
    * 从采集记录恢复数据
    * 当从采集记录页面跳转过来时，自动填充表单数据
    */
+  const collectionRecordRestoredRef = useRef(false);
   useEffect(() => {
+    // 防止重复执行（React Strict Mode 或依赖变化）
+    if (collectionRecordRestoredRef.current) {
+      return;
+    }
+
     const state = location.state as {
       draftData?: draftTemplateApi.FormData;
       source?: string;
@@ -529,9 +535,13 @@ const ProductCreate: React.FC = () => {
     };
 
     if (state?.draftData && state.source === 'collection_record') {
+      collectionRecordRestoredRef.current = true;
+
       loggers.ozon.info('[CollectionRecord] 从采集记录恢复数据', {
         sourceRecordId: state.sourceRecordId,
         hasDraftData: !!state.draftData,
+        hasVariants: !!state.draftData.variants,
+        variantsCount: state.draftData.variants?.length || 0,
       });
 
       // 使用 deserializeFormData 将采集记录数据填充到表单
@@ -638,7 +648,8 @@ const ProductCreate: React.FC = () => {
     },
     debounceDelay: 1000,
     autoSaveInterval: 60000,
-    enabled: autosaveEnabled && draftTemplate.draftLoaded,
+    // 从采集记录进入时禁用自动保存，避免覆盖用户之前的草稿
+    enabled: autosaveEnabled && draftTemplate.draftLoaded && !isFromCollectionRecord,
   });
 
   // 监听自动保存状态，保存成功后清除未保存标志
@@ -900,8 +911,8 @@ const ProductCreate: React.FC = () => {
           新建商品
         </h2>
 
-        {/* 保存状态指示器 */}
-        {autosaveEnabled && draftTemplate.draftLoaded && (
+        {/* 保存状态指示器（从采集记录进入时不显示） */}
+        {autosaveEnabled && draftTemplate.draftLoaded && !isFromCollectionRecord && (
           <div className={styles.saveStatusIndicator}>
             {saveStatus === 'saving' && (
               <>

@@ -251,21 +251,96 @@ class CollectionRecordService:
         Returns:
             草稿数据（符合ProductCreate页面的表单格式）
         """
+        import time
+
         # 提取嵌套的 dimensions 对象
         dimensions = product_data.get("dimensions", {})
 
-        # 简单映射（具体字段根据实际需求调整）
+        # 处理图片格式：将 {url, is_primary} 格式转换为 URL 字符串数组
+        raw_images = product_data.get("images", [])
+        images = []
+        for img in raw_images:
+            if isinstance(img, str):
+                images.append(img)
+            elif isinstance(img, dict) and img.get("url"):
+                images.append(img["url"])
+
+        # 处理变体数据
+        source_variants = product_data.get("variants", [])
+        variant_dimensions = []
+        converted_variants = []
+        hidden_fields = []
+
+        if source_variants:
+            # 创建一个"规格"维度（因为采集数据只有 specifications 字符串，没有结构化的 spec_details）
+            # 使用负数ID表示自定义字段
+            spec_dim_id = -1000
+            spec_field_key = f"dim_{spec_dim_id}"
+            variant_dimensions.append({
+                "attribute_id": spec_dim_id,
+                "name": "规格",
+                "attribute_type": "String",
+                "original_field_key": spec_field_key,
+            })
+            hidden_fields.append(spec_field_key)
+
+            # 转换每个变体
+            for i, src_variant in enumerate(source_variants):
+                # 提取变体图片
+                variant_images = []
+                if src_variant.get("image_url"):
+                    # 使用高清图片URL（去掉 /wc140/ 等尺寸前缀）
+                    image_url = src_variant["image_url"]
+                    # 替换缩略图URL为原图URL
+                    if "/wc140/" in image_url:
+                        image_url = image_url.replace("/wc140/", "/")
+                    variant_images.append(image_url)
+                for img in src_variant.get("images", []):
+                    if isinstance(img, str):
+                        if img not in variant_images:
+                            variant_images.append(img)
+                    elif isinstance(img, dict) and img.get("url"):
+                        if img["url"] not in variant_images:
+                            variant_images.append(img["url"])
+
+                # 构建 dimension_values - 使用 specifications 字符串作为规格值
+                specifications = src_variant.get("specifications", "").strip()
+                dimension_values = {spec_dim_id: specifications}
+
+                # 生成 offer_id
+                timestamp = str(int(time.time() * 1000))
+                random_suffix = str(i).zfill(3)
+                offer_id = f"ef_{timestamp}{random_suffix}"
+
+                converted_variants.append({
+                    "id": str(int(time.time() * 1000) + i),
+                    "dimension_values": dimension_values,
+                    "offer_id": offer_id,
+                    "images": variant_images,
+                    "price": src_variant.get("price"),
+                    "old_price": src_variant.get("original_price"),
+                })
+
+        # 构建草稿数据
         draft_data = {
             "title": product_data.get("title"),
             "title_cn": product_data.get("title_cn"),
-            "images": product_data.get("images", []),
+            "images": images,
             "price": product_data.get("price"),
+            "old_price": product_data.get("old_price"),
             # 从 dimensions 对象中读取尺寸数据
             "width": dimensions.get("width"),
             "height": dimensions.get("height"),
             "depth": dimensions.get("length"),      # length → depth 字段名转换
             "weight": dimensions.get("weight"),
             "attributes": product_data.get("attributes", {}),
-            "variants": product_data.get("variants", []),
         }
+
+        # 如果有变体，添加变体相关字段
+        if converted_variants:
+            draft_data["variantDimensions"] = variant_dimensions
+            draft_data["variants"] = converted_variants
+            draft_data["hiddenFields"] = hidden_fields
+            draft_data["variantSectionExpanded"] = True
+
         return draft_data

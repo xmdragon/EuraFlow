@@ -3,7 +3,7 @@
  * 将采集记录的数据格式转换为商品表单需要的格式
  */
 import type { FormData } from '@/services/draftTemplateApi';
-import type { ProductVariant } from '@/hooks/useVariantManager';
+import type { ProductVariant, VariantDimension } from '@/hooks/useVariantManager';
 import { loggers } from '@/utils/logger';
 
 /**
@@ -79,8 +79,9 @@ export function normalizeVideos(videos: unknown): Array<{url: string; cover?: st
 }
 
 /**
- * 变体规格字符串解析
- * 示例："颜色: 红色, 尺寸: L" -> {colorAttr: "红色", sizeAttr: "L"}
+ * 变体规格字符串解析（降级方案）
+ * 尝试从 "белый / XL" 或 "颜色: 红色, 尺寸: L" 格式中提取
+ * 注意：如果格式是 "白色 / XL"（无维度名称），则返回空对象
  */
 function parseSpecifications(specifications: string): Record<string, string> {
   if (!specifications) {
@@ -88,6 +89,8 @@ function parseSpecifications(specifications: string): Record<string, string> {
   }
 
   const result: Record<string, string> = {};
+
+  // 尝试解析 "key: value, key: value" 格式
   const pairs = specifications.split(',').map(s => s.trim());
 
   for (const pair of pairs) {
@@ -98,6 +101,15 @@ function parseSpecifications(specifications: string): Record<string, string> {
   }
 
   return result;
+}
+
+/**
+ * 生成维度名称的唯一负数 ID
+ * 使用名称的字符码和，确保同名维度生成相同 ID
+ */
+function generateDimensionId(name: string): number {
+  const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return -Math.abs(hash + 10000); // 确保是负数且唯一
 }
 
 /**
@@ -124,23 +136,30 @@ export function convertCollectionRecordToFormData(
   const mainVideos = normalizeVideos(productData.videos);
 
   // 处理变体数据
-  let variantDimensions: unknown[] = [];
+  let variantDimensions: VariantDimension[] = [];
   let variants: ProductVariant[] = [];
 
   if (productData.variants && Array.isArray(productData.variants) && productData.variants.length > 0) {
     // 从第一个变体提取维度信息（假设所有变体的维度相同）
     const firstVariant = productData.variants[0] as Record<string, unknown>;
-    const specDetails = (firstVariant.spec_details as Record<string, unknown>) || parseSpecifications((firstVariant.specifications as string) || '');
+    const specDetails = (firstVariant.spec_details as Record<string, string>) || parseSpecifications((firstVariant.specifications as string) || '');
 
-    // 提取变体维度
+    // 提取变体维度（使用负数 ID，这样 autoAddVariantDimensions 会保留它们）
     const dimensionKeys = Object.keys(specDetails);
-    variantDimensions = dimensionKeys.map((key, index) => ({
-      // 注意：这里的 attribute_id 是临时生成的，实际应该从类目属性中匹配
-      attribute_id: 90000 + index, // 临时ID，需要后续匹配
-      name: key,
-      is_required: true,
-      is_aspect: true,
-      dictionary_id: null,
+
+    // 为每个维度生成一个稳定的负数 ID（基于维度名称）
+    const dimensionIdMap: Record<string, number> = {};
+    dimensionKeys.forEach((key) => {
+      dimensionIdMap[key] = generateDimensionId(key);
+    });
+
+    variantDimensions = dimensionKeys.map((key) => ({
+      // 使用负数 ID（自定义字段），这样类目切换时不会被移除
+      attribute_id: dimensionIdMap[key],
+      name: key, // 俄语维度名称（如 "Цвет"、"Размер"）
+      attribute_type: 'String',
+      // 标记为采集记录来源的维度
+      original_field_key: `collection_dim_${key}`,
     }));
 
     // 转换变体列表
@@ -148,13 +167,19 @@ export function convertCollectionRecordToFormData(
       const v = variant as Record<string, unknown>;
       const variantImages = normalizeImages(v.images);
       const variantVideos = normalizeVideos(v.videos);
-      const specDetails = (v.spec_details as Record<string, unknown>) || parseSpecifications((v.specifications as string) || '');
+      const variantSpecDetails = (v.spec_details as Record<string, string>) || parseSpecifications((v.specifications as string) || '');
 
-      // 构建维度值映射
+      // 构建维度值映射（使用相同的负数 ID）
       const dimensionValues: Record<number, unknown> = {};
-      dimensionKeys.forEach((key, idx) => {
-        dimensionValues[90000 + idx] = specDetails[key];
+      dimensionKeys.forEach((key) => {
+        dimensionValues[dimensionIdMap[key]] = variantSpecDetails[key] || '';
       });
+
+      // 提取变体主图
+      let variantMainImage = (v.image_url as string) || '';
+      if (!variantMainImage && variantImages.length > 0) {
+        variantMainImage = variantImages[0];
+      }
 
       return {
         id: `variant_${index + 1}`,
@@ -162,7 +187,8 @@ export function convertCollectionRecordToFormData(
         barcode: (v.barcode as string) || '',
         price: (v.price as number) || (productData.price as number) || 0,
         old_price: (v.original_price as number) || (productData.old_price as number),
-        images: variantImages.length > 0 ? variantImages : mainImages, // 如果变体没有图片，使用主商品图片
+        // 变体图片：优先使用变体自己的图片，否则使用主商品图片
+        images: variantImages.length > 0 ? variantImages : (variantMainImage ? [variantMainImage, ...mainImages] : mainImages),
         videos: variantVideos,
         dimension_values: dimensionValues,
       };
@@ -171,6 +197,8 @@ export function convertCollectionRecordToFormData(
     loggers.ozon.info('[CollectionRecord] 变体数据转换完成', {
       dimensionsCount: variantDimensions.length,
       variantsCount: variants.length,
+      dimensionKeys,
+      dimensionIdMap,
       sampleDimension: variantDimensions[0],
       sampleVariant: variants[0],
     });

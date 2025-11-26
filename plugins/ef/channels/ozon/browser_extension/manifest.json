@@ -12,7 +12,7 @@
   "host_permissions": [
     "https://*.ozon.ru/*",
     "https://euraflow.hjdtrading.com/*",
-    "http://localhost:8000/*",
+    "http://localhost/*",
     "https://*.shopbang.cn/*"
   ],
   "content_scripts": [

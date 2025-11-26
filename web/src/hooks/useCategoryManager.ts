@@ -19,9 +19,10 @@ export interface CategoryOption {
 
 export interface UseCategoryManagerProps {
   selectedShop: number | null;
-  variantManager: {
-    autoAddVariantDimensions: (attributes: CategoryAttribute[]) => void;
-  };
+  /**
+   * 自动添加变体维度的函数（从 variantManager 中提取，避免依赖整个对象导致无限循环）
+   */
+  autoAddVariantDimensions: (attributes: CategoryAttribute[]) => void;
   setSpecialFieldDescriptions: (descriptions: Record<string, string>) => void;
 }
 
@@ -55,7 +56,7 @@ export interface UseCategoryManagerReturn {
 
 export const useCategoryManager = ({
   selectedShop,
-  variantManager,
+  autoAddVariantDimensions,
   setSpecialFieldDescriptions,
 }: UseCategoryManagerProps): UseCategoryManagerReturn => {
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
@@ -100,7 +101,7 @@ export const useCategoryManager = ({
           // 自动添加 is_aspect=true 的属性到变体维度
           const aspectAttributes = categoryService.extractAspectAttributes(result.data);
           if (aspectAttributes.length > 0) {
-            variantManager.autoAddVariantDimensions(aspectAttributes);
+            autoAddVariantDimensions(aspectAttributes);
           }
         } else {
           setCategoryAttributes([]);
@@ -113,7 +114,7 @@ export const useCategoryManager = ({
         setLoadingAttributes(false);
       }
     },
-    [selectedShop, variantManager, setSpecialFieldDescriptions]
+    [selectedShop, autoAddVariantDimensions, setSpecialFieldDescriptions]
   );
 
   /**

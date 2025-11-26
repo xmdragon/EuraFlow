@@ -31,6 +31,59 @@ export const searchCategories = async (
 };
 
 /**
+ * 类目匹配结果接口
+ */
+export interface CategoryMatchResult {
+  success: boolean;
+  matched: boolean;
+  category?: {
+    category_id: number;
+    name: string;
+    name_zh: string;
+    name_ru: string;
+    parent_id: number | null;
+    is_leaf: boolean;
+    level: number;
+  };
+  path?: Array<{
+    category_id: number;
+    name: string;
+    name_zh: string;
+    name_ru: string;
+    level: number;
+  }>;
+  path_ids?: number[];
+  fuzzy_matches?: Array<{
+    category_id: number;
+    name_ru: string;
+    name_zh: string;
+    name: string;
+    is_leaf: boolean;
+    level: number;
+  }>;
+  message?: string;
+  error?: string;
+}
+
+/**
+ * 根据俄文名称匹配类目
+ *
+ * 用于从采集记录自动匹配本地类目：
+ * 1. 从采集记录的 product_data.attributes 中提取 attribute_id=2622298（Тип）的值
+ * 2. 使用该值匹配 ozon_categories 表的 name_ru 字段
+ * 3. 返回匹配的类目信息及完整路径
+ */
+export const matchCategoryByName = async (
+  shopId: number,
+  nameRu: string,
+): Promise<CategoryMatchResult> => {
+  const response = await apiClient.get("/ozon/listings/categories/match-by-name", {
+    params: { shop_id: shopId, name_ru: nameRu },
+  });
+  return response.data;
+};
+
+/**
  * 获取类目属性
  */
 export const getCategoryAttributes = async (

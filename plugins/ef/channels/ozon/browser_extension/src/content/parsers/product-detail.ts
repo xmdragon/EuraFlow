@@ -17,6 +17,11 @@ export interface ProductDetailData {
   title: string;
   description?: string;
   category_id?: number;
+  // 三级类目路径
+  category_path?: string;           // 完整类目路径（如："Одежда, обувь и аксессуары > Женщинам > Юбки"）
+  category_level_1?: string;        // 一级类目名称
+  category_level_2?: string;        // 二级类目名称
+  category_level_3?: string;        // 三级类目名称
   price: number;
   original_price?: number;
   brand?: string;
@@ -573,6 +578,57 @@ function parseFromWidgetStates(apiResponse: any): Omit<ProductDetailData, 'varia
       }
     }
 
+    // 6. 提取三级类目路径（从 webBreadcrumbs）
+    let category_path: string | undefined = undefined;
+    let category_level_1: string | undefined = undefined;
+    let category_level_2: string | undefined = undefined;
+    let category_level_3: string | undefined = undefined;
+
+    const breadcrumbsKey = keys.find(k => k.includes('webBreadcrumbs'));
+    if (breadcrumbsKey) {
+      try {
+        const breadcrumbsData = JSON.parse(widgetStates[breadcrumbsKey]);
+        // OZON 面包屑结构通常为: { breadcrumbs: [{ text: "类目1" }, { text: "类目2" }, ...] }
+        // 或者: { items: [{ text: "类目1" }, { text: "类目2" }, ...] }
+        const items = breadcrumbsData?.breadcrumbs || breadcrumbsData?.items || [];
+
+        if (Array.isArray(items) && items.length > 0) {
+          // 过滤掉首页("Главная")和最后一项（商品标题）
+          const categoryItems = items.filter((item: any, index: number) => {
+            const text = item.text || item.title || item.name || '';
+            // 跳过首页
+            if (text === 'Главная' || text === 'OZON') return false;
+            // 跳过最后一项（通常是商品标题）
+            if (index === items.length - 1 && items.length > 1) return false;
+            return !!text;
+          });
+
+          // 提取类目名称
+          const categoryNames = categoryItems.map((item: any) =>
+            item.text || item.title || item.name || ''
+          ).filter(Boolean);
+
+          if (categoryNames.length > 0) {
+            category_path = categoryNames.join(' > ');
+            category_level_1 = categoryNames[0] || undefined;
+            category_level_2 = categoryNames[1] || undefined;
+            category_level_3 = categoryNames[2] || undefined;
+
+            if (window.EURAFLOW_DEBUG) {
+              console.log('[EuraFlow] 提取到类目路径:', {
+                category_path,
+                category_level_1,
+                category_level_2,
+                category_level_3,
+              });
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[EuraFlow] 解析 webBreadcrumbs 失败:', error);
+      }
+    }
+
     // 7. 提取品牌（webProductHeading 或 webCharacteristics）
     let brand: string | undefined = headingData?.brand || undefined;
     if (!brand) {
@@ -624,6 +680,10 @@ function parseFromWidgetStates(apiResponse: any): Omit<ProductDetailData, 'varia
         images: images.length,
         videos: videos.length,
         category_id,
+        category_path,
+        category_level_1,
+        category_level_2,
+        category_level_3,
         brand,
         attributes: attributes.length,
       });
@@ -637,6 +697,10 @@ function parseFromWidgetStates(apiResponse: any): Omit<ProductDetailData, 'varia
       images,
       videos: videos.length > 0 ? videos : undefined,
       category_id,
+      category_path,
+      category_level_1,
+      category_level_2,
+      category_level_3,
       brand,
       attributes: attributes.length > 0 ? attributes : undefined,
     };
@@ -888,12 +952,17 @@ export async function extractProductData(): Promise<ProductDetailData> {
               return;
             }
 
-            // 构建规格文本
+            // 构建规格文本和规格详情
             const specs: string[] = [];
+            const specDetails: Record<string, string> = {};
             currentPageAspects.forEach((aspect: any) => {
               const v = aspect.variants.find((v: any) => v.sku === sku) || aspect.variants.find((v: any) => v.active);
               if (v?.data?.searchableText) {
                 specs.push(v.data.searchableText);
+                // 提取维度名称和值（如 { "Цвет": "белый", "Размер": "M" }）
+                if (aspect.title) {
+                  specDetails[aspect.title] = v.data.searchableText;
+                }
               }
             });
             const specText = specs.join(' / ');
@@ -919,7 +988,7 @@ export async function extractProductData(): Promise<ProductDetailData> {
               variant_id: sku,
               name: title || '',
               specifications: specText,
-              spec_details: undefined,
+              spec_details: Object.keys(specDetails).length > 0 ? specDetails : undefined,
               image_url: coverImage || '',
               images: baseData.images.length > 0 ? baseData.images : undefined,  // 当前页面的附加图片
               link: link ? link.split('?')[0] : '',
@@ -1023,12 +1092,17 @@ export async function extractProductData(): Promise<ProductDetailData> {
                 return;
               }
 
-              // 构建规格文本（从所有 aspects 提取）
+              // 构建规格文本和规格详情（从所有 aspects 提取）
               const specs: string[] = [];
+              const specDetails: Record<string, string> = {};
               variantAspects.forEach((aspect: any) => {
                 const v = aspect.variants.find((v: any) => v.sku === sku) || aspect.variants.find((v: any) => v.active);
                 if (v?.data?.searchableText) {
                   specs.push(v.data.searchableText);
+                  // 提取维度名称和值（如 { "Цвет": "белый", "Размер": "M" }）
+                  if (aspect.title) {
+                    specDetails[aspect.title] = v.data.searchableText;
+                  }
                 }
               });
               const specText = specs.join(' / ');
@@ -1054,7 +1128,7 @@ export async function extractProductData(): Promise<ProductDetailData> {
                 variant_id: sku,
                 name: title || '',
                 specifications: specText,
-                spec_details: undefined,
+                spec_details: Object.keys(specDetails).length > 0 ? specDetails : undefined,
                 image_url: coverImage || '',
                 images: variantImages.length > 0 ? variantImages : undefined,  // 添加变体的附加图片
                 link: link ? link.split('?')[0] : '',

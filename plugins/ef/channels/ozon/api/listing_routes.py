@@ -212,6 +212,104 @@ async def search_categories(
         }
 
 
+@router.get("/listings/categories/match-by-name")
+async def match_category_by_name(
+    name_ru: str = Query(..., description="俄文类目名称（从采集记录的 Тип 属性获取）"),
+    shop_id: int = Query(..., description="店铺ID"),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    根据俄文名称精确匹配类目
+
+    用于从采集记录自动匹配本地类目：
+    1. 从采集记录的 product_data.attributes 中提取 attribute_id=2622298（Тип）的值
+    2. 使用该值匹配 ozon_categories 表的 name_ru 字段
+    3. 返回匹配的类目信息及完整路径
+    """
+    try:
+        from ..models.listing import OzonCategory
+
+        # 精确匹配俄文名称
+        result = await db.execute(
+            select(OzonCategory).where(OzonCategory.name_ru == name_ru)
+        )
+        category = result.scalar_one_or_none()
+
+        if not category:
+            # 尝试模糊匹配
+            result = await db.execute(
+                select(OzonCategory).where(OzonCategory.name_ru.ilike(f"%{name_ru}%")).limit(5)
+            )
+            fuzzy_matches = list(result.scalars().all())
+
+            if fuzzy_matches:
+                return {
+                    "success": True,
+                    "matched": False,
+                    "fuzzy_matches": [
+                        {
+                            "category_id": cat.category_id,
+                            "name_ru": cat.name_ru,
+                            "name_zh": cat.name_zh,
+                            "name": cat.name,
+                            "is_leaf": cat.is_leaf,
+                            "level": cat.level
+                        }
+                        for cat in fuzzy_matches
+                    ],
+                    "message": f"未找到精确匹配，找到 {len(fuzzy_matches)} 个相似类目"
+                }
+            else:
+                return {
+                    "success": True,
+                    "matched": False,
+                    "fuzzy_matches": [],
+                    "message": f"未找到匹配的类目: {name_ru}"
+                }
+
+        # 获取类目路径
+        category_path = []
+        current = category
+        while current:
+            category_path.insert(0, {
+                "category_id": current.category_id,
+                "name": current.name,
+                "name_zh": current.name_zh,
+                "name_ru": current.name_ru,
+                "level": current.level
+            })
+            if current.parent_id:
+                result = await db.execute(
+                    select(OzonCategory).where(OzonCategory.category_id == current.parent_id)
+                )
+                current = result.scalar_one_or_none()
+            else:
+                current = None
+
+        return {
+            "success": True,
+            "matched": True,
+            "category": {
+                "category_id": category.category_id,
+                "name": category.name,
+                "name_zh": category.name_zh,
+                "name_ru": category.name_ru,
+                "parent_id": category.parent_id,
+                "is_leaf": category.is_leaf,
+                "level": category.level
+            },
+            "path": category_path,
+            "path_ids": [p["category_id"] for p in category_path]
+        }
+
+    except Exception as e:
+        logger.error(f"Match category by name failed: {e}", exc_info=True)
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
 @router.get("/listings/categories/{category_id}/attributes")
 async def get_category_attributes(
     category_id: int,
