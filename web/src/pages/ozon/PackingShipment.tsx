@@ -1539,12 +1539,15 @@ const PackingShipment: React.FC = () => {
               try {
                 const result = await ozonApi.searchPostingByTracking(currentPosting.posting_number);
                 if (result.data && Array.isArray(result.data) && result.data.length > 0) {
+                  const updatedPosting = result.data[0];
                   // 更新扫描结果
                   setScanResults((prev) =>
                     prev.map((p) =>
-                      p.posting_number === currentPosting.posting_number ? result.data[0] : p
+                      p.posting_number === currentPosting.posting_number ? updatedPosting : p
                     )
                   );
+                  // 同步更新 currentPosting，确保再次打开弹窗时显示最新数据
+                  setCurrentPosting(updatedPosting);
                 } else {
                   // 如果查询不到了（可能被清空单号变为已分配），从列表移除
                   setScanResults((prev) =>
