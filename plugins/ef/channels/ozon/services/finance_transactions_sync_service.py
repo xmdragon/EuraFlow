@@ -292,7 +292,7 @@ class FinanceTransactionsSyncService:
                     "return_delivery_charge": return_delivery_charge,
                     "sale_commission": sale_commission,
                     # 商品明细为空
-                    "item_sku": None,
+                    "ozon_sku": None,
                     "item_name": None,
                     "item_quantity": None,
                     "item_price": None,
@@ -328,12 +328,12 @@ class FinanceTransactionsSyncService:
 
         for record in records:
             try:
-                # 检查是否已存在（基于唯一约束：shop_id + operation_id + item_sku）
+                # 检查是否已存在（基于唯一约束：shop_id + operation_id + ozon_sku）
                 existing = await db.execute(
                     select(OzonFinanceTransaction).where(
                         OzonFinanceTransaction.shop_id == record["shop_id"],
                         OzonFinanceTransaction.operation_id == record["operation_id"],
-                        OzonFinanceTransaction.item_sku == record.get("item_sku")
+                        OzonFinanceTransaction.ozon_sku == record.get("ozon_sku")
                     )
                 )
 
