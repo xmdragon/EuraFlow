@@ -190,24 +190,16 @@ async def get_packing_orders(
             # 精确匹配
             query = query.where(OzonPosting.posting_number == posting_number_value)
 
-    # 搜索条件：SKU搜索（在products数组中查找）
+    # 搜索条件：SKU搜索（使用 product_skus 数组 GIN 索引，性能优化）
     if sku:
-        # 在raw_payload.products数组中查找包含指定SKU的posting
-        # SKU在OZON API中是整数类型
+        # 使用 product_skus 数组字段（反范式化）进行高效查询
+        # SKU 存储为字符串数组，使用 PostgreSQL 数组包含操作
         try:
-            sku_int = int(sku)
-            # 使用jsonb_array_elements展开products数组，然后检查sku字段
-            # 这种方式兼容性好，适用于PostgreSQL 9.3+
-            subquery = exists(
-                select(literal_column('1'))
-                .select_from(
-                    func.jsonb_array_elements(OzonPosting.raw_payload['products']).alias('product')
-                )
-                .where(
-                    literal_column("product->>'sku'") == str(sku_int)
-                )
+            sku_str = str(int(sku))  # 验证 SKU 是有效整数后转为字符串
+            # 使用 ANY 操作符检查数组是否包含指定 SKU
+            query = query.where(
+                OzonPosting.product_skus.any(sku_str)
             )
-            query = query.where(subquery)
         except ValueError:
             # 如果SKU不是整数，不应用此过滤条件
             logger.warning(f"Invalid SKU format: {sku}, expected integer")
@@ -248,63 +240,14 @@ async def get_packing_orders(
             OzonPosting.delivery_method_name.like(f"{delivery_method_value}%")
         )
 
-    # 搜索条件：采购信息筛选（基于商品表的purchase_url）
+    # 搜索条件：采购信息筛选（使用反范式化字段 has_purchase_info，避免 jsonb_array_elements 子查询）
     if has_purchase_info and has_purchase_info != 'all':
         if has_purchase_info == 'yes':
-            # 有采购信息：posting的所有商品都有采购地址（purchase_url不为空）
-            # 使用NOT EXISTS子查询：不存在任何商品缺少采购地址
-            subquery = (
-                select(1)
-                .select_from(
-                    func.jsonb_array_elements(OzonPosting.raw_payload['products']).alias('product_elem')
-                )
-                .outerjoin(
-                    OzonProduct,
-                    and_(
-                        OzonProduct.offer_id == text("product_elem.value->>'offer_id'"),
-                        OzonProduct.shop_id == OzonPosting.shop_id
-                    )
-                )
-                .where(
-                    or_(
-                        # 商品不存在
-                        OzonProduct.id.is_(None),
-                        # 或者采购地址为空
-                        OzonProduct.purchase_url.is_(None),
-                        OzonProduct.purchase_url == ''
-                    )
-                )
-                .correlate(OzonPosting)
-            )
-            query = query.where(~exists(subquery))
-
+            # 有采购信息：所有商品都有采购地址
+            query = query.where(OzonPosting.has_purchase_info == True)
         elif has_purchase_info == 'no':
-            # 无采购信息：posting至少有一个商品缺少采购地址
-            # 使用EXISTS子查询：存在至少一个商品缺少采购地址
-            subquery = (
-                select(1)
-                .select_from(
-                    func.jsonb_array_elements(OzonPosting.raw_payload['products']).alias('product_elem')
-                )
-                .outerjoin(
-                    OzonProduct,
-                    and_(
-                        OzonProduct.offer_id == text("product_elem.value->>'offer_id'"),
-                        OzonProduct.shop_id == OzonPosting.shop_id
-                    )
-                )
-                .where(
-                    or_(
-                        # 商品不存在
-                        OzonProduct.id.is_(None),
-                        # 或者采购地址为空
-                        OzonProduct.purchase_url.is_(None),
-                        OzonProduct.purchase_url == ''
-                    )
-                )
-                .correlate(OzonPosting)
-            )
-            query = query.where(exists(subquery))
+            # 无采购信息：至少有一个商品缺少采购地址
+            query = query.where(OzonPosting.has_purchase_info == False)
 
     # 排序：已打印状态按操作时间，其他状态按下单时间
     # 默认倒序（新订单在前），支持顺序排序（旧订单在前）
@@ -407,20 +350,12 @@ async def get_packing_orders(
         else:
             count_query = count_query.where(OzonPosting.posting_number == posting_number_value)
     if sku:
-        # SKU搜索（count查询也需要应用）
+        # SKU搜索（使用 product_skus 数组，count查询也需要应用）
         try:
-            sku_int = int(sku)
-            # 使用jsonb_array_elements展开products数组，然后检查sku字段
-            subquery = exists(
-                select(literal_column('1'))
-                .select_from(
-                    func.jsonb_array_elements(OzonPosting.raw_payload['products']).alias('product')
-                )
-                .where(
-                    literal_column("product->>'sku'") == str(sku_int)
-                )
+            sku_str = str(int(sku))
+            count_query = count_query.where(
+                OzonPosting.product_skus.any(sku_str)
             )
-            count_query = count_query.where(subquery)
         except ValueError:
             pass
     if tracking_number:
@@ -446,59 +381,14 @@ async def get_packing_orders(
             OzonPosting.source_platform.contains([source_platform])
         )
 
-    # 采购信息筛选（基于商品表的purchase_url）
+    # 采购信息筛选（使用反范式化字段 has_purchase_info，避免 jsonb_array_elements 子查询）
     if has_purchase_info and has_purchase_info != 'all':
         if has_purchase_info == 'yes':
-            # 有采购信息：posting的所有商品都有采购地址
-            # 使用 NOT EXISTS 子查询：不存在缺少采购地址的商品
-            count_query = count_query.where(
-                ~exists(
-                    select(literal_column('1'))
-                    .select_from(
-                        func.jsonb_array_elements(OzonPosting.raw_payload['products']).alias('product_elem')
-                    )
-                    .outerjoin(
-                        OzonProduct,
-                        and_(
-                            OzonProduct.offer_id == literal_column("product_elem.value->>'offer_id'"),
-                            OzonProduct.shop_id == OzonPosting.shop_id
-                        )
-                    )
-                    .where(
-                        or_(
-                            OzonProduct.id.is_(None),
-                            OzonProduct.purchase_url.is_(None),
-                            OzonProduct.purchase_url == ''
-                        )
-                    )
-                )
-            )
-
+            # 有采购信息：所有商品都有采购地址
+            count_query = count_query.where(OzonPosting.has_purchase_info == True)
         elif has_purchase_info == 'no':
-            # 无采购信息：posting至少有一个商品缺少采购地址
-            # 使用 EXISTS 子查询：存在缺少采购地址的商品
-            count_query = count_query.where(
-                exists(
-                    select(literal_column('1'))
-                    .select_from(
-                        func.jsonb_array_elements(OzonPosting.raw_payload['products']).alias('product_elem')
-                    )
-                    .outerjoin(
-                        OzonProduct,
-                        and_(
-                            OzonProduct.offer_id == literal_column("product_elem.value->>'offer_id'"),
-                            OzonProduct.shop_id == OzonPosting.shop_id
-                        )
-                    )
-                    .where(
-                        or_(
-                            OzonProduct.id.is_(None),
-                            OzonProduct.purchase_url.is_(None),
-                            OzonProduct.purchase_url == ''
-                        )
-                    )
-                )
-            )
+            # 无采购信息：至少有一个商品缺少采购地址
+            count_query = count_query.where(OzonPosting.has_purchase_info == False)
 
     total_result = await db.execute(count_query)
     total = total_result.scalar()
@@ -624,10 +514,7 @@ async def get_product_purchase_price_history(
     primary_image = images_data.get('primary') if isinstance(images_data, dict) else None
     product_price = str(product[4]) if product and product[4] else None
 
-    # 2. 查询该SKU的进货价格历史（从postings表的raw_payload中匹配）
-    # 使用JSONB查询：raw_payload->'products'数组中任意元素的sku字段匹配
-    # 使用PostgreSQL的@>运算符检查JSONB数组是否包含指定元素
-    # 注意：raw_payload中的sku是整数类型，需要转换
+    # 2. 查询该SKU的进货价格历史（使用 product_skus 数组字段，GIN 索引优化）
     query = (
         select(
             OzonPosting.posting_number,
@@ -639,16 +526,8 @@ async def get_product_purchase_price_history(
         .where(
             and_(
                 OzonPosting.purchase_price.isnot(None),  # 必须有进货价格
-                # 使用jsonb_array_elements展开products数组，然后检查sku字段
-                exists(
-                    select(literal_column('1'))
-                    .select_from(
-                        func.jsonb_array_elements(OzonPosting.raw_payload['products']).alias('product')
-                    )
-                    .where(
-                        literal_column("product->>'sku'") == str(int(sku))
-                    )
-                )
+                # 使用 product_skus 数组字段（反范式化）进行高效查询
+                OzonPosting.product_skus.any(str(int(sku)))
             )
         )
         .order_by(
@@ -1046,20 +925,13 @@ async def get_packing_stats(
         # 构建搜索条件（SKU/tracking_number/domestic_tracking_number）
         def apply_search_conditions(query):
             """应用搜索条件到查询"""
-            # SKU搜索
+            # SKU搜索（使用 product_skus 数组字段，GIN 索引优化）
             if sku:
                 try:
-                    sku_int = int(sku)
-                    subquery = exists(
-                        select(literal_column('1'))
-                        .select_from(
-                            func.jsonb_array_elements(OzonPosting.raw_payload['products']).alias('product')
-                        )
-                        .where(
-                            literal_column("product->>'sku'") == str(sku_int)
-                        )
+                    sku_str = str(int(sku))
+                    query = query.where(
+                        OzonPosting.product_skus.any(sku_str)
                     )
-                    query = query.where(subquery)
                 except ValueError:
                     pass
 

@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional
 from decimal import Decimal
 import logging
 
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import OzonShop, OzonProduct, OzonOrder, OzonOrderItem, OzonPosting, OzonShipmentPackage
@@ -1608,6 +1608,36 @@ class OzonSyncService:
         # 更新 has_tracking_number（反范式化字段，避免 JSONB 查询）
         tracking_number = posting_data.get("tracking_number")
         posting.has_tracking_number = bool(tracking_number and tracking_number.strip())
+
+        # 更新 product_skus 和 has_purchase_info（反范式化字段，优化 SKU 搜索和采购信息查询）
+        products = posting_data.get("products", [])
+        if products:
+            # 提取 SKU 列表
+            skus = list(set(
+                str(p.get("sku")) for p in products
+                if p.get("sku") is not None
+            ))
+            posting.product_skus = skus if skus else None
+
+            # 计算 has_purchase_info
+            if skus:
+                sku_ints = [int(s) for s in skus if s.isdigit()]
+                if sku_ints:
+                    result = await db.execute(
+                        select(func.count(OzonProduct.id))
+                        .where(
+                            OzonProduct.shop_id == shop_id,
+                            OzonProduct.ozon_sku.in_(sku_ints),
+                            OzonProduct.purchase_url.isnot(None),
+                            OzonProduct.purchase_url != ''
+                        )
+                    )
+                    products_with_purchase = result.scalar() or 0
+                    posting.has_purchase_info = (products_with_purchase == len(sku_ints))
+                else:
+                    posting.has_purchase_info = False
+            else:
+                posting.has_purchase_info = False
 
         # ✅ 先 flush posting，确保 posting.id 有值（_sync_packages 需要 posting.id）
         await db.flush()

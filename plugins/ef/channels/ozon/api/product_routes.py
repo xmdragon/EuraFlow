@@ -15,9 +15,79 @@ from ef_core.models.users import User
 from ef_core.middleware.auth import require_role
 from ef_core.api.auth import get_current_user_flexible
 from ..models import OzonProduct, OzonShop
+from ..models.orders import OzonPosting
 from .permissions import filter_by_shop_permission, build_shop_filter_condition
 
 router = APIRouter(tags=["ozon-products"])
+
+
+async def _update_postings_purchase_info(
+    db: AsyncSession,
+    shop_id: int,
+    ozon_sku: int,
+    purchase_url_added: bool
+) -> int:
+    """
+    当商品的 purchase_url 变化时，更新包含该 SKU 的 posting 的 has_purchase_info 字段
+
+    Args:
+        db: 数据库会话
+        shop_id: 店铺ID
+        ozon_sku: 商品的 ozon_sku
+        purchase_url_added: True=添加了采购链接, False=移除了采购链接
+
+    Returns:
+        更新的 posting 数量
+    """
+    sku_str = str(ozon_sku)
+    updated_count = 0
+
+    if purchase_url_added:
+        # 采购链接从无到有：重新计算 has_purchase_info=False 的 posting
+        # 找出包含此 SKU 且 has_purchase_info=False 的 posting
+        stmt = select(OzonPosting).where(
+            OzonPosting.shop_id == shop_id,
+            OzonPosting.has_purchase_info == False,
+            OzonPosting.product_skus.contains([sku_str])
+        )
+        result = await db.execute(stmt)
+        postings = result.scalars().all()
+
+        for posting in postings:
+            if posting.product_skus:
+                # 检查这个 posting 的所有 SKU 是否都有采购信息
+                sku_ints = [int(s) for s in posting.product_skus if s.isdigit()]
+                if sku_ints:
+                    count_result = await db.execute(
+                        select(func.count(OzonProduct.id))
+                        .where(
+                            OzonProduct.shop_id == shop_id,
+                            OzonProduct.ozon_sku.in_(sku_ints),
+                            OzonProduct.purchase_url.isnot(None),
+                            OzonProduct.purchase_url != ''
+                        )
+                    )
+                    products_with_purchase = count_result.scalar() or 0
+                    if products_with_purchase == len(sku_ints):
+                        posting.has_purchase_info = True
+                        updated_count += 1
+    else:
+        # 采购链接从有到无：直接将包含此 SKU 且 has_purchase_info=True 的 posting 设为 False
+        stmt = select(OzonPosting).where(
+            OzonPosting.shop_id == shop_id,
+            OzonPosting.has_purchase_info == True,
+            OzonPosting.product_skus.contains([sku_str])
+        )
+        result = await db.execute(stmt)
+        postings = result.scalars().all()
+
+        for posting in postings:
+            posting.has_purchase_info = False
+            updated_count += 1
+
+    return updated_count
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -991,14 +1061,34 @@ async def update_product(
         if "visibility" in product_data:
             product.visibility = bool(product_data["visibility"])
             product.status = "active" if product.visibility else "inactive"
+        # 处理 purchase_url 变化（需要更新关联 posting 的 has_purchase_info）
+        purchase_url_changed = False
+        old_purchase_url = product.purchase_url
         if "purchase_url" in product_data:
-            product.purchase_url = product_data["purchase_url"]
+            new_purchase_url = product_data["purchase_url"]
+            product.purchase_url = new_purchase_url
+            # 检查是否从无到有或从有到无
+            old_has_url = bool(old_purchase_url and old_purchase_url.strip())
+            new_has_url = bool(new_purchase_url and new_purchase_url.strip())
+            if old_has_url != new_has_url:
+                purchase_url_changed = True
+
         if "suggested_purchase_price" in product_data and product_data["suggested_purchase_price"] is not None:
             product.suggested_purchase_price = Decimal(str(product_data["suggested_purchase_price"]))
         if "purchase_note" in product_data:
             product.purchase_note = product_data["purchase_note"]
 
         product.updated_at = datetime.now()
+
+        # 如果 purchase_url 变化，更新关联 posting 的 has_purchase_info
+        if purchase_url_changed and product.ozon_sku:
+            new_has_url = bool(product.purchase_url and product.purchase_url.strip())
+            updated_postings = await _update_postings_purchase_info(
+                db, product.shop_id, product.ozon_sku, new_has_url
+            )
+            if updated_postings > 0:
+                logger.info(f"Updated has_purchase_info for {updated_postings} postings after product {product.ozon_sku} purchase_url change")
+
         await db.commit()
 
         return {
@@ -1338,15 +1428,36 @@ async def update_product_purchase_info(
         raise HTTPException(status_code=404, detail="Product not found")
 
     try:
+        # 记录旧的 purchase_url 状态
+        old_purchase_url = product.purchase_url
+        purchase_url_changed = False
+
         # 更新采购信息
         if "purchase_url" in request_data:
-            product.purchase_url = request_data["purchase_url"]
+            new_purchase_url = request_data["purchase_url"]
+            product.purchase_url = new_purchase_url
+            # 检查是否从无到有或从有到无
+            old_has_url = bool(old_purchase_url and old_purchase_url.strip())
+            new_has_url = bool(new_purchase_url and new_purchase_url.strip())
+            if old_has_url != new_has_url:
+                purchase_url_changed = True
+
         if "suggested_purchase_price" in request_data:
             product.suggested_purchase_price = Decimal(str(request_data["suggested_purchase_price"])) if request_data["suggested_purchase_price"] else None
         if "purchase_note" in request_data:
             product.purchase_note = request_data["purchase_note"]
 
         product.updated_at = datetime.now()
+
+        # 如果 purchase_url 变化，更新关联 posting 的 has_purchase_info
+        if purchase_url_changed and product.ozon_sku:
+            new_has_url = bool(product.purchase_url and product.purchase_url.strip())
+            updated_postings = await _update_postings_purchase_info(
+                db, product.shop_id, product.ozon_sku, new_has_url
+            )
+            if updated_postings > 0:
+                logger.info(f"Updated has_purchase_info for {updated_postings} postings after product {product.ozon_sku} purchase_url change")
+
         await db.commit()
 
         return {

@@ -10,7 +10,7 @@ from sqlalchemy import (
     Boolean, DateTime, JSON, ForeignKey, Index, UniqueConstraint, text
 )
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 
 from ef_core.database import Base
 
@@ -352,6 +352,8 @@ class OzonPosting(Base):
     order_total_price = Column(Numeric(18, 2), comment="订单总金额（从raw_payload.products计算，避免运行时JSONB解析）")
     has_tracking_number = Column(Boolean, nullable=False, default=False, server_default='false', comment="是否有追踪号（避免JSONB查询）")
     has_domestic_tracking = Column(Boolean, nullable=False, default=False, server_default='false', comment="是否有国内单号（避免EXISTS子查询）")
+    has_purchase_info = Column(Boolean, nullable=False, default=False, server_default='false', comment="是否所有商品都有采购信息（避免jsonb_array_elements子查询）")
+    product_skus = Column(ARRAY(String), comment="商品SKU数组（反范式化，优化SKU搜索性能，使用GIN索引）")
 
     # 标签PDF文件路径
     label_pdf_path = Column(String(500), comment="标签PDF文件路径（70x125mm竖向格式）")

@@ -126,6 +126,10 @@ class OzonProduct(Base):
     media_ready_at = Column(DateTime(timezone=True), comment="媒体准备完成时间")
     import_submitted_at = Column(DateTime(timezone=True), comment="导入提交时间")
 
+    # 销量统计
+    sales_count = Column(Integer, default=0, comment="累计销量")
+    last_sale_at = Column(DateTime(timezone=True), comment="最后销售时间")
+
     # 时间戳
     ozon_created_at = Column(DateTime(timezone=True), comment="OZON平台创建时间")
     created_at = Column(DateTime(timezone=True), default=utcnow)

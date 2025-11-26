@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional
 from decimal import Decimal
 
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ef_core.database import get_db_manager
@@ -19,6 +19,7 @@ from ..models.orders import (
     OzonOrder, OzonPosting, OzonOrderItem,
     OzonShipmentPackage, OzonRefund
 )
+from ..models.products import OzonProduct
 from ..models.sync import OzonSyncCheckpoint, OzonSyncLog, OzonOutboxEvent
 
 logger = get_logger(__name__)
@@ -424,6 +425,35 @@ class OrderSyncService:
                 for p in products
             )
             posting.order_total_price = total_price
+
+            # 提取并存储 product_skus（反范式化，优化 SKU 搜索性能）
+            skus = list(set(
+                str(p.get("sku")) for p in products
+                if p.get("sku") is not None
+            ))
+            posting.product_skus = skus if skus else None
+
+            # 计算 has_purchase_info（反范式化，避免 jsonb_array_elements 子查询）
+            # 逻辑：所有商品都有采购信息时为 True
+            if skus:
+                # 查询这些 SKU 中有多少有采购信息
+                sku_ints = [int(s) for s in skus if s.isdigit()]
+                if sku_ints:
+                    result = await session.execute(
+                        select(func.count(OzonProduct.id))
+                        .where(
+                            OzonProduct.shop_id == self.shop_id,
+                            OzonProduct.ozon_sku.in_(sku_ints),
+                            OzonProduct.purchase_url.isnot(None),
+                            OzonProduct.purchase_url != ''
+                        )
+                    )
+                    products_with_purchase = result.scalar() or 0
+                    posting.has_purchase_info = (products_with_purchase == len(sku_ints))
+                else:
+                    posting.has_purchase_info = False
+            else:
+                posting.has_purchase_info = False
 
         # 处理订单商品
         await self._process_order_items(session, order, posting_data.get("products", []))
