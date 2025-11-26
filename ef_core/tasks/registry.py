@@ -67,7 +67,11 @@ class TaskRegistry:
         async_func: Callable[..., Awaitable],
         plugin_name: Optional[str]
     ) -> Callable:
-        """将异步函数包装为 Celery 任务"""
+        """将异步函数包装为 Celery 任务
+
+        重要：每个任务创建独立的事件循环，避免 "Future attached to a different loop" 错误
+        参考：CLAUDE.md § Celery 与 Asyncio 混用规范
+        """
 
         # 创建任务执行函数
         def task_func(*args, **kwargs):
@@ -75,9 +79,33 @@ class TaskRegistry:
             if plugin_name:
                 kwargs["_plugin"] = plugin_name
 
-            # 运行异步函数
-            result = asyncio.run(async_func(*args, **kwargs))
-            return result
+            # 重置数据库管理器，确保在新事件循环中使用新的连接
+            from ef_core.database import reset_db_manager
+            reset_db_manager()
+
+            # 创建独立的事件循环（避免事件循环冲突）
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+            try:
+                # 在独立事件循环中运行异步函数
+                result = loop.run_until_complete(async_func(*args, **kwargs))
+                return result
+            finally:
+                # 关闭事件循环并清理引用
+                try:
+                    # 取消所有待处理的任务
+                    pending = asyncio.all_tasks(loop)
+                    for task in pending:
+                        task.cancel()
+                    # 等待任务取消完成
+                    if pending:
+                        loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                except Exception:
+                    pass
+                finally:
+                    loop.close()
+                    asyncio.set_event_loop(None)
 
         # 注册到 Celery
         task = celery_app.task(

@@ -217,6 +217,23 @@ def get_db_manager() -> DatabaseManager:
     return _db_manager
 
 
+def reset_db_manager() -> None:
+    """重置数据库管理器（用于 Celery 任务在新事件循环中运行）
+
+    当在新的事件循环中运行异步代码时，需要重置数据库管理器，
+    避免 "Future attached to a different loop" 错误。
+
+    使用场景：
+    - Celery 任务在 `asyncio.new_event_loop()` 中执行前调用
+    """
+    global _db_manager
+    if _db_manager is not None:
+        # 不需要 await dispose，因为这是在新事件循环创建前调用的
+        _db_manager._async_engine = None
+        _db_manager._async_session_factory = None
+        logger.debug("Reset database manager for new event loop")
+
+
 async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
     """依赖注入：获取异步数据库会话"""
     db_manager = get_db_manager()

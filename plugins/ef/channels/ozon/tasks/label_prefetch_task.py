@@ -10,7 +10,7 @@ import logging
 from typing import List, Dict, Any
 
 from ef_core.tasks.celery_app import celery_app
-from ef_core.database import get_db_manager
+from ef_core.database import get_db_manager, reset_db_manager
 from sqlalchemy import select, and_
 
 logger = logging.getLogger(__name__)
@@ -29,6 +29,9 @@ def prefetch_labels_task(self):
     扫描所有待打印（awaiting_deliver + tracking_confirmed）且未缓存标签的订单，
     预先下载标签 PDF 到本地。
     """
+    # 重置数据库管理器，确保在新事件循环中使用新的连接
+    reset_db_manager()
+
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
@@ -36,17 +39,18 @@ def prefetch_labels_task(self):
         result = loop.run_until_complete(_prefetch_labels_async())
         return result
     finally:
-        # 在关闭事件循环前，清理数据库引擎（避免 "Event loop is closed" 错误）
+        # 取消所有待处理的任务
         try:
-            db_manager = get_db_manager()
-            if db_manager._async_engine is not None:
-                loop.run_until_complete(db_manager._async_engine.dispose())
-                db_manager._async_engine = None
-                db_manager._async_session_factory = None
+            pending = asyncio.all_tasks(loop)
+            for task in pending:
+                task.cancel()
+            if pending:
+                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
         except Exception:
-            pass  # 忽略清理时的错误
-        loop.close()
-        asyncio.set_event_loop(None)
+            pass
+        finally:
+            loop.close()
+            asyncio.set_event_loop(None)
 
 
 async def _prefetch_labels_async() -> Dict[str, Any]:
@@ -56,14 +60,6 @@ async def _prefetch_labels_async() -> Dict[str, Any]:
     from ..services.label_service import LabelService
 
     db_manager = get_db_manager()
-
-    # 强制重新创建异步引擎（确保绑定到当前 event loop）
-    # 参考 FAQ.md: "Celery 异步任务报错 'Future attached to a different loop'"
-    if db_manager._async_engine is not None:
-        await db_manager._async_engine.dispose()
-        db_manager._async_engine = None
-        db_manager._async_session_factory = None
-        logger.debug("Disposed old async engine, creating new one for current event loop")
 
     total_processed = 0
     total_success = 0
