@@ -144,6 +144,17 @@ class OzonOrder(Base):
             result['warehouse_name'] = first_posting.warehouse_name
             result['shipment_date'] = first_posting.shipment_date.isoformat() if first_posting.shipment_date else None
 
+            # 使用 posting 的数据覆盖 order 的字段（因为 ozon_orders 表的某些字段可能为空或0）
+            # 1. 订单金额：使用 posting 的 order_total_price
+            if first_posting.order_total_price:
+                result['total_price'] = str(first_posting.order_total_price)
+                result['total_amount'] = str(first_posting.order_total_price)
+            # 2. 下单时间：如果 order 没有 ordered_at，使用 posting 的 in_process_at
+            if not result.get('ordered_at') and first_posting.in_process_at:
+                result['ordered_at'] = first_posting.in_process_at.isoformat()
+            # 3. 货币代码：Ozon 固定为 RUB
+            result['currency_code'] = 'RUB'
+
             # 添加 posting 维度的业务字段（用于前端表单显示和编辑）
             result['material_cost'] = str(first_posting.material_cost) if first_posting.material_cost else None
             result['domestic_tracking_numbers'] = first_posting.get_domestic_tracking_numbers()  # 统一使用数组
