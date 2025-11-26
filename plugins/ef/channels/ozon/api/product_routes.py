@@ -295,7 +295,7 @@ async def get_products(
     brand: Optional[str] = Query(None, description="品牌"),
     created_from: Optional[str] = Query(None, description="创建日期起始（YYYY-MM-DD）"),
     created_to: Optional[str] = Query(None, description="创建日期结束（YYYY-MM-DD）"),
-    sort_by: Optional[str] = Query("updated_at", description="排序字段：price,stock,created_at,updated_at,title"),
+    sort_by: Optional[str] = Query("updated_at", description="排序字段：price,stock,created_at,updated_at,title,sales_count"),
     sort_order: Optional[str] = Query("desc", description="排序方向：asc,desc"),
     include_stats: bool = Query(False, description="是否包含统计信息（影响性能）"),
     db: AsyncSession = Depends(get_async_session),
@@ -445,6 +445,8 @@ async def get_products(
         order_column = OzonProduct.ozon_created_at.desc() if sort_order_desc else OzonProduct.ozon_created_at.asc()
     elif sort_by == "title":
         order_column = OzonProduct.title.desc() if sort_order_desc else OzonProduct.title.asc()
+    elif sort_by == "sales_count":
+        order_column = OzonProduct.sales_count.desc() if sort_order_desc else OzonProduct.sales_count.asc()
     else:  # 默认按updated_at
         order_column = OzonProduct.updated_at.desc() if sort_order_desc else OzonProduct.updated_at.asc()
 
