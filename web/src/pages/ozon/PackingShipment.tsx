@@ -916,16 +916,25 @@ const PackingShipment: React.FC = () => {
       setCurrentPrintingPostings([]);
 
       // 刷新扫描结果
-      setScanResults((prev) =>
-        prev.map((p) =>
-          postingsToMark.includes(p.posting_number) ? { ...p, operation_status: 'printed' } : p
-        )
-      );
+      // 如果当前筛选是"未打印"，则移除已打印的项；否则更新状态
+      if (scanPrintStatusFilter === 'unprinted') {
+        setScanResults((prev) =>
+          prev.filter((p) => !postingsToMark.includes(p.posting_number))
+        );
+      } else {
+        setScanResults((prev) =>
+          prev.map((p) =>
+            postingsToMark.includes(p.posting_number)
+              ? { ...p, operation_status: 'printed', label_printed_at: new Date().toISOString() }
+              : p
+          )
+        );
+      }
 
       // 清空选择
-      if (isBatch) {
-        setScanSelectedPostings([]);
-      }
+      setScanSelectedPostings((prev) =>
+        prev.filter((pn) => !postingsToMark.includes(pn))
+      );
 
       // 刷新计数和列表
       queryClient.invalidateQueries({ queryKey: ['packingOrdersCount'] });
