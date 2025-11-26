@@ -14,6 +14,7 @@ from sqlalchemy import select
 from ef_core.database import get_async_session
 from ..models.ozon_shops import OzonShop
 from ..webhooks.handler import OzonWebhookHandler
+from ..services.shop_cache import get_shop_cache
 from ..utils.datetime_utils import utcnow
 
 router = APIRouter(prefix="/webhook", tags=["Ozon Webhooks"])
@@ -261,15 +262,9 @@ async def receive_webhook(
                 details="Missing seller_id, company_id or client_id in payload"
             )
 
-        # 查找对应的店铺和Webhook配置
-        shop_result = await db.execute(
-            select(OzonShop).where(
-                OzonShop.client_id == str(shop_identifier)
-            ).where(
-                OzonShop.status == "active"
-            )
-        )
-        shop = shop_result.scalar_one_or_none()
+        # 查找对应的店铺（使用缓存，避免 webhook 风暴时重复查询）
+        shop_cache = get_shop_cache()
+        shop = await shop_cache.get_by_client_id(str(shop_identifier), db)
 
         if not shop:
             logger.warning(f"Shop not found for identifier: {shop_identifier}")
