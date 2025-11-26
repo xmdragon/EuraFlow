@@ -4,7 +4,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
 from typing import Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_, exists
 from decimal import Decimal
 import logging
 import json
@@ -16,7 +16,7 @@ from ef_core.config import get_settings
 from ef_core.models.users import User
 from ef_core.middleware.auth import require_role
 from ef_core.api.auth import get_current_user_flexible
-from ..models import OzonOrder, OzonPosting, OzonProduct, OzonDomesticTracking, OzonGlobalSetting
+from ..models import OzonOrder, OzonPosting, OzonProduct, OzonDomesticTracking, OzonGlobalSetting, OzonShipmentPackage
 from ..utils.datetime_utils import utcnow, parse_date, parse_date_with_timezone, get_global_timezone
 from sqlalchemy import delete
 from .permissions import filter_by_shop_permission, build_shop_filter_condition
@@ -50,6 +50,7 @@ async def get_orders(
     status: Optional[str] = None,
     operation_status: Optional[str] = None,
     posting_number: Optional[str] = None,
+    keyword: Optional[str] = Query(None, description="智能搜索：货件编号/OZON追踪号/国内单号"),
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     db: AsyncSession = Depends(get_async_session),
@@ -58,6 +59,11 @@ async def get_orders(
     """获取 Ozon 订单列表（页码分页），支持多种搜索条件
 
     注意：返回以Posting为粒度的数据，一个订单拆分成多个posting时会显示为多条记录
+
+    智能搜索规则（keyword参数）：
+    1. 包含"-" → 货件编号（posting_number），如 "12345-0001-1"
+    2. 结尾是字母 且 包含数字 → OZON追踪号码，如 "UNIM83118549CN"
+    3. 纯数字 或 字母开头+数字 → 国内单号，如 "75324623944112" 或 "SF1234567890"
 
     权限控制：
     - admin: 可以访问所有店铺的订单
@@ -86,6 +92,67 @@ async def get_orders(
     shop_filter = build_shop_filter_condition(OzonPosting, allowed_shop_ids)
     if shop_filter is not True:
         query = query.where(shop_filter)
+
+    # 智能搜索逻辑（keyword 参数）
+    # 如果提供了 keyword，则智能识别搜索类型
+    keyword_search_type = None  # 用于 count_query 复用
+    keyword_search_value = None
+    if keyword:
+        search_value = keyword.strip().upper()
+        keyword_search_value = search_value
+
+        if '-' in search_value:
+            # 规则1: 包含"-" → 货件编号
+            keyword_search_type = 'posting_number'
+            import re
+            if re.match(r'^\d+-\d+$', search_value):
+                # 数字-数字格式，使用右匹配
+                query = query.where(OzonPosting.posting_number.like(search_value + '-%'))
+            else:
+                # 完整的货件编号或包含连字符的其他格式
+                if '%' in search_value:
+                    query = query.where(OzonPosting.posting_number.like(search_value))
+                else:
+                    query = query.where(OzonPosting.posting_number == search_value)
+        elif search_value[-1].isalpha() and any(c.isdigit() for c in search_value):
+            # 规则2: 结尾是字母且包含数字 → OZON追踪号码
+            keyword_search_type = 'tracking_number'
+            # 在packages中查找（JOIN OzonShipmentPackage）
+            query = query.join(
+                OzonShipmentPackage,
+                OzonShipmentPackage.posting_id == OzonPosting.id
+            ).where(
+                OzonShipmentPackage.tracking_number == search_value
+            )
+        else:
+            # 规则3: 纯数字 → 同时搜索国内单号和SKU
+            # 因为 SKU 和国内单号都是纯数字，无法区分
+            if search_value.isdigit():
+                keyword_search_type = 'domestic_or_sku'
+                # 使用 OR 条件同时搜索国内单号和 SKU
+                # 子查询1：国内单号匹配
+                domestic_match = exists(
+                    select(OzonDomesticTracking.id).where(
+                        OzonDomesticTracking.posting_id == OzonPosting.id,
+                        OzonDomesticTracking.tracking_number == search_value
+                    )
+                )
+                # 子查询2：SKU匹配（使用 product_skus 数组字段）
+                sku_match = OzonPosting.product_skus.any(search_value)
+
+                query = query.where(or_(domestic_match, sku_match))
+            else:
+                # 字母开头+数字 → 国内单号（如 SF1234567890）
+                keyword_search_type = 'domestic_tracking'
+                # 在domestic_trackings中查找
+                query = query.join(
+                    OzonDomesticTracking,
+                    OzonDomesticTracking.posting_id == OzonPosting.id
+                ).where(
+                    OzonDomesticTracking.tracking_number == search_value
+                )
+
+        logger.info(f"智能搜索: keyword={keyword}, type={keyword_search_type}, value={search_value}")
 
     if status:
         # status参数应该按 Posting 的状态过滤（OZON 原生状态）
@@ -148,6 +215,40 @@ async def get_orders(
             count_query = count_query.where(OzonPosting.posting_number.like(posting_number_value))
         else:
             count_query = count_query.where(OzonPosting.posting_number == posting_number_value)
+    # 应用智能搜索条件到 count_query
+    if keyword_search_type and keyword_search_value:
+        import re
+        if keyword_search_type == 'posting_number':
+            if re.match(r'^\d+-\d+$', keyword_search_value):
+                count_query = count_query.where(OzonPosting.posting_number.like(keyword_search_value + '-%'))
+            elif '%' in keyword_search_value:
+                count_query = count_query.where(OzonPosting.posting_number.like(keyword_search_value))
+            else:
+                count_query = count_query.where(OzonPosting.posting_number == keyword_search_value)
+        elif keyword_search_type == 'tracking_number':
+            count_query = count_query.join(
+                OzonShipmentPackage,
+                OzonShipmentPackage.posting_id == OzonPosting.id
+            ).where(
+                OzonShipmentPackage.tracking_number == keyword_search_value
+            )
+        elif keyword_search_type == 'domestic_tracking':
+            count_query = count_query.join(
+                OzonDomesticTracking,
+                OzonDomesticTracking.posting_id == OzonPosting.id
+            ).where(
+                OzonDomesticTracking.tracking_number == keyword_search_value
+            )
+        elif keyword_search_type == 'domestic_or_sku':
+            # 同时搜索国内单号和 SKU
+            domestic_match = exists(
+                select(OzonDomesticTracking.id).where(
+                    OzonDomesticTracking.posting_id == OzonPosting.id,
+                    OzonDomesticTracking.tracking_number == keyword_search_value
+                )
+            )
+            sku_match = OzonPosting.product_skus.any(keyword_search_value)
+            count_query = count_query.where(or_(domestic_match, sku_match))
     if date_from:
         try:
             start_date = parse_date_with_timezone(date_from, global_timezone)

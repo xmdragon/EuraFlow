@@ -146,6 +146,7 @@ const OrderList: React.FC = () => {
   interface OrderSearchParams {
     shop_id?: number;
     posting_number?: string;
+    keyword?: string; // 智能搜索：货件编号/OZON追踪号/国内单号
     status?: string;
     operation_status?: string;
     date_from?: string;
@@ -194,7 +195,8 @@ const OrderList: React.FC = () => {
         dateRange: undefined,
       };
 
-      // 如果posting_number是"数字-数字"格式，自动添加通配符
+      // keyword 智能搜索：如果是"数字-数字"格式，后端会自动添加通配符
+      // 保留 posting_number 兼容旧代码
       if (queryParams.posting_number && /^\d+-\d+$/.test(queryParams.posting_number.trim())) {
         queryParams.posting_number = queryParams.posting_number.trim() + '-%';
       }
@@ -266,16 +268,17 @@ const OrderList: React.FC = () => {
       }
     });
 
-    // 如果用户搜索了 posting_number，进行二次过滤，只保留匹配的货件
-    const searchPostingNumber = searchParams.posting_number?.trim();
-    if (searchPostingNumber) {
+    // 如果用户搜索了 keyword 且是货件编号格式，进行二次过滤（前端兜底，主要依赖后端过滤）
+    const searchKeyword = searchParams.keyword?.trim();
+    if (searchKeyword && searchKeyword.includes('-')) {
+      // 仅对货件编号格式进行前端二次过滤
       return flattened.filter((posting) =>
-        posting.posting_number.toLowerCase().includes(searchPostingNumber.toLowerCase())
+        posting.posting_number.toLowerCase().includes(searchKeyword.toLowerCase())
       );
     }
 
     return flattened;
-  }, [ordersData, searchParams.posting_number, activeTab]);
+  }, [ordersData, searchParams.keyword, activeTab]);
 
   // 将 PostingWithOrder 数组转换为 OrderItemRow 数组（每个商品一行）
   const orderItemRows = React.useMemo<OrderItemRow[]>(() => {
@@ -890,8 +893,8 @@ const OrderList: React.FC = () => {
           <Form.Item name="dateRange">
             <RangePicker />
           </Form.Item>
-          <Form.Item name="posting_number">
-            <Input placeholder="货件编号" prefix={<SearchOutlined />} />
+          <Form.Item name="keyword">
+            <Input placeholder="货件/追踪号/国内单号" prefix={<SearchOutlined />} allowClear />
           </Form.Item>
           <Form.Item>
             <Space>
