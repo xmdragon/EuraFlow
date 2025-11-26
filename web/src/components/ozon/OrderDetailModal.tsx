@@ -339,9 +339,6 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               children: (
                 <>
                   <Descriptions bordered column={2} labelStyle={{ width: '120px' }}>
-                    <Descriptions.Item label="Ozon单号">
-                      {localOrder.ozon_order_id || localOrder.order_id}
-                    </Descriptions.Item>
                     <Descriptions.Item label="状态">
                       <Tag color={statusConfig[localPosting?.status || localOrder.status]?.color}>
                         {statusConfig[localPosting?.status || localOrder.status]?.text}
