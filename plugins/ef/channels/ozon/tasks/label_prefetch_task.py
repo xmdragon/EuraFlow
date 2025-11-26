@@ -10,7 +10,7 @@ import logging
 from typing import List, Dict, Any
 
 from ef_core.tasks.celery_app import celery_app
-from ef_core.database import get_db_manager, reset_db_manager
+from ef_core.database import get_task_db_manager
 from sqlalchemy import select, and_
 
 logger = logging.getLogger(__name__)
@@ -29,9 +29,6 @@ def prefetch_labels_task(self):
     扫描所有待打印（awaiting_deliver + tracking_confirmed）且未缓存标签的订单，
     预先下载标签 PDF 到本地。
     """
-    # 重置数据库管理器，确保在新事件循环中使用新的连接
-    reset_db_manager()
-
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
@@ -39,18 +36,8 @@ def prefetch_labels_task(self):
         result = loop.run_until_complete(_prefetch_labels_async())
         return result
     finally:
-        # 取消所有待处理的任务
-        try:
-            pending = asyncio.all_tasks(loop)
-            for task in pending:
-                task.cancel()
-            if pending:
-                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-        except Exception:
-            pass
-        finally:
-            loop.close()
-            asyncio.set_event_loop(None)
+        loop.close()
+        asyncio.set_event_loop(None)
 
 
 async def _prefetch_labels_async() -> Dict[str, Any]:
@@ -59,7 +46,7 @@ async def _prefetch_labels_async() -> Dict[str, Any]:
     from ..api.client import OzonAPIClient
     from ..services.label_service import LabelService
 
-    db_manager = get_db_manager()
+    db_manager = get_task_db_manager()
 
     total_processed = 0
     total_success = 0
@@ -192,12 +179,6 @@ async def _prefetch_labels_async() -> Dict[str, Any]:
         f"成功 {total_success}, 跳过 {total_skipped}, 失败 {total_failed}"
     )
 
-    # 在返回前清理数据库引擎，避免事件循环关闭后 asyncpg 尝试清理连接
-    if db_manager._async_engine is not None:
-        await db_manager._async_engine.dispose()
-        db_manager._async_engine = None
-        db_manager._async_session_factory = None
-
     return {
         "success": True,
         "total_processed": total_processed,
@@ -227,15 +208,6 @@ def cleanup_labels_task(self):
         result = loop.run_until_complete(_cleanup_labels_async())
         return result
     finally:
-        # 在关闭事件循环前，清理数据库引擎（避免 "Event loop is closed" 错误）
-        try:
-            db_manager = get_db_manager()
-            if db_manager._async_engine is not None:
-                loop.run_until_complete(db_manager._async_engine.dispose())
-                db_manager._async_engine = None
-                db_manager._async_session_factory = None
-        except Exception:
-            pass  # 忽略清理时的错误
         loop.close()
         asyncio.set_event_loop(None)
 
@@ -248,13 +220,7 @@ async def _cleanup_labels_async() -> Dict[str, Any]:
     from ..models import OzonPosting
     from ..services.label_service import LabelService
 
-    db_manager = get_db_manager()
-
-    # 强制重新创建异步引擎
-    if db_manager._async_engine is not None:
-        await db_manager._async_engine.dispose()
-        db_manager._async_engine = None
-        db_manager._async_session_factory = None
+    db_manager = get_task_db_manager()
 
     label_dir = LabelService.get_label_dir()
     cutoff_time = time.time() - (CLEANUP_DAYS * 24 * 60 * 60)  # 7天前的时间戳
@@ -311,12 +277,6 @@ async def _cleanup_labels_async() -> Dict[str, Any]:
         f"跳过 {files_skipped} 个, 失败 {files_failed} 个, "
         f"更新数据库 {db_updated} 条"
     )
-
-    # 在返回前清理数据库引擎，避免事件循环关闭后 asyncpg 尝试清理连接
-    if db_manager._async_engine is not None:
-        await db_manager._async_engine.dispose()
-        db_manager._async_engine = None
-        db_manager._async_session_factory = None
 
     return {
         "success": True,

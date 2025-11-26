@@ -59,8 +59,8 @@ class SubmitDomesticTrackingDTO(BaseModel):
 
 
 class UpdateDomesticTrackingDTO(BaseModel):
-    """更新国内单号请求 DTO"""
-    domestic_tracking_number: str = Field(..., description="新的国内物流单号")
+    """更新国内单号请求 DTO（支持多单号）"""
+    domestic_tracking_numbers: List[str] = Field(..., min_length=0, max_length=10, description="国内物流单号列表（完整替换现有单号）")
 
 
 class DiscardPostingDTO(BaseModel):

@@ -4,7 +4,7 @@
 """
 import asyncio
 from ef_core.tasks.celery_app import celery_app
-from ef_core.database import get_db_manager
+from ef_core.database import get_task_db_manager
 from ef_core.utils.logger import get_logger
 
 logger = get_logger(__name__)

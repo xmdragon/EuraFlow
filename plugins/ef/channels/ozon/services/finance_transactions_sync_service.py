@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from ef_core.database import get_db_manager
+from ef_core.database import get_task_db_manager
 from ..models import OzonShop
 from ..models.finance import OzonFinanceTransaction, OzonFinanceSyncWatermark
 from ..api.client import OzonAPIClient
@@ -22,7 +22,9 @@ class FinanceTransactionsSyncService:
     """财务交易数据同步服务"""
 
     def __init__(self):
-        self.db_manager = get_db_manager()
+        # 注意：不在 __init__ 中创建 db_manager，因为服务可能作为单例在模块加载时初始化
+        # 而实际执行时是在 Celery 任务的独立事件循环中，需要使用独立的数据库管理器
+        pass
 
     async def sync_transactions(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -50,7 +52,10 @@ class FinanceTransactionsSyncService:
         total_synced = 0
         shops_synced = []
 
-        async with self.db_manager.get_session() as db:
+        # 每次调用时获取独立的数据库管理器（Celery 任务在独立事件循环中运行）
+        db_manager = get_task_db_manager()
+
+        async with db_manager.get_session() as db:
             # 获取要同步的店铺列表
             shop_id = config.get("shop_id")
             if shop_id:

@@ -234,6 +234,34 @@ def reset_db_manager() -> None:
         logger.debug("Reset database manager for new event loop")
 
 
+def get_task_db_manager() -> DatabaseManager:
+    """
+    为 Celery 任务获取独立的数据库管理器
+
+    Celery 任务在独立的事件循环中运行，与主应用的事件循环不同。
+    使用单例数据库管理器会导致 asyncpg 连接与错误的事件循环绑定，
+    在连接关闭时产生 "Exception closing connection" 错误。
+
+    此函数每次调用都返回新的 DatabaseManager 实例，确保：
+    1. 数据库连接在当前事件循环中创建
+    2. 任务结束时连接可以正确关闭
+    3. 避免跨事件循环的连接共享问题
+
+    用法（在 Celery 任务的异步逻辑中）:
+        from ef_core.database import get_task_db_manager
+
+        async def my_task_logic():
+            db_manager = get_task_db_manager()
+            async with db_manager.get_session() as db:
+                # 执行数据库操作
+                pass
+
+    Returns:
+        DatabaseManager: 新的数据库管理器实例
+    """
+    return DatabaseManager()
+
+
 async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
     """依赖注入：获取异步数据库会话"""
     db_manager = get_db_manager()

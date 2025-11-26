@@ -11,7 +11,7 @@ from typing import Dict, Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ef_core.database import get_db_manager
+from ef_core.database import get_task_db_manager
 
 from ..models import OzonShop, OzonPromotionAction
 from ..services.promotion_service import PromotionService
@@ -45,7 +45,7 @@ async def sync_all_promotions(**kwargs) -> Dict[str, Any]:
         "errors": []
     }
 
-    db_manager = get_db_manager()
+    db_manager = get_task_db_manager()
 
     try:
         async with db_manager.get_session() as db:
@@ -256,7 +256,7 @@ async def promotion_health_check(**kwargs) -> Dict[str, Any]:
         "statistics": {}
     }
 
-    db_manager = get_db_manager()
+    db_manager = get_task_db_manager()
 
     try:
         async with db_manager.get_session() as db:

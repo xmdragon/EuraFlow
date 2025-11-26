@@ -9,7 +9,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ef_core.tasks.celery_app import celery_app
-from ef_core.database import get_db_manager
+from ef_core.database import get_task_db_manager
 from ef_core.utils.logger import get_logger
 
 from ..models.products import OzonProduct, OzonProductVariant
