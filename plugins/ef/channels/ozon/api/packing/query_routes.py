@@ -36,6 +36,7 @@ async def get_packing_orders(
     source_platform: Optional[str] = Query(None, description="按采购平台筛选（1688/拼多多/咸鱼/淘宝/库存）"),
     delivery_method: Optional[str] = Query(None, description="按配送方式筛选（左匹配）"),
     has_purchase_info: Optional[str] = Query(None, description="按采购信息筛选：all(全部)/yes(有采购信息)/no(无采购信息)"),
+    sort_order: Optional[str] = Query("desc", description="排序顺序：desc(倒序)/asc(顺序)，默认倒序"),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(get_current_user_flexible)
 ):
@@ -305,13 +306,16 @@ async def get_packing_orders(
             )
             query = query.where(exists(subquery))
 
-    # 排序：已打印状态按操作时间倒序，其他状态按下单时间倒序
+    # 排序：已打印状态按操作时间，其他状态按下单时间
+    # 默认倒序（新订单在前），支持顺序排序（旧订单在前）
+    is_asc = sort_order == 'asc'
     if operation_status == 'printed':
-        # 已打印：按标记已打印的时间（operation_time）降序排列
-        query = query.order_by(OzonPosting.operation_time.desc())
+        # 已打印：按标记已打印的时间（operation_time）排序
+        order_col = OzonPosting.operation_time.asc() if is_asc else OzonPosting.operation_time.desc()
     else:
-        # 其他状态：按下单时间倒序（in_process_at ≈ ordered_at，无需 JOIN）
-        query = query.order_by(OzonPosting.in_process_at.desc())
+        # 其他状态：按下单时间排序（in_process_at ≈ ordered_at，无需 JOIN）
+        order_col = OzonPosting.in_process_at.asc() if is_asc else OzonPosting.in_process_at.desc()
+    query = query.order_by(order_col)
 
     # 执行查询获取总数（统计Posting数量，无需 JOIN）
     count_query = select(func.count(OzonPosting.id))

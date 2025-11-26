@@ -4,7 +4,7 @@
  * 支持智能识别SKU/货件编号/追踪号码/国内单号
  */
 import { SearchOutlined, CloseCircleOutlined } from '@ant-design/icons';
-import { Card, Row, Col, Space, Form, Input, Button, FormInstance, InputRef } from 'antd';
+import { Card, Row, Col, Space, Form, Input, Button, FormInstance, InputRef, Select } from 'antd';
 import React, { useState, useRef } from 'react';
 
 import styles from '../../../pages/ozon/PackingShipment.module.scss';
@@ -34,6 +34,10 @@ export interface PackingSearchBarProps {
   onShopChange: (_value: number | null) => void;
   /** 搜索参数改变回调 */
   onSearchParamsChange: (_searchParams: SearchParams) => void;
+  /** 排序顺序 */
+  sortOrder?: 'desc' | 'asc';
+  /** 排序顺序改变回调 */
+  onSortOrderChange?: (_value: 'desc' | 'asc') => void;
 }
 
 /**
@@ -44,6 +48,8 @@ export const PackingSearchBar: React.FC<PackingSearchBarProps> = ({
   selectedShop,
   onShopChange,
   onSearchParamsChange,
+  sortOrder = 'desc',
+  onSortOrderChange,
 }) => {
   // 自动填充相关状态
   const [isAutoFilled, setIsAutoFilled] = useState(false);
@@ -183,6 +189,17 @@ export const PackingSearchBar: React.FC<PackingSearchBarProps> = ({
             </Form.Item>
             <Form.Item name="delivery_method">
               <Input placeholder="配送方式" style={{ width: '100%', maxWidth: 100, minWidth: 80 }} />
+            </Form.Item>
+            <Form.Item label="排序">
+              <Select
+                value={sortOrder}
+                onChange={onSortOrderChange}
+                style={{ width: 90 }}
+                options={[
+                  { value: 'desc', label: '倒序' },
+                  { value: 'asc', label: '顺序' },
+                ]}
+              />
             </Form.Item>
             <Form.Item>
               <Space>

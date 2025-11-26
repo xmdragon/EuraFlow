@@ -159,6 +159,9 @@ const PackingShipment: React.FC = () => {
   // 搜索参数状态（只支持 posting_number 搜索）
   const [searchParams, setSearchParams] = useState<SearchParams>({});
 
+  // 排序状态（desc=倒序/新订单在前，asc=顺序/旧订单在前）
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
+
   // 批量打印标签状态
   const [selectedPostingNumbers, setSelectedPostingNumbers] = useState<string[]>([]);
 
@@ -281,7 +284,7 @@ const PackingShipment: React.FC = () => {
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ['packingOrders', selectedShop, operationStatus, searchParams, currentPage, itemsPerRow, selectedPlatform, selectedPurchaseInfo],
+    queryKey: ['packingOrders', selectedShop, operationStatus, searchParams, currentPage, itemsPerRow, selectedPlatform, selectedPurchaseInfo, sortOrder],
     queryFn: () => {
       // 计算当前请求的pageSize和offset
       const isFirstPage = currentPageRef.current === 1;
@@ -297,6 +300,7 @@ const PackingShipment: React.FC = () => {
         shop_id: selectedShop,
         ...searchParams, // 展开所有搜索参数（posting_number/sku/tracking_number/domestic_tracking_number）
         offset, // 传递计算好的offset
+        sort_order: sortOrder, // 排序顺序
       };
 
       if (operationStatus === 'awaiting_stock') {
@@ -328,14 +332,14 @@ const PackingShipment: React.FC = () => {
     staleTime: 30000, // 数据30秒内不会被认为是过期的
   });
 
-  // 当店铺、状态、搜索参数、平台筛选或采购信息筛选变化时，重置分页
+  // 当店铺、状态、搜索参数、平台筛选、采购信息筛选或排序变化时，重置分页
   useEffect(() => {
     setCurrentPage(1);
     currentPageRef.current = 1; // 同步更新 ref
     setAllPostings([]);
     setHasMoreData(true);
     setAccumulatedImageMap({}); // 重置图片映射
-  }, [selectedShop, operationStatus, searchParams, selectedPlatform, selectedPurchaseInfo]);
+  }, [selectedShop, operationStatus, searchParams, selectedPlatform, selectedPurchaseInfo, sortOrder]);
 
   // 当收到新数据时，累积到 allPostings
   useEffect(() => {
@@ -1090,6 +1094,8 @@ const PackingShipment: React.FC = () => {
               resetAndRefresh();
             }}
             onSearchParamsChange={setSearchParams}
+            sortOrder={sortOrder}
+            onSortOrderChange={setSortOrder}
           />
         )}
 
