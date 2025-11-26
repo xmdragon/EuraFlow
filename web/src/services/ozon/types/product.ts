@@ -95,6 +95,8 @@ export interface Product {
   purchase_url?: string; // 采购链接
   suggested_purchase_price?: string; // 建议进货价
   purchase_note?: string; // 采购备注
+  sales_count?: number; // 累计销量
+  last_sale_at?: string; // 最后销售时间
   created_at: string;
   updated_at: string;
   [key: string]: unknown; // 允许额外属性

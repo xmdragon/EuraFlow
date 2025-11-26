@@ -292,11 +292,11 @@ export const getProductTableColumns = (
         );
       },
     },
-    // 第六列：销量（80px）
+    // 第六列：销量（100px）
     {
       title: <SortableColumnTitle title="销量" field="sales_count" />,
       key: 'sales_count',
-      width: 80,
+      width: 100,
       render: (_, record) => {
         const salesCount = record.sales_count || 0;
         const lastSaleAt = record.last_sale_at;
