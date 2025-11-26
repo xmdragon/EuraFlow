@@ -25,12 +25,15 @@ BATCH_SIZE = 50  # 每次最多处理的订单数
 DELAY_BETWEEN_REQUESTS = 0.5  # 请求间隔（秒），避免 API 限流
 
 
-async def prefetch_labels_async() -> Dict[str, Any]:
+async def prefetch_labels_async(**kwargs) -> Dict[str, Any]:
     """
     标签预缓存定时任务
 
     扫描所有待打印（awaiting_deliver + tracking_confirmed）且未缓存标签的订单，
     预先下载标签 PDF 到本地。
+
+    Args:
+        **kwargs: 由 register_cron 注入的上下文参数（如 _plugin）
     """
     from ..models import OzonShop, OzonPosting
     from ..api.client import OzonAPIClient
@@ -183,12 +186,15 @@ async def prefetch_labels_async() -> Dict[str, Any]:
 CLEANUP_DAYS = 7  # 清理超过7天的标签文件
 
 
-async def cleanup_labels_async() -> Dict[str, Any]:
+async def cleanup_labels_async(**kwargs) -> Dict[str, Any]:
     """
     标签缓存清理定时任务
 
     清理超过 7 天的标签 PDF 文件，释放磁盘空间。
     同时清理数据库中对应的 label_pdf_path 字段。
+
+    Args:
+        **kwargs: 由 register_cron 注入的上下文参数（如 _plugin）
     """
     import time
     from datetime import datetime, timezone
