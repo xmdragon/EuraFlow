@@ -472,29 +472,7 @@ class XiangjifanyiService:
         Returns:
             Cloudinary图片URL，失败返回None
         """
-        try:
-            # 下载翻译后的图片
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.get(translated_url)
-                response.raise_for_status()
-                image_data = response.content
-
-            # 转换为base64
-            import base64
-            base64_data = base64.b64encode(image_data).decode('utf-8')
-
-            # 上传到Cloudinary
-            from ..api.watermark_routes import uploadMedia
-            from ef_core.api.auth import get_current_user
-
-            # 注意：这里需要shop_id，实际调用时需要从上下文获取
-            # 这里先返回翻译后的URL作为占位
-            # TODO: 实现完整的Cloudinary上传逻辑
-
-            logger.info(f"图片已准备上传到Cloudinary: {translated_url}")
-
-            return translated_url  # 暂时返回原URL
-
-        except Exception as e:
-            logger.error(f"上传到Cloudinary失败: {e}", exc_info=True)
-            return None
+        # TODO: 实现完整的图床上传逻辑
+        # 目前先返回翻译后的URL作为占位
+        logger.info(f"图片准备上传到图床（TODO）: {translated_url}")
+        return translated_url
