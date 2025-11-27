@@ -84,6 +84,19 @@ export const PriceInfoSection: React.FC<PriceInfoSectionProps> = ({ showSection 
           </Form.Item>
         </Col>
       </Row>
+
+      <Row gutter={16}>
+        <Col span={24}>
+          <Form.Item
+            label="采购备注"
+            name="purchase_note"
+            tooltip="采购相关备注，仅保存到本地"
+            style={{ marginBottom: 12 }}
+          >
+            <Input placeholder="采购备注信息" maxLength={500} />
+          </Form.Item>
+        </Col>
+      </Row>
     </div>
   );
 };

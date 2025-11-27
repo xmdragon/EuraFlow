@@ -18,6 +18,9 @@
 const OZON_VERSION_CACHE_KEY = 'ozon_intercepted_versions';
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24小时
 
+// 本次会话中是否已打印版本来源日志（避免重复输出）
+let hasLoggedVersionSource = false;
+
 /**
  * 拦截到的版本信息结构
  */
@@ -30,9 +33,10 @@ interface InterceptedVersions {
 /**
  * 默认版本信息（fallback）
  * 当拦截失败或缓存过期时使用
+ * 更新于 2025-11-27（从真实请求中提取）
  */
-const FALLBACK_APP_VERSION = 'release_18-10-2025_c87fd5b6';
-const FALLBACK_MANIFEST_VERSION = 'frontend-ozon-ru:c87fd5b67349c79b1186a63d756a969351cf71d3;sf-render-api:56343b4def173bc70fe6528eab1e2255fbb80590;checkout-render-api:a5877e91aafb7607399bb458f6d4eae5f51bf9ce;pdp-render-api:08d5a1f879caf3ff65ee1067ed69f5151268588;fav-render-api:c01de8196f0d2fe79f0423137facbe243a6a521a';
+const FALLBACK_APP_VERSION = 'release_26-10-2025_8c89c203';
+const FALLBACK_MANIFEST_VERSION = 'frontend-ozon-ru:8c89c203596282a83b13ccb7e135e0f6324a8619;checkout-render-api:8f355203eb2d681f25c4bfdf1d3ae4a97621b7e8;fav-render-api:5ff5cd7b6a74633afb5bb7b2517706b8f94d6fed;sf-render-api:3a16dc35125e614c314decfc16f0ae2c95d01e10;pdp-render-api:08d5a1f8796caf3ff65ea1067ee6c9f515126858';
 
 /**
  * 获取OZON版本信息
@@ -118,11 +122,24 @@ export async function getOzonStandardHeaders(options: {
   referer?: string;
   includeContentType?: boolean;
   serviceName?: string;  // ← Phase 4: 用于 entrypoint-api.bx 的服务标识
-} = {}): Promise<Record<string, string>> {
+  requestId?: string;    // ← 可选：使用指定的 requestId（用于 URL 参数一致性）
+} = {}): Promise<{ headers: Record<string, string>; requestId: string }> {
   const { referer, includeContentType = true, serviceName } = options;
 
   // 动态获取版本信息（优先拦截，回退硬编码）
-  const { appVersion, manifestVersion } = await getOzonVersions();
+  const { appVersion, manifestVersion, source } = await getOzonVersions();
+
+  // 日志显示版本来源（每次会话只打印一次）
+  if (!hasLoggedVersionSource) {
+    console.log(`[EuraFlow Headers] 版本来源: ${source === 'intercepted' ? '✅ 动态拦截' : '⚠️ 硬编码备用'}`, {
+      appVersion: appVersion.substring(0, 30) + '...',
+      source
+    });
+    hasLoggedVersionSource = true;
+  }
+
+  // 生成或使用指定的请求 ID
+  const requestId = options.requestId || generateUUID().replace(/-/g, '');
 
   // 基础headers（完全模拟真实浏览器请求 + 上品帮headers）
   const headers: Record<string, string> = {
@@ -130,11 +147,12 @@ export async function getOzonStandardHeaders(options: {
     'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
     'Accept-Encoding': 'gzip, deflate, br, zstd',
     'Cache-Control': 'no-cache',
+    'Dnt': '1',  // ← 添加 Do Not Track
     'Origin': 'https://www.ozon.ru',
     'Pragma': 'no-cache',
     'Priority': 'u=1, i',
-    // 【关键修复】Chrome 浏览器特征 headers
-    'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+    // 【关键修复】Chrome 浏览器特征 headers（使用更新版本）
+    'sec-ch-ua': '"Chromium";v="136", "Google Chrome";v="136", "Not_A Brand";v="99"',
     'sec-ch-ua-mobile': '?0',
     'sec-ch-ua-platform': '"Windows"',
     'sec-fetch-dest': 'empty',
@@ -144,8 +162,8 @@ export async function getOzonStandardHeaders(options: {
     'X-O3-App-Name': 'dweb_client',
     'X-O3-App-Version': appVersion,  // ← 动态版本号
     'X-O3-Manifest-Version': manifestVersion,  // ← 动态版本号
-    'X-O3-Parent-Requestid': generateUUID(),
-    'X-Page-View-Id': generateUUID()
+    'X-O3-Parent-Requestid': requestId,
+    'X-Page-View-Id': generateUUID().replace(/-/g, '')
   };
 
   // 【Phase 3】优先使用 Token 认证（模拟 OZON 官方）
@@ -170,5 +188,17 @@ export async function getOzonStandardHeaders(options: {
     headers['Referer'] = referer;
   }
 
-  return headers;
+  return { headers, requestId };
+}
+
+/**
+ * 生成随机短字符串（用于 sh 参数）
+ */
+export function generateShortHash(length: number = 10): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
 }

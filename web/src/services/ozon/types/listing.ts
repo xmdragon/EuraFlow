@@ -100,6 +100,10 @@ export interface CreateProductRequest {
   weight?: number;
   weight_unit?: string;
   vat?: string;
+  // 采购信息（仅保存到本地，不提交OZON）
+  purchase_url?: string;
+  suggested_purchase_price?: number;
+  purchase_note?: string;
 }
 
 /**

@@ -46,7 +46,6 @@ export function injectEuraflowStyles(): void {
   document.head.appendChild(styleElement);
 
   stylesInjected = true;
-  console.log('[EuraFlow] 样式已注入（命名空间: ef-）');
 }
 
 /**
@@ -57,6 +56,5 @@ export function removeEuraflowStyles(): void {
   if (styleElement) {
     styleElement.remove();
     stylesInjected = false;
-    console.log('[EuraFlow] 样式已移除');
   }
 }

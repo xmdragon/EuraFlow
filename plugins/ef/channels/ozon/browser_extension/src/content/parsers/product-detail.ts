@@ -9,7 +9,7 @@
  */
 
 import { OzonApiRateLimiter } from '../../shared/ozon-rate-limiter';
-import { getOzonStandardHeaders } from '../../shared/ozon-headers';
+import { getOzonStandardHeaders, generateShortHash } from '../../shared/ozon-headers';
 
 export interface ProductDetailData {
   ozon_product_id?: string;
@@ -61,7 +61,7 @@ async function fetchProductDataFromOzonAPI(productUrl: string): Promise<any | nu
     // ✅ 使用 executeWithRetry（包含反爬虫检查、智能重试、403/429 处理）
     const limiter = OzonApiRateLimiter.getInstance();
 
-    const headers = await getOzonStandardHeaders({
+    const { headers } = await getOzonStandardHeaders({
       referer: window.location.href,
       includeContentType: false
     });
@@ -109,7 +109,7 @@ async function fetchFullVariantsFromModal(productId: string): Promise<any[] | nu
     const apiUrl = `${window.location.origin}/api/entrypoint-api.bx/page/json/v2?url=${encodeURIComponent(modalUrl)}`;
 
     const limiter = OzonApiRateLimiter.getInstance();
-    const headers = await getOzonStandardHeaders({
+    const { headers } = await getOzonStandardHeaders({
       referer: window.location.href
     });
 
@@ -144,9 +144,6 @@ async function fetchFullVariantsFromModal(productId: string): Promise<any[] | nu
     if (!aspects || !Array.isArray(aspects)) {
       return null;
     }
-
-    console.log(`[EuraFlow] ✅ Modal API 返回 ${aspects.length} 个 aspect`);
-    console.log('[EuraFlow] Modal API aspects:', aspects);
 
     return aspects;
   } catch (error: any) {
@@ -185,7 +182,7 @@ async function fetchDimensionsFromOzonAPI(productSku: string): Promise<{
     });
 
     if (!response.success) {
-      console.warn('[EuraFlow] OZON API 调用失败:', response.error);
+      console.warn('[EuraFlow] [尺寸 API] Seller API 无法获取尺寸（非自有商品正常）:', response.error);
       return null;
     }
 
@@ -395,8 +392,25 @@ async function fetchCharacteristicsAndDescription(productSlug: string): Promise<
   attributes?: Array<{ attribute_id: number; value: string; dictionary_value_id?: number }>;
 } | null> {
   try {
-    // 构造 Page2 API URL
-    const page2Url = `/product/${productSlug}/?layout_container=pdpPage2column&layout_page_index=2`;
+    // 获取 headers（包含 requestId）
+    const { headers, requestId } = await getOzonStandardHeaders({
+      referer: window.location.href
+    });
+
+    // 从当前 URL 提取 at 参数（如果有）
+    const urlParams = new URLSearchParams(window.location.search);
+    const atParam = urlParams.get('at') || '';
+
+    // 生成 sh 参数（随机短字符串）
+    const sh = generateShortHash(10);
+
+    // 构造 Page2 API URL（添加 sh 和 start_page_id 参数）
+    let page2Url = `/product/${productSlug}/?layout_container=pdpPage2column&layout_page_index=2`;
+    page2Url += `&sh=${sh}&start_page_id=${requestId}`;
+    if (atParam) {
+      page2Url = `/product/${productSlug}/?at=${atParam}&layout_container=pdpPage2column&layout_page_index=2&sh=${sh}&start_page_id=${requestId}`;
+    }
+
     const apiUrl = `${window.location.origin}/api/entrypoint-api.bx/page/json/v2?url=${encodeURIComponent(page2Url)}`;
 
     if (window.EURAFLOW_DEBUG) {
@@ -406,19 +420,13 @@ async function fetchCharacteristicsAndDescription(productSlug: string): Promise<
     // ✅ 使用 executeWithRetry（包含反爬虫检查、智能重试、403/429 处理）
     const limiter = OzonApiRateLimiter.getInstance();
 
-    const headers = await getOzonStandardHeaders({
-      referer: window.location.href
-    });
-
-    console.log('[EuraFlow] 开始调用 API（带重试）...');
+    console.log('[EuraFlow] [Page2 API] 开始获取商品特征和描述...');
     const response = await limiter.executeWithRetry(async () => {
-      console.log('[EuraFlow] 执行 fetch 请求...');
       const res = await fetch(apiUrl, {
         method: 'GET',
         headers,
         credentials: 'include'
       });
-      console.log(`[EuraFlow] fetch 响应状态: ${res.status}`);
       return res;
     });
 
@@ -491,7 +499,8 @@ async function fetchCharacteristicsAndDescription(productSlug: string): Promise<
       console.error('[EuraFlow] 🚫 触发反爬虫拦截');
       throw error;
     }
-    console.error('[EuraFlow] 调用 Page2 API 失败:', error);
+    // Page2 API 失败不影响主流程，静默处理
+    console.warn('[EuraFlow] [Page2 API] 获取特征失败（可忽略）:', error.message);
     return null;
   }
 }
@@ -906,29 +915,23 @@ export async function extractProductData(): Promise<ProductDetailData> {
     const aspectsKey = Object.keys(widgetStates).find(k => k.includes('webAspects'));
 
     let modalAspects: any[] = [];
+    let hasVariantsOnPage = false;  // 页面是否有变体
 
     if (aspectsKey) {
       const aspectsData = JSON.parse(widgetStates[aspectsKey]);
       modalAspects = aspectsData?.aspects || [];
-      console.log(`[EuraFlow] 页面 webAspects 返回 ${modalAspects.length} 个 aspect`);
+      hasVariantsOnPage = modalAspects.length > 0;
     }
 
-    // ✅ 调用 Modal API 获取完整变体（上品帮关键步骤）
-    if (productSku) {
+    // ✅ 只有当页面有变体时，才调用 Modal API 获取完整变体
+    if (productSku && hasVariantsOnPage) {
       const modalApiAspects = await fetchFullVariantsFromModal(productSku);
       if (modalApiAspects && modalApiAspects.length > 0) {
-        // 用 Modal API 的完整数据替换页面 aspects
         modalAspects = modalApiAspects;
-        console.log(`[EuraFlow] ✅ 使用 Modal API 的完整 aspects（${modalAspects.length} 个）`);
-      } else {
-        console.log(`[EuraFlow] ⚠️ Modal API 未返回数据，使用页面 aspects`);
       }
     }
 
-    console.log(`[EuraFlow] 最终 aspects:`, modalAspects);
-
     if (modalAspects && modalAspects.length > 0) {
-      console.log(`[EuraFlow] 开始提取变体 - aspects 数量: ${modalAspects.length}`);
 
       // ✅ 先从当前页面的 webAspects 提取当前选中颜色的所有尺码
       const currentPageAspectsKey = Object.keys(widgetStates).find(k => k.includes('webAspects'));
@@ -936,13 +939,9 @@ export async function extractProductData(): Promise<ProductDetailData> {
         const currentPageAspectsData = JSON.parse(widgetStates[currentPageAspectsKey]);
         const currentPageAspects = currentPageAspectsData?.aspects || [];
 
-        console.log(`[EuraFlow] 当前页面 aspects:`, currentPageAspects);
-
         if (currentPageAspects.length > 0) {
           const lastAspect = currentPageAspects[currentPageAspects.length - 1];
           const currentVariants = lastAspect?.variants || [];
-
-          console.log(`[EuraFlow] ✅ 从当前页面提取 ${currentVariants.length} 个变体（当前选中颜色）`);
 
           currentVariants.forEach((variant: any) => {
             const { sku, link } = variant;
@@ -1017,16 +1016,12 @@ export async function extractProductData(): Promise<ProductDetailData> {
         });
       });
 
-      console.log(`[EuraFlow] 需要访问的其他 variant 链接: ${allVariantLinks.length} 个`);
-      console.log(`[EuraFlow] Variant 链接:`, allVariantLinks);
-
       // ✅ 访问其他颜色的详情页，提取尺码
       const limiter = OzonApiRateLimiter.getInstance();
-      const headers = await getOzonStandardHeaders({ referer: window.location.href });
+      const { headers } = await getOzonStandardHeaders({ referer: window.location.href });
 
       for (const variantLink of allVariantLinks) {
         try {
-          console.log(`[EuraFlow] 访问 variant 链接: ${variantLink.link}`);
 
           const apiUrl = `${window.location.origin}/api/entrypoint-api.bx/page/json/v2?url=${encodeURIComponent(variantLink.link)}`;
 
@@ -1049,7 +1044,6 @@ export async function extractProductData(): Promise<ProductDetailData> {
           const variantAspectsKey = Object.keys(variantWidgetStates).find(k => k.includes('webAspects'));
 
           if (!variantAspectsKey) {
-            console.warn(`[EuraFlow] ⚠️ ${variantLink.link} 没有 webAspects`);
             continue;
           }
 
@@ -1070,18 +1064,13 @@ export async function extractProductData(): Promise<ProductDetailData> {
                   });
                 }
               });
-              console.log(`[EuraFlow] ✅ 从变体页面提取了 ${variantImages.length} 张图片`);
             }
           }
-
-          console.log(`[EuraFlow] ${variantLink.link} 返回 ${variantAspects.length} 个 aspect`);
 
           // 从最后一个 aspect 提取变体
           if (variantAspects.length > 0) {
             const lastAspect = variantAspects[variantAspects.length - 1];
             const variants = lastAspect?.variants || [];
-
-            console.log(`[EuraFlow] 从 ${variantLink.link} 提取 ${variants.length} 个变体`);
 
             variants.forEach((variant: any) => {
               const { sku, link } = variant;
@@ -1151,32 +1140,22 @@ export async function extractProductData(): Promise<ProductDetailData> {
         }
       }
 
-      console.log(`[EuraFlow] ✅ 变体提取完成，共 ${allVariants.length} 个`);
-    } else {
-      console.warn('[EuraFlow] 未找到变体数据');
     }
 
-    console.log(`[EuraFlow] 去重前变体数: ${allVariants.length}`); // ✅ 强制输出
+    // 按 variant_id 去重
+    const seenIds = new Set<string>();
+    const finalVariants = allVariants.filter(v => {
+      if (seenIds.has(v.variant_id)) return false;
+      seenIds.add(v.variant_id);
+      return true;
+    });
+    console.log(`[EuraFlow] ✅ 最终提取到 ${finalVariants.length} 个变体`);
 
-    // ✅ 直接使用 allVariants，无需去重
-    // 因为 Modal API 返回的就是完整的所有变体，不存在重复
-    const finalVariants = allVariants;
-
-    console.log(`[EuraFlow] 最终提取到 ${finalVariants.length} 个变体`, finalVariants); // ✅ 强制输出完整数据
-
-    if (window.EURAFLOW_DEBUG) {
-      console.log(`[EuraFlow] 最终提取到 ${finalVariants.length} 个变体`);
-    }
-
-    const result = {
+    return {
       ...baseData,
       has_variants: finalVariants.length > 0,
       variants: finalVariants,
     };
-
-    console.log('[EuraFlow] 准备返回的完整数据:', result); // ✅ 查看返回数据结构
-
-    return result;
   } catch (error) {
     console.error('[EuraFlow] 商品数据采集失败:', error);
 

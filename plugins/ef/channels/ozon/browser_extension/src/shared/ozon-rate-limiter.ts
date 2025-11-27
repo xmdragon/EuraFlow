@@ -152,6 +152,11 @@ export class OzonApiRateLimiter {
           throw error;
         }
 
+        // 403 Forbidden 错误不重试（非反爬虫的 403 通常是权限问题）
+        if (error.message?.startsWith('403 Forbidden')) {
+          throw error;
+        }
+
         // 其他错误：如果还有重试机会，继续；否则抛出
         if (attempt < maxRetries) {
           const backoffTime = Math.pow(2, attempt) * 1000;

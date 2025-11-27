@@ -156,7 +156,7 @@ export class AdditionalDataClient {
       const encodedUrl = encodeURIComponent(`/modal/otherOffersFromSellers?product_id=${productId}&page_changed=true`);
       const apiUrl = `${origin}/api/entrypoint-api.bx/page/json/v2?url=${encodedUrl}`;
 
-      const headers = await getOzonStandardHeaders({
+      const { headers } = await getOzonStandardHeaders({
         referer: `https://www.ozon.ru/product/${productId}/`
       });
 

@@ -15,6 +15,76 @@ const DISPLAY_CONFIG = {
   injectedSectionId: 'euraflow-section',
 };
 
+// ========== Toast 通知 ==========
+
+/**
+ * 显示右上角 Toast 通知（5秒后自动消失）
+ */
+function showToast(message: string, type: 'success' | 'error' | 'info' = 'success'): void {
+  // 移除已有的 toast
+  const existingToast = document.getElementById('euraflow-toast');
+  if (existingToast) {
+    existingToast.remove();
+  }
+
+  const toast = document.createElement('div');
+  toast.id = 'euraflow-toast';
+
+  // 根据类型设置颜色
+  const colors = {
+    success: { bg: '#10b981', icon: '✓' },
+    error: { bg: '#ef4444', icon: '✕' },
+    info: { bg: '#3b82f6', icon: 'ℹ' }
+  };
+  const { bg, icon } = colors[type];
+
+  toast.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: ${bg};
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 2147483647;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    animation: euraflow-toast-in 0.3s ease-out;
+    max-width: 400px;
+  `;
+
+  toast.innerHTML = `<span style="font-size: 16px;">${icon}</span><span>${message}</span>`;
+
+  // 添加动画样式
+  if (!document.getElementById('euraflow-toast-styles')) {
+    const style = document.createElement('style');
+    style.id = 'euraflow-toast-styles';
+    style.textContent = `
+      @keyframes euraflow-toast-in {
+        from { opacity: 0; transform: translateX(100px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+      @keyframes euraflow-toast-out {
+        from { opacity: 1; transform: translateX(0); }
+        to { opacity: 0; transform: translateX(100px); }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  document.body.appendChild(toast);
+
+  // 5秒后自动消失
+  setTimeout(() => {
+    toast.style.animation = 'euraflow-toast-out 0.3s ease-in forwards';
+    setTimeout(() => toast.remove(), 300);
+  }, 5000);
+}
+
 // ========== 数据格式化函数 ==========
 
 /**
@@ -102,23 +172,14 @@ export async function injectCompleteDisplay(data: {
 
   // 获取目标容器
   const container = document.querySelector('.container') as HTMLElement | null;
-  if (!container?.lastChild) {
-    console.log('[EuraFlow] 未找到 .container');
-    return;
-  }
+  if (!container?.lastChild) return;
 
   const rightSide = (container.lastChild as HTMLElement).lastChild as HTMLElement | null;
-  if (!rightSide?.children || rightSide.children.length === 0) {
-    console.log('[EuraFlow] 未找到右侧容器');
-    return;
-  }
+  if (!rightSide?.children || rightSide.children.length === 0) return;
 
   const targetContainer = (rightSide.children[0] as HTMLElement)?.firstChild as HTMLElement ||
                           (rightSide.children[1] as HTMLElement)?.firstChild as HTMLElement;
-  if (!targetContainer) {
-    console.log('[EuraFlow] 未找到目标容器');
-    return;
-  }
+  if (!targetContainer) return;
 
   // 移除已存在的组件
   const existing = document.getElementById(DISPLAY_CONFIG.injectedSectionId);
@@ -152,8 +213,6 @@ export async function injectCompleteDisplay(data: {
   }
   targetContainer.insertBefore(euraflowContainer, targetContainer.firstElementChild);
 
-  console.log('[EuraFlow] 组件注入完成');
-
   // 监听组件是否被移除，如果被移除则重新注入（最多重试3次）
   let retryCount = 0;
   const MAX_RETRY = 3;
@@ -168,7 +227,6 @@ export async function injectCompleteDisplay(data: {
       // 延迟500ms重新注入（避免与OZON的渲染冲突）
       setTimeout(() => {
         if (!document.getElementById(DISPLAY_CONFIG.injectedSectionId)) {
-          console.log(`[EuraFlow] 执行第${retryCount}次重新注入`);
           targetContainer.insertBefore(euraflowContainer, targetContainer.firstElementChild);
         }
       }, 500);
@@ -246,24 +304,13 @@ async function createDataSection(spbSales: any | null, dimensions: any | null): 
   const config = await getDataPanelConfig();
   const visibleFields = config.visibleFields;
 
-  console.log('[EuraFlow Display] 开始渲染数据字段', {
-    spbSales: spbSales ? '有数据' : 'null',
-    dimensions: dimensions ? '有数据' : 'null',
-    visibleFields
-  });
-
   // 渲染配置的字段
   for (const fieldKey of visibleFields) {
     const field = renderDataField(fieldKey, spbSales, dimensions);
     if (field) {
       section.appendChild(field);
-      console.log('[EuraFlow Display] 已添加字段:', fieldKey);
-    } else {
-      console.log('[EuraFlow Display] 字段返回null，跳过:', fieldKey);
     }
   }
-
-  console.log('[EuraFlow Display] 数据区域子元素数量:', section.children.length);
 
   // 如果没有渲染任何字段，显示提示
   if (section.children.length === 0) {
@@ -485,10 +532,10 @@ function createCollectButton(
         throw new Error(response.error || '采集失败');
       }
 
-      alert('✓ 商品已采集，请到系统采集记录中查看');
+      showToast('商品已采集，请到系统采集记录中查看', 'success');
     } catch (error) {
       console.error('[EuraFlow] 采集失败:', error);
-      alert('采集失败：' + (error as Error).message);
+      showToast('采集失败：' + (error as Error).message, 'error');
     } finally {
       collectButton.disabled = false;
       collectButton.classList.remove('ef-collect-button--disabled');

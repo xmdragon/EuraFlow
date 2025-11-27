@@ -513,6 +513,48 @@
   margin-left: 8px;
 }
 
+/* ========== 采购信息区域 ========== */
+.ef-purchase-info {
+  display: grid;
+  grid-template-columns: 1fr 150px 1fr;
+  gap: 12px;
+  padding: 16px;
+  background: #fafafa;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.ef-purchase-info__field {
+  display: flex;
+  flex-direction: column;
+}
+
+.ef-purchase-info__label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #555;
+}
+
+.ef-purchase-info__input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.ef-purchase-info__input:focus {
+  outline: none;
+  border-color: var(--ef-primary);
+}
+
+.ef-purchase-info__input--narrow {
+  /* 采购价输入框已通过grid控制宽度 */
+}
+
 /* ========== 加载中模态框 ========== */
 .ef-loading-modal {
   text-align: center;

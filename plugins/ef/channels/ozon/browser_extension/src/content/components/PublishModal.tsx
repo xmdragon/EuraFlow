@@ -17,17 +17,6 @@ import { injectEuraflowStyles } from '../styles/injector';
 // ========== 工具函数 ==========
 
 /**
- * 检查是否启用调试模式
- */
-function isDebugEnabled(): boolean {
-  try {
-    return localStorage.getItem('EURAFLOW_DEBUG') === 'true';
-  } catch {
-    return false;
-  }
-}
-
-/**
  * 获取缓存的降价百分比（默认1%）
  */
 function getCachedDiscountPercent(): number {
@@ -140,6 +129,11 @@ let selectedWatermarkId: number | null = null; // 未来功能：水印支持
 // 变体数据
 let variants: VariantEditData[] = [];
 
+// 采购信息（可选）
+let purchaseUrl: string = '';
+let purchasePrice: number | null = null;
+let purchaseNote: string = '';
+
 // ========== 主函数 ==========
 
 /**
@@ -149,8 +143,6 @@ let variants: VariantEditData[] = [];
 export async function showPublishModal(product: any = null, currentRealPrice: number | null = null): Promise<void> {
   // 注入 EuraFlow 样式（仅注入一次）
   injectEuraflowStyles();
-
-  if (isDebugEnabled()) console.log('[PublishModal] 显示弹窗，商品数据:', product, '当前真实售价:', currentRealPrice);
 
   // 关闭已有弹窗
   if (currentModal) {
@@ -178,7 +170,6 @@ export async function showPublishModal(product: any = null, currentRealPrice: nu
 
     // 赋值给全局变量（避免参数遮蔽）
     productData = product;
-    if (isDebugEnabled()) console.log('[PublishModal] 使用传递的商品数据，变体数:', productData!.variants?.length || 0);
 
     // 2. 加载配置数据（从缓存）
     updateLoadingMessage('正在加载配置数据...');
@@ -210,52 +201,30 @@ async function loadConfigData(): Promise<void> {
   const cached = configCache.getCached();
 
   if (cached) {
-    console.log('[PublishModal] ✓ 使用预加载的配置数据（缓存命中）');
-    if (isDebugEnabled()) console.log('[PublishModal] cached.shops:', cached.shops);
-    if (isDebugEnabled()) console.log('[PublishModal] cached.shops 类型:', typeof cached.shops);
-    if (isDebugEnabled()) console.log('[PublishModal] cached.shops 长度:', Array.isArray(cached.shops) ? cached.shops.length : 'NOT AN ARRAY');
-    if (isDebugEnabled()) console.log('[PublishModal] cached.watermarks:', cached.watermarks);
-    if (isDebugEnabled()) console.log('[PublishModal] cached.warehouses:', cached.warehouses);
-
     shops = cached.shops;
     watermarks = cached.watermarks;
 
-    // 默认选择第一个店铺
     if (shops.length > 0) {
-      if (isDebugEnabled()) console.log('[PublishModal] 选择默认店铺:', shops[0]);
       selectedShopId = shops[0].id;
       warehouses = cached.warehouses.get(selectedShopId) || [];
-      if (isDebugEnabled()) console.log('[PublishModal] 默认店铺仓库数:', warehouses.length);
       if (warehouses.length > 0) {
         selectedWarehouseIds = [warehouses[0].id];
       }
-    } else {
-      console.warn('[PublishModal] shops数组为空！');
     }
     return;
   }
 
-  // 缓存未命中，手动加载（预加载可能失败或超时）
-  console.log('[PublishModal] ⚠ 缓存未命中，实时加载配置数据...');
+  // 缓存未命中，手动加载
   shops = await configCache.getShops(apiClient);
-  if (isDebugEnabled()) console.log('[PublishModal] 从API加载的shops:', shops);
-
   watermarks = await configCache.getWatermarks(apiClient);
-  if (isDebugEnabled()) console.log('[PublishModal] 从API加载的watermarks:', watermarks);
 
   if (shops.length > 0) {
     selectedShopId = shops[0].id;
     warehouses = await configCache.getWarehouses(apiClient, selectedShopId);
-    if (isDebugEnabled()) console.log('[PublishModal] 从API加载的warehouses:', warehouses);
     if (warehouses.length > 0) {
       selectedWarehouseIds = [warehouses[0].id];
     }
-  } else {
-    console.warn('[PublishModal] API返回的shops数组为空！');
   }
-
-  // 未来功能：预选水印
-  if (isDebugEnabled()) console.log('[PublishModal] 配置加载完成:', { shops: shops.length, warehouses: warehouses.length, watermarks: watermarks.length, selectedWatermark: selectedWatermarkId });
 }
 
 /**
@@ -265,7 +234,6 @@ async function loadWarehouses(shopId: number): Promise<void> {
   if (!apiClient) return;
 
   warehouses = await configCache.getWarehouses(apiClient, shopId);
-  if (isDebugEnabled()) console.log('[PublishModal] 加载仓库:', warehouses.length, '个');
 
   // 默认选择第一个仓库
   if (warehouses.length > 0) {
@@ -282,18 +250,9 @@ async function loadWarehouses(shopId: number): Promise<void> {
 function initializeVariants(pageRealPrice: number | null = null): void {
   variants = [];
 
-  if (isDebugEnabled()) console.log('[PublishModal] initializeVariants 开始，productData:', productData, '页面真实售价:', pageRealPrice);
+  if (!productData) return;
 
-  if (!productData) {
-    console.warn('[PublishModal] productData 为空');
-    return;
-  }
-
-  // 保存到局部变量以避免 TypeScript null 检查问题
   const product = productData;
-
-  if (isDebugEnabled()) console.log('[PublishModal] product.has_variants:', product.has_variants);
-  if (isDebugEnabled()) console.log('[PublishModal] product.variants:', product.variants);
 
   // 获取缓存的降价百分比（默认1%）
   const discountPercent = getCachedDiscountPercent();
@@ -301,8 +260,6 @@ function initializeVariants(pageRealPrice: number | null = null): void {
 
   // 情况1: 商品有变体
   if (product.has_variants && product.variants && product.variants.length > 0) {
-    if (isDebugEnabled()) console.log('[PublishModal] 检测到商品变体:', product.variants.length, '个');
-
     product.variants.forEach((variant: any, index: number) => {
       // ✅ 直接读取 variant.price（人民币价格）
       const rawPrice: any = variant.price;
@@ -318,14 +275,6 @@ function initializeVariants(pageRealPrice: number | null = null): void {
       // 应用降价策略
       const customPrice = Math.max(0.01, price * discountMultiplier);
 
-      if (isDebugEnabled()) console.log(`[PublishModal] 初始化变体 ${index}:`, {
-        variant_id: variant.variant_id,
-        specifications: variant.specifications,
-        price,
-        customPrice,
-        discountPercent
-      });
-
       // 提取变体图片URL（可能是对象或字符串）
       let variantImageUrl = '';
       if (variant.image_url) {
@@ -335,15 +284,6 @@ function initializeVariants(pageRealPrice: number | null = null): void {
           const imgObj = variant.image_url as any;
           variantImageUrl = imgObj.url || imgObj.link || imgObj.src || '';
         }
-      }
-
-      if (isDebugEnabled()) {
-        console.log(`[PublishModal] 初始化变体 ${index + 1}:`, {
-          variant_id: variant.variant_id,
-          specifications: variant.specifications,
-          原始image_url: variant.image_url,
-          提取的URL: variantImageUrl
-        });
       }
 
       variants.push({
@@ -364,38 +304,22 @@ function initializeVariants(pageRealPrice: number | null = null): void {
   }
   // 情况2: 单品（无变体）
   else {
-    if (isDebugEnabled()) console.log('[PublishModal] 单品（无变体）');
-
-    // 优先使用页面显示的真实售价（最新），否则从API数据计算
     let realPrice: number;
     let greenPrice: number;
     let blackPrice: number;
 
     if (pageRealPrice !== null) {
-      // 使用页面显示的价格（确保和页面一致）
       realPrice = pageRealPrice;
       greenPrice = product.price || 0;
       blackPrice = product.original_price || greenPrice;
-      if (isDebugEnabled()) console.log('[PublishModal] 使用页面真实售价:', realPrice);
     } else {
-      // 从API数据计算
       greenPrice = product.price || 0;
       blackPrice = product.original_price || greenPrice;
       realPrice = calculateRealPriceCore(greenPrice, blackPrice);
-      if (isDebugEnabled()) console.log('[PublishModal] 从API数据计算真实售价:', realPrice);
     }
 
     // 应用降价策略
     const customPrice = Math.max(0.01, realPrice * discountMultiplier);
-
-    if (isDebugEnabled()) console.log('[PublishModal] 单品价格计算:', {
-      pageRealPrice,
-      greenPrice,
-      blackPrice,
-      realPrice,
-      customPrice,
-      discountPercent
-    });
 
     // 提取单品图片URL（可能是对象或字符串）
     let singleImageUrl = '';
@@ -424,8 +348,6 @@ function initializeVariants(pageRealPrice: number | null = null): void {
       available: true,
     });
   }
-
-  if (isDebugEnabled()) console.log('[PublishModal] 初始化变体数据完成:', variants.length, '个', variants);
 }
 
 // ========== UI 渲染 ==========
@@ -463,15 +385,6 @@ function updateLoadingMessage(message: string): void {
  * 渲染主弹窗
  */
 function renderMainModal(): void {
-  // 添加调试日志
-  if (isDebugEnabled()) console.log('[PublishModal] renderMainModal 调用，数据状态:', {
-    shops: shops.length,
-    warehouses: warehouses.length,
-    watermarks: watermarks.length,
-    variants: variants.length,
-    productData: !!productData
-  });
-
   if (currentModal) {
     currentModal.remove();
   }
@@ -537,6 +450,22 @@ function renderMainModal(): void {
       </table>
     </div>
 
+    <!-- 采购信息（可选） -->
+    <div class="ef-purchase-info">
+      <div class="ef-purchase-info__field">
+        <label class="ef-purchase-info__label">采购地址</label>
+        <input type="text" id="purchase-url" placeholder="可选，例如：1688商品链接" class="ef-purchase-info__input" value="${purchaseUrl}">
+      </div>
+      <div class="ef-purchase-info__field">
+        <label class="ef-purchase-info__label">采购价</label>
+        <input type="number" id="purchase-price" placeholder="可选，单位：元" step="0.01" min="0" class="ef-purchase-info__input ef-purchase-info__input--narrow" value="${purchasePrice !== null ? purchasePrice : ''}">
+      </div>
+      <div class="ef-purchase-info__field">
+        <label class="ef-purchase-info__label">采购备注</label>
+        <input type="text" id="purchase-note" placeholder="可选" class="ef-purchase-info__input" value="${purchaseNote}">
+      </div>
+    </div>
+
     <!-- 底部按钮 -->
     <div class="ef-modal-footer">
       <div id="selected-count" class="ef-modal-footer__count">已选择 ${variants.filter(v => v.enabled).length} 个变体</div>
@@ -561,10 +490,6 @@ function renderProductPreview(): string {
 
   // 直接使用上品帮的主图（photo 字段）
   const imageUrl = productData.primary_image || '';
-
-  if (isDebugEnabled()) {
-    console.log('[PublishModal] 使用主图 (primary_image):', imageUrl);
-  }
 
   const title = productData.title || '未知商品';
   const variantCount = variants.length;
@@ -792,6 +717,23 @@ function bindMainModalEvents(): void {
   // 批量定价按钮
   const batchPricingBtn = document.getElementById('batch-pricing-btn');
   batchPricingBtn?.addEventListener('click', showBatchPricingModal);
+
+  // 采购信息输入
+  const purchaseUrlInput = document.getElementById('purchase-url') as HTMLInputElement;
+  purchaseUrlInput?.addEventListener('input', (e) => {
+    purchaseUrl = (e.target as HTMLInputElement).value;
+  });
+
+  const purchasePriceInput = document.getElementById('purchase-price') as HTMLInputElement;
+  purchasePriceInput?.addEventListener('input', (e) => {
+    const value = (e.target as HTMLInputElement).value;
+    purchasePrice = value ? parseFloat(value) : null;
+  });
+
+  const purchaseNoteInput = document.getElementById('purchase-note') as HTMLInputElement;
+  purchaseNoteInput?.addEventListener('input', (e) => {
+    purchaseNote = (e.target as HTMLInputElement).value;
+  });
 }
 
 /**
@@ -995,8 +937,6 @@ function applyBatchPricing(config: BatchPricingConfig): void {
       setCachedDiscountPercent(config.discountPercent);
     }
   });
-
-  if (isDebugEnabled()) console.log('[PublishModal] 批量定价完成:', config);
 }
 
 // ========== 上架处理 ==========
@@ -1005,8 +945,6 @@ function applyBatchPricing(config: BatchPricingConfig): void {
  * 处理跟卖操作（立即上架）
  */
 async function handleFollowPdp(): Promise<void> {
-  console.log('[PublishModal] ========== 跟卖按钮被点击 ==========');
-
   if (!apiClient || !productData) {
     console.error('[PublishModal] 数据未准备好');
     alert('数据未准备好，请刷新页面重试');
@@ -1118,6 +1056,10 @@ async function handleFollowPdp(): Promise<void> {
       barcode: productData.barcode || undefined,
       dimensions: productData.dimensions,
       attributes: productData.attributes || undefined,
+      // 采购信息（可选）
+      purchase_url: purchaseUrl || undefined,
+      purchase_price: purchasePrice !== null ? yuanToCents(purchasePrice) : undefined,
+      purchase_note: purchaseNote || undefined,
       product_data: {
         title: productData.title,
         images: productData.images,
@@ -1136,8 +1078,6 @@ async function handleFollowPdp(): Promise<void> {
       },
     };
 
-    console.log('[PublishModal] 跟卖请求数据:', requestData);
-
     // 调用跟卖接口
     const response = await fetch(`${config.apiUrl}/api/ef/v1/ozon/collection-records/follow-pdp`, {
       method: 'POST',
@@ -1154,8 +1094,7 @@ async function handleFollowPdp(): Promise<void> {
       throw new Error(errorData?.error?.detail || errorData?.detail || '跟卖失败');
     }
 
-    const result = await response.json();
-    console.log('[PublishModal] 跟卖成功:', result);
+    await response.json();
 
     // 成功后关闭窗口（不显示任何通知）
     window.close();
@@ -1207,6 +1146,11 @@ function closeModal(): void {
   selectedWarehouseIds = [];
   selectedWatermarkId = null;
   variants = [];
+
+  // 重置采购信息
+  purchaseUrl = '';
+  purchasePrice = null;
+  purchaseNote = '';
 }
 
 // ========== UI 辅助函数 ==========

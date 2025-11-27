@@ -30,7 +30,6 @@ export class RealPriceCalculator {
   private preloadConfigInBackground(): void {
     chrome.storage.sync.get(['apiUrl', 'apiKey'], (result) => {
       if (result.apiUrl && result.apiKey) {
-        console.log('[EuraFlow] 第一时间开始预加载配置数据（并行）...');
         const apiClient = new ApiClient(result.apiUrl, result.apiKey);
         configCache.preload(apiClient)
           .then(() => {
@@ -38,10 +37,7 @@ export class RealPriceCalculator {
           })
           .catch((error) => {
             console.warn('[EuraFlow] ⚠ 配置数据预加载失败:', error.message);
-            // 预加载失败不影响功能，用户点击时会重新加载
           });
-      } else {
-        console.log('[EuraFlow] 跳过配置预加载（未配置 API）');
       }
     });
   }
@@ -61,62 +57,32 @@ export class RealPriceCalculator {
 
       // 检查关键元素是否已加载（Vue hydration 完成的标志）
       const checkKeyElements = (): boolean => {
-        // 查找 webSale 组件（商品销售信息区域）
         const webSaleWidget = document.querySelector('div[data-widget="webSale"]');
-        if (!webSaleWidget) {
-          if (checkCount === 1) {
-            console.log('[EuraFlow] 未找到 webSale 组件');
-          }
-          return false;
-        }
+        if (!webSaleWidget) return false;
 
-        // 在 webSale 内查找配送信息容器（使用宽松选择器）
         const deliveryContainer = webSaleWidget.querySelector('div[class*="pdp_fa"]');
-        if (!deliveryContainer) {
-          if (checkCount === 1) {
-            console.log('[EuraFlow] 在 webSale 内未找到 pdp_fa 容器');
-          }
-          return false;
-        }
+        if (!deliveryContainer) return false;
 
-        // 检查内容是否不是 SVG（如果不是 SVG，说明内容已加载完成）
         const hasSvg = deliveryContainer.querySelector('svg');
-        if (!hasSvg) {
-          const content = deliveryContainer.textContent?.trim() || '';
-          console.log('[EuraFlow] ✓ 检测到配送信息已加载:', content);
-          return true;
-        }
-
-        if (checkCount === 1) {
-          console.log('[EuraFlow] pdp_fa 容器内仍然是 SVG，继续等待...');
-        }
-
-        return false;
+        return !hasSvg;
       };
 
       const checkReady = () => {
         checkCount++;
         const elapsed = Date.now() - startTime;
 
-        // 超时检查
         if (elapsed > MAX_WAIT_TIME) {
-          console.warn('[EuraFlow] ⚠️ 等待关键元素超时，强制继续');
           resolve(true);
           return;
         }
 
-        // 检查关键元素是否已加载
         if (checkKeyElements()) {
-          console.log(`[EuraFlow] ✓ DOM 已稳定（用时 ${elapsed}ms，检查了 ${checkCount} 次）`);
-          // 额外延迟200ms，确保 Vue 完全完成
           setTimeout(() => resolve(true), 200);
         } else {
-          // 关键元素未出现，继续等待
           setTimeout(checkReady, CHECK_INTERVAL);
         }
       };
 
-      console.log('[EuraFlow] 开始等待关键元素加载...');
       checkReady();
     });
   }
@@ -150,8 +116,6 @@ export class RealPriceCalculator {
       }
 
       // 4. 【先提取变体数据】（必须在 content script 中调用 Modal API）
-      console.log('[EuraFlow] 开始提取商品详情数据（包括变体）...');
-
       let productDetail = null;
       try {
         productDetail = await extractProductData();
@@ -185,23 +149,9 @@ export class RealPriceCalculator {
       console.log('[EuraFlow] ✓ 数据采集完成');
 
       // 5. 【再等待 DOM 稳定】（此时配送日期应该已经加载好了）
-      console.log('[EuraFlow] 等待 DOM 稳定...');
-      const isReady = await this.waitForContainerReady();
-
-      if (!isReady) {
-        console.warn('[EuraFlow] ⚠️ DOM 未完全稳定，但数据已准备好，继续注入');
-      }
+      await this.waitForContainerReady();
 
       const { ozonProduct, spbSales, euraflowConfig } = response.data;
-
-      console.log('[EuraFlow] 最终数据:', {
-        realPrice: { message, price },
-        ozonProduct: ozonProduct ? '✓' : '✗',
-        变体数量: ozonProduct?.variants?.length || 0,
-        尺寸数据: ozonProduct?.dimensions ? '✓' : '✗',
-        spbSales: spbSales ? '✓' : '✗',
-        euraflowConfig: euraflowConfig ? '✓' : '✗'
-      });
 
       // 6. 一次性注入完整组件
       await injectCompleteDisplay({
@@ -211,8 +161,6 @@ export class RealPriceCalculator {
         spbSales,
         euraflowConfig
       });
-
-      console.log('[EuraFlow] ✓ 组件注入完成');
     } catch (error) {
       console.error('[EuraFlow] 初始化失败:', error);
     }

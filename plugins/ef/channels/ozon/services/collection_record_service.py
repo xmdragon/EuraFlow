@@ -321,6 +321,16 @@ class CollectionRecordService:
                     "old_price": src_variant.get("original_price"),
                 })
 
+        # 提取 "Тип" 属性（attribute_id=2622298）用于类目自动匹配
+        # 数据库中的 attributes 是数组格式：[{attribute_id, value}, ...]
+        source_attributes = product_data.get("attributes", [])
+        category_type_ru = None
+        if isinstance(source_attributes, list):
+            for attr in source_attributes:
+                if isinstance(attr, dict) and attr.get("attribute_id") == 2622298:
+                    category_type_ru = attr.get("value")
+                    break
+
         # 构建草稿数据
         draft_data = {
             "title": product_data.get("title"),
@@ -333,7 +343,10 @@ class CollectionRecordService:
             "height": dimensions.get("height"),
             "depth": dimensions.get("length"),      # length → depth 字段名转换
             "weight": dimensions.get("weight"),
-            "attributes": product_data.get("attributes", {}),
+            # attributes 转换为对象格式，包含用于类目匹配的 _category_type_ru
+            "attributes": {
+                "_category_type_ru": category_type_ru,  # 俄文类目名称，用于自动匹配
+            },
         }
 
         # 如果有变体，添加变体相关字段

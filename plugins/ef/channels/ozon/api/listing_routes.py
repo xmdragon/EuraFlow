@@ -1615,6 +1615,10 @@ async def create_product(
             weight=request.get("weight"),
             weight_unit=request.get("weight_unit", "g"),
             vat=request.get("vat", "0"),
+            # 采购信息（仅保存到本地，不提交OZON）
+            purchase_url=request.get("purchase_url"),
+            suggested_purchase_price=Decimal(str(request["suggested_purchase_price"])) if request.get("suggested_purchase_price") else None,
+            purchase_note=request.get("purchase_note"),
             listing_status="import_submitted",  # 已提交到OZON
             listing_mode="NEW_CARD",
             import_submitted_at=datetime.utcnow(),

@@ -850,7 +850,7 @@ async function handleGetOzonProductDetail(data: { productSku: string; cookieStri
 
     // 5. 调用 OZON search-variant-model API（使用完整headers避免触发限流）
     // 注意：seller.ozon.ru 需要特殊的 seller-ui headers，不能直接使用标准headers
-    const baseHeaders = await getOzonStandardHeaders({
+    const { headers: baseHeaders } = await getOzonStandardHeaders({
       referer: 'https://seller.ozon.ru/app/products'
     });
 
@@ -1494,7 +1494,7 @@ async function handleGetFollowSellerDataBatch(data: { productIds: string[] }): P
       const apiUrl = `${origin}/api/entrypoint-api.bx/page/json/v2?url=${encodedUrl}`;
 
       // 使用标准headers + composer 服务标识 + 限流器（避免触发限流）
-      const baseHeaders = await getOzonStandardHeaders({
+      const { headers: baseHeaders } = await getOzonStandardHeaders({
         referer: `https://www.ozon.ru/product/${productId}/`,
         serviceName: 'composer'  // 【Phase 4】添加服务名称，模拟 OZON 官方的内部网关调用
       });

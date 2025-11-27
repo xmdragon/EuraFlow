@@ -47,8 +47,20 @@ class FollowPdpRequest(BaseModel):
     source_url: str = Field(..., description="商品来源URL")
     product_data: dict[str, Any] = Field(..., description="完整商品数据")
     variants: list[dict[str, Any]] = Field(..., description="变体列表")
-    warehouse_id: int = Field(..., description="仓库ID")
-    watermark_id: Optional[int] = Field(None, description="水印ID")
+    warehouse_ids: list[int] = Field(..., description="仓库ID列表")
+    watermark_config_id: Optional[int] = Field(None, description="水印配置ID")
+    images: Optional[list[dict[str, Any]]] = Field(None, description="图片列表")
+    videos: Optional[list[str]] = Field(None, description="视频列表")
+    description: Optional[str] = Field(None, description="商品描述")
+    category_id: Optional[int] = Field(None, description="类目ID")
+    brand: Optional[str] = Field(None, description="品牌")
+    barcode: Optional[str] = Field(None, description="条形码")
+    dimensions: Optional[dict[str, Any]] = Field(None, description="尺寸信息")
+    attributes: Optional[list[dict[str, Any]]] = Field(None, description="类目特征")
+    # 采购信息（仅保存到本地，不提交OZON）
+    purchase_url: Optional[str] = Field(None, description="采购地址")
+    purchase_price: Optional[int] = Field(None, description="采购价（分）")
+    purchase_note: Optional[str] = Field(None, description="采购备注")
 
 
 class UpdateRecordRequest(BaseModel):
@@ -172,6 +184,10 @@ async def follow_pdp_listing(
             "barcode": request.barcode,
             "dimensions": request.dimensions,
             "attributes": request.attributes,
+            # 采购信息（仅保存到本地，不提交OZON）
+            "purchase_url": request.purchase_url,
+            "purchase_price": request.purchase_price,
+            "purchase_note": request.purchase_note,
         }
     )
 
@@ -257,9 +273,15 @@ async def get_records(
 @router.get("/daily-stats")
 async def get_listing_daily_stats(
     shop_id: int = Query(..., description="店铺ID"),
-    range_type: Optional[str] = Query(None, description="时间范围类型：7days/14days/thisMonth/lastMonth/custom"),
-    start_date: Optional[str] = Query(None, description="开始日期 YYYY-MM-DD（仅 range_type=custom 时使用）"),
-    end_date: Optional[str] = Query(None, description="结束日期 YYYY-MM-DD（仅 range_type=custom 时使用）"),
+    range_type: Optional[str] = Query(
+        None, description="时间范围类型：7days/14days/thisMonth/lastMonth/custom"
+    ),
+    start_date: Optional[str] = Query(
+        None, description="开始日期 YYYY-MM-DD（仅 range_type=custom 时使用）"
+    ),
+    end_date: Optional[str] = Query(
+        None, description="结束日期 YYYY-MM-DD（仅 range_type=custom 时使用）"
+    ),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(get_current_user_flexible)
 ):

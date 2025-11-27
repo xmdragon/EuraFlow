@@ -160,8 +160,8 @@ export class ProductCollector {
           }
         }
 
-        // 随机延迟（1000-2000ms），等待页面加载新商品
-        const randomDelay = Math.floor(Math.random() * 1000) + 1000;
+        // 随机延迟（500-1000ms），等待页面加载新商品
+        const randomDelay = Math.floor(Math.random() * 500) + 500;
         await this.sleep(randomDelay);
       }
 
@@ -210,9 +210,9 @@ export class ProductCollector {
 
           console.log(`%c[批次 ${batchNum}/${totalBatches}] 完成`, 'color: #52c41a; font-weight: bold');
 
-          // 批次间随机延迟（100-1000ms，模拟人工操作）
+          // 批次间随机延迟（50-300ms）
           if (batchIndex < totalBatches - 1) { // 最后一批不需要延迟
-            const batchDelay = Math.random() * 900 + 100; // 100-1000ms
+            const batchDelay = Math.random() * 250 + 50; // 50-300ms
             console.log(`[批次延迟] 等待 ${batchDelay.toFixed(0)}ms...`);
             await this.sleep(batchDelay);
           }
