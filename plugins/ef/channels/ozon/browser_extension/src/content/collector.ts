@@ -167,9 +167,9 @@ export class ProductCollector {
 
       const products = Array.from(this.collected.values());
 
-      // 【阶段2-4】批量处理：3个商品一批，依次获取所有数据类型
+      // 【阶段2-4】批量处理：8个商品一批，依次获取所有数据类型
       if (products.length > 0) {
-        const BATCH_SIZE = 3;
+        const BATCH_SIZE = 8;
         const totalBatches = Math.ceil(products.length / BATCH_SIZE);
 
         console.log(`%c[批量处理] 开始处理 ${products.length} 个商品，共 ${totalBatches} 批（每批${BATCH_SIZE}个）`, 'color: #1890ff; font-weight: bold');

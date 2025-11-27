@@ -264,11 +264,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         {/* rFBS佣金 - 横向三标签 */}
         {fieldConfig.rfbsCommission && (
           <div className={styles.commissionRow}>
-            <Text type="secondary">rFBS: </Text>
+            <Tooltip title="rFBS佣金率"><Text type="secondary">rFBS: </Text></Tooltip>
             <Space size={4}>
-              <Tag color="success">{product.rfbs_commission_low ?? '-'}</Tag>
-              <Tag color="warning">{product.rfbs_commission_mid ?? '-'}</Tag>
-              <Tag color="error">{product.rfbs_commission_high ?? '-'}</Tag>
+              <Tooltip title="售价 ≤1500₽"><Tag color="success">{product.rfbs_commission_low ?? '-'}</Tag></Tooltip>
+              <Tooltip title="售价 1501~5000₽"><Tag color="warning">{product.rfbs_commission_mid ?? '-'}</Tag></Tooltip>
+              <Tooltip title="售价 >5000₽"><Tag color="error">{product.rfbs_commission_high ?? '-'}</Tag></Tooltip>
             </Space>
           </div>
         )}
@@ -276,11 +276,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         {/* FBP佣金 - 横向三标签 */}
         {fieldConfig.fbpCommission && (
           <div className={styles.commissionRow}>
-            <Text type="secondary">FBP: </Text>
+            <Tooltip title="FBP佣金率"><Text type="secondary">FBP: </Text></Tooltip>
             <Space size={4}>
-              <Tag color="success">{product.fbp_commission_low ?? '-'}</Tag>
-              <Tag color="warning">{product.fbp_commission_mid ?? '-'}</Tag>
-              <Tag color="error">{product.fbp_commission_high ?? '-'}</Tag>
+              <Tooltip title="售价 ≤1500₽"><Tag color="success">{product.fbp_commission_low ?? '-'}</Tag></Tooltip>
+              <Tooltip title="售价 1501~5000₽"><Tag color="warning">{product.fbp_commission_mid ?? '-'}</Tag></Tooltip>
+              <Tooltip title="售价 >5000₽"><Tag color="error">{product.fbp_commission_high ?? '-'}</Tag></Tooltip>
             </Space>
           </div>
         )}
@@ -288,7 +288,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         {/* 月销量+月销售额 */}
         {(fieldConfig.monthlySales || fieldConfig.monthlySalesRevenue) && (
           <div className={styles.statsItem}>
-            <Text type="secondary">月销: </Text>
+            <Tooltip title="月销量 & 月销售额"><Text type="secondary">月销: </Text></Tooltip>
             <Text strong>
               {product.monthly_sales_volume ? `${formatNum(product.monthly_sales_volume)} 件` : ''}{' '}
               {formatCurrency(product.monthly_sales_revenue, exchangeRate)}
@@ -299,7 +299,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         {/* 日销量+日销售额 */}
         {fieldConfig.dailySales && (
           <div className={styles.statsItem}>
-            <Text type="secondary">日销: </Text>
+            <Tooltip title="日销量 & 日销售额"><Text type="secondary">日销: </Text></Tooltip>
             <Text strong>
               {product.daily_sales_volume ? `${formatNum(product.daily_sales_volume)} 件` : ''}{' '}
               {formatCurrency(product.daily_sales_revenue, exchangeRate)}
@@ -311,11 +311,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         {fieldConfig.salesDynamic && (
           <Row gutter={1} className={styles.statsItem}>
             <Col span={12}>
-              <Text type="secondary">动态: </Text>
+              <Tooltip title="月销售动态"><Text type="secondary">动态: </Text></Tooltip>
               <Text strong>{formatPercent(product.sales_dynamic_percent)}</Text>
             </Col>
             <Col span={12}>
-              <Text type="secondary">点击: </Text>
+              <Tooltip title="点击率"><Text type="secondary">点击: </Text></Tooltip>
               <Text strong>{formatPercent(product.click_through_rate)}</Text>
             </Col>
           </Row>
@@ -325,11 +325,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         {fieldConfig.cardMetrics && (
           <Row gutter={1} className={styles.statsItem}>
             <Col span={12}>
-              <Text type="secondary">卡片: </Text>
+              <Tooltip title="商品卡片浏览量"><Text type="secondary">卡片: </Text></Tooltip>
               <Text strong>{formatNum(product.card_views)}</Text>
             </Col>
             <Col span={12}>
-              <Text type="secondary">加购: </Text>
+              <Tooltip title="商品卡片加购率"><Text type="secondary">加购: </Text></Tooltip>
               <Text strong>{formatPercent(product.card_add_to_cart_rate)}</Text>
             </Col>
           </Row>
@@ -339,11 +339,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         {fieldConfig.searchMetrics && (
           <Row gutter={1} className={styles.statsItem}>
             <Col span={12}>
-              <Text type="secondary">搜索: </Text>
+              <Tooltip title="搜索浏览量"><Text type="secondary">搜索: </Text></Tooltip>
               <Text strong>{formatNum(product.search_views)}</Text>
             </Col>
             <Col span={12}>
-              <Text type="secondary">加购: </Text>
+              <Tooltip title="搜索加购率"><Text type="secondary">加购: </Text></Tooltip>
               <Text strong>{formatPercent(product.search_add_to_cart_rate)}</Text>
             </Col>
           </Row>
@@ -353,7 +353,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         {fieldConfig.promoMetrics && (
           <Row gutter={1} className={styles.statsItem}>
             <Col span={24}>
-              <Text type="secondary">促销: </Text>
+              <Tooltip title="参与促销天数 & 折扣 & 转化率"><Text type="secondary">促销: </Text></Tooltip>
               <Text strong>
                 {product.promo_days ? `${product.promo_days}天` : '-'}{' '}
                 {formatPercent(product.promo_discount_percent)}{' '}
@@ -367,11 +367,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         {fieldConfig.paidPromo && (
           <Row gutter={1} className={styles.statsItem}>
             <Col span={12}>
-              <Text type="secondary">付费: </Text>
+              <Tooltip title="付费推广天数"><Text type="secondary">付费: </Text></Tooltip>
               <Text strong>{product.paid_promo_days ? `${product.paid_promo_days}天` : '-'}</Text>
             </Col>
             <Col span={12}>
-              <Text type="secondary">份额: </Text>
+              <Tooltip title="广告份额"><Text type="secondary">份额: </Text></Tooltip>
               <Text strong>{formatPercent(product.ad_cost_share)}</Text>
             </Col>
           </Row>
@@ -381,11 +381,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         {fieldConfig.conversionMetrics && (
           <Row gutter={1} className={styles.statsItem}>
             <Col span={12}>
-              <Text type="secondary">成交: </Text>
+              <Tooltip title="成交率"><Text type="secondary">成交: </Text></Tooltip>
               <Text strong>{formatPercent(product.conversion_rate)}</Text>
             </Col>
             <Col span={12}>
-              <Text type="secondary">退取: </Text>
+              <Tooltip title="退货取消率"><Text type="secondary">退取: </Text></Tooltip>
               <Text strong>{formatPercent(product.return_cancel_rate)}</Text>
             </Col>
           </Row>
@@ -396,13 +396,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           <Row gutter={1} className={styles.statsItem}>
             {fieldConfig.avgPrice && (
               <Col span={12}>
-                <Text type="secondary">均价: </Text>
+                <Tooltip title="平均价格"><Text type="secondary">均价: </Text></Tooltip>
                 <Text strong>{formatCurrency(product.avg_price, exchangeRate)}</Text>
               </Col>
             )}
             {fieldConfig.weight && (
               <Col span={12}>
-                <Text type="secondary">重量: </Text>
+                <Tooltip title="包装重量"><Text type="secondary">重量: </Text></Tooltip>
                 <Text strong>{formatWeight(product.package_weight)}</Text>
               </Col>
             )}
@@ -412,7 +412,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         {/* 包装尺寸 */}
         {fieldConfig.dimensions && (
           <div className={styles.statsItem}>
-            <Text type="secondary">尺寸: </Text>
+            <Tooltip title="长×宽×高(mm)"><Text type="secondary">尺寸: </Text></Tooltip>
             <Text strong>
               {product.package_length && product.package_width && product.package_height
                 ? `${product.package_length}×${product.package_width}×${product.package_height}`
@@ -424,7 +424,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         {/* 发货模式 */}
         {fieldConfig.sellerMode && (
           <div className={styles.statsItem}>
-            <Text type="secondary">模式: </Text>
+            <Tooltip title="发货模式(FBS:跨境店，FBO:本地店)"><Text type="secondary">模式: </Text></Tooltip>
             <Text strong>{product.seller_mode || '-'}</Text>
           </div>
         )}
@@ -432,7 +432,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         {/* 竞争对手数据 */}
         {fieldConfig.competitors && (
           <div className={styles.statsItem}>
-            <Text type="secondary">跟卖: </Text>
+            <Tooltip title="跟卖数量 & 最低跟卖价"><Text type="secondary">跟卖: </Text></Tooltip>
             {product.competitor_count !== null && product.competitor_count !== undefined ? (
               product.competitor_count > 0 ? (
                 <Text
@@ -462,30 +462,34 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         {(fieldConfig.rating || fieldConfig.listingDate) && (
           <div className={styles.ratingAndDateRow}>
             {fieldConfig.rating && (
-              <div className={styles.ratingSection}>
-                {product.rating ? (
-                  <>
-                    <StarOutlined />
-                    <Text strong className={styles.ratingValue}>
-                      {product.rating}
+              <Tooltip title="商品评分 & 评价数量">
+                <div className={styles.ratingSection}>
+                  {product.rating ? (
+                    <>
+                      <StarOutlined />
+                      <Text strong className={styles.ratingValue}>
+                        {product.rating}
+                      </Text>
+                      <Text type="secondary" className={styles.reviewCount}>
+                        ({product.review_count})
+                      </Text>
+                    </>
+                  ) : (
+                    <Text type="secondary" style={{ fontSize: '11px' }}>
+                      -
                     </Text>
-                    <Text type="secondary" className={styles.reviewCount}>
-                      ({product.review_count})
-                    </Text>
-                  </>
-                ) : (
-                  <Text type="secondary" style={{ fontSize: '11px' }}>
-                    -
-                  </Text>
-                )}
-              </div>
+                  )}
+                </div>
+              </Tooltip>
             )}
             {fieldConfig.listingDate && (
-              <div className={styles.listingDate}>
-                <Text type="secondary" style={{ fontSize: '11px' }}>
-                  {product.listing_date ? formatDate(product.listing_date) : '-'}
-                </Text>
-              </div>
+              <Tooltip title="上架时间">
+                <div className={styles.listingDate}>
+                  <Text type="secondary" style={{ fontSize: '11px' }}>
+                    {product.listing_date ? formatDate(product.listing_date) : '-'}
+                  </Text>
+                </div>
+              </Tooltip>
             )}
           </div>
         )}
