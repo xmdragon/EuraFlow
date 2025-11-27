@@ -152,8 +152,8 @@ class OzonOrder(Base):
             # 2. 下单时间：如果 order 没有 ordered_at，使用 posting 的 in_process_at
             if not result.get('ordered_at') and first_posting.in_process_at:
                 result['ordered_at'] = first_posting.in_process_at.isoformat()
-            # 3. 货币代码：Ozon 固定为 RUB
-            result['currency_code'] = 'RUB'
+            # 3. 货币代码：统一使用 CNY 显示
+            result['currency_code'] = 'CNY'
 
             # 添加 posting 维度的业务字段（用于前端表单显示和编辑）
             result['material_cost'] = str(first_posting.material_cost) if first_posting.material_cost else None
