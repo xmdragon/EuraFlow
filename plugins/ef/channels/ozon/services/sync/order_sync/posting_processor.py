@@ -1,0 +1,346 @@
+"""
+Posting 处理器
+
+负责处理 Posting（发货单）和包裹信息的同步。
+"""
+
+from typing import Dict, Any, Optional, List
+import logging
+
+from sqlalchemy import select, and_, func
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ....models import OzonOrder, OzonPosting, OzonShipmentPackage, OzonProduct, OzonShop
+from ....api.client import OzonAPIClient
+from ....utils.datetime_utils import parse_datetime, utcnow
+
+logger = logging.getLogger(__name__)
+
+
+class PostingProcessor:
+    """Posting 处理器"""
+
+    async def sync_posting(
+        self,
+        db: AsyncSession,
+        order: OzonOrder,
+        posting_data: Dict[str, Any],
+        shop_id: int
+    ) -> Optional[OzonPosting]:
+        """
+        同步订单的 posting 信息
+
+        Args:
+            db: 数据库会话
+            order: 订单对象
+            posting_data: OZON API 返回的 posting 数据
+            shop_id: 店铺ID
+
+        Returns:
+            OzonPosting 对象
+        """
+        posting_number = posting_data.get("posting_number")
+        if not posting_number:
+            logger.warning(f"Posting without posting_number for order {order.order_id}")
+            return None
+
+        # 查找或创建 Posting
+        existing_posting_result = await db.execute(
+            select(OzonPosting).where(OzonPosting.posting_number == posting_number)
+        )
+        posting = existing_posting_result.scalar_one_or_none()
+
+        # 记录是否为新 posting 和旧的取消状态
+        is_new_posting = posting is None
+        old_is_cancelled = posting.is_cancelled if posting else False
+
+        if not posting:
+            posting = OzonPosting(
+                order_id=order.id,
+                shop_id=shop_id,
+                posting_number=posting_number,
+                ozon_posting_number=posting_data.get("posting_number"),
+                status=posting_data.get("status") or "awaiting_packaging",
+            )
+            db.add(posting)
+            logger.info(f"[DEBUG] Created new posting {posting_number}, status={posting.status}")
+        else:
+            old_status = posting.status
+            new_status = posting_data.get("status") or posting.status
+            posting.status = new_status
+            logger.info(f"[DEBUG] Updating posting {posting_number}: old_status='{old_status}' → new_status='{new_status}'")
+
+        # 更新 posting 详细信息
+        self._update_posting_details(posting, posting_data)
+
+        # 更新反范式化字段
+        await self._update_denormalized_fields(db, posting, posting_data, shop_id)
+
+        # Flush posting
+        await db.flush()
+
+        # 查询 shop 信息
+        shop_result = await db.execute(select(OzonShop).where(OzonShop.id == shop_id))
+        shop = shop_result.scalar_one_or_none()
+
+        # 同步包裹信息
+        await self.sync_packages(db, posting, posting_data, shop)
+
+        # 更新 operation_status
+        await self._update_operation_status(db, posting, posting_data)
+
+        # 更新商品销量
+        await self._update_product_sales(
+            db, shop_id, posting_data.get("products", []),
+            is_new_posting, old_is_cancelled, posting.is_cancelled,
+            posting
+        )
+
+        logger.info(
+            f"Synced posting {posting_number} for order {order.order_id}",
+            extra={
+                "posting_number": posting_number,
+                "order_id": order.order_id,
+                "status": posting.status,
+                "operation_status": posting.operation_status
+            }
+        )
+
+        return posting
+
+    def _update_posting_details(self, posting: OzonPosting, posting_data: Dict[str, Any]) -> None:
+        """更新 posting 详细信息"""
+        posting.substatus = posting_data.get("substatus")
+        posting.shipment_date = parse_datetime(posting_data.get("shipment_date"))
+        posting.in_process_at = parse_datetime(posting_data.get("in_process_at"))
+        posting.shipped_at = parse_datetime(posting_data.get("shipment_date"))
+        posting.delivered_at = parse_datetime(posting_data.get("delivering_date"))
+
+        # 配送方式信息
+        delivery_method = posting_data.get("delivery_method", {})
+        if delivery_method:
+            posting.delivery_method_id = delivery_method.get("id")
+            posting.delivery_method_name = delivery_method.get("name")
+            posting.warehouse_id = delivery_method.get("warehouse_id")
+            posting.warehouse_name = delivery_method.get("warehouse")
+
+        # 取消信息
+        cancellation = posting_data.get("cancellation")
+        if cancellation:
+            posting.is_cancelled = True
+            posting.cancel_reason_id = cancellation.get("cancel_reason_id")
+            posting.cancel_reason = cancellation.get("cancel_reason")
+            posting.cancelled_at = parse_datetime(cancellation.get("cancelled_at"))
+        else:
+            posting.is_cancelled = False
+
+        # 保存原始数据
+        posting.raw_payload = posting_data
+
+        # 更新 has_tracking_number
+        tracking_number = posting_data.get("tracking_number")
+        posting.has_tracking_number = bool(tracking_number and tracking_number.strip())
+
+    async def _update_denormalized_fields(
+        self,
+        db: AsyncSession,
+        posting: OzonPosting,
+        posting_data: Dict[str, Any],
+        shop_id: int
+    ) -> None:
+        """更新反范式化字段"""
+        products = posting_data.get("products", [])
+        if not products:
+            return
+
+        # 提取 SKU 列表
+        skus = list(set(
+            str(p.get("sku")) for p in products
+            if p.get("sku") is not None
+        ))
+        posting.product_skus = skus if skus else None
+
+        # 计算 has_purchase_info
+        if skus:
+            sku_ints = [int(s) for s in skus if s.isdigit()]
+            if sku_ints:
+                result = await db.execute(
+                    select(func.count(OzonProduct.id))
+                    .where(
+                        OzonProduct.shop_id == shop_id,
+                        OzonProduct.ozon_sku.in_(sku_ints),
+                        OzonProduct.purchase_url.isnot(None),
+                        OzonProduct.purchase_url != ''
+                    )
+                )
+                products_with_purchase = result.scalar() or 0
+                posting.has_purchase_info = (products_with_purchase == len(sku_ints))
+            else:
+                posting.has_purchase_info = False
+        else:
+            posting.has_purchase_info = False
+
+    async def _update_operation_status(
+        self,
+        db: AsyncSession,
+        posting: OzonPosting,
+        posting_data: Dict[str, Any]
+    ) -> None:
+        """更新 operation_status"""
+        from ...posting_status_manager import PostingStatusManager
+
+        # 初始状态设置
+        if not posting.operation_status:
+            ozon_status = posting_data.get("status", "")
+            await db.flush()
+            new_status, _ = PostingStatusManager.calculate_operation_status(
+                posting=posting,
+                ozon_status=ozon_status,
+                preserve_manual=False
+            )
+            posting.operation_status = new_status
+            logger.info(
+                f"Set initial operation_status for posting {posting.posting_number}: "
+                f"{new_status} (OZON status: {ozon_status})"
+            )
+
+        # 状态同步
+        await PostingStatusManager.update_posting_status(
+            posting=posting,
+            ozon_status=posting.status,
+            db=db,
+            source="sync",
+            preserve_manual=True
+        )
+
+    async def _update_product_sales(
+        self,
+        db: AsyncSession,
+        shop_id: int,
+        products: List[Dict],
+        is_new_posting: bool,
+        old_is_cancelled: bool,
+        new_is_cancelled: bool,
+        posting: OzonPosting
+    ) -> None:
+        """更新商品销量统计"""
+        from .sales_updater import SalesUpdater
+
+        sales_updater = SalesUpdater()
+
+        if is_new_posting and not new_is_cancelled:
+            # 新订单，增加销量
+            order_time = posting.in_process_at or posting.shipment_date or utcnow()
+            await sales_updater.update_product_sales(db, shop_id, products, delta=1, order_time=order_time)
+            logger.debug(f"Increased sales for new posting {posting.posting_number}")
+        elif not is_new_posting:
+            if not old_is_cancelled and new_is_cancelled:
+                # 订单取消，减少销量
+                await sales_updater.update_product_sales(db, shop_id, products, delta=-1, order_time=None)
+                logger.debug(f"Decreased sales for cancelled posting {posting.posting_number}")
+            elif old_is_cancelled and not new_is_cancelled:
+                # 订单恢复，增加销量
+                order_time = posting.in_process_at or posting.shipment_date or utcnow()
+                await sales_updater.update_product_sales(db, shop_id, products, delta=1, order_time=order_time)
+                logger.debug(f"Restored sales for uncancelled posting {posting.posting_number}")
+
+    async def sync_packages(
+        self,
+        db: AsyncSession,
+        posting: OzonPosting,
+        posting_data: Dict[str, Any],
+        shop: Optional[OzonShop]
+    ) -> None:
+        """
+        同步包裹信息
+
+        Args:
+            db: 数据库会话
+            posting: Posting 对象
+            posting_data: OZON API 返回的 posting 数据
+            shop: 店铺对象
+        """
+        posting_status = posting_data.get("status")
+        needs_tracking = posting_status in ["awaiting_deliver", "delivering", "delivered"]
+
+        # 检查列表 API 返回的 packages
+        packages_from_list = posting_data.get("packages", [])
+        has_valid_tracking = False
+
+        if packages_from_list:
+            for pkg in packages_from_list:
+                tracking = pkg.get("tracking_number")
+                if tracking and tracking != posting.posting_number:
+                    has_valid_tracking = True
+                    break
+
+        # 决定数据来源
+        if packages_from_list and (has_valid_tracking or not needs_tracking):
+            packages_list = packages_from_list
+            logger.info(f"Using {len(packages_list)} packages from list API for posting {posting.posting_number}")
+        elif needs_tracking:
+            # 调用详情接口
+            if not shop:
+                logger.warning(f"Shop not provided for posting {posting.posting_number}")
+                return
+
+            try:
+                client = OzonAPIClient(shop.client_id, shop.api_key_enc)
+                detail_response = await client.get_posting_details(posting.posting_number)
+                detail_data = detail_response.get("result", {})
+
+                if detail_data.get("packages"):
+                    packages_list = detail_data["packages"]
+                    logger.info(f"Fetched {len(packages_list)} packages from detail API for posting {posting.posting_number}")
+                else:
+                    logger.info(f"No packages found in detail API for posting {posting.posting_number}")
+                    return
+
+            except Exception as e:
+                logger.warning(f"Failed to fetch package details for posting {posting.posting_number}: {e}")
+                return
+        else:
+            return
+
+        # 处理包裹信息
+        for package_data in packages_list:
+            package_number = package_data.get("package_number") or package_data.get("id")
+            if not package_number:
+                logger.warning(f"Package without package_number for posting {posting.posting_number}")
+                continue
+
+            # 查找或创建包裹
+            existing_package_result = await db.execute(
+                select(OzonShipmentPackage).where(
+                    and_(
+                        OzonShipmentPackage.posting_id == posting.id,
+                        OzonShipmentPackage.package_number == package_number
+                    )
+                )
+            )
+            package = existing_package_result.scalar_one_or_none()
+
+            if not package:
+                package = OzonShipmentPackage(
+                    posting_id=posting.id,
+                    package_number=package_number
+                )
+                db.add(package)
+
+            # 更新包裹信息
+            raw_tracking_number = package_data.get("tracking_number")
+            if raw_tracking_number and raw_tracking_number == posting.posting_number:
+                logger.warning(
+                    f"Ignoring invalid tracking_number (same as posting_number) "
+                    f"for package {package_number} in posting {posting.posting_number}"
+                )
+                package.tracking_number = None
+            else:
+                package.tracking_number = raw_tracking_number
+
+            package.carrier_name = package_data.get("carrier_name")
+            package.carrier_code = package_data.get("carrier_code")
+            package.status = package_data.get("status")
+
+            if package_data.get("status_updated_at"):
+                package.status_updated_at = parse_datetime(package_data["status_updated_at"])
