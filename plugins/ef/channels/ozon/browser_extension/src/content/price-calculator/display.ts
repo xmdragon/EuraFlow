@@ -420,7 +420,7 @@ function createButtonRow(
   buttonRow.appendChild(followButton);
 
   // 创建"采集"按钮
-  const collectButton = createCollectButton(realPrice, ozonProduct, dimensions, euraflowConfig);
+  const collectButton = createCollectButton(realPrice, ozonProduct, spbSales, dimensions, euraflowConfig);
   buttonRow.appendChild(collectButton);
 
   return buttonRow;
@@ -444,21 +444,41 @@ function createFollowButton(
   // 事件处理
   followButton.addEventListener('click', async () => {
     try {
-      if (!ozonProduct || !dimensions) {
+      // 优先使用 dimensions（OZON Seller API），fallback 到 spbSales（上品帮）
+      const hasDimensions = dimensions &&
+        dimensions.weight !== null && dimensions.weight !== undefined &&
+        dimensions.height !== null && dimensions.height !== undefined &&
+        dimensions.width !== null && dimensions.width !== undefined &&
+        dimensions.length !== null && dimensions.length !== undefined;
+
+      const hasSpbSales = spbSales &&
+        spbSales.weight !== null && spbSales.weight !== undefined &&
+        spbSales.height !== null && spbSales.height !== undefined &&
+        spbSales.width !== null && spbSales.width !== undefined &&
+        spbSales.depth !== null && spbSales.depth !== undefined;
+
+      if (!ozonProduct) {
+        alert('商品数据不完整，请刷新页面重试');
+        return;
+      }
+
+      if (!hasDimensions && !hasSpbSales) {
         alert('商品数据不完整（缺少尺寸和重量信息），请通过其它插件上架');
         return;
       }
 
-      if (dimensions.weight === null || dimensions.height === null ||
-          dimensions.width === null || dimensions.length === null) {
-        alert('尺寸和重量数据不完整，请稍后重试');
-        return;
-      }
+      // 构建 finalDimensions：优先 dimensions，fallback 到 spbSales
+      const finalDimensions = hasDimensions ? dimensions : {
+        weight: spbSales.weight,
+        height: spbSales.height,
+        width: spbSales.width,
+        length: spbSales.depth  // spbSales 的长度字段是 depth
+      };
 
       // 使用计算出的真实售价，而不是 OZON 的绿色价格
-      // ozonProduct 已经包含 dimensions，不需要单独传递
       const productData = {
         ...ozonProduct,
+        dimensions: finalDimensions,  // 确保包含尺寸数据
         price: realPrice,  // 使用真实售价
         primary_image: spbSales?.photo || null  // 使用上品帮的主图（photo 字段）
       };
@@ -478,6 +498,7 @@ function createFollowButton(
 function createCollectButton(
   realPrice: number | null,
   ozonProduct: any,
+  spbSales: any | null,
   dimensions: any | null,
   euraflowConfig: any | null
 ): HTMLButtonElement {
@@ -490,14 +511,26 @@ function createCollectButton(
   // 事件处理
   collectButton.addEventListener('click', async () => {
     try {
-      if (!ozonProduct || !dimensions) {
-        alert('商品数据不完整（缺少尺寸和重量信息），请通过其它插件上架');
+      // 优先使用 dimensions（OZON Seller API），fallback 到 spbSales（上品帮）
+      const hasDimensions = dimensions &&
+        dimensions.weight !== null && dimensions.weight !== undefined &&
+        dimensions.height !== null && dimensions.height !== undefined &&
+        dimensions.width !== null && dimensions.width !== undefined &&
+        dimensions.length !== null && dimensions.length !== undefined;
+
+      const hasSpbSales = spbSales &&
+        spbSales.weight !== null && spbSales.weight !== undefined &&
+        spbSales.height !== null && spbSales.height !== undefined &&
+        spbSales.width !== null && spbSales.width !== undefined &&
+        spbSales.depth !== null && spbSales.depth !== undefined;
+
+      if (!ozonProduct) {
+        alert('商品数据不完整，请刷新页面重试');
         return;
       }
 
-      if (dimensions.weight === null || dimensions.height === null ||
-          dimensions.width === null || dimensions.length === null) {
-        alert('尺寸和重量数据不完整，请稍后重试');
+      if (!hasDimensions && !hasSpbSales) {
+        alert('商品数据不完整（缺少尺寸和重量信息），请通过其它插件上架');
         return;
       }
 
@@ -505,6 +538,14 @@ function createCollectButton(
         alert('API未配置，请先在扩展设置中配置API');
         return;
       }
+
+      // 构建 finalDimensions：优先 dimensions，fallback 到 spbSales
+      const finalDimensions = hasDimensions ? dimensions : {
+        weight: spbSales.weight,
+        height: spbSales.height,
+        width: spbSales.width,
+        length: spbSales.depth  // spbSales 的长度字段是 depth
+      };
 
       // 直接发送采集请求，不打开弹窗
       collectButton.disabled = true;
@@ -515,7 +556,7 @@ function createCollectButton(
       // 使用计算出的真实售价，而不是 OZON 的绿色价格
       const productData = {
         ...ozonProduct,
-        dimensions,
+        dimensions: finalDimensions,  // 使用确定的尺寸数据
         price: realPrice  // 使用真实售价
       };
       const response = await chrome.runtime.sendMessage({

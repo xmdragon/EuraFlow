@@ -749,6 +749,80 @@ async function callShangpinbangAPIWithAutoRefresh(
 
 // ========== OZON API 集成 ==========
 
+/**
+ * 在 seller.ozon.ru 页面上下文中执行 Seller API 请求
+ * 【关键】这个函数会被 chrome.scripting.executeScript 注入到页面中执行
+ * 因此可以绕过反爬虫检测（TLS 指纹、IP 等都是真实浏览器的）
+ */
+async function executeSellerApiInPage(productSku: string): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    // 从页面 Cookie 中提取 sellerId
+    const cookieMatch = document.cookie.match(/sc_company_id=(\d+)/);
+    if (!cookieMatch) {
+      return { success: false, error: '未找到 sc_company_id' };
+    }
+    const sellerId = parseInt(cookieMatch[1], 10);
+
+    // 在页面上下文中发起请求（使用页面的 Cookie 和 TLS 指纹）
+    const response = await fetch('https://seller.ozon.ru/api/v1/search-variant-model', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json, text/plain, */*',
+        'Content-Type': 'application/json',
+        'x-o3-company-id': sellerId.toString(),
+        'x-o3-app-name': 'seller-ui',
+        'x-o3-language': 'zh-Hans',
+        'x-o3-page-type': 'products-other'
+      },
+      credentials: 'include',  // 自动携带 Cookie
+      body: JSON.stringify({
+        limit: 50,
+        name: productSku,
+        sellerId: sellerId
+      })
+    });
+
+    if (!response.ok) {
+      return { success: false, error: `HTTP ${response.status}` };
+    }
+
+    const result = await response.json();
+
+    if (!result.items || result.items.length === 0) {
+      return { success: false, error: '商品不存在或已下架' };
+    }
+
+    // 处理返回数据（与原逻辑一致）
+    const variants = result.items;
+    const firstVariant = variants[0];
+    const attrs = firstVariant.attributes || [];
+
+    const findAttr = (key: string) => {
+      const attr = attrs.find((a: any) => a.key == key);
+      return attr ? attr.value : null;
+    };
+
+    const dimensions = {
+      weight: findAttr('4497'),
+      length: findAttr('9454'),
+      width: findAttr('9455'),
+      height: findAttr('9456')
+    };
+
+    return {
+      success: true,
+      data: {
+        ...firstVariant,
+        title: firstVariant.name,
+        dimensions: dimensions,
+        variants: variants,
+        has_variants: variants.length > 1
+      }
+    };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
 
 /**
  * 从 Cookie 字符串中提取 sellerId
@@ -810,6 +884,8 @@ async function getOzonSellerId(cookieString: string): Promise<number> {
 
 /**
  * 处理获取 OZON 商品详情请求
+ *
+ * 【策略】优先在 seller.ozon.ru 页面上执行请求（绕过反爬虫）
  */
 async function handleGetOzonProductDetail(data: { productSku: string; cookieString?: string }) {
   const { productSku, cookieString: documentCookie } = data;
@@ -823,62 +899,122 @@ async function handleGetOzonProductDetail(data: { productSku: string; cookieStri
       throw new Error('缺少商品 SKU 参数');
     }
 
-    // 【简化】直接使用 document.cookie（Content Script 从页面传来）
-    // 原因：document.cookie 包含所有必需的 cookies（如 sc_company_id），
-    //      而 Background Cookie API 无法读取某些重要 cookies
-    if (!documentCookie || documentCookie.length === 0) {
-      console.error('[OZON API] ❌ 未接收到页面 Cookie，无法调用 Seller API');
-      throw new Error('缺少必需的页面 Cookie');
+    // 【方案1】尝试在 seller.ozon.ru 标签页中执行请求（绕过反爬虫）
+    let sellerTabs = await chrome.tabs.query({ url: 'https://seller.ozon.ru/*' });
+
+    // 如果没有 seller 标签页，自动在后台创建一个
+    if (sellerTabs.length === 0) {
+      console.log('[OZON API] 未找到 seller.ozon.ru 标签页，自动创建...');
+      try {
+        const newTab = await chrome.tabs.create({
+          url: 'https://seller.ozon.ru/app/products',
+          active: false  // 在后台创建，不切换焦点
+        });
+
+        // 等待页面加载完成（最多等待 10 秒）
+        await new Promise<void>((resolve) => {
+          const checkInterval = setInterval(async () => {
+            const tab = await chrome.tabs.get(newTab.id!);
+            if (tab.status === 'complete') {
+              clearInterval(checkInterval);
+              resolve();
+            }
+          }, 500);
+
+          // 超时处理
+          setTimeout(() => {
+            clearInterval(checkInterval);
+            resolve();
+          }, 10000);
+        });
+
+        // 额外等待 1 秒让页面 JS 初始化
+        await new Promise(r => setTimeout(r, 1000));
+
+        sellerTabs = await chrome.tabs.query({ url: 'https://seller.ozon.ru/*' });
+        console.log('[OZON API] 自动创建的 seller 标签页已就绪');
+      } catch (createError: any) {
+        console.error('[OZON API] 创建 seller 标签页失败:', createError.message);
+      }
     }
 
-    console.log('[OZON API] 使用页面 Cookie');
-    console.log(`  - Cookie 长度: ${documentCookie.length}`);
+    if (sellerTabs.length > 0) {
+      console.log('[OZON API] 找到 seller.ozon.ru 标签页，在页面上下文中执行请求');
+      const sellerTab = sellerTabs[0];
 
-    // 检查关键 Cookie
-    const sellerIdMatch = documentCookie.match(/sc_company_id=(\d+)/);
-    if (sellerIdMatch) {
-      console.log(`  - ✅ sc_company_id: ${sellerIdMatch[1]}`);
+      try {
+        const results = await chrome.scripting.executeScript({
+          target: { tabId: sellerTab.id! },
+          func: executeSellerApiInPage,
+          args: [productSku]
+        });
+
+        if (results && results[0] && results[0].result) {
+          const result = results[0].result;
+          if (result.success) {
+            console.log('[OZON API] ✅ 在页面上下文中成功获取数据');
+            return result.data;
+          } else {
+            console.warn('[OZON API] 页面上下文请求失败:', result.error);
+            // 继续尝试 fallback 方案
+          }
+        }
+      } catch (scriptError: any) {
+        console.warn('[OZON API] 执行页面脚本失败:', scriptError.message);
+        // 继续尝试 fallback 方案
+      }
     } else {
-      console.log(`  - ⚠️ 未找到 sc_company_id`);
+      console.log('[OZON API] 仍未找到 seller.ozon.ru 标签页');
     }
 
-    // 从 Cookie 字符串中提取 Seller ID
-    const sellerId = await getOzonSellerId(documentCookie);
+    // 【方案2】Fallback: 从 Service Worker 直接请求（可能触发反爬虫）
+    console.log('[OZON API] 尝试从 Service Worker 直接请求...');
 
-    // 4. 使用全局OZON API限流器（统一管理所有OZON API请求频率）
-    const limiter = OzonApiRateLimiter.getInstance();
+    // 合并 Cookie
+    const ozonCookies = await chrome.cookies.getAll({ domain: '.ozon.ru' });
+    const sellerCookies = await chrome.cookies.getAll({ domain: 'seller.ozon.ru' });
+    const cookieMap = new Map<string, string>();
 
-    // 5. 调用 OZON search-variant-model API（使用完整headers避免触发限流）
-    // 注意：seller.ozon.ru 需要特殊的 seller-ui headers，不能直接使用标准headers
-    const { headers: baseHeaders } = await getOzonStandardHeaders({
-      referer: 'https://seller.ozon.ru/app/products'
-    });
+    for (const c of ozonCookies) cookieMap.set(c.name, c.value);
+    for (const c of sellerCookies) cookieMap.set(c.name, c.value);
+    if (documentCookie) {
+      for (const cookie of documentCookie.split('; ')) {
+        const [name, ...valueParts] = cookie.split('=');
+        if (name) cookieMap.set(name, valueParts.join('='));
+      }
+    }
 
-    // 覆盖/添加 seller-ui 专属headers
-    const sellerHeaders = {
-      ...baseHeaders,
-      'Cookie': documentCookie,  // 直接使用页面 Cookie
+    const finalCookieString = Array.from(cookieMap.entries())
+      .map(([name, value]) => `${name}=${value}`)
+      .join('; ');
+
+    // 提取 Seller ID
+    const sellerId = await getOzonSellerId(finalCookieString);
+
+    const sellerHeaders: Record<string, string> = {
+      'Accept': 'application/json, text/plain, */*',
+      'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8,ru;q=0.7',
+      'Content-Type': 'application/json',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
+      'sec-ch-ua': '"Chromium";v="136", "Google Chrome";v="136", "Not_A Brand";v="99"',
+      'sec-ch-ua-mobile': '?0',
+      'sec-ch-ua-platform': '"Windows"',
+      'Sec-Fetch-Dest': 'empty',
+      'Sec-Fetch-Mode': 'cors',
+      'Sec-Fetch-Site': 'same-origin',
       'Origin': 'https://seller.ozon.ru',
+      'Referer': 'https://seller.ozon.ru/app/products',
       'x-o3-company-id': sellerId.toString(),
       'x-o3-app-name': 'seller-ui',
       'x-o3-language': 'zh-Hans',
-      'x-o3-page-type': 'products-other'
+      'x-o3-page-type': 'products-other',
+      'Cookie': finalCookieString
     };
 
-    // 【路径策略】seller.ozon.ru/api/* → 不经过网关，直接调用 Seller 后台 API
     const requestUrl = 'https://seller.ozon.ru/api/v1/search-variant-model';
-    const requestBody = {
-      limit: 50,
-      name: productSku,
-      sellerId: sellerId
-    };
+    const requestBody = { limit: 50, name: productSku, sellerId: sellerId };
 
-    console.log('[OZON API] 请求信息:', {
-      url: requestUrl,
-      method: 'POST',
-      body: requestBody
-    });
-
+    const limiter = OzonApiRateLimiter.getInstance();
     const response = await limiter.execute(() =>
       fetch(requestUrl, {
         method: 'POST',
@@ -888,19 +1024,7 @@ async function handleGetOzonProductDetail(data: { productSku: string; cookieStri
     );
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[OZON API] ❌ Seller API 请求失败:', {
-        status: response.status,
-        statusText: response.statusText,
-        url: requestUrl,
-        body: requestBody,
-        headers: {
-          'x-o3-company-id': sellerHeaders['x-o3-company-id'],
-          'x-o3-app-name': sellerHeaders['x-o3-app-name'],
-          'Cookie长度': sellerHeaders['Cookie']?.length || 0
-        },
-        responseBody: errorText.substring(0, 500)
-      });
+      console.error('[OZON API] ❌ Seller API 请求失败:', response.status);
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
