@@ -597,7 +597,8 @@ async def update_user(
     """
     更新用户信息（仅admin）
 
-    - 管理员可以更新子账号信息
+    - admin用户(username="admin")可以编辑所有用户，包括设置admin角色
+    - 其他管理员只能编辑自己创建的子账号，且不能编辑admin用户
     - 不能修改主账号关系
     """
     if current_user.role != "admin":
@@ -609,9 +610,17 @@ async def update_user(
             }
         )
 
+    # 判断当前用户是否是超级管理员(username="admin")
+    is_super_admin = current_user.username == "admin"
+
     # 获取要更新的用户（预加载shops关系以避免懒加载问题）
     from sqlalchemy.orm import selectinload
-    stmt = select(User).options(selectinload(User.shops)).where(User.id == user_id, User.parent_user_id == current_user.id)
+    if is_super_admin:
+        # 超级管理员可以编辑任何用户（除了自己）
+        stmt = select(User).options(selectinload(User.shops)).where(User.id == user_id, User.id != current_user.id)
+    else:
+        # 其他管理员只能编辑自己创建的子账号
+        stmt = select(User).options(selectinload(User.shops)).where(User.id == user_id, User.parent_user_id == current_user.id)
     result = await session.execute(stmt)
     user = result.scalar_one_or_none()
 
@@ -621,6 +630,16 @@ async def update_user(
             detail={
                 "code": "USER_NOT_FOUND",
                 "message": "用户不存在或无权限访问"
+            }
+        )
+
+    # 其他管理员不能编辑admin用户
+    if not is_super_admin and user.username == "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "CANNOT_EDIT_ADMIN",
+                "message": "无法编辑超级管理员账号"
             }
         )
 
@@ -640,14 +659,25 @@ async def update_user(
         user.username = update_data.username
 
     if update_data.role is not None:
-        if update_data.role not in ['operator', 'viewer']:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={
-                    "code": "INVALID_ROLE",
-                    "message": "子账号只能设置为operator或viewer角色"
-                }
-            )
+        # 超级管理员可以设置任意角色，其他管理员只能设置operator/viewer
+        if is_super_admin:
+            if update_data.role not in ['admin', 'operator', 'viewer']:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "code": "INVALID_ROLE",
+                        "message": "角色只能是admin、operator或viewer"
+                    }
+                )
+        else:
+            if update_data.role not in ['operator', 'viewer']:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "code": "INVALID_ROLE",
+                        "message": "子账号只能设置为operator或viewer角色"
+                    }
+                )
         user.role = update_data.role
 
     if update_data.is_active is not None:
@@ -726,7 +756,8 @@ async def delete_user(
     """
     删除用户（仅admin）
 
-    - 真正从数据库删除用户及其关联数据
+    - admin用户(username="admin")可以删除任何用户
+    - 其他管理员只能删除自己创建的子账号，且不能删除admin用户
     - 级联删除：user_shops关联、api_keys等
     """
     if current_user.role != "admin":
@@ -738,8 +769,16 @@ async def delete_user(
             }
         )
 
+    # 判断当前用户是否是超级管理员(username="admin")
+    is_super_admin = current_user.username == "admin"
+
     # 获取要删除的用户
-    stmt = select(User).where(User.id == user_id, User.parent_user_id == current_user.id)
+    if is_super_admin:
+        # 超级管理员可以删除任何用户（除了自己）
+        stmt = select(User).where(User.id == user_id, User.id != current_user.id)
+    else:
+        # 其他管理员只能删除自己创建的子账号
+        stmt = select(User).where(User.id == user_id, User.parent_user_id == current_user.id)
     result = await session.execute(stmt)
     user = result.scalar_one_or_none()
 
@@ -749,6 +788,16 @@ async def delete_user(
             detail={
                 "code": "USER_NOT_FOUND",
                 "message": "用户不存在或无权限访问"
+            }
+        )
+
+    # 其他管理员不能删除admin用户
+    if not is_super_admin and user.username == "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "CANNOT_DELETE_ADMIN",
+                "message": "无法删除超级管理员账号"
             }
         )
 
@@ -848,7 +897,8 @@ async def admin_reset_user_password(
     """
     管理员重置用户密码（仅admin）
 
-    - 管理员可以直接重置子账号密码
+    - admin用户(username="admin")可以重置任何用户密码
+    - 其他管理员只能重置自己创建的子账号密码，且不能重置admin用户密码
     - 不需要验证原密码
     - 密码最少8位
     """
@@ -861,8 +911,16 @@ async def admin_reset_user_password(
             }
         )
 
+    # 判断当前用户是否是超级管理员(username="admin")
+    is_super_admin = current_user.username == "admin"
+
     # 获取要重置密码的用户
-    stmt = select(User).where(User.id == user_id, User.parent_user_id == current_user.id)
+    if is_super_admin:
+        # 超级管理员可以重置任何用户密码（除了自己）
+        stmt = select(User).where(User.id == user_id, User.id != current_user.id)
+    else:
+        # 其他管理员只能重置自己创建的子账号密码
+        stmt = select(User).where(User.id == user_id, User.parent_user_id == current_user.id)
     result = await session.execute(stmt)
     user = result.scalar_one_or_none()
 
@@ -872,6 +930,16 @@ async def admin_reset_user_password(
             detail={
                 "code": "USER_NOT_FOUND",
                 "message": "用户不存在或无权限访问"
+            }
+        )
+
+    # 其他管理员不能重置admin用户密码
+    if not is_super_admin and user.username == "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "CANNOT_RESET_ADMIN_PASSWORD",
+                "message": "无法重置超级管理员密码"
             }
         )
 

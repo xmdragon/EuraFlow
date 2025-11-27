@@ -307,8 +307,13 @@ const UserManagement: React.FC = () => {
       render: (_, record: User) => {
         // 管理员自己不能编辑或删除
         const isCurrentAdmin = record.id === currentUser?.id;
+        // 判断当前用户是否是超级管理员(username="admin")
+        const isSuperAdmin = currentUser?.username === 'admin';
+        // 其他管理员不能编辑admin用户
+        const isTargetSuperAdmin = record.username === 'admin';
+        const cannotEdit = !isSuperAdmin && isTargetSuperAdmin;
 
-        if (isCurrentAdmin) {
+        if (isCurrentAdmin || cannotEdit) {
           return <Typography.Text type="secondary">-</Typography.Text>;
         }
 
@@ -432,6 +437,8 @@ const UserManagement: React.FC = () => {
 
           <Form.Item name="role" label="角色" rules={[{ required: true, message: '请选择角色' }]}>
             <Select>
+              {/* 只有超级管理员(username="admin")可以设置admin角色 */}
+              {currentUser?.username === 'admin' && <Option value="admin">管理员</Option>}
               <Option value="operator">操作员</Option>
               <Option value="viewer">查看员</Option>
             </Select>
