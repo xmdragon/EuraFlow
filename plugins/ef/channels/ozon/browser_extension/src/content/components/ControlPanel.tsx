@@ -6,7 +6,7 @@
 import type { DataFusionEngine } from '../fusion/engine';
 import type { ProductCollector } from '../collector';
 import type { CollectorConfig } from '../../shared/types';
-import { getApiConfig } from '../../shared/storage';
+import { getApiConfig, testApiConnection } from '../../shared/storage';
 import { ApiClient } from '../../shared/api-client';
 import { injectEuraflowStyles } from '../styles/injector';
 
@@ -141,6 +141,19 @@ export function ControlPanel(props: ControlPanelProps) {
     const apiConfig = await getApiConfig();
     if (!apiConfig.apiUrl || !apiConfig.apiKey) {
       updateStatus('⚠️ 请先进行API配置');
+      return;
+    }
+
+    // 【验证API KEY】采集前确认API KEY有效
+    updateStatus('🔑 验证API连接...');
+    try {
+      const isValid = await testApiConnection(apiConfig.apiUrl, apiConfig.apiKey);
+      if (!isValid) {
+        updateStatus('❌ API KEY无效，请检查配置');
+        return;
+      }
+    } catch (error: any) {
+      updateStatus(`❌ API连接失败: ${error.message}`);
       return;
     }
 

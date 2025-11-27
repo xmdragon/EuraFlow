@@ -18,10 +18,9 @@ interface QueueTask<T> {
 /**
  * OZON API 全局限流器（单例）
  *
- * 策略调整（2025-01-19）：
- * - 支持最多 3 个并发请求（模拟真实用户快速切换商品）
- * - 最小间隔 100ms + 随机抖动 ±50ms（避免规律性）
- * - 更接近上品帮的请求模式（无限流器，直接并发）
+ * 策略调整（2025-01-27）：
+ * - 支持最多 4 个并发请求（已验证通过网关请求不会触发限流）
+ * - 最小间隔配置 + 随机抖动 ±100ms
  */
 export class OzonApiRateLimiter {
   private static instance: OzonApiRateLimiter;
@@ -29,9 +28,9 @@ export class OzonApiRateLimiter {
   private queue: QueueTask<any>[] = [];
   private isProcessing = false;
   private lastExecuteTime = 0;
-  private activeRequests = 0;               // ← 新增：当前正在执行的请求数
-  private readonly MAX_CONCURRENT = 2;      // ← 降低并发数到2，避免触发限流
-  private readonly JITTER_RANGE = 200;      // ← 增加抖动范围到 ±200ms，模拟人工操作
+  private activeRequests = 0;               // 当前正在执行的请求数
+  private readonly MAX_CONCURRENT = 4;      // 并发数4，提升吞吐量（已验证不会触发限流）
+  private readonly JITTER_RANGE = 100;      // 抖动范围 ±100ms
 
   // 配置缓存（每10秒刷新一次，避免频繁读取storage）
   private cachedConfig: RateLimitConfig | null = null;
