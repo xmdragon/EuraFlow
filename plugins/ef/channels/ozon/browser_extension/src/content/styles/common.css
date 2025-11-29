@@ -190,10 +190,14 @@
 /* ========== 标签组件 ========== */
 .ef-label {
   display: block;
-  margin-bottom: 6px;
+  margin-bottom: 3px;
   font-size: var(--ef-font-size-sm);
   font-weight: var(--ef-font-weight-medium);
   color: var(--ef-text-secondary);
+}
+
+.ef-value {
+  margin-bottom: 3px;
 }
 
 .ef-label--required::after {

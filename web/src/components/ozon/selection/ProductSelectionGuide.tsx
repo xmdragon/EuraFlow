@@ -113,7 +113,7 @@ export const ProductSelectionGuide: React.FC = () => {
                       <Button
                         type="primary"
                         icon={<DownloadOutlined />}
-                        href="/downloads/euraflow-ozon-selector.zip"
+                        href="/downloads/euraflow.zip"
                         download
                       >
                         下载选品助手扩展

@@ -62,17 +62,117 @@
   line-height: 1.2;
 }
 
-/* ========== 数据面板区域 ========== */
-.ef-data-panel-section {
-  padding: var(--ef-spacing-sm) 0;
-  margin-bottom: var(--ef-spacing-md);
+/* ========== 数据面板区域（de3.png 风格紧凑布局） ========== */
+.ef-data-panel {
+  padding: 4px 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ef-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0;
+}
+
+.ef-label {
+  color: #666;
+  flex-shrink: 0;
+  width: 60px;
+  padding-left: 4px;
+}
+
+.ef-value {
+  color: #1a1a1a;
+}
+
+/* 单列行（品牌、跟卖） */
+.ef-row-single .ef-label {
+  width: 60px;
+}
+
+.ef-row-single .ef-value {
+  flex: 1;
+}
+
+/* 两列行（月销、日销等） */
+.ef-row-two {
+  display: flex;
+}
+
+.ef-row-two .ef-col {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.ef-row-two .ef-col .ef-label {
+  width: 60px;
+}
+
+.ef-row-two .ef-col .ef-value {
+  flex: 1;
+}
+
+/* 三列行（佣金） */
+.ef-row-three {
+  display: flex;
+}
+
+.ef-row-three .ef-label {
+  width: 60px;
+}
+
+.ef-row-three .ef-badges {
+  flex: 1;
+  display: flex;
+}
+
+.ef-row-three .ef-badge {
+  flex: 1;
+  text-align: center;
+  background: #e8f4fd;
+  color: #1890ff;
+  padding: 2px 4px;
+  margin-right: 4px;
+  border-radius: 3px;
+  font-size: 12px;
+  border: 1px solid #91caff;
+}
+
+.ef-row-three .ef-badge:last-child {
+  margin-right: 0;
+}
+
+/* 底部行（评分 + 日期） */
+.ef-row-bottom {
+  display: flex;
+  margin-bottom: 0;
+}
+
+.ef-row-bottom .ef-col {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.ef-row-bottom .ef-col .ef-label {
+  width: 60px;
+}
+
+.ef-rating {
+  color: #faad14;
+}
+
+.ef-date {
+  color: #1a1a1a;
 }
 
 .ef-data-panel-hint {
-  padding: var(--ef-spacing-md);
+  padding: 8px;
   text-align: center;
   color: #9e9e9e;
-  font-size: var(--ef-font-size-base);
+  font-size: 12px;
 }
 
 /* ========== 按钮行 ========== */

@@ -10,15 +10,18 @@ import {
   getDataPanelConfig,
   setDataPanelConfig,
   getRateLimitConfig,
-  setRateLimitConfig
+  setRateLimitConfig,
+  getFilterConfig,
+  setFilterConfig,
+  clearFilterConfig
 } from '../shared/storage';
-import type { ApiConfig, CollectorConfig, ShangpinbangConfig, DataPanelConfig, RateLimitConfig } from '../shared/types';
+import type { ApiConfig, CollectorConfig, ShangpinbangConfig, DataPanelConfig, RateLimitConfig, FilterConfig } from '../shared/types';
 import { FIELD_GROUPS, DEFAULT_FIELDS } from '../shared/types';
 import './popup.scss';
 
 function Popup() {
   // 标签页状态
-  const [activeTab, setActiveTab] = useState<'api' | 'spb' | 'rateLimit' | 'dataPanel'>('api');
+  const [activeTab, setActiveTab] = useState<'api' | 'spb' | 'filter' | 'rateLimit' | 'dataPanel'>('api');
 
   // API配置
   const [apiConfig, setApiConfigState] = useState<ApiConfig>({
@@ -52,6 +55,17 @@ function Popup() {
     enabled: true
   });
 
+  // 采集过滤配置
+  const [filterConfig, setFilterConfigState] = useState<FilterConfig>({
+    priceMin: undefined,
+    priceMax: undefined,
+    monthlySalesMin: undefined,
+    weightMax: undefined,
+    listingDateAfter: undefined,
+    sellerMode: 'ALL',
+    followSellerMax: undefined
+  });
+
   // UI状态
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
@@ -71,11 +85,13 @@ function Popup() {
       const spb = await getShangpinbangConfig();
       const dataPanel = await getDataPanelConfig();
       const rateLimit = await getRateLimitConfig();
+      const filter = await getFilterConfig();
       setApiConfigState(api);
       setCollectorConfigState(collector);
       setSpbConfig(spb);
       setDataPanelConfigState(dataPanel);
       setRateLimitConfigState(rateLimit);
+      setFilterConfigState(filter);
     };
     loadConfig();
   }, []);
@@ -204,6 +220,73 @@ function Popup() {
     }
   };
 
+  // 采集过滤：处理配置变更
+  const handleFilterChange = (field: keyof FilterConfig, value: string) => {
+    let parsedValue: any;
+
+    if (field === 'sellerMode') {
+      parsedValue = value as 'ALL' | 'FBS' | 'FBO';
+    } else if (field === 'listingDateAfter') {
+      parsedValue = value || undefined;
+    } else {
+      // 数字类型字段
+      parsedValue = value === '' ? undefined : parseFloat(value);
+      if (parsedValue !== undefined && isNaN(parsedValue)) {
+        parsedValue = undefined;
+      }
+    }
+
+    setFilterConfigState(prev => ({
+      ...prev,
+      [field]: parsedValue
+    }));
+  };
+
+  // 采集过滤：保存配置
+  const handleSaveFilter = async () => {
+    setIsSaving(true);
+    setSaveMessage('');
+
+    try {
+      await setFilterConfig(filterConfig);
+      setSaveMessage('配置已保存');
+      setTimeout(() => setSaveMessage(''), 3000);
+    } catch (error) {
+      setSaveMessage('保存失败');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // 采集过滤：重置配置
+  const handleResetFilter = async () => {
+    await clearFilterConfig();
+    setFilterConfigState({
+      priceMin: undefined,
+      priceMax: undefined,
+      monthlySalesMin: undefined,
+      weightMax: undefined,
+      listingDateAfter: undefined,
+      sellerMode: 'ALL',
+      followSellerMax: undefined
+    });
+    setSaveMessage('已重置');
+    setTimeout(() => setSaveMessage(''), 3000);
+  };
+
+  // 检查是否有任何过滤条件
+  const hasAnyFilter = (config: FilterConfig): boolean => {
+    return (
+      config.priceMin !== undefined ||
+      config.priceMax !== undefined ||
+      config.monthlySalesMin !== undefined ||
+      config.weightMax !== undefined ||
+      config.listingDateAfter !== undefined ||
+      (config.sellerMode !== undefined && config.sellerMode !== 'ALL') ||
+      config.followSellerMax !== undefined
+    );
+  };
+
   return (
     <div className="popup-container">
       <header className="popup-header">
@@ -224,6 +307,12 @@ function Popup() {
           onClick={() => setActiveTab('spb')}
         >
           上品帮
+        </button>
+        <button
+          className={`tab-button ${activeTab === 'filter' ? 'active' : ''}`}
+          onClick={() => setActiveTab('filter')}
+        >
+          采集过滤
         </button>
         <button
           className={`tab-button ${activeTab === 'rateLimit' ? 'active' : ''}`}
@@ -345,6 +434,152 @@ function Popup() {
             )}
 
             <p className="hint">用于后续直接调用上品帮 API</p>
+          </div>
+        )}
+
+        {/* 采集过滤配置 */}
+        {activeTab === 'filter' && (
+          <div className="tab-panel filter-config">
+            <p className="hint">设置采集过滤条件，空值表示不过滤该条件</p>
+
+            {/* 价格区间 */}
+            <div className="form-group">
+              <label className="form-label">价格区间 (¥):</label>
+              <div className="input-range">
+                <input
+                  type="number"
+                  className="form-input"
+                  placeholder="最低价"
+                  min="0"
+                  value={filterConfig.priceMin ?? ''}
+                  onChange={(e) => handleFilterChange('priceMin', e.target.value)}
+                />
+                <span className="range-separator">-</span>
+                <input
+                  type="number"
+                  className="form-input"
+                  placeholder="最高价"
+                  min="0"
+                  value={filterConfig.priceMax ?? ''}
+                  onChange={(e) => handleFilterChange('priceMax', e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* 月销量 */}
+            <div className="form-group">
+              <label className="form-label">月销量 &gt;=</label>
+              <input
+                type="number"
+                className="form-input"
+                placeholder="如：100"
+                min="0"
+                value={filterConfig.monthlySalesMin ?? ''}
+                onChange={(e) => handleFilterChange('monthlySalesMin', e.target.value)}
+              />
+            </div>
+
+            {/* 跟卖数量 */}
+            <div className="form-group">
+              <label className="form-label">跟卖数量 &lt;=</label>
+              <input
+                type="number"
+                className="form-input"
+                placeholder="如：5"
+                min="0"
+                value={filterConfig.followSellerMax ?? ''}
+                onChange={(e) => handleFilterChange('followSellerMax', e.target.value)}
+              />
+            </div>
+
+            {/* 发货模式 */}
+            <div className="form-group">
+              <label className="form-label">发货模式:</label>
+              <select
+                className="form-input"
+                value={filterConfig.sellerMode ?? 'ALL'}
+                onChange={(e) => handleFilterChange('sellerMode', e.target.value)}
+              >
+                <option value="ALL">全部</option>
+                <option value="FBS">仅 FBS</option>
+                <option value="FBO">仅 FBO</option>
+              </select>
+            </div>
+
+            {/* 重量 */}
+            <div className="form-group">
+              <label className="form-label">重量 &lt;= (克):</label>
+              <input
+                type="number"
+                className="form-input"
+                placeholder="如：500"
+                min="0"
+                value={filterConfig.weightMax ?? ''}
+                onChange={(e) => handleFilterChange('weightMax', e.target.value)}
+              />
+            </div>
+
+            {/* 上架时间 */}
+            <div className="form-group">
+              <label className="form-label">上架时间晚于:</label>
+              <input
+                type="date"
+                className="form-input"
+                value={filterConfig.listingDateAfter ?? ''}
+                onChange={(e) => handleFilterChange('listingDateAfter', e.target.value)}
+              />
+            </div>
+
+            {/* 操作按钮 */}
+            <div className="button-group">
+              <button className="btn btn-secondary" onClick={handleResetFilter}>
+                重置
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={handleSaveFilter}
+                disabled={isSaving}
+              >
+                {isSaving ? '保存中...' : '保存配置'}
+              </button>
+            </div>
+
+            {saveMessage && (
+              <p className={`save-message ${saveMessage.includes('失败') ? 'error' : 'success'}`}>
+                {saveMessage}
+              </p>
+            )}
+
+            {/* 当前过滤条件摘要 */}
+            <div className="filter-summary">
+              <h4>当前生效条件:</h4>
+              <ul>
+                {filterConfig.priceMin !== undefined && (
+                  <li>价格 &gt;= {filterConfig.priceMin}¥</li>
+                )}
+                {filterConfig.priceMax !== undefined && (
+                  <li>价格 &lt;= {filterConfig.priceMax}¥</li>
+                )}
+                {filterConfig.monthlySalesMin !== undefined && (
+                  <li>月销量 &gt;= {filterConfig.monthlySalesMin}</li>
+                )}
+                {filterConfig.followSellerMax !== undefined && (
+                  <li>跟卖数 &lt;= {filterConfig.followSellerMax}</li>
+                )}
+                {filterConfig.sellerMode && filterConfig.sellerMode !== 'ALL' && (
+                  <li>模式: {filterConfig.sellerMode}</li>
+                )}
+                {filterConfig.weightMax !== undefined && (
+                  <li>重量 &lt;= {filterConfig.weightMax}g</li>
+                )}
+                {filterConfig.listingDateAfter && (
+                  <li>上架 &gt; {filterConfig.listingDateAfter}</li>
+                )}
+                {!hasAnyFilter(filterConfig) && (
+                  <li className="no-filter">无过滤条件（采集全部商品）</li>
+                )}
+              </ul>
+            </div>
           </div>
         )}
 

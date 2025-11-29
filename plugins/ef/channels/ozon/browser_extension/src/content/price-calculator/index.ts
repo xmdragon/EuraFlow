@@ -7,7 +7,7 @@
 import { findPrices, calculateRealPrice } from './calculator';
 import { injectCompleteDisplay } from './display';
 import { configCache } from '../../shared/config-cache';
-import { ApiClient } from '../../shared/api-client';
+import { createEuraflowApiProxy } from '../../shared/api';
 import { extractProductData } from '../parsers/product-detail';
 
 /**
@@ -17,6 +17,55 @@ function extractProductId(): string | null {
   const url = window.location.href;
   const match = url.match(/-(\d+)\/(\?|$)/);
   return match ? match[1] : null;
+}
+
+/**
+ * 从页面 JSON-LD 结构化数据提取评分和评价数
+ * OZON 页面包含 aggregateRating 数据
+ */
+function extractRatingFromJsonLd(): { rating: number | null; reviewCount: number | null } {
+  try {
+    const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+
+    for (const script of scripts) {
+      try {
+        const data = JSON.parse(script.textContent || '');
+
+        // 检查是否有 aggregateRating
+        if (data.aggregateRating) {
+          const rating = parseFloat(data.aggregateRating.ratingValue);
+          const reviewCount = parseInt(data.aggregateRating.reviewCount, 10);
+
+          return {
+            rating: isNaN(rating) ? null : rating,
+            reviewCount: isNaN(reviewCount) ? null : reviewCount
+          };
+        }
+
+        // 有些页面可能是数组格式
+        if (Array.isArray(data)) {
+          for (const item of data) {
+            if (item.aggregateRating) {
+              const rating = parseFloat(item.aggregateRating.ratingValue);
+              const reviewCount = parseInt(item.aggregateRating.reviewCount, 10);
+
+              return {
+                rating: isNaN(rating) ? null : rating,
+                reviewCount: isNaN(reviewCount) ? null : reviewCount
+              };
+            }
+          }
+        }
+      } catch {
+        // 解析单个 script 失败，继续尝试下一个
+      }
+    }
+
+    return { rating: null, reviewCount: null };
+  } catch (error) {
+    console.warn('[EuraFlow] 从 JSON-LD 提取评分失败:', error);
+    return { rating: null, reviewCount: null };
+  }
 }
 
 /**
@@ -30,13 +79,10 @@ export class RealPriceCalculator {
   private preloadConfigInBackground(): void {
     chrome.storage.sync.get(['apiUrl', 'apiKey'], (result) => {
       if (result.apiUrl && result.apiKey) {
-        const apiClient = new ApiClient(result.apiUrl, result.apiKey);
+        const apiClient = createEuraflowApiProxy(result.apiUrl, result.apiKey);
         configCache.preload(apiClient)
-          .then(() => {
-            console.log('[EuraFlow] ✓ 配置数据预加载完成（店铺、仓库、水印已缓存）');
-          })
           .catch((error) => {
-            console.warn('[EuraFlow] ⚠ 配置数据预加载失败:', error.message);
+            console.warn('[EuraFlow] 配置数据预加载失败:', error.message);
           });
       }
     });
@@ -119,25 +165,24 @@ export class RealPriceCalculator {
       let productDetail = null;
       try {
         productDetail = await extractProductData();
-        console.log('[EuraFlow] ✅ 商品详情提取完成:', {
-          标题: productDetail.title,
-          变体数量: productDetail.variants?.length || 0,
-          有变体: productDetail.has_variants
-        });
       } catch (error: any) {
-        console.error('[EuraFlow] ❌ 商品详情提取失败:', error);
-        console.error('[EuraFlow] 错误堆栈:', error?.stack);
+        console.error('[EuraFlow] 商品详情提取失败:', error);
       }
 
       // 5. 【发送数据到 background】（包含已提取的变体数据）
       const pageCookie = document.cookie;
+
+      // 从页面 JSON-LD 提取评分数据
+      const ratingData = extractRatingFromJsonLd();
+
       const response = await chrome.runtime.sendMessage({
         type: 'FETCH_ALL_PRODUCT_DATA',
         data: {
           url: window.location.href,
           productSku: productId,
           cookieString: pageCookie,
-          productDetail: productDetail  // 传递已提取的完整商品数据
+          productDetail: productDetail,  // 传递已提取的完整商品数据
+          ratingData: ratingData  // 从页面 JSON-LD 提取的评分数据
         }
       });
 
@@ -145,8 +190,6 @@ export class RealPriceCalculator {
         console.error('[EuraFlow] 数据获取失败:', response.error);
         return;
       }
-
-      console.log('[EuraFlow] ✓ 数据采集完成');
 
       // 5. 【再等待 DOM 稳定】（此时配送日期应该已经加载好了）
       await this.waitForContainerReady();

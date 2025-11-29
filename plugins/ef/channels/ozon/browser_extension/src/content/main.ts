@@ -6,7 +6,8 @@
 
 import { DataFusionEngine } from './fusion/engine';
 import { ProductCollector } from './collector';
-import { getCollectorConfig } from '../shared/storage';
+import { FilterEngine } from './filter';
+import { getCollectorConfig, getFilterConfig } from '../shared/storage';
 import { ControlPanel } from './components/ControlPanel';
 import { RealPriceCalculator } from './price-calculator';
 
@@ -41,7 +42,20 @@ async function init() {
     // 3. 创建采集器（API配置和上传由 ControlPanel 负责）
     const collector = new ProductCollector(fusionEngine);
 
-    // 4. 创建并挂载控制面板
+    // 4. 加载过滤配置并注入到采集器
+    const filterConfig = await getFilterConfig();
+    const filterEngine = new FilterEngine(filterConfig);
+    collector.setFilterEngine(filterEngine);
+
+    if (__DEBUG__) {
+      const hasFilter = filterEngine.hasAnyFilter();
+      console.log('[Main] 过滤配置已加载:', {
+        hasFilter,
+        config: filterConfig
+      });
+    }
+
+    // 5. 创建并挂载控制面板
     ControlPanel({
       fusionEngine,
       collector,
@@ -65,18 +79,11 @@ export function onExecute() {
 // ========== 消息监听器：响应 background 的变体提取请求 ==========
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'EXTRACT_PRODUCT_DATA') {
-    console.log('[Content] 收到变体提取请求');
-
     // 动态导入并执行
     import('./parsers/product-detail').then(async (module) => {
       try {
-        console.log('[Content] 开始调用 extractProductData()');
         const productData = await module.extractProductData();
-        console.log('[Content] extractProductData() 返回结果:', productData);
-        console.log('[Content] 变体提取成功:', productData.variants?.length || 0, '个变体');
-        console.log('[Content] 准备发送响应给 background');
         sendResponse({ success: true, data: productData });
-        console.log('[Content] 响应已发送');
       } catch (error: any) {
         console.error('[Content] 变体提取失败:', error);
         sendResponse({ success: false, error: error.message });

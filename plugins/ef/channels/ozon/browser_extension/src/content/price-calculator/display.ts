@@ -4,7 +4,6 @@
  * 在页面上注入和管理价格显示元素 + 上品帮销售数据面板
  */
 
-import { getDataPanelConfig } from '../../shared/storage';
 import { showPublishModal } from '../components/PublishModal';
 import { injectEuraflowStyles } from '../styles/injector';
 
@@ -88,19 +87,6 @@ function showToast(message: string, type: 'success' | 'error' | 'info' = 'succes
 // ========== 数据格式化函数 ==========
 
 /**
- * 格式化数值（处理null和百分比）
- */
-function formatValue(value: any, suffix: string = ''): string {
-  if (value === null || value === undefined) {
-    return '---';
-  }
-  if (typeof value === 'number') {
-    return `${value}${suffix}`;
-  }
-  return String(value);
-}
-
-/**
  * 格式化日期
  */
 function formatDate(dateStr: string | null): string {
@@ -115,41 +101,6 @@ function formatDate(dateStr: string | null): string {
   } catch {
     return dateStr;
   }
-}
-
-/**
- * 格式化包装尺寸
- */
-function formatDimensions(
-  length: number | null,
-  width: number | null,
-  height: number | null
-): string {
-  if (length === null || width === null || height === null) {
-    return '---';
-  }
-  return `${length} × ${width} × ${height} mm`;
-}
-
-/**
- * 渲染数据字段（label + value）
- */
-function renderField(label: string, value: string): HTMLElement {
-  const field = document.createElement('div');
-  field.className = 'ef-price-field';
-
-  const labelSpan = document.createElement('span');
-  labelSpan.className = 'ef-price-field__label';
-  labelSpan.textContent = label;
-
-  const valueSpan = document.createElement('span');
-  valueSpan.className = 'ef-price-field__value';
-  valueSpan.textContent = value;
-
-  field.appendChild(labelSpan);
-  field.appendChild(valueSpan);
-
-  return field;
 }
 
 /**
@@ -271,22 +222,20 @@ function createPriceSection(message: string): HTMLElement {
 }
 
 /**
- * 创建数据字段区域
+ * 创建数据字段区域（de3.png 风格紧凑两列布局）
  */
 async function createDataSection(spbSales: any | null, dimensions: any | null): Promise<HTMLElement> {
-  // 注入保护性 CSS（使用 !important 防止被 OZON 脚本覆盖）
+  // 注入保护性 CSS
   if (!document.getElementById('euraflow-protect-styles')) {
     const style = document.createElement('style');
     style.id = 'euraflow-protect-styles';
     style.textContent = `
-      /* 保护所有 EuraFlow 组件不被 OZON 脚本修改 */
       [data-euraflow-root="true"],
       [data-euraflow-component] {
         height: auto !important;
         min-height: unset !important;
         max-height: none !important;
       }
-      /* 即使被 OZON 添加了 separator 类，也强制保持高度为 auto */
       [data-euraflow-component="data-section"].uw_a4n,
       [data-euraflow-component="data-section"][data-widget="separator"] {
         height: auto !important;
@@ -298,106 +247,236 @@ async function createDataSection(spbSales: any | null, dimensions: any | null): 
   const section = document.createElement('div');
   section.id = 'euraflow-data-section';
   section.setAttribute('data-euraflow-component', 'data-section');
-  section.className = 'ef-data-panel-section';
+  section.className = 'ef-data-panel';
 
-  // 获取配置的可见字段
-  const config = await getDataPanelConfig();
-  const visibleFields = config.visibleFields;
-
-  // 渲染配置的字段
-  for (const fieldKey of visibleFields) {
-    const field = renderDataField(fieldKey, spbSales, dimensions);
-    if (field) {
-      section.appendChild(field);
-    }
-  }
-
-  // 如果没有渲染任何字段，显示提示
-  if (section.children.length === 0) {
+  // 如果没有数据
+  if (!spbSales && !dimensions) {
     const hint = document.createElement('div');
     hint.className = 'ef-data-panel-hint';
-    hint.textContent = spbSales || dimensions ? '暂无可显示的数据' : '数据获取中...';
+    hint.textContent = '数据获取中...';
     section.appendChild(hint);
+    return section;
   }
+
+  // 渲染紧凑两列布局
+  const rows = buildDataRows(spbSales, dimensions);
+  rows.forEach(row => section.appendChild(row));
 
   return section;
 }
 
 /**
- * 渲染单个数据字段
+ * 构建数据行（de3.png 风格）
  */
-function renderDataField(fieldKey: string, spbSales: any | null, dimensions: any | null): HTMLElement | null {
-  const FIELD_LABELS: Record<string, string> = {
-    monthlySales: '月销量',
-    monthlySalesAmount: '月销售额',
-    cardViews: '浏览量',
-    transactionRate: '成交率',
-    packageWeight: '包装重量',
-    packageLength: '长度',
-    packageWidth: '宽度',
-    packageHeight: '高度',
-    listingDate: '上架时间',
-    listingDays: '上架天数',
-  };
+function buildDataRows(spbSales: any | null, dimensions: any | null): HTMLElement[] {
+  const rows: HTMLElement[] = [];
 
-  const label = FIELD_LABELS[fieldKey];
-  if (!label) return null;
+  // 类目行（单列）
+  rows.push(createSingleRow('类目', spbSales?.category || '---'));
 
-  let value: string;
-  switch (fieldKey) {
-    case 'monthlySales':
-      value = spbSales ? formatValue(spbSales.monthlySales, ' 件') : '---';
-      break;
-    case 'monthlySalesAmount':
-      value = spbSales ? formatValue(spbSales.monthlySalesAmount, ' ₽') : '---';
-      break;
-    case 'cardViews':
-      value = spbSales ? formatValue(spbSales.cardViews) : '---';
-      break;
-    case 'transactionRate':
-      if (spbSales && spbSales.transactionRate !== null) {
-        const rate = (spbSales.transactionRate * 100).toFixed(1);
-        value = `${rate}%`;
-      } else {
-        value = '---';
-      }
-      break;
-    case 'packageWeight':
-      // 优先使用 dimensions（来自 OZON Seller API）
-      if (dimensions?.weight !== undefined && dimensions.weight !== null) {
-        value = formatValue(dimensions.weight, ' g');
-      } else if (spbSales) {
-        value = formatValue(spbSales.weight, ' g');
-      } else {
-        value = '---';
-      }
-      break;
-    case 'packageLength':
-    case 'packageWidth':
-    case 'packageHeight':
-      // 合并显示尺寸 - 优先使用 dimensions（来自 OZON Seller API）
-      if (fieldKey === 'packageLength') {
-        if (dimensions?.length !== undefined && dimensions.length !== null) {
-          value = formatDimensions(dimensions.length, dimensions.width, dimensions.height);
-        } else if (spbSales) {
-          value = formatDimensions(spbSales.depth, spbSales.width, spbSales.height);
-        } else {
-          value = '---';
-        }
-        return renderField('包装尺寸', value);
-      }
-      return null;  // 其他维度跳过
-    case 'listingDate':
-      value = spbSales ? formatDate(spbSales.listingDate) : '---';
-      break;
-    case 'listingDays':
-      value = spbSales ? formatValue(spbSales.listingDays, ' 天') : '---';
-      break;
-    default:
-      value = '---';
+  // 品牌行（单列）
+  rows.push(createSingleRow('品牌', spbSales?.brand || '---'));
+
+  // 佣金行（三列徽章）
+  const rfbs = formatCommissions(spbSales?.rfbsCommissionLow, spbSales?.rfbsCommissionMid, spbSales?.rfbsCommissionHigh);
+  const fbp = formatCommissions(spbSales?.fbpCommissionLow, spbSales?.fbpCommissionMid, spbSales?.fbpCommissionHigh);
+  rows.push(createBadgeRow('rFBS', rfbs));
+  rows.push(createBadgeRow('FBP', fbp));
+
+  // 月销行（两列）
+  const monthlySales = formatNum(spbSales?.monthlySales);
+  const monthlyAmount = formatMoney(spbSales?.monthlySalesAmount);
+  rows.push(createTwoColRow('月销', `${monthlySales}件`, '月销额', monthlyAmount));
+
+  // 日销行（两列）
+  const dailySales = formatNum(spbSales?.dailySales);
+  const dailyAmount = formatMoney(spbSales?.dailySalesAmount);
+  rows.push(createTwoColRow('日销', dailySales === '---' ? '---' : `${dailySales}件`, '日销额', dailyAmount));
+
+  // 动态 + 点击率（两列）
+  const dynamic = formatPercent(spbSales?.salesDynamic);
+  const ctr = formatPercent(spbSales?.clickThroughRate);
+  rows.push(createTwoColRow('动态', dynamic, '点击', ctr));
+
+  // 卡片浏览 + 加购率（两列）
+  const cardViews = formatNum(spbSales?.cardViews);
+  const cardRate = formatPercent(spbSales?.cardAddToCartRate);
+  rows.push(createTwoColRow('卡片', cardViews, '加购', cardRate));
+
+  // 搜索浏览 + 加购率（两列）
+  const searchViews = formatNum(spbSales?.searchViews);
+  const searchRate = formatPercent(spbSales?.searchAddToCartRate);
+  rows.push(createTwoColRow('搜索', searchViews, '加购', searchRate));
+
+  // 促销天数 + 折扣（两列）
+  const promoDays = spbSales?.promoDays != null ? `${spbSales.promoDays}天` : '---';
+  const promoDiscount = formatPercent(spbSales?.promoDiscount);
+  rows.push(createTwoColRow('促销', promoDays, '折扣', promoDiscount));
+
+  // 付费推广 + 份额（两列）
+  const paidDays = spbSales?.paidPromoDays != null ? `${spbSales.paidPromoDays}天` : '---';
+  const adShare = formatPercent(spbSales?.adShare);
+  rows.push(createTwoColRow('付费', paidDays, '份额', adShare));
+
+  // 成交率 + 退货率（两列）
+  const convRate = formatPercent(spbSales?.transactionRate);
+  const returnRate = formatPercent(spbSales?.returnCancelRate);
+  rows.push(createTwoColRow('成交', convRate, '退取', returnRate));
+
+  // 均价 + 重量（两列）
+  const avgPrice = formatMoney(spbSales?.avgPrice);
+  const weight = dimensions?.weight ?? spbSales?.weight;
+  const weightStr = weight != null ? `${weight}g` : '---';
+  rows.push(createTwoColRow('均价', avgPrice, '重量', weightStr));
+
+  // 尺寸 + 模式（两列）
+  const dim = formatDimensions(dimensions, spbSales);
+  const mode = spbSales?.sellerMode || '---';
+  rows.push(createTwoColRow('尺寸', dim, '模式', mode));
+
+  // 跟卖 + 最低价（两列）
+  const follower = spbSales?.competitorCount;
+  const followerStr = follower != null && follower > 0 ? `${follower}家` : '无跟卖';
+
+  // 最低跟卖价：优先用 competitorMinPrice，其次从 followSellerPrices 取最小值
+  let minPrice = spbSales?.competitorMinPrice;
+  if (minPrice == null && spbSales?.followSellerPrices?.length > 0) {
+    const prices = spbSales.followSellerPrices.filter((p: number) => p > 0);
+    if (prices.length > 0) {
+      minPrice = Math.min(...prices);
+    }
+  }
+  const minPriceStr = minPrice != null ? `${minPrice.toFixed(2)}¥` : '---';
+
+  // 只有有跟卖时才显示最低价，否则显示单列
+  if (follower != null && follower > 0) {
+    rows.push(createTwoColRow('跟卖', followerStr, '最低价', minPriceStr));
+  } else {
+    rows.push(createSingleRow('跟卖', followerStr));
   }
 
-  return renderField(label, value);
+  // 底部行：评分 + 上架时间（两列）
+  const rating = spbSales?.rating;
+  const reviewCount = spbSales?.reviewCount;
+  const listingDate = spbSales?.listingDate ? formatDate(spbSales.listingDate) : '---';
+  const listingDays = spbSales?.listingDays;
+  rows.push(createBottomRow(rating, reviewCount, listingDate, listingDays));
+
+  return rows;
+}
+
+/**
+ * 创建单列行
+ */
+function createSingleRow(label: string, value: string): HTMLElement {
+  const row = document.createElement('div');
+  row.className = 'ef-row ef-row-single';
+  row.innerHTML = `<span class="ef-label">${label}:</span><span class="ef-value">${value}</span>`;
+  return row;
+}
+
+/**
+ * 创建两列行
+ */
+function createTwoColRow(label1: string, value1: string, label2: string, value2: string): HTMLElement {
+  const row = document.createElement('div');
+  row.className = 'ef-row ef-row-two';
+  row.innerHTML = `
+    <div class="ef-col"><span class="ef-label">${label1}:</span><span class="ef-value">${value1}</span></div>
+    <div class="ef-col"><span class="ef-label">${label2}:</span><span class="ef-value">${value2}</span></div>
+  `;
+  return row;
+}
+
+/**
+ * 创建三列徽章行（佣金）
+ */
+function createBadgeRow(label: string, badges: string[]): HTMLElement {
+  const row = document.createElement('div');
+  row.className = 'ef-row ef-row-three';
+  const badgesHtml = badges.map(b => `<span class="ef-badge">${b}</span>`).join('');
+  row.innerHTML = `<span class="ef-label">${label}:</span><span class="ef-badges">${badgesHtml}</span>`;
+  return row;
+}
+
+/**
+ * 创建底部行（评分 + 日期）
+ */
+function createBottomRow(rating: number | null, reviewCount: number | null, date: string, days: number | null): HTMLElement {
+  const row = document.createElement('div');
+  row.className = 'ef-row ef-row-bottom';
+
+  // 评分
+  let ratingHtml = '<div class="ef-col"><span class="ef-label">评分:</span>';
+  if (rating != null) {
+    const stars = '★'.repeat(Math.round(rating));
+    const reviewStr = reviewCount != null ? `(${reviewCount})` : '';
+    ratingHtml += `<span class="ef-rating" title="评分: ${rating}">${stars}${rating} ${reviewStr}</span>`;
+  } else {
+    ratingHtml += '<span class="ef-value">---</span>';
+  }
+  ratingHtml += '</div>';
+
+  // 日期
+  const dateTitle = days != null ? `上架${days}天` : '上架时间';
+  const dateHtml = `<div class="ef-col"><span class="ef-label">上架:</span><span class="ef-date" title="${dateTitle}">${date}</span></div>`;
+
+  row.innerHTML = ratingHtml + dateHtml;
+  return row;
+}
+
+/**
+ * 格式化佣金数组
+ */
+function formatCommissions(low: number | null, mid: number | null, high: number | null): string[] {
+  const format = (v: number | null) => v != null ? `${v}` : '-';
+  return [format(low), format(mid), format(high)];
+}
+
+/**
+ * 格式化数字
+ */
+function formatNum(value: any): string {
+  if (value == null) return '---';
+  if (typeof value === 'number') {
+    if (value >= 10000) return `${(value / 10000).toFixed(2)}万`;
+    return String(value);
+  }
+  return String(value);
+}
+
+/**
+ * 格式化金额
+ */
+function formatMoney(value: any): string {
+  if (value == null) return '---';
+  const num = typeof value === 'number' ? value : parseFloat(value);
+  if (isNaN(num)) return '---';
+  if (num >= 10000) return `${(num / 10000).toFixed(2)}万₽`;
+  return `${num.toFixed(2)}₽`;
+}
+
+/**
+ * 格式化百分比
+ */
+function formatPercent(value: any): string {
+  if (value == null) return '---';
+  const num = typeof value === 'number' ? value : parseFloat(value);
+  if (isNaN(num)) return '---';
+  // 如果值小于1，可能是小数形式的百分比
+  if (num < 1 && num > 0) return `${(num * 100).toFixed(2)}%`;
+  return `${num}%`;
+}
+
+/**
+ * 格式化尺寸
+ */
+function formatDimensions(dimensions: any, spbSales: any): string {
+  const d = dimensions?.length ?? spbSales?.depth;
+  const w = dimensions?.width ?? spbSales?.width;
+  const h = dimensions?.height ?? spbSales?.height;
+  if (d == null || w == null || h == null) return '---';
+  return `${d}×${w}×${h}`;
 }
 
 /**

@@ -1,4 +1,4 @@
-import type { ApiConfig, CollectorConfig, ShangpinbangConfig, DataPanelConfig, RateLimitConfig } from './types';
+import type { ApiConfig, CollectorConfig, ShangpinbangConfig, DataPanelConfig, RateLimitConfig, FilterConfig } from './types';
 import { DEFAULT_FIELDS } from './types';
 
 /**
@@ -171,4 +171,106 @@ export async function setRateLimitConfig(config: Partial<RateLimitConfig>): Prom
   if (config.enabled !== undefined) storageData.rateLimitEnabled = config.enabled;
 
   await chrome.storage.sync.set(storageData);
+}
+
+// ========== 采集过滤配置存储 ==========
+
+const DEFAULT_FILTER_CONFIG: FilterConfig = {
+  priceMin: undefined,
+  priceMax: undefined,
+  monthlySalesMin: undefined,
+  weightMax: undefined,
+  listingDateAfter: undefined,
+  sellerMode: 'ALL',
+  followSellerMax: undefined
+};
+
+/**
+ * 获取采集过滤配置
+ */
+export async function getFilterConfig(): Promise<FilterConfig> {
+  const result = await chrome.storage.sync.get([
+    'filterPriceMin',
+    'filterPriceMax',
+    'filterMonthlySalesMin',
+    'filterWeightMax',
+    'filterListingDateAfter',
+    'filterSellerMode',
+    'filterFollowSellerMax'
+  ]);
+
+  return {
+    priceMin: result.filterPriceMin ?? undefined,
+    priceMax: result.filterPriceMax ?? undefined,
+    monthlySalesMin: result.filterMonthlySalesMin ?? undefined,
+    weightMax: result.filterWeightMax ?? undefined,
+    listingDateAfter: result.filterListingDateAfter ?? undefined,
+    sellerMode: result.filterSellerMode ?? DEFAULT_FILTER_CONFIG.sellerMode,
+    followSellerMax: result.filterFollowSellerMax ?? undefined
+  };
+}
+
+/**
+ * 保存采集过滤配置
+ */
+export async function setFilterConfig(config: Partial<FilterConfig>): Promise<void> {
+  const storageData: { [key: string]: any } = {};
+
+  // 处理数字和字符串字段，undefined 转为 null 存储（chrome.storage 不支持 undefined）
+  if (config.priceMin !== undefined) {
+    storageData.filterPriceMin = config.priceMin;
+  } else if ('priceMin' in config) {
+    storageData.filterPriceMin = null;
+  }
+
+  if (config.priceMax !== undefined) {
+    storageData.filterPriceMax = config.priceMax;
+  } else if ('priceMax' in config) {
+    storageData.filterPriceMax = null;
+  }
+
+  if (config.monthlySalesMin !== undefined) {
+    storageData.filterMonthlySalesMin = config.monthlySalesMin;
+  } else if ('monthlySalesMin' in config) {
+    storageData.filterMonthlySalesMin = null;
+  }
+
+  if (config.weightMax !== undefined) {
+    storageData.filterWeightMax = config.weightMax;
+  } else if ('weightMax' in config) {
+    storageData.filterWeightMax = null;
+  }
+
+  if (config.listingDateAfter !== undefined) {
+    storageData.filterListingDateAfter = config.listingDateAfter;
+  } else if ('listingDateAfter' in config) {
+    storageData.filterListingDateAfter = null;
+  }
+
+  if (config.sellerMode !== undefined) {
+    storageData.filterSellerMode = config.sellerMode;
+  }
+
+  if (config.followSellerMax !== undefined) {
+    storageData.filterFollowSellerMax = config.followSellerMax;
+  } else if ('followSellerMax' in config) {
+    storageData.filterFollowSellerMax = null;
+  }
+
+  await chrome.storage.sync.set(storageData);
+}
+
+/**
+ * 清除采集过滤配置（重置为默认）
+ */
+export async function clearFilterConfig(): Promise<void> {
+  await chrome.storage.sync.remove([
+    'filterPriceMin',
+    'filterPriceMax',
+    'filterMonthlySalesMin',
+    'filterWeightMax',
+    'filterListingDateAfter',
+    'filterSellerMode',
+    'filterFollowSellerMax'
+  ]);
 }

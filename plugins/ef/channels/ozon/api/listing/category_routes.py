@@ -1000,3 +1000,54 @@ async def sync_single_category_attributes(
             "success": False,
             "error": str(e)
         }
+
+
+@router.get("/listings/categories/names")
+async def get_category_names_by_ids(
+    ids: str = Query(..., description="类目ID列表，逗号分隔，如：17027488,17028973,92875"),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    根据类目ID批量查询类目名称（供浏览器扩展使用）
+
+    Args:
+        ids: 逗号分隔的类目ID列表
+
+    Returns:
+        { "success": true, "data": { "17027488": "儿童用品", "17028973": "玩具" } }
+    """
+    try:
+        from ...models.listing import OzonCategory
+
+        # 解析 ID 列表
+        id_list = [int(id.strip()) for id in ids.split(",") if id.strip().isdigit()]
+
+        if not id_list:
+            return {
+                "success": True,
+                "data": {}
+            }
+
+        # 批量查询
+        result = await db.execute(
+            select(OzonCategory.category_id, OzonCategory.name, OzonCategory.name_zh)
+            .where(OzonCategory.category_id.in_(id_list))
+        )
+        categories = result.all()
+
+        # 构建返回数据（优先中文名称）
+        data = {}
+        for cat_id, name, name_zh in categories:
+            data[str(cat_id)] = name_zh or name
+
+        return {
+            "success": True,
+            "data": data
+        }
+
+    except Exception as e:
+        logger.error(f"Get category names failed: {e}", exc_info=True)
+        return {
+            "success": False,
+            "error": str(e)
+        }

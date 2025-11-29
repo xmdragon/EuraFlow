@@ -104,7 +104,6 @@ async function fetchProductDataFromOzonAPI(productUrl: string): Promise<any | nu
  */
 async function fetchFullVariantsFromModal(productId: string): Promise<any[] | null> {
   try {
-    console.log(`[EuraFlow] 调用 Modal API 获取完整变体 - 商品ID: ${productId}`);
     const modalUrl = `/modal/aspectsNew?product_id=${productId}`;
     const apiUrl = `${window.location.origin}/api/entrypoint-api.bx/page/json/v2?url=${encodeURIComponent(modalUrl)}`;
 
@@ -166,7 +165,7 @@ async function fetchDimensionsFromOzonAPI(productSku: string): Promise<{
   length?: number;
 } | null> {
   try {
-    if (window.EURAFLOW_DEBUG) {
+    if (__DEBUG__) {
       console.log(`[EuraFlow] 调用 OZON API 获取尺寸和重量, SKU: ${productSku}`);
     }
 
@@ -188,7 +187,7 @@ async function fetchDimensionsFromOzonAPI(productSku: string): Promise<{
 
     const dimensions = response.data?.dimensions;
     if (!dimensions) {
-      if (window.EURAFLOW_DEBUG) {
+      if (__DEBUG__) {
         console.log('[EuraFlow] OZON API 返回的数据中没有 dimensions');
       }
       return null;
@@ -202,7 +201,7 @@ async function fetchDimensionsFromOzonAPI(productSku: string): Promise<{
       length: dimensions.length ? parseFloat(dimensions.length) : undefined,
     };
 
-    if (window.EURAFLOW_DEBUG) {
+    if (__DEBUG__) {
       console.log('[EuraFlow] 从 OZON API 获取到 dimensions:', result);
     }
 
@@ -297,7 +296,7 @@ function extractDataFromInjectedDOM(): {
 
     // 如果提取到了数据，返回结果
     if (Object.keys(result).length > 0) {
-      if (window.EURAFLOW_DEBUG) {
+      if (__DEBUG__) {
         console.log('[EuraFlow] 从上品帮注入的 DOM 中提取到数据:', result);
       }
       return result;
@@ -328,7 +327,7 @@ async function waitForInjectedDOM(): Promise<boolean> {
 
       if (hasInjectedData) {
         clearInterval(checkInterval);
-        if (window.EURAFLOW_DEBUG) {
+        if (__DEBUG__) {
           console.log(`[EuraFlow] 检测到上品帮注入的 DOM（尝试 ${attempts} 次）`);
         }
         resolve(true);
@@ -337,7 +336,7 @@ async function waitForInjectedDOM(): Promise<boolean> {
 
       if (attempts >= maxAttempts) {
         clearInterval(checkInterval);
-        if (window.EURAFLOW_DEBUG) {
+        if (__DEBUG__) {
           console.log('[EuraFlow] 超时：未检测到上品帮注入的 DOM');
         }
         resolve(false);
@@ -365,7 +364,7 @@ async function waitForDimensionsData(): Promise<boolean> {
       // 检查尺寸数据是否已更新（不再是 -1）
       if (data && data.length !== undefined && data.length !== -1) {
         clearInterval(checkInterval);
-        if (window.EURAFLOW_DEBUG) {
+        if (__DEBUG__) {
           console.log(`[EuraFlow] 尺寸数据已更新（尝试 ${attempts} 次，耗时 ${attempts * 100}ms）:`, data);
         }
         resolve(true);
@@ -374,7 +373,7 @@ async function waitForDimensionsData(): Promise<boolean> {
 
       if (attempts >= maxAttempts) {
         clearInterval(checkInterval);
-        if (window.EURAFLOW_DEBUG) {
+        if (__DEBUG__) {
           console.log('[EuraFlow] 超时：尺寸数据仍为"-"（等待10秒后超时），可能真的没有数据');
         }
         resolve(false);
@@ -413,14 +412,13 @@ async function fetchCharacteristicsAndDescription(productSlug: string): Promise<
 
     const apiUrl = `${window.location.origin}/api/entrypoint-api.bx/page/json/v2?url=${encodeURIComponent(page2Url)}`;
 
-    if (window.EURAFLOW_DEBUG) {
+    if (__DEBUG__) {
       console.log(`[EuraFlow] 正在调用 OZON Page2 API 获取特征和描述: ${apiUrl}`);
     }
 
     // ✅ 使用 executeWithRetry（包含反爬虫检查、智能重试、403/429 处理）
     const limiter = OzonApiRateLimiter.getInstance();
 
-    console.log('[EuraFlow] [Page2 API] 开始获取商品特征和描述...');
     const response = await limiter.executeWithRetry(async () => {
       const res = await fetch(apiUrl, {
         method: 'GET',
@@ -451,7 +449,7 @@ async function fetchCharacteristicsAndDescription(productSlug: string): Promise<
       if (descriptionData?.richAnnotation) {
         const desc = descriptionData.richAnnotation;
         extracted.description = desc;
-        if (window.EURAFLOW_DEBUG) {
+        if (__DEBUG__) {
           console.log(`[EuraFlow] 从 Page2 API 提取到描述: ${desc.substring(0, 80)}...`);
         }
       }
@@ -486,7 +484,7 @@ async function fetchCharacteristicsAndDescription(productSlug: string): Promise<
 
         extracted.attributes = attributes;
 
-        if (window.EURAFLOW_DEBUG) {
+        if (__DEBUG__) {
           console.log(`[EuraFlow] 从 Page2 API 提取到 ${attributes.length} 个特征`);
         }
       }
@@ -623,7 +621,7 @@ function parseFromWidgetStates(apiResponse: any): Omit<ProductDetailData, 'varia
             category_level_2 = categoryNames[1] || undefined;
             category_level_3 = categoryNames[2] || undefined;
 
-            if (window.EURAFLOW_DEBUG) {
+            if (__DEBUG__) {
               console.log('[EuraFlow] 提取到类目路径:', {
                 category_path,
                 category_level_1,
@@ -680,7 +678,7 @@ function parseFromWidgetStates(apiResponse: any): Omit<ProductDetailData, 'varia
     }
 
     // 调试日志
-    if (window.EURAFLOW_DEBUG) {
+    if (__DEBUG__) {
       console.log('[EuraFlow] 提取的完整商品数据:', {
         ozon_product_id,
         title,
@@ -739,7 +737,7 @@ export async function extractProductData(): Promise<ProductDetailData> {
 
     // 调用 Page2 API 获取完整特征和描述
     if (productSlug) {
-      if (window.EURAFLOW_DEBUG) {
+      if (__DEBUG__) {
         console.log(`[EuraFlow] 尝试使用 Page2 API 获取完整特征和描述（slug=${productSlug}）`);
       }
 
@@ -753,7 +751,7 @@ export async function extractProductData(): Promise<ProductDetailData> {
           baseData.attributes = page2Data.attributes;
         }
 
-        if (window.EURAFLOW_DEBUG) {
+        if (__DEBUG__) {
           console.log(`[EuraFlow] Page2 API 成功合并数据`);
         }
       }
@@ -767,7 +765,7 @@ export async function extractProductData(): Promise<ProductDetailData> {
 
     // 方案 1：尝试通过 OZON Seller API 获取尺寸
     if (productSku) {
-      if (window.EURAFLOW_DEBUG) {
+      if (__DEBUG__) {
         console.log('[EuraFlow] 尝试通过 OZON Seller API 获取尺寸和重量...');
       }
 
@@ -788,11 +786,11 @@ export async function extractProductData(): Promise<ProductDetailData> {
             length: ozonDimensions.length,
           };
 
-          if (window.EURAFLOW_DEBUG) {
+          if (__DEBUG__) {
             console.log('[EuraFlow] ✅ 成功从 OZON Seller API 获取 dimensions:', baseData.dimensions);
           }
         } else {
-          if (window.EURAFLOW_DEBUG) {
+          if (__DEBUG__) {
             console.log('[EuraFlow] OZON Seller API 返回的尺寸数据不完整，尝试降级方案...');
           }
         }
@@ -801,7 +799,7 @@ export async function extractProductData(): Promise<ProductDetailData> {
 
     // 方案 2（降级）：如果 OZON API 失败，尝试从上品帮 DOM 提取
     if (!baseData.dimensions) {
-      if (window.EURAFLOW_DEBUG) {
+      if (__DEBUG__) {
         console.log('[EuraFlow] 降级到上品帮 DOM 提取方案...');
       }
 
@@ -822,7 +820,7 @@ export async function extractProductData(): Promise<ProductDetailData> {
              injectedData.width === -1 ||
              injectedData.length === -1)
           ) {
-            if (window.EURAFLOW_DEBUG) {
+            if (__DEBUG__) {
               console.log('[EuraFlow] 尺寸数据为"-"，开始二次轮询（100ms × 100次，最多等待10秒）...');
             }
 
@@ -851,7 +849,7 @@ export async function extractProductData(): Promise<ProductDetailData> {
             // 二次轮询后仍为"-"，真正没有数据
             baseData.dimensions = undefined;
 
-            if (window.EURAFLOW_DEBUG) {
+            if (__DEBUG__) {
               console.log('[EuraFlow] 二次轮询后尺寸数据仍为"-"，确认无数据');
             }
           } else {
@@ -862,7 +860,7 @@ export async function extractProductData(): Promise<ProductDetailData> {
               length: injectedData.length,
             };
 
-            if (window.EURAFLOW_DEBUG) {
+            if (__DEBUG__) {
               console.log('[EuraFlow] 成功从上品帮 DOM 中提取 dimensions:', baseData.dimensions);
             }
           }
@@ -872,7 +870,7 @@ export async function extractProductData(): Promise<ProductDetailData> {
         if (injectedData && injectedData.brand) {
           baseData.brand = injectedData.brand;
 
-          if (window.EURAFLOW_DEBUG) {
+          if (__DEBUG__) {
             console.log('[EuraFlow] 成功从上品帮 DOM 中提取 brand:', baseData.brand);
           }
         }
@@ -881,13 +879,13 @@ export async function extractProductData(): Promise<ProductDetailData> {
         if (injectedData && injectedData.description) {
           baseData.description = injectedData.description;
 
-          if (window.EURAFLOW_DEBUG) {
+          if (__DEBUG__) {
             console.log('[EuraFlow] 成功从上品帮 DOM 中提取 description');
           }
         }
       }
     } else {
-      if (window.EURAFLOW_DEBUG) {
+      if (__DEBUG__) {
         console.log('[EuraFlow] 上品帮未注入 DOM，跳过上品帮数据提取');
       }
     }
@@ -896,7 +894,7 @@ export async function extractProductData(): Promise<ProductDetailData> {
     // ========== 尺寸数据获取完成 ==========
 
     // 调试：输出提取到的基础商品数据
-    if (window.EURAFLOW_DEBUG) {
+    if (__DEBUG__) {
       console.log('[EuraFlow] ========== 基础商品数据（从 widgetStates + Page2 提取）==========');
       console.log('[EuraFlow] category_id:', baseData.category_id);
       console.log('[EuraFlow] brand:', baseData.brand);
@@ -1149,7 +1147,6 @@ export async function extractProductData(): Promise<ProductDetailData> {
       seenIds.add(v.variant_id);
       return true;
     });
-    console.log(`[EuraFlow] ✅ 最终提取到 ${finalVariants.length} 个变体`);
 
     return {
       ...baseData,

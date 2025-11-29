@@ -1,6 +1,20 @@
-// 导入全局OZON API限流器和标准headers生成器
-import { OzonApiRateLimiter } from '../shared/ozon-rate-limiter';
-import { getOzonStandardHeaders } from '../shared/ozon-headers';
+/**
+ * Service Worker - 浏览器扩展后台服务
+ *
+ * 职责：
+ * - 处理跨域 API 请求（OZON Seller、上品帮、EuraFlow）
+ * - OZON 版本信息动态拦截
+ * - 商品数据缓存
+ */
+
+// 导入统一 API 客户端
+import {
+  getOzonSellerApi,
+  getOzonBuyerApi,
+  getSpbangApi,
+  createEuraflowApi,
+  type SpbSalesData
+} from '../shared/api';
 
 // ============================================================================
 // OZON 版本信息动态拦截器
@@ -43,11 +57,6 @@ chrome.webRequest.onBeforeSendHeaders.addListener(
         }
       });
 
-      console.log('[EuraFlow] ✅ 成功拦截OZON版本信息:', {
-        appVersion: versionHeaders['x-o3-app-version'],
-        manifestVersion: versionHeaders['x-o3-manifest-version'].substring(0, 50) + '...'
-      });
-
       // 标记已拦截（Service Worker 生命周期内不再重复拦截）
       hasInterceptedVersion = true;
     }
@@ -69,11 +78,8 @@ chrome.storage.local.get([OZON_VERSION_CACHE_KEY], (result) => {
   const cached = result[OZON_VERSION_CACHE_KEY];
   if (cached && (Date.now() - cached.timestamp < OZON_VERSION_CACHE_DURATION)) {
     hasInterceptedVersion = true;
-    console.log('[EuraFlow] 🔍 OZON版本信息已缓存，有效期至:', new Date(cached.timestamp + OZON_VERSION_CACHE_DURATION).toLocaleString());
   }
 });
-
-console.log('[EuraFlow] 🔍 OZON版本拦截器已启动');
 
 // ============================================================================
 // 全局商品数据缓存（5分钟有效期）
@@ -81,14 +87,18 @@ console.log('[EuraFlow] 🔍 OZON版本拦截器已启动');
 
 interface GlobalProductData {
   url: string;
-  ozonProduct: any;           // 完整商品数据（由 Content Script 提取，包含 variants + dimensions）
-  spbSales: any | null;       // 上品帮销售数据
-  euraflowConfig: any | null; // EuraFlow配置（店铺、仓库、水印）
+  ozonProduct: any;
+  spbSales: any | null;
+  euraflowConfig: any | null;
   timestamp: number;
 }
 
 const productDataCache = new Map<string, GlobalProductData>();
 const CACHE_DURATION = 5 * 60 * 1000;
+
+// ============================================================================
+// 扩展安装/更新事件
+// ============================================================================
 
 chrome.runtime.onInstalled.addListener((details: chrome.runtime.InstalledDetails) => {
   if (details.reason === 'install' || details.reason === 'update') {
@@ -100,8 +110,13 @@ chrome.runtime.onInstalled.addListener((details: chrome.runtime.InstalledDetails
   }
 });
 
+// ============================================================================
+// 消息处理器
+// ============================================================================
+
 chrome.runtime.onMessage.addListener((message: any, _sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
 
+  // EuraFlow API
   if (message.type === 'UPLOAD_PRODUCTS') {
     handleUploadProducts(message.data)
       .then(response => sendResponse({ success: true, data: response }))
@@ -151,30 +166,17 @@ chrome.runtime.onMessage.addListener((message: any, _sender: chrome.runtime.Mess
     return true;
   }
 
+  // 上品帮 API
   if (message.type === 'SPB_LOGIN') {
-    handleShangpinbangLogin(message.data)
+    handleSpbLogin(message.data)
       .then(response => sendResponse({ success: true, data: response }))
       .catch(error => sendResponse({ success: false, error: error.message }));
     return true;
   }
 
   if (message.type === 'SPB_GET_TOKEN') {
-    handleGetShangpinbangToken()
+    handleGetSpbToken()
       .then(token => sendResponse({ success: true, data: { token } }))
-      .catch(error => sendResponse({ success: false, error: error.message }));
-    return true;
-  }
-
-  if (message.type === 'SPB_API_CALL') {
-    handleShangpinbangAPICall(message.data)
-      .then(response => sendResponse({ success: true, data: response }))
-      .catch(error => sendResponse({ success: false, error: error.message }));
-    return true;
-  }
-
-  if (message.type === 'GET_OZON_PRODUCT_DETAIL') {
-    handleGetOzonProductDetail(message.data)
-      .then(response => sendResponse({ success: true, data: response }))
       .catch(error => sendResponse({ success: false, error: error.message }));
     return true;
   }
@@ -194,12 +196,35 @@ chrome.runtime.onMessage.addListener((message: any, _sender: chrome.runtime.Mess
   }
 
   if (message.type === 'GET_GOODS_COMMISSIONS_BATCH') {
-    handleGetGoodsCommissionsBatch(message.data)
+    handleGetCommissionsBatch(message.data)
       .then(response => sendResponse({ success: true, data: response }))
       .catch(error => sendResponse({ success: false, error: error.message }));
     return true;
   }
 
+  if (message.type === 'GET_SPB_COMMISSIONS') {
+    handleGetSpbCommissions(message.data)
+      .then(response => sendResponse({ success: true, data: response }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+    return true;
+  }
+
+  // OZON Seller API
+  if (message.type === 'GET_OZON_PRODUCT_DETAIL') {
+    handleGetOzonProductDetail(message.data)
+      .then(response => sendResponse({ success: true, data: response }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === 'REFRESH_SELLER_TAB') {
+    handleRefreshSellerTab()
+      .then(response => sendResponse({ success: true, data: response }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+    return true;
+  }
+
+  // OZON Buyer API
   if (message.type === 'GET_FOLLOW_SELLER_DATA_BATCH') {
     handleGetFollowSellerDataBatch(message.data)
       .then(response => sendResponse({ success: true, data: response }))
@@ -207,1109 +232,95 @@ chrome.runtime.onMessage.addListener((message: any, _sender: chrome.runtime.Mess
     return true;
   }
 
-  // ✅ GET_FOLLOW_SELLER_DATA_SINGLE 已移到 Content Script 直接调用（显示在网络面板）
-
-  if (message.type === 'GET_SPB_COMMISSIONS') {
-    handleGetSpbCommissions(message.data)
+  if (message.type === 'GET_OZON_PRODUCTS_PAGE') {
+    handleGetOzonProductsPage(message.data)
       .then(response => sendResponse({ success: true, data: response }))
       .catch(error => sendResponse({ success: false, error: error.message }));
-
     return true;
   }
 
+  // 综合数据获取
   if (message.type === 'FETCH_ALL_PRODUCT_DATA') {
-    // 并发获取所有商品数据
     handleFetchAllProductData(message.data)
       .then(response => sendResponse({ success: true, data: response }))
       .catch(error => sendResponse({ success: false, error: error.message }));
-
     return true;
   }
 });
 
-/**
- * 处理商品数据上传
- */
+// ============================================================================
+// EuraFlow API 处理函数
+// ============================================================================
+
 async function handleUploadProducts(data: { apiUrl: string; apiKey: string; products: any[] }) {
   const { apiUrl, apiKey, products } = data;
-
-  // 创建超时控制器（60秒超时）
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 60000);
-
-  try {
-    const response = await fetch(`${apiUrl}/api/ef/v1/ozon/product-selection/upload`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': apiKey
-      },
-      body: JSON.stringify({ products }),
-      signal: controller.signal
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      let errorMessage = '上传失败';
-      let errorDetails = '';
-
-      try {
-        const errorData = await response.json();
-
-        // 调试日志：输出完整错误响应
-        console.error('[Upload] Error response:', JSON.stringify(errorData, null, 2));
-
-        // 多层级解析错误信息
-        // 1. 尝试 errorData.detail.message (FastAPI HTTPException)
-        if (errorData.detail && typeof errorData.detail === 'object' && errorData.detail.message) {
-          errorMessage = errorData.detail.message;
-          if (errorData.detail.code) {
-            errorDetails = ` [${errorData.detail.code}]`;
-          }
-        }
-        // 2. 尝试 errorData.detail 作为字符串
-        else if (errorData.detail && typeof errorData.detail === 'string') {
-          errorMessage = errorData.detail;
-        }
-        // 3. 尝试 errorData.message
-        else if (errorData.message) {
-          errorMessage = errorData.message;
-        }
-        // 4. 尝试 errorData.error.message (统一错误格式)
-        else if (errorData.error && errorData.error.message) {
-          errorMessage = errorData.error.message;
-        }
-        // 5. 根据 code 提供友好提示
-        else if (errorData.code || (errorData.detail && errorData.detail.code)) {
-          const code = errorData.code || errorData.detail.code;
-          switch (code) {
-            case 'UNAUTHORIZED':
-              errorMessage = 'API Key无效或权限不足';
-              break;
-            case 'PAYLOAD_TOO_LARGE':
-              errorMessage = '数据量过大（最多1000条）';
-              break;
-            case 'EMPTY_PAYLOAD':
-              errorMessage = '没有可上传的商品';
-              break;
-            default:
-              errorMessage = `上传失败 [${code}]`;
-          }
-        }
-        // 6. 如果都没有，使用 HTTP 状态码
-        else {
-          errorMessage = `服务器错误 (HTTP ${response.status})`;
-          errorDetails = JSON.stringify(errorData).substring(0, 100);
-        }
-      } catch (parseError) {
-        // JSON解析失败，尝试读取文本
-        try {
-          const errorText = await response.text();
-          errorMessage = `服务器错误 (HTTP ${response.status})`;
-          if (errorText) {
-            errorDetails = `: ${errorText.substring(0, 100)}`;
-          }
-        } catch {
-          errorMessage = `服务器错误 (HTTP ${response.status})`;
-        }
-      }
-
-      throw new Error(errorMessage + errorDetails);
-    }
-
-    return await response.json();
-  } catch (error: any) {
-    clearTimeout(timeoutId);
-
-    if (error.name === 'AbortError') {
-      throw new Error('上传超时（请检查网络连接或减少上传数量）');
-    } else if (error.message.includes('NetworkError') || error.message.includes('Failed to fetch')) {
-      throw new Error('网络连接失败（请检查API地址和网络）');
-    } else {
-      throw error;
-    }
-  }
+  const api = createEuraflowApi(apiUrl, apiKey);
+  return api.uploadProducts(products);
 }
 
-/**
- * 测试API连接
- */
 async function handleTestConnection(data: { apiUrl: string; apiKey: string }) {
   const { apiUrl, apiKey } = data;
-
-  const response = await fetch(`${apiUrl}/api/ef/v1/auth/me`, {
-    method: 'GET',
-    headers: {
-      'X-API-Key': apiKey
-    }
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`HTTP ${response.status}: ${errorText}`);
-  }
-
-  const userData = await response.json();
-  return { status: 'ok', username: userData.username };
+  const api = createEuraflowApi(apiUrl, apiKey);
+  return api.testConnection();
 }
 
-/**
- * 获取一键上架所需的所有配置（店铺、仓库、水印）
- * 优化：单次请求减少网络往返
- */
 async function handleGetConfig(data: { apiUrl: string; apiKey: string }) {
   const { apiUrl, apiKey } = data;
-
-  console.log('[Service Worker] 请求配置, URL:', apiUrl, ', API Key前4位:', apiKey.substring(0, 4));
-
-  const response = await fetch(`${apiUrl}/api/ef/v1/ozon/quick-publish/config`, {
-    method: 'GET',
-    headers: {
-      'X-API-Key': apiKey
-    }
-  });
-
-  console.log('[Service Worker] 响应状态:', response.status, response.statusText);
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    console.error('[Service Worker] 错误响应:', errorData);
-    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
-  }
-
-  const result = await response.json();
-  console.log('[Service Worker] 原始响应:', result);
-  console.log('[Service Worker] result.data存在:', !!result.data);
-  console.log('[Service Worker] result.success:', result.success);
-
-  // 后端返回 {success: true, data: {shops: [], watermarks: []}}
-  // 需要返回data对象
-  if (result.success && result.data) {
-    return result.data;
-  }
-  return result;
+  const api = createEuraflowApi(apiUrl, apiKey);
+  return api.getConfig();
 }
 
-/**
- * 快速上架商品
- */
 async function handleQuickPublish(data: { apiUrl: string; apiKey: string; data: any }) {
   const { apiUrl, apiKey, data: publishData } = data;
-
-  const response = await fetch(`${apiUrl}/api/ef/v1/ozon/quick-publish/publish`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-API-Key': apiKey
-    },
-    body: JSON.stringify(publishData)
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
-  }
-
-  return await response.json();
+  const api = createEuraflowApi(apiUrl, apiKey);
+  return api.quickPublish(publishData);
 }
 
-/**
- * 批量快速上架商品（多个变体）
- */
 async function handleQuickPublishBatch(data: { apiUrl: string; apiKey: string; data: any }) {
   const { apiUrl, apiKey, data: publishData } = data;
-
-  const response = await fetch(`${apiUrl}/api/ef/v1/ozon/quick-publish/batch`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-API-Key': apiKey
-    },
-    body: JSON.stringify(publishData)
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
-  }
-
-  return await response.json();
+  const api = createEuraflowApi(apiUrl, apiKey);
+  return api.quickPublishBatch(publishData);
 }
 
-/**
- * 查询任务状态
- */
 async function handleGetTaskStatus(data: { apiUrl: string; apiKey: string; taskId: string; shopId?: number }) {
   const { apiUrl, apiKey, taskId, shopId } = data;
-
-  // 构建URL，如果有shopId则添加查询参数
-  let url = `${apiUrl}/api/ef/v1/ozon/quick-publish/task/${taskId}/status`;
-  if (shopId !== undefined) {
-    url += `?shop_id=${shopId}`;
-  }
-
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'X-API-Key': apiKey
-    }
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
-  }
-
-  return await response.json();
+  const api = createEuraflowApi(apiUrl, apiKey);
+  return api.getTaskStatus(taskId, shopId);
 }
 
-/**
- * 采集商品
- */
 async function handleCollectProduct(data: { apiUrl: string; apiKey: string; source_url: string; product_data: any }) {
   const { apiUrl, apiKey, source_url, product_data } = data;
-
-  try {
-    const response = await fetch(`${apiUrl}/api/ef/v1/ozon/collection-records/collect`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': apiKey
-      },
-      body: JSON.stringify({
-        source_url,
-        product_data
-      })
-    });
-
-    if (!response.ok) {
-      let errorMessage = '采集失败';
-      try {
-        const errorData = await response.json();
-        console.error('[采集] 服务器错误响应:', JSON.stringify(errorData, null, 2));
-
-        // 多层级解析错误信息
-        if (errorData.detail && typeof errorData.detail === 'object' && errorData.detail.detail) {
-          errorMessage = errorData.detail.detail;
-        } else if (errorData.detail && typeof errorData.detail === 'string') {
-          errorMessage = errorData.detail;
-        } else if (errorData.message) {
-          errorMessage = errorData.message;
-        } else if (errorData.error && errorData.error.message) {
-          errorMessage = errorData.error.message;
-        } else {
-          // 如果都没解析到，使用完整的错误对象
-          errorMessage = `采集失败 (HTTP ${response.status}): ${JSON.stringify(errorData)}`;
-        }
-      } catch (parseError) {
-        errorMessage = `服务器错误 (HTTP ${response.status})`;
-      }
-      throw new Error(errorMessage);
-    }
-
-    return await response.json();
-  } catch (error: any) {
-    // 捕获网络错误、超时等异常
-    if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-      throw new Error('网络连接失败，请检查网络');
-    } else if (error.message.includes('timeout') || error.message.includes('Timeout')) {
-      throw new Error('请求超时，请稍后重试');
-    } else {
-      // 如果是已经包装过的错误，直接抛出
-      throw error;
-    }
-  }
+  const api = createEuraflowApi(apiUrl, apiKey);
+  return api.collectProduct(source_url, product_data);
 }
 
-// ========== 上品帮登录功能 ==========
+// ============================================================================
+// 上品帮 API 处理函数
+// ============================================================================
 
-/**
- * 处理上品帮登录
- */
-async function handleShangpinbangLogin(data: { phone: string; password: string }) {
+async function handleSpbLogin(data: { phone: string; password: string }) {
   const { phone, password } = data;
-
-  console.log('[上品帮登录] 发起登录请求, 手机号:', phone);
-
-  try {
-    const response = await fetch('https://plus.shopbang.cn/api/user/open/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ phone, pwd: password })
-    });
-
-    console.log('[上品帮登录] 响应状态:', response.status);
-
-    // 解析响应
-    const result = await response.json();
-    console.log('[上品帮登录] 响应数据:', { code: result.code, message: result.message });
-
-    // 判断登录结果
-    if (result.code === 0 && result.data && result.data.token) {
-      // 登录成功，存储token
-      const token = result.data.token;
-      await chrome.storage.sync.set({
-        spbToken: token,
-        spbPhone: phone,
-        spbPassword: password
-      });
-
-      console.log('[上品帮登录] 登录成功，Token已存储');
-
-      return {
-        success: true,
-        token: token,
-        message: result.message
-      };
-    } else if (result.code === -1) {
-      // 登录失败（密码错误或手机号未注册）
-      console.warn('[上品帮登录] 登录失败:', result.message);
-      throw new Error(result.message);
-    } else {
-      // 其他未知错误
-      console.error('[上品帮登录] 未知错误:', result);
-      throw new Error('登录失败，服务器返回异常数据');
-    }
-  } catch (error: any) {
-    console.error('[上品帮登录] 错误:', error);
-
-    // 区分网络错误和业务错误
-    if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-      throw new Error('网络连接失败，请检查网络');
-    } else {
-      throw error;
-    }
-  }
+  const api = getSpbangApi();
+  const token = await api.login(phone, password);
+  return { success: true, token, message: '登录成功' };
 }
 
-/**
- * 获取上品帮Token
- */
-async function handleGetShangpinbangToken(): Promise<string | undefined> {
-  return new Promise((resolve) => {
-    chrome.storage.sync.get(['spbToken'], (result) => {
-      resolve(result.spbToken);
-    });
-  });
+async function handleGetSpbToken(): Promise<string | undefined> {
+  const api = getSpbangApi();
+  const token = await api.getToken();
+  return token || undefined;
 }
 
-/**
- * 获取上品帮完整配置（包括账号密码）
- */
-async function getShangpinbangCredentials(): Promise<{ phone: string; password: string; token?: string } | null> {
-  return new Promise((resolve) => {
-    chrome.storage.sync.get(['spbPhone', 'spbPassword', 'spbToken'], (result) => {
-      if (!result.spbPhone || !result.spbPassword) {
-        resolve(null);
-      } else {
-        resolve({
-          phone: result.spbPhone,
-          password: result.spbPassword,
-          token: result.spbToken
-        });
-      }
-    });
-  });
-}
-
-/**
- * 检测是否为 Token 过期错误
- */
-function isTokenExpiredError(responseData: any): boolean {
-  // 上品帮 API：code = 0 表示成功，code != 0 表示失败
-  if (responseData.code === 0) {
-    return false;
-  }
-
-  // code != 0 时，检查是否为 Token 相关错误
-  const message = (responseData.message || '').toLowerCase();
-  const tokenRelatedKeywords = [
-    'token',
-    '登录',
-    '登陆',
-    '过期',
-    '失效',
-    '未登录',
-    '请登录',
-    'expired',
-    'unauthorized',
-    'not logged in'
-  ];
-
-  return tokenRelatedKeywords.some(keyword => message.includes(keyword));
-}
-
-/**
- * 处理上品帮 API 调用请求
- */
-async function handleShangpinbangAPICall(data: { apiUrl: string; apiType: string; params: Record<string, any> }) {
-  const { apiUrl, apiType, params } = data;
-  return await callShangpinbangAPIWithAutoRefresh(apiUrl, apiType, params);
-}
-
-/**
- * 通用上品帮 API 调用函数（支持自动 Token 刷新）
- *
- * @param apiUrl - API 地址（如：https://api.shopbang.cn/api/goods/collect）
- * @param apiType - API 类型（如：goodsCollect）
- * @param params - API 参数
- * @param retryCount - 当前重试次数（内部使用，外部调用时不传）
- * @returns API 响应数据
- */
-async function callShangpinbangAPIWithAutoRefresh(
-  apiUrl: string,
-  apiType: string,
-  params: Record<string, any>,
-  retryCount: number = 0
-): Promise<any> {
-  // 获取配置（包括 token 和账号密码）
-  const credentials = await getShangpinbangCredentials();
-
-  if (!credentials) {
-    throw new Error('未配置上品帮账号密码，请先在扩展配置中设置');
-  }
-
-  if (!credentials.token) {
-    console.log('[上品帮 API] Token 不存在，尝试自动登录...');
-    // Token 不存在，先尝试登录
-    try {
-      const loginResult = await handleShangpinbangLogin({
-        phone: credentials.phone,
-        password: credentials.password
-      });
-      credentials.token = loginResult.token;
-    } catch (error: any) {
-      throw new Error(`自动登录失败: ${error.message}`);
-    }
-  }
-
-  console.log(`[上品帮 API] 调用 ${apiType}, URL: ${apiUrl}`);
-
-  try {
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        token: credentials.token,
-        apiType: apiType,
-        ...params
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    const result = await response.json();
-    console.log(`[上品帮 API] ${apiType} 响应:`, { code: result.code, message: result.message });
-
-    // 检测是否为 Token 过期错误
-    if (isTokenExpiredError(result)) {
-      if (retryCount >= 1) {
-        // 已经重试过一次，不再重试
-        console.error('[上品帮 API] Token 刷新后仍然失败，停止重试');
-        throw new Error(`Token 已失效: ${result.message}`);
-      }
-
-      console.warn('[上品帮 API] 检测到 Token 过期，尝试重新登录...');
-
-      // 重新登录
-      try {
-        await handleShangpinbangLogin({
-          phone: credentials.phone,
-          password: credentials.password
-        });
-
-        console.log('[上品帮 API] 重新登录成功，重试原请求...');
-
-        // 递归重试（retryCount + 1）
-        return await callShangpinbangAPIWithAutoRefresh(apiUrl, apiType, params, retryCount + 1);
-      } catch (loginError: any) {
-        throw new Error(`自动重新登录失败: ${loginError.message}`);
-      }
-    }
-
-    // 返回 API 响应
-    return result;
-  } catch (error: any) {
-    console.error(`[上品帮 API] ${apiType} 调用失败:`, error);
-
-    if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-      throw new Error('网络连接失败，请检查网络');
-    } else {
-      throw error;
-    }
-  }
-}
-
-// ========== OZON API 集成 ==========
-
-/**
- * 在 seller.ozon.ru 页面上下文中执行 Seller API 请求
- * 【关键】这个函数会被 chrome.scripting.executeScript 注入到页面中执行
- * 因此可以绕过反爬虫检测（TLS 指纹、IP 等都是真实浏览器的）
- */
-async function executeSellerApiInPage(productSku: string): Promise<{ success: boolean; data?: any; error?: string }> {
-  try {
-    // 从页面 Cookie 中提取 sellerId
-    const cookieMatch = document.cookie.match(/sc_company_id=(\d+)/);
-    if (!cookieMatch) {
-      return { success: false, error: '未找到 sc_company_id' };
-    }
-    const sellerId = parseInt(cookieMatch[1], 10);
-
-    // 在页面上下文中发起请求（使用页面的 Cookie 和 TLS 指纹）
-    const response = await fetch('https://seller.ozon.ru/api/v1/search-variant-model', {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json, text/plain, */*',
-        'Content-Type': 'application/json',
-        'x-o3-company-id': sellerId.toString(),
-        'x-o3-app-name': 'seller-ui',
-        'x-o3-language': 'zh-Hans',
-        'x-o3-page-type': 'products-other'
-      },
-      credentials: 'include',  // 自动携带 Cookie
-      body: JSON.stringify({
-        limit: 50,
-        name: productSku,
-        sellerId: sellerId
-      })
-    });
-
-    if (!response.ok) {
-      return { success: false, error: `HTTP ${response.status}` };
-    }
-
-    const result = await response.json();
-
-    if (!result.items || result.items.length === 0) {
-      return { success: false, error: '商品不存在或已下架' };
-    }
-
-    // 处理返回数据（与原逻辑一致）
-    const variants = result.items;
-    const firstVariant = variants[0];
-    const attrs = firstVariant.attributes || [];
-
-    const findAttr = (key: string) => {
-      const attr = attrs.find((a: any) => a.key == key);
-      return attr ? attr.value : null;
-    };
-
-    const dimensions = {
-      weight: findAttr('4497'),
-      length: findAttr('9454'),
-      width: findAttr('9455'),
-      height: findAttr('9456')
-    };
-
-    return {
-      success: true,
-      data: {
-        ...firstVariant,
-        title: firstVariant.name,
-        dimensions: dimensions,
-        variants: variants,
-        has_variants: variants.length > 1
-      }
-    };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
-}
-
-/**
- * 从 Cookie 字符串中提取 sellerId
- * 参考 spbang：从 Cookie 中匹配 sc_company_id=数字
- */
-async function getOzonSellerId(cookieString: string): Promise<number> {
-  console.log('[OZON API] 从 Cookie 中提取 Seller ID...');
-
-  // 1. 尝试匹配 sc_company_id=数字
-  let match = cookieString.match(/sc_company_id=(\d+)/);
-
-  if (match && match[1]) {
-    const sellerId = parseInt(match[1], 10);
-    console.log(`[OZON API] ✅ 从 sc_company_id 提取到 Seller ID: ${sellerId}`);
-    return sellerId;
-  }
-
-  // 2. 尝试匹配 contentId=数字（备用方案）
-  match = cookieString.match(/contentId=(\d+)/);
-  if (match && match[1]) {
-    const sellerId = parseInt(match[1], 10);
-    console.log(`[OZON API] ✅ 从 contentId 提取到 Seller ID: ${sellerId}`);
-    return sellerId;
-  }
-
-  // 3. 尝试匹配 company_id=数字（第三备用方案）
-  match = cookieString.match(/company_id=(\d+)/);
-  if (match && match[1]) {
-    const sellerId = parseInt(match[1], 10);
-    console.log(`[OZON API] ✅ 从 company_id 提取到 Seller ID: ${sellerId}`);
-    return sellerId;
-  }
-
-  // 4. 都没有找到，输出详细调试信息
-  console.error('[OZON API] ========== 未找到 Seller ID ==========');
-  console.error('[OZON API] Cookie 字符串长度:', cookieString.length);
-  console.error('[OZON API] Cookie 前 500 字符:', cookieString.substring(0, 500));
-
-  // 提取所有可能包含 ID 的 cookie
-  const potentialIdCookies = cookieString.split('; ')
-    .filter(c => /\d{5,}/.test(c))  // 包含5位以上数字的 cookie
-    .slice(0, 10);  // 只显示前10个
-
-  if (potentialIdCookies.length > 0) {
-    console.error('[OZON API] 包含数字的 Cookie (前10个):', potentialIdCookies);
-  }
-
-  console.error('[OZON API] ========================================');
-  console.error('[OZON API] 🔴 请按以下步骤操作：');
-  console.error('[OZON API] 1. 打开 https://seller.ozon.ru 并登录卖家后台');
-  console.error('[OZON API] 2. 登录成功后，按 F12 打开开发者工具');
-  console.error('[OZON API] 3. 在 Console 控制台输入: document.cookie');
-  console.error('[OZON API] 4. 检查输出中是否包含 sc_company_id 或 company_id');
-  console.error('[OZON API] 5. 重新加载浏览器扩展 (chrome://extensions/)');
-  console.error('[OZON API] 6. 刷新商品页面重试');
-
-  throw new Error('未找到 OZON Seller ID，请确认已登录卖家后台（seller.ozon.ru）');
-}
-
-/**
- * 处理获取 OZON 商品详情请求
- *
- * 【策略】优先在 seller.ozon.ru 页面上执行请求（绕过反爬虫）
- */
-async function handleGetOzonProductDetail(data: { productSku: string; cookieString?: string }) {
-  const { productSku, cookieString: documentCookie } = data;
-
-  console.log('[OZON API] 获取商品详情, SKU:', productSku);
-
-  try {
-    // 验证必需参数
-    if (!productSku) {
-      console.error('[OZON API] ❌ 缺少商品 SKU 参数');
-      throw new Error('缺少商品 SKU 参数');
-    }
-
-    // 【方案1】尝试在 seller.ozon.ru 标签页中执行请求（绕过反爬虫）
-    let sellerTabs = await chrome.tabs.query({ url: 'https://seller.ozon.ru/*' });
-
-    // 如果没有 seller 标签页，自动在后台创建一个
-    if (sellerTabs.length === 0) {
-      console.log('[OZON API] 未找到 seller.ozon.ru 标签页，自动创建...');
-      try {
-        const newTab = await chrome.tabs.create({
-          url: 'https://seller.ozon.ru/app/products',
-          active: false  // 在后台创建，不切换焦点
-        });
-
-        // 等待页面加载完成（最多等待 10 秒）
-        await new Promise<void>((resolve) => {
-          const checkInterval = setInterval(async () => {
-            const tab = await chrome.tabs.get(newTab.id!);
-            if (tab.status === 'complete') {
-              clearInterval(checkInterval);
-              resolve();
-            }
-          }, 500);
-
-          // 超时处理
-          setTimeout(() => {
-            clearInterval(checkInterval);
-            resolve();
-          }, 10000);
-        });
-
-        // 额外等待 1 秒让页面 JS 初始化
-        await new Promise(r => setTimeout(r, 1000));
-
-        sellerTabs = await chrome.tabs.query({ url: 'https://seller.ozon.ru/*' });
-        console.log('[OZON API] 自动创建的 seller 标签页已就绪');
-      } catch (createError: any) {
-        console.error('[OZON API] 创建 seller 标签页失败:', createError.message);
-      }
-    }
-
-    if (sellerTabs.length > 0) {
-      console.log('[OZON API] 找到 seller.ozon.ru 标签页，在页面上下文中执行请求');
-      const sellerTab = sellerTabs[0];
-
-      try {
-        const results = await chrome.scripting.executeScript({
-          target: { tabId: sellerTab.id! },
-          func: executeSellerApiInPage,
-          args: [productSku]
-        });
-
-        if (results && results[0] && results[0].result) {
-          const result = results[0].result;
-          if (result.success) {
-            console.log('[OZON API] ✅ 在页面上下文中成功获取数据');
-            return result.data;
-          } else {
-            console.warn('[OZON API] 页面上下文请求失败:', result.error);
-            // 继续尝试 fallback 方案
-          }
-        }
-      } catch (scriptError: any) {
-        console.warn('[OZON API] 执行页面脚本失败:', scriptError.message);
-        // 继续尝试 fallback 方案
-      }
-    } else {
-      console.log('[OZON API] 仍未找到 seller.ozon.ru 标签页');
-    }
-
-    // 【方案2】Fallback: 从 Service Worker 直接请求（可能触发反爬虫）
-    console.log('[OZON API] 尝试从 Service Worker 直接请求...');
-
-    // 合并 Cookie
-    const ozonCookies = await chrome.cookies.getAll({ domain: '.ozon.ru' });
-    const sellerCookies = await chrome.cookies.getAll({ domain: 'seller.ozon.ru' });
-    const cookieMap = new Map<string, string>();
-
-    for (const c of ozonCookies) cookieMap.set(c.name, c.value);
-    for (const c of sellerCookies) cookieMap.set(c.name, c.value);
-    if (documentCookie) {
-      for (const cookie of documentCookie.split('; ')) {
-        const [name, ...valueParts] = cookie.split('=');
-        if (name) cookieMap.set(name, valueParts.join('='));
-      }
-    }
-
-    const finalCookieString = Array.from(cookieMap.entries())
-      .map(([name, value]) => `${name}=${value}`)
-      .join('; ');
-
-    // 提取 Seller ID
-    const sellerId = await getOzonSellerId(finalCookieString);
-
-    const sellerHeaders: Record<string, string> = {
-      'Accept': 'application/json, text/plain, */*',
-      'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8,ru;q=0.7',
-      'Content-Type': 'application/json',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
-      'sec-ch-ua': '"Chromium";v="136", "Google Chrome";v="136", "Not_A Brand";v="99"',
-      'sec-ch-ua-mobile': '?0',
-      'sec-ch-ua-platform': '"Windows"',
-      'Sec-Fetch-Dest': 'empty',
-      'Sec-Fetch-Mode': 'cors',
-      'Sec-Fetch-Site': 'same-origin',
-      'Origin': 'https://seller.ozon.ru',
-      'Referer': 'https://seller.ozon.ru/app/products',
-      'x-o3-company-id': sellerId.toString(),
-      'x-o3-app-name': 'seller-ui',
-      'x-o3-language': 'zh-Hans',
-      'x-o3-page-type': 'products-other',
-      'Cookie': finalCookieString
-    };
-
-    const requestUrl = 'https://seller.ozon.ru/api/v1/search-variant-model';
-    const requestBody = { limit: 50, name: productSku, sellerId: sellerId };
-
-    const limiter = OzonApiRateLimiter.getInstance();
-    const response = await limiter.execute(() =>
-      fetch(requestUrl, {
-        method: 'POST',
-        headers: sellerHeaders,
-        body: JSON.stringify(requestBody)
-      })
-    );
-
-    if (!response.ok) {
-      console.error('[OZON API] ❌ Seller API 请求失败:', response.status);
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    const result = await response.json();
-
-    if (!result.items || result.items.length === 0) {
-      throw new Error('商品不存在或已下架');
-    }
-
-    console.log('[OZON API] Seller API 返回', result.items.length, '个变体');
-
-    // ✅ 关键修复：result.items 本身就是变体数组！
-    // OZON Seller API 的 search-variant-model 接口返回的就是该商品的所有变体
-    const variants = result.items;
-    const firstVariant = variants[0];
-
-    // 从第一个变体提取尺寸信息（作为商品基础信息）
-    const attrs = firstVariant.attributes || [];
-    const findAttr = (key: string) => {
-      const attr = attrs.find((a: any) => a.key == key);
-      return attr ? attr.value : null;
-    };
-
-    const dimensions = {
-      weight: findAttr('4497'),   // 重量（克）
-      length: findAttr('9454'),   // 长度（毫米）
-      width: findAttr('9455'),    // 宽度（毫米）
-      height: findAttr('9456')    // 高度（毫米）
-    };
-
-    // 返回商品基础数据 + 变体数组
-    const baseData = {
-      ...firstVariant,
-      title: firstVariant.name,  // OZON Seller API 字段是 name，统一为 title
-      dimensions: dimensions,
-      variants: variants,         // ✅ 直接使用 Seller API 返回的变体数组
-      has_variants: variants.length > 1  // 多于1个才算有变体
-    };
-
-    console.log('[OZON API] ✅ 商品基础数据 + 变体:', {
-      title: baseData.title,
-      variantCount: variants.length,
-      hasVariants: baseData.has_variants
-    });
-
-    return baseData;
-  } catch (error: any) {
-    console.error('[OZON API] 获取商品详情失败:', error);
-
-    if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-      throw new Error('网络连接失败，请检查网络');
-    } else {
-      throw error;
-    }
-  }
-}
-
-// ========== 上品帮销售数据 API ==========
-
-/**
- * 将上品帮API原始数据转换为标准格式
- */
-function transformSpbData(rawData: any): any {
-  if (!rawData) return null;
-
-  console.log('[上品帮数据转换] 开始转换，原始数据:', rawData);
-
-  // 从 volume 字段解析尺寸（如果可能的话，上品帮可能没有详细尺寸）
-  // volume 是体积（升），无法精确还原长宽高，这里设置为null
-  // 实际尺寸可能需要从其他字段获取或设为null
-
-  const transformed = {
-    // 销售数据
-    monthlySales: rawData.soldCount ?? null,  // 月销量
-    monthlySalesAmount: rawData.soldSum ?? rawData.gmvSum ?? null,  // 月销售额
-    dailySales: null,  // API未提供
-    dailySalesAmount: null,  // API未提供
-    salesDynamic: null,  // API未提供
-
-    // 营销分析
-    cardViews: rawData.sessionCount ?? null,  // 浏览量（会话数）
-    cardAddToCartRate: rawData.convToCart ?? null,  // 加购率
-    searchViews: null,  // API未提供
-    searchAddToCartRate: rawData.convToCartSearch ?? null,  // 搜索加购率
-    clickThroughRate: rawData.convViewToOrder ?? null,  // 点击率（浏览到订单转化）
-    promoDays: rawData.daysInPromo ?? null,  // 促销天数
-    promoDiscount: rawData.discount ?? null,  // 促销折扣
-    promoConversion: null,  // API未提供
-    paidPromoDays: null,  // API未提供
-    adShare: null,  // API未提供
-
-    // 成交数据
-    transactionRate: rawData.convToCart ?? null,  // 成交率（暂用加购率）
-    returnCancelRate: rawData.nullableRedemptionRate ?? null,  // 退货取消率
-
-    // 商品基础数据（直接使用上品帮API字段名）
-    avgPrice: rawData.avgPrice ?? rawData.minSellerPrice ?? null,  // 平均价格
-    weight: rawData.weight ?? null,  // 包装重量（克）
-    depth: rawData.depth ?? null,  // 深度/长度（毫米）
-    width: rawData.width ?? null,  // 宽度（毫米）
-    height: rawData.height ?? null,  // 高度（毫米）
-    sellerMode: rawData.salesSchema ?? null,  // 发货模式（FBS/FBO）
-
-    // 跟卖信息
-    competitorCount: rawData.sellerCount ?? null,  // 跟卖者数量（卖家数）
-    competitorMinPrice: null,  // API未提供
-
-    // 上架信息
-    listingDate: rawData.nullableCreateDate ?? rawData.create_time ?? null,  // 上架时间
-    listingDays: null,  // 需要计算
-    sku: rawData.sku ?? null,  // SKU
-
-    // 额外信息
-    category: rawData.category3 ?? rawData.category1 ?? null,  // 类目
-    brand: rawData.brand ?? null,  // 品牌
-    photo: rawData.photo ?? null,  // 主图 URL
-  };
-
-  console.log('[上品帮数据转换] 转换完成:', transformed);
-  return transformed;
-}
-
-/**
- * 获取上品帮销售数据
- */
-async function handleGetSpbSalesData(data: { productSku: string }): Promise<any> {
+async function handleGetSpbSalesData(data: { productSku: string }): Promise<SpbSalesData | null> {
   const { productSku } = data;
-
-  console.log('[上品帮销售数据] 获取商品销售数据, SKU:', productSku);
-
-  try {
-    // 获取配置（包括 token 和账号密码）
-    const credentials = await getShangpinbangCredentials();
-
-    if (!credentials) {
-      console.warn('[上品帮销售数据] 未配置上品帮账号，返回 null');
-      return null;
-    }
-
-    console.log('[上品帮销售数据] 已获取凭证, 有Token:', !!credentials.token, ', 手机号:', credentials.phone ? '已配置' : '未配置');
-
-    // 如果没有 token，尝试自动登录
-    if (!credentials.token) {
-      console.log('[上品帮销售数据] Token 不存在，尝试自动登录...');
-      try {
-        const loginResult = await handleShangpinbangLogin({
-          phone: credentials.phone,
-          password: credentials.password
-        });
-        credentials.token = loginResult.token;
-      } catch (error: any) {
-        console.error('[上品帮销售数据] 自动登录失败:', error.message);
-        return null;
-      }
-    }
-
-    const requestBody = {
-      goodsIds: [productSku],
-      token: credentials.token,
-      apiType: 'getGoodsInfoByIds',
-      is_new: true,
-      v: 4
-    };
-
-    console.log('[上品帮销售数据] 发送请求:', {
-      url: 'https://plus.shopbang.cn/api/goods/hotSales/getOzonSaleDataByIds',
-      body: { ...requestBody, token: credentials.token ? '***' : 'null' }
-    });
-
-    const response = await fetch('https://plus.shopbang.cn/api/goods/hotSales/getOzonSaleDataByIds', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(requestBody)
-    });
-
-    if (!response.ok) {
-      console.error('[上品帮销售数据] HTTP 错误:', response.status, response.statusText);
-      return null;
-    }
-
-    const result = await response.json();
-    console.log('[上品帮销售数据] API 响应:', { code: result.code, message: result.message, data: result.data });
-
-    // 检测是否为 Token 过期错误
-    if (isTokenExpiredError(result)) {
-      console.warn('[上品帮销售数据] Token 过期，尝试重新登录...');
-
-      try {
-        // 重新登录
-        const loginResult = await handleShangpinbangLogin({
-          phone: credentials.phone,
-          password: credentials.password
-        });
-
-        // 重试 API 调用
-        const retryResponse = await fetch('https://plus.shopbang.cn/api/goods/hotSales/getOzonSaleDataByIds', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            goodsIds: [productSku],
-            token: loginResult.token,
-            apiType: 'getGoodsInfoByIds',
-            is_new: true,
-            v: 4
-          })
-        });
-
-        if (!retryResponse.ok) {
-          console.error('[上品帮销售数据] 重试失败:', retryResponse.status);
-          return null;
-        }
-
-        const retryResult = await retryResponse.json();
-
-        if (retryResult.code === 0 && retryResult.data) {
-          console.log('[上品帮销售数据] 重试成功，返回数据');
-          if (Array.isArray(retryResult.data) && retryResult.data.length > 0) {
-            const rawData = retryResult.data[0].data || retryResult.data[0];
-            return transformSpbData(rawData);
-          } else if (retryResult.data.list && Array.isArray(retryResult.data.list) && retryResult.data.list.length > 0) {
-            const rawData = retryResult.data.list[0].data || retryResult.data.list[0];
-            return transformSpbData(rawData);
-          }
-        } else {
-          console.warn('[上品帮销售数据] 重试后仍无数据:', retryResult.message);
-          return null;
-        }
-      } catch (loginError: any) {
-        console.error('[上品帮销售数据] 重新登录失败:', loginError.message);
-        return null;
-      }
-    }
-
-    // 成功响应：code=0, data[0]（data 是数组）
-    if (result.code === 0 && result.data) {
-      // 检查 data 是否是数组
-      if (Array.isArray(result.data) && result.data.length > 0) {
-        console.log('[上品帮销售数据] 获取成功（数组格式）');
-        // 实际商品数据在 data[0].data 中
-        const rawData = result.data[0].data || result.data[0];
-        return transformSpbData(rawData);
-      }
-      // 检查是否有 data.list 格式（兼容旧格式）
-      else if (result.data.list && Array.isArray(result.data.list) && result.data.list.length > 0) {
-        console.log('[上品帮销售数据] 获取成功（list格式）');
-        const rawData = result.data.list[0].data || result.data.list[0];
-        return transformSpbData(rawData);
-      }
-      // data 既不是数组也没有 list
-      else {
-        console.warn('[上品帮销售数据] data格式异常，既不是数组也没有list:', result.data);
-        return null;
-      }
-    } else {
-      console.warn('[上品帮销售数据] 无数据或code!=0:', { code: result.code, message: result.message });
-      return null;
-    }
-  } catch (error: any) {
-    console.error('[上品帮销售数据] 请求失败:', error);
-
-    if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-      console.error('[上品帮销售数据] 网络连接失败');
-      return null;
-    } else {
-      // 其他错误也静默失败，不影响主功能
-      return null;
-    }
-  }
+  const api = getSpbangApi();
+  return api.getSalesData(productSku);
 }
 
-/**
- * 批量获取上品帮销售数据（新增）
- *
- * @param data.productIds - SKU数组（最多50个）
- * @returns 商品数据数组（SpbSalesData[]）
- */
-async function handleGetSpbSalesDataBatch(data: { productIds: string[] }): Promise<any[]> {
+async function handleGetSpbSalesDataBatch(data: { productIds: string[] }): Promise<SpbSalesData[]> {
   const { productIds } = data;
 
   if (!productIds || productIds.length === 0) {
-    console.warn('[上品帮批量销售数据] SKU列表为空');
     return [];
   }
 
@@ -1317,535 +328,122 @@ async function handleGetSpbSalesDataBatch(data: { productIds: string[] }): Promi
     throw new Error('单批次最多支持50个SKU');
   }
 
-  console.log(`[上品帮批量销售数据] 获取 ${productIds.length} 个商品数据`);
+  const api = getSpbangApi();
+  const resultsMap = await api.getSalesDataBatch(productIds);
 
-  try {
-    // 获取配置（包括 token 和账号密码）
-    const credentials = await getShangpinbangCredentials();
+  // 转换 Map 为数组（保持原接口兼容）
+  const results: SpbSalesData[] = [];
+  resultsMap.forEach((data, sku) => {
+    results.push({ ...data, sku });
+  });
 
-    if (!credentials) {
-      console.warn('[上品帮批量销售数据] 未配置上品帮账号，返回空数组');
-      return [];
-    }
-
-    // 如果没有 token，尝试自动登录
-    if (!credentials.token) {
-      console.log('[上品帮批量销售数据] Token 不存在，尝试自动登录...');
-      try {
-        const loginResult = await handleShangpinbangLogin({
-          phone: credentials.phone,
-          password: credentials.password
-        });
-        credentials.token = loginResult.token;
-      } catch (error: any) {
-        console.error('[上品帮批量销售数据] 自动登录失败:', error.message);
-        return [];
-      }
-    }
-
-    const requestBody = {
-      goodsIds: productIds,  // 支持批量（最多50个）
-      token: credentials.token,
-      apiType: 'getGoodsInfoByIds',
-      is_new: true,
-      v: 4
-    };
-
-    console.log('[上品帮批量销售数据] 发送请求:', {
-      url: 'https://plus.shopbang.cn/api/goods/hotSales/getOzonSaleDataByIds',
-      goodsCount: productIds.length
-    });
-
-    const response = await fetch('https://plus.shopbang.cn/api/goods/hotSales/getOzonSaleDataByIds', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(requestBody)
-    });
-
-    if (!response.ok) {
-      console.error('[上品帮批量销售数据] HTTP 错误:', response.status, response.statusText);
-      return [];
-    }
-
-    const result = await response.json();
-    console.log('[上品帮批量销售数据] API 响应:', { code: result.code, message: result.message, dataCount: result.data?.length });
-
-    // 检测是否为 Token 过期错误
-    if (isTokenExpiredError(result)) {
-      console.warn('[上品帮批量销售数据] Token 过期，尝试重新登录并重试...');
-
-      try {
-        // 重新登录
-        const loginResult = await handleShangpinbangLogin({
-          phone: credentials.phone,
-          password: credentials.password
-        });
-
-        // 重试 API 调用
-        const retryResponse = await fetch('https://plus.shopbang.cn/api/goods/hotSales/getOzonSaleDataByIds', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            goodsIds: productIds,
-            token: loginResult.token,
-            apiType: 'getGoodsInfoByIds',
-            is_new: true,
-            v: 4
-          })
-        });
-
-        if (!retryResponse.ok) {
-          console.error('[上品帮批量销售数据] 重试失败:', retryResponse.status);
-          return [];
-        }
-
-        const retryResult = await retryResponse.json();
-
-        if (retryResult.code === 0 && retryResult.data && Array.isArray(retryResult.data)) {
-          console.log(`[上品帮批量销售数据] 重试成功，返回 ${retryResult.data.length} 个商品数据`);
-          return retryResult.data.map((item: any) => {
-            const rawData = item.data || item;
-            return transformSpbData(rawData);
-          });
-        } else {
-          console.warn('[上品帮批量销售数据] 重试后仍无数据:', retryResult.message);
-          return [];
-        }
-      } catch (loginError: any) {
-        console.error('[上品帮批量销售数据] 重新登录失败:', loginError.message);
-        return [];
-      }
-    }
-
-    // 成功响应：code=0, data是数组
-    if (result.code === 0 && result.data && Array.isArray(result.data)) {
-      console.log(`[上品帮批量销售数据] 获取成功，共 ${result.data.length} 个商品`);
-
-      // 转换所有商品数据
-      return result.data.map((item: any, index: number) => {
-        const rawData = item.data || item;
-
-        // 调试：输出第一条原始数据的包装信息
-        if (index === 0) {
-          console.log('[上品帮DEBUG] 第一条原始数据的包装字段:', {
-            weight: rawData.weight,
-            depth: rawData.depth,
-            width: rawData.width,
-            height: rawData.height,
-            // 完整的rawData前20个键
-            allKeys: Object.keys(rawData).slice(0, 20)
-          });
-        }
-
-        return transformSpbData(rawData);
-      });
-    } else {
-      console.warn('[上品帮批量销售数据] 无数据或code!=0:', { code: result.code, message: result.message });
-      return [];
-    }
-  } catch (error: any) {
-    console.error('[上品帮批量销售数据] 请求失败:', error);
-
-    if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-      console.error('[上品帮批量销售数据] 网络连接失败');
-      return [];
-    } else {
-      // 其他错误也静默失败，不影响主功能
-      return [];
-    }
-  }
+  return results;
 }
 
-/**
- * 批量获取上品帮佣金数据（新增）
- *
- * @param data.goods - 商品数组 [{ goods_id, category_name }]
- * @returns 佣金数据数组
- */
-async function handleGetGoodsCommissionsBatch(data: { goods: Array<{ goods_id: string; category_name: string }> }): Promise<any[]> {
+async function handleGetCommissionsBatch(data: { goods: Array<{ goods_id: string; category_name: string }> }): Promise<any[]> {
   const { goods } = data;
 
   if (!goods || goods.length === 0) {
-    console.warn('[上品帮批量佣金] 商品列表为空');
     return [];
   }
 
-  console.log(`[上品帮批量佣金] 获取 ${goods.length} 个商品佣金数据`);
+  const api = getSpbangApi();
+  const resultsMap = await api.getCommissionsBatch(goods);
 
-  try {
-    // 获取配置（包括 token 和账号密码）
-    const credentials = await getShangpinbangCredentials();
+  // 转换 Map 为数组
+  const results: any[] = [];
+  resultsMap.forEach((data, _sku) => {
+    results.push(data);
+  });
 
-    if (!credentials) {
-      console.warn('[上品帮批量佣金] 未配置上品帮账号，返回空数组');
-      return [];
-    }
-
-    // 如果没有 token，尝试自动登录
-    if (!credentials.token) {
-      console.log('[上品帮批量佣金] Token 不存在，尝试自动登录...');
-      try {
-        const loginResult = await handleShangpinbangLogin({
-          phone: credentials.phone,
-          password: credentials.password
-        });
-        credentials.token = loginResult.token;
-      } catch (error: any) {
-        console.error('[上品帮批量佣金] 自动登录失败:', error.message);
-        return [];
-      }
-    }
-
-    const requestBody = {
-      token: credentials.token,
-      apiType: 'getGoodsCommissions',
-      goods: goods  // [{ goods_id, category_name }]
-    };
-
-    console.log('[上品帮批量佣金] 请求:', { goodsCount: goods.length });
-
-    // ⚠️ 正确的URL：https://api.shopbang.cn/ozonMallSale/（不是plus域名）
-    const response = await fetch('https://api.shopbang.cn/ozonMallSale/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(requestBody)
-    });
-
-    if (!response.ok) {
-      console.error('[上品帮批量佣金] HTTP 错误:', response.status, response.statusText);
-      return [];
-    }
-
-    const result = await response.json();
-    console.log('[上品帮批量佣金] API 响应:', { code: result.code, message: result.message, dataCount: result.data?.length });
-
-    // 检测是否为 Token 过期错误
-    if (isTokenExpiredError(result)) {
-      console.warn('[上品帮批量佣金] Token 过期，尝试重新登录...');
-
-      try {
-        // 重新登录
-        const loginResult = await handleShangpinbangLogin({
-          phone: credentials.phone,
-          password: credentials.password
-        });
-
-        // 重试 API 调用
-        const retryResponse = await fetch('https://api.shopbang.cn/ozonMallSale/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            token: loginResult.token,
-            apiType: 'getGoodsCommissions',
-            goods: goods
-          })
-        });
-
-        if (!retryResponse.ok) {
-          console.error('[上品帮批量佣金] 重试失败:', retryResponse.status);
-          return [];
-        }
-
-        const retryResult = await retryResponse.json();
-
-        if (retryResult.code === 0 && retryResult.data && Array.isArray(retryResult.data)) {
-          console.log(`[上品帮批量佣金] 重试成功，共 ${retryResult.data.length} 个商品`);
-          return retryResult.data;
-        } else {
-          console.warn('[上品帮批量佣金] 重试后仍无数据:', retryResult.message);
-          return [];
-        }
-      } catch (loginError: any) {
-        console.error('[上品帮批量佣金] 重新登录失败:', loginError.message);
-        return [];
-      }
-    }
-
-    // 成功响应：code=0, data是数组
-    if (result.code === 0 && result.data && Array.isArray(result.data)) {
-      console.log(`[上品帮批量佣金] 获取成功，共 ${result.data.length} 个商品`);
-      return result.data;
-    } else {
-      console.warn('[上品帮批量佣金] 无数据或code!=0:', { code: result.code, message: result.message });
-      return [];
-    }
-  } catch (error: any) {
-    console.error('[上品帮批量佣金] 请求失败:', error);
-    return [];
-  }
+  return results;
 }
 
-/**
- * 批量获取 OZON 跟卖数据（新增）
- *
- * @param data.productIds - SKU数组
- * @returns 跟卖数据数组 [{ goods_id, gm, gmGoodsIds, gmArr }]
- */
+async function handleGetSpbCommissions(data: { price: number; categoryId: string }): Promise<any> {
+  const { categoryId } = data;
+
+  const api = getSpbangApi();
+  const resultsMap = await api.getCommissionsBatch([{
+    goods_id: 'temp',
+    category_name: categoryId
+  }]);
+
+  if (resultsMap.size > 0) {
+    return resultsMap.values().next().value;
+  }
+  return null;
+}
+
+// ============================================================================
+// OZON Seller API 处理函数
+// ============================================================================
+
+async function handleGetOzonProductDetail(data: { productSku: string; cookieString?: string }) {
+  const { productSku, cookieString } = data;
+  const api = getOzonSellerApi();
+  return api.searchVariantModel(productSku, cookieString);
+}
+
+async function handleRefreshSellerTab() {
+  const api = getOzonSellerApi();
+  return api.refreshSellerTab();
+}
+
+// ============================================================================
+// OZON Buyer API 处理函数
+// ============================================================================
+
 async function handleGetFollowSellerDataBatch(data: { productIds: string[] }): Promise<any[]> {
   const { productIds } = data;
 
   if (!productIds || productIds.length === 0) {
-    console.warn('[OZON跟卖数据] SKU列表为空');
     return [];
   }
 
-  console.log(`[OZON跟卖数据] 获取 ${productIds.length} 个商品跟卖数据`);
+  const api = getOzonBuyerApi();
+  const resultsMap = await api.getFollowSellerDataBatch(productIds);
 
+  // 转换为原接口格式
   const results: any[] = [];
-
-  // 使用全局OZON API限流器
-  const limiter = OzonApiRateLimiter.getInstance();
-
-  // 【关键修复】获取 www.ozon.ru 的所有 Cookie（Service Worker 中 credentials: 'include' 不起作用）
-  const ozonCookies = await chrome.cookies.getAll({ domain: '.ozon.ru' });
-  const cookieString = ozonCookies.map(c => `${c.name}=${c.value}`).join('; ');
-
-  console.log(`[OZON跟卖数据] Cookie 长度: ${cookieString.length} 字符`);
-
-  for (const productId of productIds) {
-    try {
-      const origin = 'https://www.ozon.ru';
-      const encodedUrl = encodeURIComponent(`/modal/otherOffersFromSellers?product_id=${productId}&page_changed=true`);
-      // 【路径策略】www.ozon.ru/api/entrypoint-api.bx/* → 需要经过内部网关（模拟官方请求）
-      const apiUrl = `${origin}/api/entrypoint-api.bx/page/json/v2?url=${encodedUrl}`;
-
-      // 使用标准headers + composer 服务标识 + 限流器（避免触发限流）
-      const { headers: baseHeaders } = await getOzonStandardHeaders({
-        referer: `https://www.ozon.ru/product/${productId}/`,
-        serviceName: 'composer'  // 【Phase 4】添加服务名称，模拟 OZON 官方的内部网关调用
-      });
-
-      // 【关键修复】显式添加 Cookie header
-      const headers = {
-        ...baseHeaders,
-        'Cookie': cookieString,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
-      };
-
-      const response = await limiter.execute(() =>
-        fetch(apiUrl, {
-          method: 'GET',
-          headers
-          // 移除 credentials: 'include'，因为在 Service Worker 中不起作用
-        })
-      );
-
-      if (!response.ok) {
-        console.warn(`[OZON跟卖数据] SKU=${productId} HTTP错误: ${response.status}`);
-        results.push({ goods_id: productId, gm: 0, gmGoodsIds: [], gmArr: [] });
-        continue;
-      }
-
-      const data = await response.json();
-      const widgetStates = data.widgetStates || {};
-
-      // 查找包含 "webSellerList" 的 key
-      const sellerListKey = Object.keys(widgetStates).find(key => key.includes('webSellerList'));
-
-      if (!sellerListKey || !widgetStates[sellerListKey]) {
-        console.log(`[OZON跟卖数据] SKU=${productId} 无跟卖商家`);
-        results.push({ goods_id: productId, gm: 0, gmGoodsIds: [], gmArr: [] });
-        continue;
-      }
-
-      const sellerListData = JSON.parse(widgetStates[sellerListKey]);
-      const sellers = sellerListData.sellers || [];
-
-      if (sellers.length === 0) {
-        console.log(`[OZON跟卖数据] SKU=${productId} 无跟卖商家`);
-        results.push({ goods_id: productId, gm: 0, gmGoodsIds: [], gmArr: [] });
-        continue;
-      }
-
-      // 提取跟卖价格并解析（处理欧洲格式：2 189,50 → 2189.50）
-      sellers.forEach((seller: any) => {
-        let priceStr = seller.price?.cardPrice?.price || seller.price?.price || '';
-        // 1. 移除空格（千位分隔符）
-        // 2. 替换逗号为点（小数分隔符）
-        // 3. 移除其他非数字字符（₽等）
-        priceStr = priceStr.replace(/\s/g, '').replace(/,/g, '.').replace(/[^\d.]/g, '');
-        seller.priceNum = isNaN(parseFloat(priceStr)) ? 99999999 : parseFloat(priceStr);
-      });
-
-      // 按价格排序
-      sellers.sort((a: any, b: any) => a.priceNum - b.priceNum);
-
+  productIds.forEach(productId => {
+    const data = resultsMap.get(productId);
+    if (data) {
       results.push({
         goods_id: productId,
-        gm: sellers.length,
-        gmGoodsIds: sellers.map((s: any) => s.sku),
-        gmArr: sellers.map((s: any) => s.priceNum)
+        gm: data.count,
+        gmGoodsIds: data.skus,
+        gmArr: data.prices
       });
-
-      console.log(`[OZON跟卖数据] SKU=${productId} 跟卖商家数: ${sellers.length}`);
-
-    } catch (error: any) {
-      console.error(`[OZON跟卖数据] SKU=${productId} 获取失败:`, error.message);
-      results.push({ goods_id: productId, gm: 0, gmGoodsIds: [], gmArr: [] });
+    } else {
+      results.push({
+        goods_id: productId,
+        gm: 0,
+        gmGoodsIds: [],
+        gmArr: []
+      });
     }
+  });
 
-    // 批次间延迟（至少100ms，避免限流）
-    await new Promise(resolve => setTimeout(resolve, 100));
-  }
-
-  console.log(`[OZON跟卖数据] 总计获取 ${results.length}/${productIds.length} 个商品数据`);
   return results;
 }
 
-// ✅ handleGetFollowSellerDataSingle 已移到 Content Script（additional-data-client.ts）
-// 原因：在 Content Script 中直接 fetch，请求会显示在网络面板，避免被识别为爬虫
-
-/**
- * 获取上品帮佣金数据
- */
-async function handleGetSpbCommissions(data: { price: number; categoryId: string }): Promise<any> {
-  const { price, categoryId } = data;
-
-  console.log('[上品帮佣金] 获取佣金数据, 价格:', price, ', 类目ID:', categoryId);
-
-  try {
-    // 获取配置（包括 token 和账号密码）
-    const credentials = await getShangpinbangCredentials();
-
-    if (!credentials) {
-      console.warn('[上品帮佣金] 未配置上品帮账号，返回 null');
-      return null;
-    }
-
-    // 如果没有 token，尝试自动登录
-    if (!credentials.token) {
-      console.log('[上品帮佣金] Token 不存在，尝试自动登录...');
-      try {
-        const loginResult = await handleShangpinbangLogin({
-          phone: credentials.phone,
-          password: credentials.password
-        });
-        credentials.token = loginResult.token;
-      } catch (error: any) {
-        console.error('[上品帮佣金] 自动登录失败:', error.message);
-        return null;
-      }
-    }
-
-    const response = await fetch('https://api.shopbang.cn/ozonMallSale/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        token: credentials.token,
-        apiType: 'getGoodsCommissions',
-        goods: [
-          {
-            price: price,
-            categoryId: categoryId
-          }
-        ]
-      })
-    });
-
-    if (!response.ok) {
-      console.error('[上品帮佣金] HTTP 错误:', response.status, response.statusText);
-      return null;
-    }
-
-    const result = await response.json();
-    console.log('[上品帮佣金] API 响应:', { code: result.code, message: result.message });
-
-    // 检测是否为 Token 过期错误
-    if (isTokenExpiredError(result)) {
-      console.warn('[上品帮佣金] Token 过期，尝试重新登录...');
-
-      try {
-        // 重新登录
-        const loginResult = await handleShangpinbangLogin({
-          phone: credentials.phone,
-          password: credentials.password
-        });
-
-        // 重试 API 调用
-        const retryResponse = await fetch('https://api.shopbang.cn/ozonMallSale/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            token: loginResult.token,
-            apiType: 'getGoodsCommissions',
-            goods: [
-              {
-                price: price,
-                categoryId: categoryId
-              }
-            ]
-          })
-        });
-
-        if (!retryResponse.ok) {
-          console.error('[上品帮佣金] 重试失败:', retryResponse.status);
-          return null;
-        }
-
-        const retryResult = await retryResponse.json();
-
-        if (retryResult.code === 0 && retryResult.data && retryResult.data.length > 0) {
-          console.log('[上品帮佣金] 重试成功，返回数据');
-          return retryResult.data[0];
-        } else {
-          console.warn('[上品帮佣金] 重试后仍无数据:', retryResult.message);
-          return null;
-        }
-      } catch (loginError: any) {
-        console.error('[上品帮佣金] 重新登录失败:', loginError.message);
-        return null;
-      }
-    }
-
-    // 成功响应：code=0, data[0]
-    if (result.code === 0 && result.data && result.data.length > 0) {
-      console.log('[上品帮佣金] 获取成功');
-      return result.data[0];
-    } else {
-      console.warn('[上品帮佣金] 无数据或格式异常:', result);
-      return null;
-    }
-  } catch (error: any) {
-    console.error('[上品帮佣金] 请求失败:', error);
-
-    if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-      console.error('[上品帮佣金] 网络连接失败');
-      return null;
-    } else {
-      // 其他错误也静默失败，不影响主功能
-      return null;
-    }
-  }
+async function handleGetOzonProductsPage(data: { pageUrl: string; page: number }): Promise<any[]> {
+  const { pageUrl, page } = data;
+  const api = getOzonBuyerApi();
+  return api.getProductsPage(pageUrl, page);
 }
 
-// ========== 并发获取所有商品数据 ==========
+// ============================================================================
+// 综合数据获取
+// ============================================================================
 
-/**
- * 并发获取所有商品数据
- * Content Script 负责：商品详情（Modal API + Seller API）→ productDetail
- * Background 负责：上品帮销售数据 + EuraFlow配置
- */
-async function handleFetchAllProductData(data: { url: string; productSku: string; productDetail: any }): Promise<any> {
-  const { url, productSku, productDetail } = data;
-
-  console.log('[商品数据] 开始并发获取辅助数据, URL:', url, 'ProductSKU:', productSku);
-  console.log('[商品数据] Content Script 传来的 productDetail:', {
-    存在: productDetail ? '✅' : '❌',
-    变体数量: productDetail?.variants?.length || 0,
-    有尺寸: productDetail?.dimensions ? '✅' : '❌'
-  });
+async function handleFetchAllProductData(data: {
+  url: string;
+  productSku: string;
+  productDetail: any;
+  ratingData?: { rating: number | null; reviewCount: number | null };
+}): Promise<any> {
+  const { url, productSku, productDetail, ratingData } = data;
 
   // 数据完整性检查
   if (!productDetail) {
@@ -1855,7 +453,6 @@ async function handleFetchAllProductData(data: { url: string; productSku: string
   // 1. 检查缓存
   const cached = productDataCache.get(url);
   if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-    console.log('[商品数据] 使用缓存数据');
     return {
       ozonProduct: cached.ozonProduct,
       spbSales: cached.spbSales,
@@ -1863,39 +460,154 @@ async function handleFetchAllProductData(data: { url: string; productSku: string
     };
   }
 
-  // 2. 并发获取辅助数据（上品帮 + EuraFlow配置）
-  const [spbSales, euraflowConfig] = await Promise.all([
-    handleGetSpbSalesData({ productSku }).catch(err => {
-      console.error('[商品数据] 上品帮销售数据获取失败:', err);
+  // 2. 并发获取辅助数据
+  const spbangApi = getSpbangApi();
+  const buyerApi = getOzonBuyerApi();
+
+  const [spbSalesData, euraflowConfig] = await Promise.all([
+    spbangApi.getSalesData(productSku).then(data => {
+      if (__DEBUG__) {
+        console.log('[商品数据] 上品帮返回:', data ? '有数据' : '无数据', data);
+      }
+      return data;
+    }).catch(err => {
+      console.error('[商品数据] 上品帮销售数据获取失败:', err.message);
       return null;
     }),
     getEuraflowConfig().catch(err => {
-      console.error('[商品数据] EuraFlow配置获取失败:', err);
+      console.error('[商品数据] EuraFlow配置获取失败:', err.message);
       return null;
     })
   ]);
+
+  // 初始化 spbSales 对象（即使上品帮没数据也需要存储 OZON 数据）
+  let spbSales: any = spbSalesData || {};
+
+  // 2.5 获取佣金数据（独立接口，不依赖销售数据是否存在）
+  const hasCommissions = spbSales.rfbsCommissionMid != null || spbSales.fbpCommissionMid != null;
+  if (!hasCommissions) {
+    try {
+      // 类目名称：优先从销售数据获取，否则用"未知类目"
+      const categoryName = spbSales.category || '未知类目';
+      const commissionsMap = await spbangApi.getCommissionsBatch([
+        { goods_id: productSku, category_name: categoryName }
+      ]);
+
+      const commissionData = commissionsMap.get(productSku);
+      if (commissionData) {
+        spbSales.rfbsCommissionLow = commissionData.rfbs_small ?? null;
+        spbSales.rfbsCommissionMid = commissionData.rfbs ?? null;
+        spbSales.rfbsCommissionHigh = commissionData.rfbs_large ?? null;
+        spbSales.fbpCommissionLow = commissionData.fbp_small ?? null;
+        spbSales.fbpCommissionMid = commissionData.fbp ?? null;
+        spbSales.fbpCommissionHigh = commissionData.fbp_large ?? null;
+        if (__DEBUG__) {
+          console.log('[商品数据] 佣金数据:', commissionData);
+        }
+      }
+    } catch (err: any) {
+      console.error('[商品数据] 佣金数据获取失败:', err.message);
+    }
+  }
+
+  // 2.6 获取跟卖数据（从 OZON Buyer API，不依赖上品帮）
+  const hasFollowSeller = spbSales.competitorCount != null;
+  if (!hasFollowSeller) {
+    try {
+      const followSellerMap = await buyerApi.getFollowSellerDataBatch([productSku]);
+      const followData = followSellerMap.get(productSku);
+      if (followData) {
+        spbSales.competitorCount = followData.count ?? null;
+        spbSales.followSellerSkus = followData.skus ?? [];
+        spbSales.followSellerPrices = followData.prices ?? [];
+        if (__DEBUG__) {
+          console.log('[商品数据] OZON跟卖数据:', followData);
+        }
+      }
+    } catch (err: any) {
+      console.error('[商品数据] 跟卖数据获取失败:', err.message);
+    }
+  }
+
+  // 2.7 合并页面提取的评分数据
+  if (ratingData) {
+    if (ratingData.rating != null) {
+      spbSales.rating = ratingData.rating;
+    }
+    if (ratingData.reviewCount != null) {
+      spbSales.reviewCount = ratingData.reviewCount;
+    }
+  }
+
+  // 2.8 补充缺失的类目名称（通过 EuraFlow API）
+  const hasCategory1 = spbSales.category1 != null;
+  const hasCategory2 = spbSales.category2 != null;
+  const hasCategory3 = spbSales.category3 != null;
+
+  // 如果有缺失的类目名称，且有对应的 ID，则调用 API 补充
+  if (!hasCategory1 || !hasCategory2 || !hasCategory3) {
+    const missingIds: number[] = [];
+    if (!hasCategory1 && spbSales.category1Id) missingIds.push(parseInt(spbSales.category1Id));
+    if (!hasCategory2 && spbSales.category2Id) missingIds.push(parseInt(spbSales.category2Id));
+    if (!hasCategory3 && spbSales.category3Id) missingIds.push(parseInt(spbSales.category3Id));
+
+    if (missingIds.length > 0 && euraflowConfig?.apiUrl && euraflowConfig?.apiKey) {
+      try {
+        const { createEuraflowApi } = await import('../shared/api/euraflow-api');
+        const api = createEuraflowApi(euraflowConfig.apiUrl, euraflowConfig.apiKey);
+        const categoryNames = await api.getCategoryNames(missingIds);
+
+        // 补充缺失的类目名称（优先使用我们的数据）
+        if (!hasCategory1 && spbSales.category1Id && categoryNames[spbSales.category1Id]) {
+          spbSales.category1 = categoryNames[spbSales.category1Id];
+        }
+        if (!hasCategory2 && spbSales.category2Id && categoryNames[spbSales.category2Id]) {
+          spbSales.category2 = categoryNames[spbSales.category2Id];
+        }
+        if (!hasCategory3 && spbSales.category3Id && categoryNames[spbSales.category3Id]) {
+          spbSales.category3 = categoryNames[spbSales.category3Id];
+        }
+
+        // 重新构建完整的类目路径
+        const parts = [spbSales.category1, spbSales.category2, spbSales.category3].filter(Boolean);
+        if (parts.length > 0) {
+          spbSales.category = parts.join(' > ');
+        }
+
+        if (__DEBUG__) {
+          console.log('[商品数据] 类目名称补充:', { missingIds, categoryNames, finalCategory: spbSales.category });
+        }
+      } catch (err: any) {
+        console.error('[商品数据] 类目名称补充失败:', err.message);
+      }
+    }
+  }
+
+  // 如果最终没有任何有意义的数据，设为 null
+  const finalSpbSales = Object.keys(spbSales).length > 0 ? spbSales : null;
 
   // 3. 存储到缓存
   productDataCache.set(url, {
     url,
     ozonProduct: productDetail,
-    spbSales,
+    spbSales: finalSpbSales,
     euraflowConfig,
     timestamp: Date.now()
   });
 
-  console.log('[商品数据] 最终数据:', {
-    productDetail: '✅ Content Script 提供',
-    变体数量: productDetail.variants?.length || 0,
-    尺寸数据: productDetail.dimensions ? '✅' : '❌',
-    spbSales: spbSales ? '✅' : '❌',
-    euraflowConfig: euraflowConfig ? '✅' : '❌'
-  });
+  // 4. 调试日志
+  if (__DEBUG__) {
+    console.log('[商品数据] 最终数据:', {
+      变体数量: productDetail.variants?.length || 0,
+      spbSales: finalSpbSales ? '✅' : '❌',
+      评分: finalSpbSales?.rating,
+      评价数: finalSpbSales?.reviewCount
+    });
+  }
 
-  // 4. 返回数据（不再单独返回 dimensions，全部在 ozonProduct 中）
   return {
     ozonProduct: productDetail,
-    spbSales,
+    spbSales: finalSpbSales,
     euraflowConfig
   };
 }
@@ -1910,9 +622,6 @@ async function getEuraflowConfig(): Promise<any> {
         resolve(null);
         return;
       }
-
-      // 这里可以并发获取店铺、仓库、水印配置
-      // 暂时返回 API 配置
       resolve({
         apiUrl: result.apiUrl,
         apiKey: result.apiKey

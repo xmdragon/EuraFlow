@@ -402,16 +402,32 @@ supervisorctl tail -100 euraflow:celery_beat stdout
 - **目录**：`plugins/ef/channels/ozon/browser_extension/`
 - **版本号管理**：
   - 版本号仅在 `manifest.json` 中的 `version` 字段维护
-  - 打包文件名**固定**为 `euraflow-ozon-selector.zip`（不带版本号）
   - 用户可在扩展管理页面查看 `manifest.json` 中的版本号
+  - **版本号变更时**：必须同步更新 `web/src/pages/ozon/ProductSelection.tsx` 中「选品助手-使用指南」的版本说明
+- **调试日志控制**：
+  - **禁止**使用运行时变量（如 `window.EURAFLOW_DEBUG`）判断是否输出调试日志
+  - 通过构建时环境变量 `DEBUG_MODE` 控制：`npm run build` 为正式版，`npm run build:debug` 为调试版
+  - 调试版包含详细日志输出，正式版移除所有调试日志
+- **双包打包**：每次打包生成两个文件
+  - `euraflow.zip` - 正式版（无调试日志，供用户使用），插件名称为「EuraFlow OZON选品助手」
+  - `euraflow-debug.zip` - 调试版（含调试日志，供开发调试），插件名称为「EuraFlow OZON选品助手[调试版]」
 - **打包命令**：
   ```bash
   cd plugins/ef/channels/ozon/browser_extension
-  npm run build
+
   # ⚠️ 重要：先删除旧zip，防止文件累积导致体积膨胀
-  rm -f euraflow-ozon-selector.zip
-  cd dist && zip -r ../euraflow-ozon-selector.zip manifest.json service-worker-loader.js assets/ src/ -x "*.map"
-  cp ../euraflow-ozon-selector.zip /home/grom/EuraFlow/web/public/downloads/
+  rm -f euraflow.zip euraflow-debug.zip
+
+  # 1. 构建并打包正式版
+  npm run build
+  cd dist && zip -r ../euraflow.zip manifest.json service-worker-loader.js assets/ src/ -x "*.map" && cd ..
+
+  # 2. 构建并打包调试版
+  npm run build:debug
+  cd dist && zip -r ../euraflow-debug.zip manifest.json service-worker-loader.js assets/ src/ -x "*.map" && cd ..
+
+  # 3. 复制到下载目录
+  cp euraflow.zip euraflow-debug.zip /home/grom/EuraFlow/web/public/downloads/
   ```
 - **包含文件**：`dist/manifest.json`、`dist/service-worker-loader.js`、`dist/assets/*`、`dist/src/popup/popup.html`
 - **排除文件**：`.vite/`、`icons/`、`README.md`、`*.map`、源代码
@@ -421,12 +437,13 @@ supervisorctl tail -100 euraflow:celery_beat stdout
   - 文件必须放在 `web/public/downloads/`（**不是** `web/dist/downloads/`）
   - Nginx 已配置 `/downloads` 路径直接指向 `public/downloads/`
   - Vite 构建时会自动排除 downloads 目录，避免冗余复制
-  - 下载链接固定为 `/downloads/euraflow-ozon-selector.zip`，无需每次更新页面代码
+  - 下载链接：正式版 `/downloads/euraflow.zip`，调试版 `/downloads/euraflow-debug.zip`
 - **🚫 禁止行为**：
   - **绝对禁止将 .zip 文件提交到 git**
   - .zip 是编译产物，仅用于本地和服务器部署
   - 如果不小心提交了，必须立即使用 `git rm` 删除
   - 修改源代码后，只提交源代码变更，不提交打包文件
+  - **禁止**使用 `window.EURAFLOW_DEBUG` 等运行时变量控制日志输出
 
 ---
 

@@ -127,7 +127,6 @@ export class AntibotChecker {
   async clearCaptcha(): Promise<void> {
     try {
       await chrome.storage.local.remove(this.STORAGE_KEY);
-      console.log('[AntibotChecker] ✅ 验证码标记已清除，可以继续采集');
     } catch (error: any) {
       console.error('[AntibotChecker] clearCaptcha 失败:', error.message);
     }

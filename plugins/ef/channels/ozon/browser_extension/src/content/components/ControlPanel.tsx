@@ -7,7 +7,7 @@ import type { DataFusionEngine } from '../fusion/engine';
 import type { ProductCollector } from '../collector';
 import type { CollectorConfig } from '../../shared/types';
 import { getApiConfig, testApiConnection } from '../../shared/storage';
-import { ApiClient } from '../../shared/api-client';
+import { createEuraflowApiProxy } from '../../shared/api';
 import { injectEuraflowStyles } from '../styles/injector';
 
 interface ControlPanelProps {
@@ -177,7 +177,7 @@ export function ControlPanel(props: ControlPanelProps) {
 
     try {
       await collector.startCollection(targetCount, async (progress) => {
-        updateProgress(progress.collected, progress.target);
+        updateProgress(progress.collected, progress.target, progress.scanned, progress.filteredOut);
 
         // 实时更新状态文本（显示各阶段进度）
         if (progress.status) {
@@ -186,7 +186,8 @@ export function ControlPanel(props: ControlPanelProps) {
 
         if (!progress.isRunning) {
           stopCollection();
-          updateStatus(`✅ 采集完成！共采集 ${progress.collected}`);
+          // 显示完成信息（简洁版，详细统计在右边）
+          updateStatus(`✅ 完成！`);
 
           // 自动上传（如果有 API 配置）
           if (progress.collected > 0) {
@@ -271,8 +272,25 @@ export function ControlPanel(props: ControlPanelProps) {
 
       updateStatus(`📤 正在上传 ${toUpload.length} 个...`);
 
-      const apiClient = new ApiClient(apiConfig.apiUrl, apiConfig.apiKey);
-      const result = await apiClient.uploadProducts(toUpload);
+      // 转换 ProductData 为 ProductUploadData（字段名映射 + Date → string）
+      const uploadData = toUpload.map(product => ({
+        ...product,
+        // 日期字段转换
+        product_created_date: product.product_created_date instanceof Date
+          ? product.product_created_date.toISOString()
+          : product.product_created_date,
+        listing_date: product.listing_date instanceof Date
+          ? product.listing_date.toISOString()
+          : product.listing_date,
+        // 尺寸字段名映射（前端 → 后端）
+        package_weight: product.weight,
+        package_length: product.depth,
+        package_width: product.width,
+        package_height: product.height,
+      }));
+
+      const apiClient = createEuraflowApiProxy(apiConfig.apiUrl, apiConfig.apiKey);
+      const result = await apiClient.uploadProducts(uploadData);
 
       // 更新指纹集：已上传的加入，未上传的移除
       collector.updateFingerprints(
@@ -296,7 +314,7 @@ export function ControlPanel(props: ControlPanelProps) {
   }
 
   // 更新进度
-  function updateProgress(current: number, target: number) {
+  function updateProgress(current: number, target: number, scanned?: number, filteredOut?: number) {
     const progress = Math.min((current / target) * 100, 100);
     const progressBg = document.getElementById('ef-progress-bg');
     const progressNumbers = document.getElementById('ef-progress-numbers');
@@ -305,10 +323,12 @@ export function ControlPanel(props: ControlPanelProps) {
       progressBg.style.width = `${progress}%`;
     }
     if (progressNumbers) {
-      // 获取累计统计
-      // const stats = collector.getCumulativeStats();
-      // const totalCollected = stats.totalUploaded + current;
-      progressNumbers.textContent = `本次: ${current} [${Math.round(progress)}%]`;
+      // 显示过滤统计（如果有过滤）
+      if (scanned && scanned > 0 && filteredOut && filteredOut > 0) {
+        progressNumbers.textContent = `扫描:${scanned} 过滤:${filteredOut} 通过:${current} [${Math.round(progress)}%]`;
+      } else {
+        progressNumbers.textContent = `本次: ${current} [${Math.round(progress)}%]`;
+      }
     }
 
     collectedCount = current;

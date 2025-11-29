@@ -6,7 +6,7 @@
  */
 
 import type { ProductDetailData } from '../parsers/product-detail';
-import { ApiClient } from '../../shared/api-client';
+import { createEuraflowApiProxy, type EuraflowApiProxy } from '../../shared/api';
 import { getApiConfig } from '../../shared/storage';
 import { calculateRealPriceCore } from '../price-calculator/calculator';
 import { configCache } from '../../shared/config-cache';
@@ -112,7 +112,7 @@ function batchGenerateOfferIds(): void {
 // ========== 全局状态 ==========
 
 let currentModal: HTMLElement | null = null;
-let apiClient: ApiClient | null = null;
+let apiClient: EuraflowApiProxy | null = null;
 let productData: ProductDetailData | null = null;
 
 // 配置数据（从缓存加载）
@@ -157,7 +157,7 @@ export async function showPublishModal(product: any = null, currentRealPrice: nu
     return;
   }
 
-  apiClient = new ApiClient(config.apiUrl, config.apiKey);
+  apiClient = createEuraflowApiProxy(config.apiUrl, config.apiKey);
 
   // 显示加载提示
   showLoadingModal('正在加载配置数据...');

@@ -1,12 +1,22 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { crx } from '@crxjs/vite-plugin';
-import manifest from './manifest.json';
+import manifestBase from './manifest.json';
 import path from 'path';
 
-// 开发模式：保留 console 输出便于调试
-// 生产模式：可以通过 BUILD_MODE=production 启用 minify
-const isDev = process.env.BUILD_MODE !== 'production';
+// BUILD_MODE:
+// - 'production': 正式版（无调试日志，压缩代码）
+// - 'debug': 调试版（保留调试日志，压缩代码）
+// - 其他/未设置: 开发模式（保留调试日志，不压缩）
+const buildMode = process.env.BUILD_MODE;
+const isProduction = buildMode === 'production';
+const isDebug = buildMode === 'debug';
+const isDev = !isProduction && !isDebug;
+
+// 调试版添加 [调试版] 后缀，方便区分
+const manifest = isDebug
+  ? { ...manifestBase, name: `${manifestBase.name}[调试版]` }
+  : manifestBase;
 
 export default defineConfig({
   plugins: [
@@ -18,23 +28,28 @@ export default defineConfig({
       '@': path.resolve(__dirname, 'src')
     }
   },
+  // 定义编译时常量，用于控制调试日志
+  define: {
+    // 调试模式：debug 版和开发模式启用，production 版禁用
+    __DEBUG__: JSON.stringify(isDebug || isDev),
+  },
   build: {
     outDir: 'dist',
-    minify: isDev ? false : 'esbuild',  // 开发模式不压缩，保留可读性
-    sourcemap: isDev,  // 开发模式生成 sourcemap
+    minify: isDev ? false : 'esbuild',  // 开发模式不压缩，生产/调试版压缩
+    sourcemap: isDev,  // 仅开发模式生成 sourcemap
+    // production 版移除 console.log，保留 console.error/warn
+    // debug 版和开发模式保留所有 console
+    ...(isProduction && {
+      esbuild: {
+        drop: ['console'],  // 移除所有 console.*
+      }
+    }),
     rollupOptions: {
       input: {
-        popup: 'src/popup/popup.html',
-        'token-reader': 'src/content/injected/token-reader.js'
+        popup: 'src/popup/popup.html'
       },
       output: {
-        entryFileNames: (chunkInfo) => {
-          // token-reader 保持原路径结构
-          if (chunkInfo.name === 'token-reader') {
-            return 'src/content/injected/token-reader.js';
-          }
-          return 'assets/[name].js';
-        },
+        entryFileNames: 'assets/[name].js',
         chunkFileNames: 'assets/[name].js',
         assetFileNames: 'assets/[name].[ext]'
       }

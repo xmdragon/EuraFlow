@@ -16,6 +16,7 @@
  */
 
 const OZON_VERSION_CACHE_KEY = 'ozon_intercepted_versions';
+const BROWSER_INFO_CACHE_KEY = 'browser_info_cache';
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24小时
 
 // 本次会话中是否已打印版本来源日志（避免重复输出）
@@ -31,12 +32,27 @@ interface InterceptedVersions {
 }
 
 /**
+ * 浏览器信息缓存结构
+ */
+interface BrowserInfoCache {
+  browserName: string;         // 浏览器名称（如 "Google Chrome" 或 "Microsoft Edge"）
+  chromeVersion: string;       // Chromium 主版本号（如 "136"）
+  fullVersion: string;         // 完整版本号（如 "136.0.0.0"）
+  secChUa: string;             // sec-ch-ua header 值
+  userAgent: string;           // User-Agent header 值
+  timestamp: number;
+}
+
+/**
  * 默认版本信息（fallback）
  * 当拦截失败或缓存过期时使用
  * 更新于 2025-11-27（从真实请求中提取）
  */
 const FALLBACK_APP_VERSION = 'release_26-10-2025_8c89c203';
 const FALLBACK_MANIFEST_VERSION = 'frontend-ozon-ru:8c89c203596282a83b13ccb7e135e0f6324a8619;checkout-render-api:8f355203eb2d681f25c4bfdf1d3ae4a97621b7e8;fav-render-api:5ff5cd7b6a74633afb5bb7b2517706b8f94d6fed;sf-render-api:3a16dc35125e614c314decfc16f0ae2c95d01e10;pdp-render-api:08d5a1f8796caf3ff65ea1067ee6c9f515126858';
+
+// 默认 Chrome 版本（fallback）
+const FALLBACK_CHROME_VERSION = '136';
 
 /**
  * 获取OZON版本信息
@@ -79,6 +95,141 @@ async function getOzonVersions(): Promise<{
 }
 
 /**
+ * 获取浏览器信息（动态获取真实 Chrome 版本）
+ *
+ * 优先级：
+ * 1. 缓存中的有效数据（24小时内）
+ * 2. 从 navigator.userAgentData 获取（现代 API）
+ * 3. 从 navigator.userAgent 解析（兼容旧版）
+ * 4. 使用 fallback 默认值
+ *
+ * @returns 浏览器信息对象
+ */
+async function getBrowserInfo(): Promise<{
+  chromeVersion: string;
+  secChUa: string;
+  userAgent: string;
+  source: 'cached' | 'detected' | 'fallback';
+}> {
+  try {
+    // 1. 尝试从缓存读取
+    const result = await chrome.storage.local.get(BROWSER_INFO_CACHE_KEY);
+    const cached = result[BROWSER_INFO_CACHE_KEY] as BrowserInfoCache | undefined;
+
+    if (cached && (Date.now() - cached.timestamp < CACHE_DURATION)) {
+      return {
+        chromeVersion: cached.chromeVersion,
+        secChUa: cached.secChUa,
+        userAgent: cached.userAgent,
+        source: 'cached'
+      };
+    }
+  } catch (error) {
+    // 缓存读取失败，继续尝试检测
+  }
+
+  // 2. 尝试动态检测
+  try {
+    let chromeVersion = FALLBACK_CHROME_VERSION;
+    let fullVersion = `${FALLBACK_CHROME_VERSION}.0.0.0`;
+
+    // 方式 1：使用现代 userAgentData API（Chrome 90+）
+    if (typeof navigator !== 'undefined' && 'userAgentData' in navigator) {
+      const uaData = (navigator as any).userAgentData;
+      if (uaData?.brands) {
+        const chromeBrand = uaData.brands.find((b: any) =>
+          b.brand === 'Google Chrome' || b.brand === 'Chromium'
+        );
+        if (chromeBrand?.version) {
+          chromeVersion = chromeBrand.version;
+        }
+      }
+      // 获取完整版本（需要高熵值）
+      if (uaData?.getHighEntropyValues) {
+        try {
+          const highEntropy = await uaData.getHighEntropyValues(['fullVersionList']);
+          const chromeInfo = highEntropy.fullVersionList?.find((b: any) =>
+            b.brand === 'Google Chrome' || b.brand === 'Chromium'
+          );
+          if (chromeInfo?.version) {
+            fullVersion = chromeInfo.version;
+          }
+        } catch {
+          // 高熵值获取失败，使用主版本号
+          fullVersion = `${chromeVersion}.0.0.0`;
+        }
+      }
+    }
+
+    // 方式 2：从 userAgent 解析（兼容方案）
+    if (chromeVersion === FALLBACK_CHROME_VERSION && typeof navigator !== 'undefined') {
+      const ua = navigator.userAgent;
+      const match = ua.match(/Chrome\/(\d+)(?:\.(\d+)\.(\d+)\.(\d+))?/);
+      if (match) {
+        chromeVersion = match[1];
+        if (match[2]) {
+          fullVersion = `${match[1]}.${match[2]}.${match[3] || '0'}.${match[4] || '0'}`;
+        }
+      }
+    }
+
+    // 检测浏览器名称（Edge vs Chrome）
+    let browserName = 'Google Chrome';
+    if (typeof navigator !== 'undefined') {
+      if ('userAgentData' in navigator) {
+        const uaData = (navigator as any).userAgentData;
+        const edgeBrand = uaData?.brands?.find((b: any) => b.brand === 'Microsoft Edge');
+        if (edgeBrand) {
+          browserName = 'Microsoft Edge';
+        }
+      } else if (navigator.userAgent.includes('Edg/')) {
+        browserName = 'Microsoft Edge';
+      }
+    }
+
+    // 构建 sec-ch-ua（符合浏览器标准格式）
+    const secChUa = `"Chromium";v="${chromeVersion}", "${browserName}";v="${chromeVersion}", "Not_A Brand";v="99"`;
+
+    // 构建 User-Agent
+    const edgeSuffix = browserName === 'Microsoft Edge' ? ` Edg/${fullVersion}` : '';
+    const userAgent = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${fullVersion} Safari/537.36${edgeSuffix}`;
+
+    // 3. 缓存检测结果
+    const browserInfo: BrowserInfoCache = {
+      browserName,
+      chromeVersion,
+      fullVersion,
+      secChUa,
+      userAgent,
+      timestamp: Date.now()
+    };
+
+    try {
+      await chrome.storage.local.set({ [BROWSER_INFO_CACHE_KEY]: browserInfo });
+    } catch {
+      // 缓存写入失败，不影响返回
+    }
+
+    return {
+      chromeVersion,
+      secChUa,
+      userAgent,
+      source: 'detected'
+    };
+  } catch (error) {
+    // 检测失败，使用 fallback
+  }
+
+  // 4. Fallback
+  return {
+    chromeVersion: FALLBACK_CHROME_VERSION,
+    secChUa: `"Chromium";v="${FALLBACK_CHROME_VERSION}", "Google Chrome";v="${FALLBACK_CHROME_VERSION}", "Not_A Brand";v="99"`,
+    userAgent: `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${FALLBACK_CHROME_VERSION}.0.0.0 Safari/537.36`,
+    source: 'fallback'
+  };
+}
+
+/**
  * 生成UUID（用于请求追踪ID）
  */
 function generateUUID(): string {
@@ -87,23 +238,6 @@ function generateUUID(): string {
     const v = c === 'x' ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
-}
-
-/**
- * 获取 OZON Auth Token（从 storage 读取）
- *
- * Token 由 collector.ts 的 injectTokenReader() 注入到 storage
- *
- * @returns Token 字符串或 null
- */
-async function getOzonAuthToken(): Promise<string | null> {
-  try {
-    const result = await chrome.storage.local.get('ozon_auth_token');
-    return result.ozon_auth_token || null;
-  } catch (error) {
-    console.error('[EuraFlow] 读取 OZON Auth Token 失败:', error);
-    return null;
-  }
 }
 
 /**
@@ -127,14 +261,13 @@ export async function getOzonStandardHeaders(options: {
   const { referer, includeContentType = true, serviceName } = options;
 
   // 动态获取版本信息（优先拦截，回退硬编码）
-  const { appVersion, manifestVersion, source } = await getOzonVersions();
+  const { appVersion, manifestVersion } = await getOzonVersions();
 
-  // 日志显示版本来源（每次会话只打印一次）
+  // 动态获取浏览器信息（真实 Chrome 版本）
+  const browserInfo = await getBrowserInfo();
+
+  // 标记已获取版本（避免重复获取）
   if (!hasLoggedVersionSource) {
-    console.log(`[EuraFlow Headers] 版本来源: ${source === 'intercepted' ? '✅ 动态拦截' : '⚠️ 硬编码备用'}`, {
-      appVersion: appVersion.substring(0, 30) + '...',
-      source
-    });
     hasLoggedVersionSource = true;
   }
 
@@ -151,8 +284,8 @@ export async function getOzonStandardHeaders(options: {
     'Origin': 'https://www.ozon.ru',
     'Pragma': 'no-cache',
     'Priority': 'u=1, i',
-    // 【关键修复】Chrome 浏览器特征 headers（使用更新版本）
-    'sec-ch-ua': '"Chromium";v="136", "Google Chrome";v="136", "Not_A Brand";v="99"',
+    // 【动态获取】Chrome 浏览器特征 headers（使用真实版本）
+    'sec-ch-ua': browserInfo.secChUa,
     'sec-ch-ua-mobile': '?0',
     'sec-ch-ua-platform': '"Windows"',
     'sec-fetch-dest': 'empty',
@@ -166,14 +299,7 @@ export async function getOzonStandardHeaders(options: {
     'X-Page-View-Id': generateUUID().replace(/-/g, '')
   };
 
-  // 【Phase 3】优先使用 Token 认证（模拟 OZON 官方）
-  const token = await getOzonAuthToken();
-  if (token) {
-    headers['ozonid-auth-tokens'] = token;
-  }
-  // 如果没有 Token，调用方需要手动添加 Cookie（fallback）
-
-  // 【Phase 4】添加服务名称（用于 entrypoint-api.bx 等内部网关）
+  // 添加服务名称（用于 entrypoint-api.bx 等内部网关）
   if (serviceName) {
     headers['x-o3-service-name'] = serviceName;
   }
@@ -202,3 +328,8 @@ export function generateShortHash(length: number = 10): string {
   }
   return result;
 }
+
+/**
+ * 导出浏览器信息获取函数（供其他模块使用）
+ */
+export { getBrowserInfo };

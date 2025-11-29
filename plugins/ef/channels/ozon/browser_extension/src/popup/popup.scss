@@ -42,15 +42,16 @@ body {
 
 .tab-button {
   flex: 1;
-  padding: 12px 16px;
+  padding: 10px 6px;
   border: none;
   background: transparent;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   color: #6b7280;
   cursor: pointer;
   transition: all 0.2s;
   position: relative;
+  white-space: nowrap;
 
   &:hover {
     background: #f3f4f6;
@@ -316,5 +317,84 @@ body {
       color: #374151;
       user-select: none;
     }
+  }
+}
+
+/* 采集过滤配置 */
+.filter-config {
+  .input-range {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .form-input {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .range-separator {
+      color: #6b7280;
+      font-weight: 500;
+      flex-shrink: 0;
+    }
+  }
+
+  .filter-summary {
+    margin-top: 16px;
+    padding: 12px;
+    background: #f9fafb;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+
+    h4 {
+      margin: 0 0 8px 0;
+      font-size: 13px;
+      font-weight: 600;
+      color: #374151;
+    }
+
+    ul {
+      margin: 0;
+      padding: 0 0 0 16px;
+      font-size: 12px;
+      color: #6b7280;
+      line-height: 1.6;
+
+      li {
+        margin-bottom: 4px;
+
+        &:last-child {
+          margin-bottom: 0;
+        }
+
+        &.no-filter {
+          color: #9ca3af;
+          font-style: italic;
+          list-style: none;
+          margin-left: -16px;
+        }
+      }
+    }
+  }
+}
+
+/* 复选框标签 */
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+
+  input[type='checkbox'] {
+    width: 16px;
+    height: 16px;
+    accent-color: #3498db;
+    cursor: pointer;
+  }
+
+  span {
+    font-size: 13px;
+    color: #374151;
+    user-select: none;
   }
 }

@@ -1,7 +1,7 @@
 # OZON 浏览器扩展商品采集开发文档
 
-> **版本**: v1.0.0
-> **更新日期**: 2025-11-24
+> **版本**: v1.1.0
+> **更新日期**: 2025-11-28
 > **维护者**: EuraFlow Team
 
 ---
@@ -20,6 +20,7 @@
 10. [代码位置索引](#10-代码位置索引)
 11. [API 调用完整示例](#11-api-调用完整示例)
 12. [性能优化建议](#12-性能优化建议)
+13. [前后端字段映射（重要！）](#13-前后端字段映射重要)
 
 ---
 
@@ -1356,6 +1357,103 @@ if (!description || !dimensions || !variants) {
   throw new Error('数据不完整');
 }
 ```
+
+---
+
+## 13. 前后端字段映射（重要！）
+
+> ⚠️ **警告**：前端 `ProductData` 与后端 `ProductSelectionItem` 的字段名存在差异，上传数据时必须进行映射转换！
+
+### 13.1 尺寸字段映射
+
+| 前端 (ProductData) | 后端 (ProductSelectionItem) | 说明 |
+|-------------------|---------------------------|------|
+| `weight` | `package_weight` | 重量（克） |
+| `depth` | `package_length` | 长度/深度（毫米） |
+| `width` | `package_width` | 宽度（毫米） |
+| `height` | `package_height` | 高度（毫米） |
+
+**上传时转换代码**（`ControlPanel.tsx`）:
+```typescript
+const uploadData = toUpload.map(product => ({
+  ...product,
+  // 尺寸字段名映射（前端 → 后端）
+  package_weight: product.weight,
+  package_length: product.depth,
+  package_width: product.width,
+  package_height: product.height,
+}));
+```
+
+### 13.2 跟卖字段映射
+
+| 前端采集 | 后端存储 | 说明 |
+|---------|---------|------|
+| `competitor_count` | `competitor_count` | 跟卖数量（一致） |
+| `competitor_min_price` | `competitor_min_price` | 跟卖最低价（一致） |
+
+> 注意：之前前端曾使用 `follow_seller_count`、`follow_seller_min_price`，已统一改为 `competitor_*`
+
+### 13.3 销售数据字段映射（上品帮 API → ProductData）
+
+| 上品帮 API (SpbSalesData) | 前端 (ProductData) | 说明 |
+|--------------------------|-------------------|------|
+| `monthlySales` | `monthly_sales_volume` | 月销量 |
+| `monthlySalesAmount` | `monthly_sales_revenue` | 月销售额 |
+| `dailySales` | `daily_sales_volume` | 日销量 |
+| `dailySalesAmount` | `daily_sales_revenue` | 日销售额 |
+| `salesDynamic` | `sales_dynamic_percent` | 销售动态 |
+| `transactionRate` | `conversion_rate` | 转化率 |
+| `cardViews` | `card_views` | 商品卡片浏览量 |
+| `cardAddToCartRate` | `card_add_to_cart_rate` | 卡片加购率 |
+| `searchViews` | `search_views` | 搜索浏览量 |
+| `searchAddToCartRate` | `search_add_to_cart_rate` | 搜索加购率 |
+| `clickThroughRate` | `click_through_rate` | 点击率 |
+| `promoDays` | `promo_days` | 促销天数 |
+| `promoDiscount` | `promo_discount_percent` | 促销折扣 |
+| `promoConversion` | `promo_conversion_rate` | 促销转化率 |
+| `paidPromoDays` | `paid_promo_days` | 付费推广天数 |
+| `adShare` | `ad_cost_share` | 广告费用占比 |
+| `returnCancelRate` | `return_cancel_rate` | 退货取消率 |
+| `avgPrice` | `avg_price` | 平均价格 |
+| `weight` | `weight` | 重量 |
+| `depth` | `depth` | 深度 |
+| `width` | `width` | 宽度 |
+| `height` | `height` | 高度 |
+| `competitorCount` | `competitor_count` | 跟卖数量 |
+| `competitorMinPrice` | `competitor_min_price` | 跟卖最低价 |
+| `listingDate` | `listing_date` | 上架日期 |
+| `listingDays` | `listing_days` | 上架天数 |
+| `sellerMode` | `seller_mode` | 发货模式 |
+| `category` | `category_path` | 类目路径 |
+| `brand` | `brand` | 品牌 |
+| `rating` | `rating` | 评分 |
+| `reviewCount` | `review_count` | 评价数 |
+
+**转换代码位置**: `collector.ts` → `getSalesDataForBatch()` 方法
+
+### 13.4 开发注意事项
+
+1. **新增字段时**：
+   - 检查后端模型 `product_selection.py` 中的字段名
+   - 确保前端 `types.ts` 中的字段名与后端一致，或在上传时做映射
+
+2. **修改字段名时**：
+   - 同时更新前端和后端
+   - 更新本文档的映射表
+
+3. **调试技巧**：
+   - 在 Chrome DevTools 的 Network 面板查看上传请求的 payload
+   - 确认字段名是否正确
+
+### 13.5 相关文件位置
+
+| 文件 | 说明 |
+|------|------|
+| `browser_extension/src/shared/types.ts` | 前端类型定义 |
+| `browser_extension/src/content/collector.ts` | 数据采集和字段映射 |
+| `browser_extension/src/content/components/ControlPanel.tsx` | 上传时的字段转换 |
+| `plugins/ef/channels/ozon/models/product_selection.py` | 后端数据模型 |
 
 ---
 

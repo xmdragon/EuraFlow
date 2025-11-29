@@ -105,6 +105,27 @@ export interface CollectionProgress {
   isRunning: boolean;
   errors: string[];
   status?: string;  // 当前状态描述
+  scanned?: number;           // 已扫描总数（DOM采集）
+  filteredOut?: number;       // 被过滤掉的数量
+}
+
+/**
+ * 采集过滤配置
+ * 空值(undefined)表示不应用该过滤条件
+ */
+export interface FilterConfig {
+  // 价格区间（DOM可用，阶段1过滤）
+  priceMin?: number;          // 最低价格（人民币）
+  priceMax?: number;          // 最高价格（人民币）
+
+  // 上品帮数据（阶段2过滤）
+  monthlySalesMin?: number;   // 月销量 >= 该值
+  weightMax?: number;         // 重量 <= 该值（克）
+  listingDateAfter?: string;  // 上架时间晚于该日期（YYYY-MM-DD格式）
+  sellerMode?: 'ALL' | 'FBS' | 'FBO';  // 发货模式，ALL表示不过滤
+
+  // OZON API数据（阶段3过滤）
+  followSellerMax?: number;   // 跟卖数量 <= 该值
 }
 
 /**
