@@ -539,46 +539,54 @@ async function handleFetchAllProductData(data: {
     }
   }
 
-  // 2.8 补充缺失的类目名称（通过 EuraFlow API）
-  const hasCategory1 = spbSales.category1 != null;
-  const hasCategory2 = spbSales.category2 != null;
-  const hasCategory3 = spbSales.category3 != null;
+  // 2.8 补充类目名称（通过 EuraFlow API）
+  // 逻辑：如果上品帮三级类目都有值，用上品帮的；否则根据属性 Тип 查询我们的 API
+  const hasAllCategories = spbSales.category1 && spbSales.category2 && spbSales.category3;
 
-  // 如果有缺失的类目名称，且有对应的 ID，则调用 API 补充
-  if (!hasCategory1 || !hasCategory2 || !hasCategory3) {
-    const missingIds: number[] = [];
-    if (!hasCategory1 && spbSales.category1Id) missingIds.push(parseInt(spbSales.category1Id));
-    if (!hasCategory2 && spbSales.category2Id) missingIds.push(parseInt(spbSales.category2Id));
-    if (!hasCategory3 && spbSales.category3Id) missingIds.push(parseInt(spbSales.category3Id));
+  if (__DEBUG__) {
+    console.log('[类目补充] 检查条件:', {
+      category1: spbSales.category1,
+      category2: spbSales.category2,
+      category3: spbSales.category3,
+      hasAllCategories,
+      hasEuraflowConfig: !!(euraflowConfig?.apiUrl && euraflowConfig?.apiKey)
+    });
+  }
 
-    if (missingIds.length > 0 && euraflowConfig?.apiUrl && euraflowConfig?.apiKey) {
+  // 如果上品帮三级类目不完整，从商品属性中提取 Тип 并查询我们的 API
+  if (!hasAllCategories && euraflowConfig?.apiUrl && euraflowConfig?.apiKey) {
+    // 从商品属性中提取 Тип（attribute_id = 8229 是商品类型）
+    const typeAttribute = productDetail?.attributes?.find(
+      (attr: any) => attr.attribute_id === 8229
+    );
+    const typeNameRu = typeAttribute?.value;
+
+    if (__DEBUG__) {
+      console.log('[类目补充] 商品属性 Тип:', typeNameRu);
+    }
+
+    if (typeNameRu) {
       try {
         const { createEuraflowApi } = await import('../shared/api/euraflow-api');
         const api = createEuraflowApi(euraflowConfig.apiUrl, euraflowConfig.apiKey);
-        const categoryNames = await api.getCategoryNames(missingIds);
+        const categoryData = await api.getCategoryByRussianName(typeNameRu);
 
-        // 补充缺失的类目名称（优先使用我们的数据）
-        if (!hasCategory1 && spbSales.category1Id && categoryNames[spbSales.category1Id]) {
-          spbSales.category1 = categoryNames[spbSales.category1Id];
-        }
-        if (!hasCategory2 && spbSales.category2Id && categoryNames[spbSales.category2Id]) {
-          spbSales.category2 = categoryNames[spbSales.category2Id];
-        }
-        if (!hasCategory3 && spbSales.category3Id && categoryNames[spbSales.category3Id]) {
-          spbSales.category3 = categoryNames[spbSales.category3Id];
-        }
+        if (categoryData) {
+          // 使用我们 API 返回的完整三级类目
+          spbSales.category1 = categoryData.category1;
+          spbSales.category1Id = categoryData.category1Id?.toString();
+          spbSales.category2 = categoryData.category2;
+          spbSales.category2Id = categoryData.category2Id?.toString();
+          spbSales.category3 = categoryData.category3;
+          spbSales.category3Id = categoryData.category3Id?.toString();
+          spbSales.category = categoryData.fullPath;
 
-        // 重新构建完整的类目路径
-        const parts = [spbSales.category1, spbSales.category2, spbSales.category3].filter(Boolean);
-        if (parts.length > 0) {
-          spbSales.category = parts.join(' > ');
-        }
-
-        if (__DEBUG__) {
-          console.log('[商品数据] 类目名称补充:', { missingIds, categoryNames, finalCategory: spbSales.category });
+          if (__DEBUG__) {
+            console.log('[EuraFlow API] 类目查询成功:', categoryData);
+          }
         }
       } catch (err: any) {
-        console.error('[商品数据] 类目名称补充失败:', err.message);
+        console.error('[商品数据] 类目查询失败:', err.message);
       }
     }
   }

@@ -263,16 +263,31 @@ export class EuraflowApi extends BaseApiClient {
   }
 
   /**
-   * 根据类目ID批量查询类目名称
+   * 根据俄文类目名称查询完整三级类目中文名称
+   * @param nameRu 俄文类目名称（商品属性 Тип 的值）
+   * @returns 三级类目信息
    */
-  async getCategoryNames(categoryIds: number[]): Promise<Record<string, string>> {
-    if (!categoryIds || categoryIds.length === 0) {
-      return {};
+  async getCategoryByRussianName(nameRu: string): Promise<{
+    category1: string | null;
+    category1Id: number | null;
+    category2: string | null;
+    category2Id: number | null;
+    category3: string | null;
+    category3Id: number | null;
+    fullPath: string | null;
+  } | null> {
+    if (!nameRu) {
+      return null;
     }
 
     try {
-      const ids = categoryIds.join(',');
-      const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/listings/categories/names?ids=${ids}`, {
+      const url = `${this.baseUrl}/api/ef/v1/ozon/listings/categories/names?name_ru=${encodeURIComponent(nameRu)}`;
+
+      if (__DEBUG__) {
+        console.log('[EuraflowApi] 类目查询请求:', { URL: url, name_ru: nameRu });
+      }
+
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'X-API-Key': this.apiKey
@@ -280,15 +295,20 @@ export class EuraflowApi extends BaseApiClient {
       });
 
       if (!response.ok) {
-        console.error('[EuraflowApi] 类目名称查询失败:', response.status);
-        return {};
+        console.error('[EuraflowApi] 类目查询失败:', response.status);
+        return null;
       }
 
       const result = await response.json();
-      return result.success ? result.data : {};
+
+      if (__DEBUG__) {
+        console.log('[EuraflowApi] 类目查询返回:', result);
+      }
+
+      return result.success ? result.data : null;
     } catch (error: any) {
-      console.error('[EuraflowApi] 类目名称查询异常:', error.message);
-      return {};
+      console.error('[EuraflowApi] 类目查询异常:', error.message);
+      return null;
     }
   }
 

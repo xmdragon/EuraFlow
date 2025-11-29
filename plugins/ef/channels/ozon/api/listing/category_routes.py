@@ -1003,47 +1003,61 @@ async def sync_single_category_attributes(
 
 
 @router.get("/listings/categories/names")
-async def get_category_names_by_ids(
-    ids: str = Query(..., description="类目ID列表，逗号分隔，如：17027488,17028973,92875"),
+async def get_category_names_by_russian(
+    name_ru: str = Query(..., description="俄文类目名称，如：Полка"),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
-    根据类目ID批量查询类目名称（供浏览器扩展使用）
+    根据俄文类目名称查询完整三级类目中文名称（供浏览器扩展使用）
 
     Args:
-        ids: 逗号分隔的类目ID列表
+        name_ru: 俄文类目名称（商品属性 Тип 的值）
 
     Returns:
-        { "success": true, "data": { "17027488": "儿童用品", "17028973": "玩具" } }
+        { "success": true, "data": { "category1": "家具", "category2": "架子和货架", "category3": "置物架", "fullPath": "家具 > 架子和货架 > 置物架" } }
     """
     try:
         from ...models.listing import OzonCategory
 
-        # 解析 ID 列表
-        id_list = [int(id.strip()) for id in ids.split(",") if id.strip().isdigit()]
-
-        if not id_list:
-            return {
-                "success": True,
-                "data": {}
-            }
-
-        # 批量查询
+        # 查找匹配的类目
         result = await db.execute(
-            select(OzonCategory.category_id, OzonCategory.name, OzonCategory.name_zh)
-            .where(OzonCategory.category_id.in_(id_list))
+            select(OzonCategory).where(OzonCategory.name_ru == name_ru)
         )
-        categories = result.all()
+        category = result.scalar_one_or_none()
 
-        # 构建返回数据（优先中文名称）
-        data = {}
-        for cat_id, name, name_zh in categories:
-            data[str(cat_id)] = name_zh or name
+        if not category:
+            return {"success": True, "data": None}
 
-        return {
-            "success": True,
-            "data": data
+        # 构建三级类目路径
+        path = []
+        current = category
+        while current:
+            path.insert(0, {
+                "id": current.category_id,
+                "name": current.name_zh or current.name,
+                "level": current.level
+            })
+            if current.parent_id:
+                parent_result = await db.execute(
+                    select(OzonCategory).where(OzonCategory.category_id == current.parent_id)
+                )
+                current = parent_result.scalar_one_or_none()
+            else:
+                current = None
+
+        # 提取一二三级类目
+        data = {
+            "category1": path[0]["name"] if len(path) > 0 else None,
+            "category1Id": path[0]["id"] if len(path) > 0 else None,
+            "category2": path[1]["name"] if len(path) > 1 else None,
+            "category2Id": path[1]["id"] if len(path) > 1 else None,
+            "category3": path[2]["name"] if len(path) > 2 else None,
+            "category3Id": path[2]["id"] if len(path) > 2 else None,
+            "fullPath": " > ".join([p["name"] for p in path])
         }
+
+        logger.info(f"Category by Russian name: {name_ru} -> {data['fullPath']}")
+        return {"success": True, "data": data}
 
     except Exception as e:
         logger.error(f"Get category names failed: {e}", exc_info=True)
