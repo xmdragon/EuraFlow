@@ -37,6 +37,7 @@ export default defineConfig({
     outDir: 'dist',
     minify: isDev ? false : 'esbuild',  // 开发模式不压缩，生产/调试版压缩
     sourcemap: isDev,  // 仅开发模式生成 sourcemap
+    modulePreload: { polyfill: false },  // 禁用 modulePreload polyfill（避免在 Service Worker 中使用 document）
     // production 版移除 console.log，保留 console.error/warn
     // debug 版和开发模式保留所有 console
     ...(isProduction && {

@@ -239,6 +239,14 @@ chrome.runtime.onMessage.addListener((message: any, _sender: chrome.runtime.Mess
     return true;
   }
 
+  // Modal API（在页面上下文中执行）
+  if (message.type === 'GET_MODAL_VARIANTS') {
+    handleGetModalVariants(message.data)
+      .then(response => sendResponse({ success: true, data: response }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+    return true;
+  }
+
   // 综合数据获取
   if (message.type === 'FETCH_ALL_PRODUCT_DATA') {
     handleFetchAllProductData(message.data)
@@ -433,6 +441,15 @@ async function handleGetOzonProductsPage(data: { pageUrl: string; page: number }
   return api.getProductsPage(pageUrl, page);
 }
 
+/**
+ * 处理 Modal API 请求（复用 OzonBuyerApi）
+ */
+async function handleGetModalVariants(data: { productId: string }): Promise<any[] | null> {
+  const { productId } = data;
+  const api = getOzonBuyerApi();
+  return api.getModalVariants(productId);
+}
+
 // ============================================================================
 // 综合数据获取
 // ============================================================================
@@ -465,12 +482,7 @@ async function handleFetchAllProductData(data: {
   const buyerApi = getOzonBuyerApi();
 
   const [spbSalesData, euraflowConfig] = await Promise.all([
-    spbangApi.getSalesData(productSku).then(data => {
-      if (__DEBUG__) {
-        console.log('[商品数据] 上品帮返回:', data ? '有数据' : '无数据', data);
-      }
-      return data;
-    }).catch(err => {
+    spbangApi.getSalesData(productSku).catch(err => {
       console.error('[商品数据] 上品帮销售数据获取失败:', err.message);
       return null;
     }),
@@ -510,9 +522,24 @@ async function handleFetchAllProductData(data: {
     }
   }
 
-  // 2.6 获取跟卖数据（从 OZON Buyer API，不依赖上品帮）
-  const hasFollowSeller = spbSales.competitorCount != null;
-  if (!hasFollowSeller) {
+  // 2.6 跟卖数据处理
+  // 优先使用上品帮返回的跟卖数据（followSellerPrices 数组）
+  // 如果上品帮有 followSellerPrices，从中计算跟卖数量和最低价
+  if (spbSales.followSellerPrices?.length > 0) {
+    // 上品帮已返回跟卖数据
+    const prices = spbSales.followSellerPrices.filter((p: number) => p > 0);
+    if (prices.length > 0) {
+      // 如果没有 competitorCount，用数组长度
+      if (spbSales.competitorCount == null) {
+        spbSales.competitorCount = prices.length;
+      }
+      // 如果没有 competitorMinPrice，计算最小值
+      if (spbSales.competitorMinPrice == null) {
+        spbSales.competitorMinPrice = Math.min(...prices);
+      }
+    }
+  } else if (spbSales.competitorCount == null) {
+    // 上品帮没有跟卖数据，调用 OZON Buyer API
     try {
       const followSellerMap = await buyerApi.getFollowSellerDataBatch([productSku]);
       const followData = followSellerMap.get(productSku);
@@ -520,8 +547,9 @@ async function handleFetchAllProductData(data: {
         spbSales.competitorCount = followData.count ?? null;
         spbSales.followSellerSkus = followData.skus ?? [];
         spbSales.followSellerPrices = followData.prices ?? [];
-        if (__DEBUG__) {
-          console.log('[商品数据] OZON跟卖数据:', followData);
+        // 计算最低价
+        if (followData.prices?.length > 0) {
+          spbSales.competitorMinPrice = Math.min(...followData.prices);
         }
       }
     } catch (err: any) {
@@ -540,34 +568,39 @@ async function handleFetchAllProductData(data: {
   }
 
   // 2.8 补充类目名称（通过 EuraFlow API）
-  // 逻辑：如果上品帮三级类目都有值，用上品帮的；否则根据属性 Тип 查询我们的 API
-  const hasAllCategories = spbSales.category1 && spbSales.category2 && spbSales.category3;
+  // 逻辑：如果上品帮已有完整三级类目，直接使用；否则根据属性 Тип 查询我们的 API
+  let hasAllCategories = false;
 
-  if (__DEBUG__) {
-    console.log('[类目补充] 检查条件:', {
-      category1: spbSales.category1,
-      category2: spbSales.category2,
-      category3: spbSales.category3,
-      hasAllCategories,
-      hasEuraflowConfig: !!(euraflowConfig?.apiUrl && euraflowConfig?.apiKey)
-    });
+  // 优先检查 category 字段是否已有完整三级类目（如 "家具 > 架子和货架 > 置物架"）
+  if (spbSales.category) {
+    const categoryParts = spbSales.category.split(' > ');
+    if (categoryParts.length >= 3) {
+      // 从 category 字段提取三级类目
+      spbSales.category1 = categoryParts[0];
+      spbSales.category2 = categoryParts[1];
+      spbSales.category3 = categoryParts[2];
+      hasAllCategories = true;
+      if (__DEBUG__) {
+        console.log('[商品数据] 从 category 字段提取三级类目:', categoryParts.slice(0, 3).join(' > '));
+      }
+    }
+  }
+
+  // 其次检查 category1, category2, category3 是否都有值
+  if (!hasAllCategories && spbSales.category1 && spbSales.category2 && spbSales.category3) {
+    hasAllCategories = true;
   }
 
   // 如果上品帮三级类目不完整，从商品属性中提取 Тип 并查询我们的 API
   if (!hasAllCategories && euraflowConfig?.apiUrl && euraflowConfig?.apiKey) {
-    // 从商品属性中提取 Тип（attribute_id = 8229 是商品类型）
-    const typeAttribute = productDetail?.attributes?.find(
-      (attr: any) => attr.attribute_id === 8229
-    );
-    const typeNameRu = typeAttribute?.value;
-
-    if (__DEBUG__) {
-      console.log('[类目补充] 商品属性 Тип:', typeNameRu);
-    }
+    // 从商品属性中提取 Тип（类型属性，key = "Тип"）
+    // 注意：attributes 中的 attribute_id 是哈希值，不是 OZON 原始 ID
+    // 需要使用 productDetail.typeNameRu 或从 attributes 中找 key="Тип" 的值
+    const typeNameRu = productDetail?.typeNameRu;
 
     if (typeNameRu) {
       try {
-        const { createEuraflowApi } = await import('../shared/api/euraflow-api');
+        // 使用已导入的 createEuraflowApi（避免动态导入触发 modulePreload polyfill）
         const api = createEuraflowApi(euraflowConfig.apiUrl, euraflowConfig.apiKey);
         const categoryData = await api.getCategoryByRussianName(typeNameRu);
 
@@ -580,10 +613,6 @@ async function handleFetchAllProductData(data: {
           spbSales.category3 = categoryData.category3;
           spbSales.category3Id = categoryData.category3Id?.toString();
           spbSales.category = categoryData.fullPath;
-
-          if (__DEBUG__) {
-            console.log('[EuraFlow API] 类目查询成功:', categoryData);
-          }
         }
       } catch (err: any) {
         console.error('[商品数据] 类目查询失败:', err.message);

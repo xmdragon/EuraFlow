@@ -1,8 +1,216 @@
 import { DataFusionEngine } from './fusion/engine';
-import { spbangApiProxy, ozonBuyerApiProxy } from '../shared/api';
+import { spbangApiProxy } from '../shared/api';
 import { FilterEngine } from './filter';
 import { getRateLimitConfig } from '../shared/storage';
+import { getOzonStandardHeaders } from '../shared/ozon-headers';
+import { OzonApiRateLimiter } from '../shared/ozon-rate-limiter';
 import type { ProductData, CollectionProgress, RateLimitConfig } from '../shared/types';
+import type { ProductBasicInfo } from '../shared/api/ozon-buyer-api';
+
+/**
+ * 直接在 Content Script 中获取商品列表页数据
+ * 避免通过 Service Worker 代理（解决死锁/403问题）
+ */
+async function fetchProductsPageDirect(pageUrl: string, page: number): Promise<ProductBasicInfo[]> {
+  try {
+    const encodedUrl = encodeURIComponent(pageUrl);
+    const apiUrl = `${window.location.origin}/api/entrypoint-api.bx/page/json/v2?url=${encodedUrl}&page=${page}`;
+
+    if (__DEBUG__) {
+      console.log(`[API] fetchProductsPageDirect 请求:`, { url: apiUrl, pageUrl, page });
+    }
+
+    const limiter = OzonApiRateLimiter.getInstance();
+    const { headers } = await getOzonStandardHeaders({
+      referer: `${window.location.origin}${pageUrl}`,
+      serviceName: 'composer'
+    });
+
+    const response = await limiter.executeWithRetry(async () => {
+      const res = await fetch(apiUrl, {
+        method: 'GET',
+        headers,
+        credentials: 'include'
+      });
+      return res;
+    });
+
+    if (!response.ok) {
+      console.error(`[API] fetchProductsPageDirect HTTP 错误: ${response.status}`);
+      return [];
+    }
+
+    const result = await response.json();
+    const products = parseProductsResponse(result);
+
+    if (__DEBUG__) {
+      console.log(`[API] fetchProductsPageDirect 返回:`, { page, count: products.length });
+    }
+
+    return products;
+  } catch (error: any) {
+    console.error('[API] fetchProductsPageDirect 失败:', error.message);
+    return [];
+  }
+}
+
+/**
+ * 解析商品列表响应
+ */
+function parseProductsResponse(result: any): ProductBasicInfo[] {
+  const widgetStates = result.widgetStates || {};
+
+  // 查找包含商品列表的 widget
+  const productListKey = Object.keys(widgetStates).find(key =>
+    key.includes('tileGridDesktop') || key.includes('searchResultsV2')
+  );
+
+  if (!productListKey) {
+    return [];
+  }
+
+  // 解析 widget 数据
+  let widgetData: any;
+  try {
+    widgetData = typeof widgetStates[productListKey] === 'string'
+      ? JSON.parse(widgetStates[productListKey])
+      : widgetStates[productListKey];
+  } catch {
+    return [];
+  }
+
+  const items = widgetData.items || widgetData.products || [];
+  if (items.length === 0) {
+    return [];
+  }
+
+  // 转换为标准格式
+  return items.map((item: any) => parseProductItem(item))
+    .filter((p: ProductBasicInfo) => p.sku);
+}
+
+/**
+ * 解析单个商品项
+ */
+function parseProductItem(item: any): ProductBasicInfo {
+  // 提取 SKU
+  let sku = String(item.sku || item.id || '');
+  if (!sku && item.action?.link) {
+    const skuMatch = item.action.link.match(/-(\d{6,})(?:\/|\?|$)/);
+    if (skuMatch) {
+      sku = skuMatch[1];
+    }
+  }
+
+  // 提取价格
+  let price: number | null = null;
+  let originalPrice: number | null = null;
+
+  // 1. priceV2 格式（新版）
+  if (item.priceV2) {
+    const priceText = item.priceV2.price?.[0]?.text || item.priceV2.price || '';
+    price = parseOzonPrice(priceText);
+    const originalText = item.priceV2.originalPrice?.[0]?.text || item.priceV2.originalPrice || '';
+    originalPrice = parseOzonPrice(originalText);
+  }
+
+  // 2. mainState 中的价格
+  if (price === null && item.mainState) {
+    for (const state of item.mainState) {
+      if (state.type === 'priceV2' && state.priceV2?.price) {
+        const priceItems = state.priceV2.price;
+        if (Array.isArray(priceItems)) {
+          const priceItem = priceItems.find((p: any) => p.textStyle === 'PRICE');
+          if (priceItem?.text) {
+            price = parseOzonPrice(priceItem.text);
+          }
+          const originalItem = priceItems.find((p: any) => p.textStyle === 'ORIGINAL_PRICE');
+          if (originalItem?.text) {
+            originalPrice = parseOzonPrice(originalItem.text);
+          }
+        }
+        break;
+      }
+      if (state.price) {
+        price = parseOzonPrice(state.price);
+        break;
+      }
+      if (state.atom?.price) {
+        price = parseOzonPrice(state.atom.price);
+        break;
+      }
+    }
+  }
+
+  // 3. 直接 price 字段
+  if (price === null && item.price) {
+    price = typeof item.price === 'number' ? item.price : parseOzonPrice(item.price);
+  }
+
+  // 4. atom.price 格式
+  if (price === null && item.atom?.price) {
+    price = parseOzonPrice(item.atom.price);
+  }
+
+  // 5. cardPrice 格式
+  if (price === null && item.cardPrice) {
+    price = parseOzonPrice(item.cardPrice);
+  }
+
+  // 提取评分
+  let rating: number | null = null;
+  let reviewCount: number | null = null;
+
+  if (item.rating) {
+    rating = typeof item.rating === 'number' ? item.rating : parseFloat(item.rating);
+  }
+  if (item.reviewCount || item.reviews) {
+    const countStr = String(item.reviewCount || item.reviews || '');
+    reviewCount = parseInt(countStr.replace(/\D/g, ''), 10) || null;
+  }
+
+  return {
+    sku,
+    link: item.action?.link || item.link || '',
+    title: item.title || item.name || '',
+    price,
+    originalPrice,
+    rating,
+    reviewCount,
+    imageUrl: item.image || item.mainImage || item.images?.[0] || null
+  };
+}
+
+/**
+ * 解析 OZON 价格字符串
+ */
+function parseOzonPrice(priceStr: string): number | null {
+  if (!priceStr || typeof priceStr !== 'string') {
+    return null;
+  }
+
+  // 移除货币符号和空格
+  let cleaned = priceStr.replace(/[₽¥$€\s]/g, '');
+
+  // 处理欧洲格式：移除千位分隔符（空格），将逗号替换为点
+  cleaned = cleaned.replace(/\s/g, '').replace(',', '.');
+
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? null : num;
+}
+
+/**
+ * 从 URL 提取路径部分
+ */
+function extractPagePath(fullUrl: string): string {
+  try {
+    const url = new URL(fullUrl);
+    return url.pathname;
+  } catch {
+    const match = fullUrl.match(/ozon\.ru(\/[^?#]*)/);
+    return match ? match[1] : '/';
+  }
+}
 
 interface CollectingProduct {
   data: ProductData;
@@ -124,7 +332,7 @@ export class ProductCollector {
     const processedSKUs = new Set<string>();
 
     // 提取当前页面路径
-    const pageUrl = ozonBuyerApiProxy.extractPagePath(window.location.href);
+    const pageUrl = extractPagePath(window.location.href);
 
     if (__DEBUG__) {
       console.log(`[API采集] 开始采集，页面路径: ${pageUrl}，目标: ${targetCount}`);
@@ -137,11 +345,11 @@ export class ProductCollector {
     while (this.isRunning && passedProducts.length < targetCount && page <= maxPages) {
       const pageStartTime = Date.now();
 
-      // 1. 获取当前页的商品列表
+      // 1. 获取当前页的商品列表（直接请求，不经过 Service Worker）
       this.progress.status = `获取第 ${page} 页商品列表...`;
       onProgress?.(this.progress);
 
-      const pageProducts = await ozonBuyerApiProxy.getProductsPage(pageUrl, page);
+      const pageProducts = await fetchProductsPageDirect(pageUrl, page);
       const pageEndTime = Date.now();
 
       if (__DEBUG__) {
@@ -245,15 +453,6 @@ export class ProductCollector {
   ): Promise<void> {
     if (newProducts.length === 0) {
       return;
-    }
-
-    if (__DEBUG__) {
-      console.log(`[处理] 开始处理 ${newProducts.length} 个新商品（来自API）`);
-      console.log(`[处理] 过滤器状态:`, {
-        hasFilter: this.filterEngine?.hasAnyFilter(),
-        needsSpbFilter: this.filterEngine?.needsSpbFilter(),
-        needsFollowSellerFilter: this.filterEngine?.needsFollowSellerFilter(),
-      });
     }
 
     try {
@@ -1122,16 +1321,6 @@ export class ProductCollector {
       return;
     }
 
-    if (__DEBUG__) {
-      console.log(`[处理] 开始处理 ${unprocessedProducts.length} 个新商品`);
-      console.log(`[处理] 过滤器状态:`, {
-        hasFilter: this.filterEngine?.hasAnyFilter(),
-        needsSpbFilter: this.filterEngine?.needsSpbFilter(),
-        needsFollowSellerFilter: this.filterEngine?.needsFollowSellerFilter(),
-        config: this.filterEngine?.getConfig()
-      });
-    }
-
     try {
       // 2.1 获取销售数据（上品帮批量API）
       this.progress.status = `获取销售数据 (${unprocessedProducts.length}个)...`;
@@ -1271,6 +1460,13 @@ export class ProductCollector {
             paid_promo_days: spbData.paidPromoDays ?? undefined,
             ad_cost_share: spbData.adShare ?? undefined,
             return_cancel_rate: spbData.returnCancelRate ?? undefined,
+            // 佣金数据（从销售数据 API 提取，避免重复调用佣金 API）
+            rfbs_commission_low: spbData.rfbsCommissionLow ?? undefined,
+            rfbs_commission_mid: spbData.rfbsCommissionMid ?? undefined,
+            rfbs_commission_high: spbData.rfbsCommissionHigh ?? undefined,
+            fbp_commission_low: spbData.fbpCommissionLow ?? undefined,
+            fbp_commission_mid: spbData.fbpCommissionMid ?? undefined,
+            fbp_commission_high: spbData.fbpCommissionHigh ?? undefined,
             // 商品信息
             avg_price: spbData.avgPrice ?? undefined,
             weight: spbData.weight ?? undefined,
@@ -1367,10 +1563,27 @@ export class ProductCollector {
 
   /**
    * 批量获取佣金数据（上品帮批量API）
+   * 优化：只对缺失佣金数据的商品调用 API（上品帮销售数据可能已包含佣金）
    */
   private async getCommissionsForBatch(batch: ProductData[]): Promise<void> {
+    // 过滤出缺少佣金数据的商品
+    const productsWithoutCommissions = batch.filter(p =>
+      p.rfbs_commission_mid == null && p.fbp_commission_mid == null
+    );
+
+    if (productsWithoutCommissions.length === 0) {
+      if (__DEBUG__) {
+        console.log('[佣金数据] 所有商品已有佣金数据，跳过 API 调用');
+      }
+      return;
+    }
+
+    if (__DEBUG__) {
+      console.log(`[佣金数据] ${productsWithoutCommissions.length}/${batch.length} 个商品缺少佣金数据，调用 API 补充`);
+    }
+
     try {
-      const goodsForCommissions = batch.map(p => ({
+      const goodsForCommissions = productsWithoutCommissions.map(p => ({
         goods_id: p.product_id,
         category_name: p.category_level_1 || p.category_path?.split(' > ')[0] || '未知类目'
       }));
@@ -1409,11 +1622,25 @@ export class ProductCollector {
 
   /**
    * 批量获取跟卖数据（OZON批量API）
-   * ✅ 关键优化：使用已实现的批量API替代串行调用
+   * 优化：只对缺失跟卖数据的商品调用 API（上品帮销售数据可能已包含跟卖信息）
    */
   private async getFollowSellerDataForBatch(batch: ProductData[]): Promise<void> {
+    // 过滤出缺少跟卖数据的商品（competitor_count 为 null 或 undefined）
+    const productsWithoutFollowSeller = batch.filter(p => p.competitor_count == null);
+
+    if (productsWithoutFollowSeller.length === 0) {
+      if (__DEBUG__) {
+        console.log('[跟卖数据] 所有商品已有跟卖数据，跳过 OZON API 调用');
+      }
+      return;
+    }
+
+    if (__DEBUG__) {
+      console.log(`[跟卖数据] ${productsWithoutFollowSeller.length}/${batch.length} 个商品缺少跟卖数据，调用 OZON API 补充`);
+    }
+
     try {
-      const productIds = batch.map(p => p.product_id);
+      const productIds = productsWithoutFollowSeller.map(p => p.product_id);
 
       // 通过 Service Worker 获取跟卖数据
       const response = await chrome.runtime.sendMessage({
@@ -1441,8 +1668,8 @@ export class ProductCollector {
         });
       }
 
-      // 合并数据
-      batch.forEach((product) => {
+      // 合并数据（只更新缺少跟卖数据的商品）
+      productsWithoutFollowSeller.forEach((product) => {
         const followSellerData = followSellerMap.get(product.product_id);
         if (followSellerData) {
           Object.assign(product, followSellerData);

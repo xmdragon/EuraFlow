@@ -9,6 +9,7 @@ import type { CollectorConfig } from '../../shared/types';
 import { getApiConfig, testApiConnection } from '../../shared/storage';
 import { createEuraflowApiProxy } from '../../shared/api';
 import { injectEuraflowStyles } from '../styles/injector';
+import { yuanToCents } from '../../shared/price-utils';
 
 interface ControlPanelProps {
   fusionEngine: DataFusionEngine;
@@ -272,9 +273,14 @@ export function ControlPanel(props: ControlPanelProps) {
 
       updateStatus(`📤 正在上传 ${toUpload.length} 个...`);
 
-      // 转换 ProductData 为 ProductUploadData（字段名映射 + Date → string）
+      // 转换 ProductData 为 ProductUploadData（字段名映射 + Date → string + 价格转分）
       const uploadData = toUpload.map(product => ({
         ...product,
+        // 价格转换为分（后端 API 使用分为单位）
+        current_price: product.current_price != null ? yuanToCents(product.current_price) : undefined,
+        original_price: product.original_price != null ? yuanToCents(product.original_price) : undefined,
+        competitor_min_price: product.competitor_min_price != null ? yuanToCents(product.competitor_min_price) : undefined,
+        follow_seller_min_price: product.follow_seller_min_price != null ? yuanToCents(product.follow_seller_min_price) : undefined,
         // 日期字段转换
         product_created_date: product.product_created_date instanceof Date
           ? product.product_created_date.toISOString()

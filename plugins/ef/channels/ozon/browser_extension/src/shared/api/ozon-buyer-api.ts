@@ -12,36 +12,6 @@ import { BaseApiClient } from './base-client';
 import { getOzonStandardHeaders, getBrowserInfo } from '../ozon-headers';
 
 /**
- * 在页面上下文中执行 Buyer API 请求
- * 【关键】此函数会被 chrome.scripting.executeScript 注入到页面中执行
- * 可以绕过反爬虫检测（TLS 指纹、sec-fetch-site 等都是真实浏览器的）
- */
-export async function executeBuyerApiInPage(
-  apiUrl: string
-): Promise<{ success: boolean; data?: any; error?: string }> {
-  try {
-    // 在页面上下文中发起请求（使用页面的 Cookie 和 TLS 指纹）
-    const response = await fetch(apiUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json, text/plain, */*',
-        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8,ru;q=0.7'
-      },
-      credentials: 'include'  // 自动携带 Cookie
-    });
-
-    if (!response.ok) {
-      return { success: false, error: `HTTP ${response.status}` };
-    }
-
-    const result = await response.json();
-    return { success: true, data: result };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
-}
-
-/**
  * 商品基础信息（从分页 API 获取）
  */
 export interface ProductBasicInfo {
@@ -111,20 +81,7 @@ export class OzonBuyerApi extends BaseApiClient {
         console.log(`[OzonBuyerApi] 请求第 ${page} 页:`, apiUrl);
       }
 
-      // 【方案1】优先在 ozon.ru 页面上下文中执行请求（绕过反爬虫）
-      const pageResult = await this.tryExecuteInPage(apiUrl);
-      if (pageResult) {
-        if (__DEBUG__) {
-          console.log(`[OzonBuyerApi] ✅ 页面上下文请求成功`);
-        }
-        return this.parseProductsResponse(pageResult);
-      }
-
-      if (__DEBUG__) {
-        console.log(`[OzonBuyerApi] 页面上下文请求失败，回退到 Service Worker`);
-      }
-
-      // 【方案2】Fallback: 从 Service Worker 直接请求
+      // 直接请求（不使用 tryExecuteInPage，避免从 Content Script 调用时死锁）
       // 获取标准 headers
       const { headers: baseHeaders } = await getOzonStandardHeaders({
         referer: `https://www.ozon.ru${pageUrl}`,
@@ -266,13 +223,7 @@ export class OzonBuyerApi extends BaseApiClient {
       );
       const apiUrl = `${origin}/api/entrypoint-api.bx/page/json/v2?url=${encodedUrl}`;
 
-      // 【方案1】优先在页面上下文中执行请求
-      const pageResult = await this.tryExecuteInPage(apiUrl);
-      if (pageResult) {
-        return this.parseFollowSellerResponse(pageResult);
-      }
-
-      // 【方案2】Fallback: Service Worker 直接请求
+      // 直接请求（不使用 tryExecuteInPage，避免从 Content Script 调用时死锁）
       const { headers: baseHeaders } = await getOzonStandardHeaders({
         referer: `https://www.ozon.ru/product/${productId}/`,
         serviceName: 'composer'
@@ -495,51 +446,81 @@ export class OzonBuyerApi extends BaseApiClient {
   }
 
   /**
-   * 尝试在 ozon.ru 页面上下文中执行请求
-   * 绕过反爬虫检测（TLS 指纹、sec-fetch-site 等都是真实浏览器的）
+   * 获取 Modal 变体数据（完整的颜色×尺码组合）
+   *
+   * 注意：此方法从 Content Script 通过 Service Worker 调用，
+   * 不能使用 tryExecuteInPage（会造成死锁：Content Script 等待 SW 响应，SW 又在等待页面脚本执行）
+   *
+   * @param productId 商品 ID
+   * @returns 变体数据数组
    */
-  private async tryExecuteInPage(apiUrl: string): Promise<any | null> {
+  async getModalVariants(productId: string): Promise<any[] | null> {
     try {
-      // 查找已打开的 ozon.ru 标签页
-      const ozonTabs = await chrome.tabs.query({ url: 'https://www.ozon.ru/*' });
+      const origin = 'https://www.ozon.ru';
+      const encodedUrl = encodeURIComponent(`/modal/aspectsNew?product_id=${productId}`);
+      const apiUrl = `${origin}/api/entrypoint-api.bx/page/json/v2?url=${encodedUrl}`;
 
-      if (ozonTabs.length === 0) {
-        if (__DEBUG__) {
-          console.log('[OzonBuyerApi] 未找到 ozon.ru 标签页');
-        }
-        return null;
+      if (__DEBUG__) {
+        console.log('[OzonBuyerApi] Modal API 请求:', apiUrl);
       }
 
-      const ozonTab = ozonTabs[0];
-      if (!ozonTab.id) {
-        return null;
-      }
-
-      // 在页面上下文中执行请求
-      const results = await chrome.scripting.executeScript({
-        target: { tabId: ozonTab.id },
-        func: executeBuyerApiInPage,
-        args: [apiUrl]
+      // 直接请求（不使用 tryExecuteInPage，避免死锁）
+      const { headers } = await getOzonStandardHeaders({
+        referer: `https://www.ozon.ru/product/${productId}/`,
+        serviceName: 'composer'
       });
 
-      if (results && results[0] && results[0].result) {
-        const result = results[0].result;
-        if (result.success) {
-          return result.data;
-        } else {
-          if (__DEBUG__) {
-            console.warn('[OzonBuyerApi] 页面上下文请求失败:', result.error);
-          }
+      const response = await this.rateLimiter.execute(() =>
+        fetch(apiUrl, {
+          method: 'GET',
+          headers,
+          credentials: 'include'
+        })
+      );
+
+      if (!response.ok) {
+        if (__DEBUG__) {
+          console.warn('[OzonBuyerApi] Modal API 请求失败:', response.status);
         }
+        return null;
       }
 
-      return null;
+      const data = await response.json();
+      return this.parseModalVariantsResponse(data);
     } catch (error: any) {
       if (__DEBUG__) {
-        console.warn('[OzonBuyerApi] 页面执行失败:', error.message);
+        console.error('[OzonBuyerApi] Modal API 错误:', error.message);
       }
       return null;
     }
+  }
+
+  /**
+   * 解析 Modal 变体响应
+   */
+  private parseModalVariantsResponse(data: any): any[] | null {
+    const widgetStates = data.widgetStates || {};
+    const keys = Object.keys(widgetStates);
+    const modalKey = keys.find(k => k.includes('webAspectsModal'));
+
+    if (!modalKey) {
+      if (__DEBUG__) {
+        console.warn('[OzonBuyerApi] Modal API 返回数据中没有 webAspectsModal');
+      }
+      return null;
+    }
+
+    try {
+      const modalData = JSON.parse(widgetStates[modalKey]);
+      const aspects = modalData?.aspects;
+      if (aspects && Array.isArray(aspects)) {
+        return aspects;
+      }
+    } catch {
+      // JSON 解析失败
+    }
+
+    return null;
   }
 
   /**

@@ -555,11 +555,17 @@ function createFollowButton(
       };
 
       // 使用计算出的真实售价，而不是 OZON 的绿色价格
+      // 主图获取优先级：上品帮 photo → ozonProduct.primary_image → images[0]
+      const primaryImage = spbSales?.photo
+        || ozonProduct?.primary_image
+        || ozonProduct?.images?.[0]?.url
+        || null;
+
       const productData = {
         ...ozonProduct,
         dimensions: finalDimensions,  // 确保包含尺寸数据
         price: realPrice,  // 使用真实售价
-        primary_image: spbSales?.photo || null  // 使用上品帮的主图（photo 字段）
+        primary_image: primaryImage
       };
       showPublishModal(productData, realPrice);
     } catch (error) {

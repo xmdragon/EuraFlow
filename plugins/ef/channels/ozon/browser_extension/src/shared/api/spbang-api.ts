@@ -303,6 +303,7 @@ export class SpbangApi extends BaseApiClient {
       }
     }
 
+    const apiUrl = 'https://plus.shopbang.cn/api/goods/hotSales/getOzonSaleDataByIds';
     const requestBody = {
       goodsIds: productIds,
       token: credentials.token,
@@ -311,8 +312,15 @@ export class SpbangApi extends BaseApiClient {
       v: 4
     };
 
+    if (__DEBUG__) {
+      console.log('[API] SpbangApi.getSalesDataBatch 请求:', {
+        url: apiUrl,
+        params: { goodsIds: productIds, apiType: 'getGoodsInfoByIds' }
+      });
+    }
+
     try {
-      const response = await fetch('https://plus.shopbang.cn/api/goods/hotSales/getOzonSaleDataByIds', {
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -327,9 +335,8 @@ export class SpbangApi extends BaseApiClient {
 
       const result = await response.json();
 
-      // 调试：输出原始响应
       if (__DEBUG__) {
-        console.log('[SpbangApi] 销售数据原始响应:', JSON.stringify(result, null, 2));
+        console.log('[API] SpbangApi.getSalesDataBatch 返回:', JSON.stringify(result, null, 2));
       }
 
       // 检测 Token 过期
@@ -347,7 +354,8 @@ export class SpbangApi extends BaseApiClient {
       if (result.code === 0 && result.data && Array.isArray(result.data)) {
         result.data.forEach((item: any) => {
           const rawData = item.data || item;
-          const sku = rawData.goodsId || rawData.sku || item.goodsId;
+          // 兼容 goods_id（下划线）和 goodsId（驼峰）
+          const sku = rawData.goodsId || rawData.goods_id || rawData.sku || item.goodsId || item.goods_id;
           if (sku) {
             results.set(sku, this.transformSalesData(rawData));
           }
@@ -397,15 +405,23 @@ export class SpbangApi extends BaseApiClient {
       }
     }
 
+    const apiUrl = 'https://api.shopbang.cn/ozonMallSale/';
     const requestBody = {
       token: credentials.token,
       apiType: 'getGoodsCommissions',
       goods: goods
     };
 
+    if (__DEBUG__) {
+      console.log('[API] SpbangApi.getCommissionsBatch 请求:', {
+        url: apiUrl,
+        params: { goods, apiType: 'getGoodsCommissions' }
+      });
+    }
+
     try {
       // 注意：佣金 API 使用不同的域名
-      const response = await fetch('https://api.shopbang.cn/ozonMallSale/', {
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -420,9 +436,8 @@ export class SpbangApi extends BaseApiClient {
 
       const result = await response.json();
 
-      // 调试：输出原始响应
       if (__DEBUG__) {
-        console.log('[SpbangApi] 佣金数据原始响应:', JSON.stringify(result, null, 2));
+        console.log('[API] SpbangApi.getCommissionsBatch 返回:', JSON.stringify(result, null, 2));
       }
 
       // 检测 Token 过期
