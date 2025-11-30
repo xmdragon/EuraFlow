@@ -334,6 +334,7 @@ class CatalogService:
         """
         try:
             # 检查缓存
+            needs_ru_sync = False
             if not force_refresh:
                 cached_result = await self.db.execute(
                     select(OzonCategoryAttribute).where(
@@ -343,8 +344,18 @@ class CatalogService:
                 cached_attrs = cached_result.scalars().all()
                 cached_count = len(cached_attrs)
                 if cached_count > 0:
-                    logger.info(f"Category {category_id} attributes cached ({cached_count}), skipping")
-                    return {"success": True, "cached": True, "count": cached_count}
+                    # 检查是否缺少俄文名称
+                    missing_ru = sum(1 for attr in cached_attrs if not attr.name_ru)
+                    if missing_ru > 0:
+                        # 需要补充俄文同步
+                        needs_ru_sync = True
+                        logger.info(
+                            f"Category {category_id} has {cached_count} attrs but {missing_ru} missing name_ru, "
+                            f"will sync Russian only"
+                        )
+                    else:
+                        logger.info(f"Category {category_id} attributes cached ({cached_count}), skipping")
+                        return {"success": True, "cached": True, "count": cached_count}
 
             # 查询类目信息（获取parent_id作为description_category_id）
             cat_stmt = select(OzonCategory).where(OzonCategory.category_id == category_id)
@@ -356,37 +367,42 @@ class CatalogService:
                 logger.error(error_msg)
                 return {"success": False, "error": error_msg}
 
-            # 第一步：同步中文属性
-            logger.info(f"Step 1/2: Syncing Chinese attributes for category {category_id}...")
-            zh_response = await self.client.get_category_attributes(
-                category_id=category.parent_id,  # 父类别ID
-                type_id=category_id,  # 商品类型ID（叶子节点）
-                language="ZH_HANS"
-            )
-
-            if not zh_response.get("result"):
-                error_msg = zh_response.get("error", {}).get("message", "Unknown error")
-
-                # 如果是 OZON 类目不存在的错误，返回更友好的提示
-                if "is not found" in error_msg or "not found" in error_msg.lower():
-                    logger.warning(f"Category {category_id} not available in OZON: {error_msg}")
-                    return {
-                        "success": False,
-                        "error": f"该类目在OZON平台不可用（可能已废弃）",
-                        "ozon_error": error_msg
-                    }
-
-                logger.error(f"Failed to fetch Chinese category attributes: {error_msg}")
-                return {"success": False, "error": error_msg}
-
-            zh_attributes = zh_response["result"]
             synced_count = 0
 
-            for attr_data in zh_attributes:
-                await self._save_category_attribute(category_id, attr_data, language="zh")
-                synced_count += 1
+            # 如果只需要补充俄文，跳过中文同步
+            if not needs_ru_sync:
+                # 第一步：同步中文属性
+                logger.info(f"Step 1/2: Syncing Chinese attributes for category {category_id}...")
+                zh_response = await self.client.get_category_attributes(
+                    category_id=category.parent_id,  # 父类别ID
+                    type_id=category_id,  # 商品类型ID（叶子节点）
+                    language="ZH_HANS"
+                )
 
-            logger.info(f"Chinese attributes synced: {synced_count}")
+                if not zh_response.get("result"):
+                    error_msg = zh_response.get("error", {}).get("message", "Unknown error")
+
+                    # 如果是 OZON 类目不存在的错误，返回更友好的提示
+                    if "is not found" in error_msg or "not found" in error_msg.lower():
+                        logger.warning(f"Category {category_id} not available in OZON: {error_msg}")
+                        return {
+                            "success": False,
+                            "error": f"该类目在OZON平台不可用（可能已废弃）",
+                            "ozon_error": error_msg
+                        }
+
+                    logger.error(f"Failed to fetch Chinese category attributes: {error_msg}")
+                    return {"success": False, "error": error_msg}
+
+                zh_attributes = zh_response["result"]
+
+                for attr_data in zh_attributes:
+                    await self._save_category_attribute(category_id, attr_data, language="zh")
+                    synced_count += 1
+
+                logger.info(f"Chinese attributes synced: {synced_count}")
+            else:
+                logger.info(f"Skipping Chinese sync (already cached), syncing Russian only...")
 
             # 第二步：同步俄文属性
             logger.info(f"Step 2/2: Syncing Russian attributes for category {category_id}...")
