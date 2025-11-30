@@ -565,6 +565,7 @@ async function fetchCharacteristicsAndDescription(productSlug: string): Promise<
         hasDescription: !!result?.description,
         descriptionLength: result?.description?.length || 0,
         attributesCount: result?.attributes?.length || 0,
+        attributes: result?.attributes,  // 输出完整的属性数组
         typeNameRu: result?.typeNameRu
       });
     }
@@ -798,25 +799,19 @@ export async function extractProductData(): Promise<ProductDetailData> {
       const dimensionsFromAttrs: { weight?: number; height?: number; width?: number; length?: number } = {};
 
       for (const attr of baseData.attributes) {
-        const name = attr.name?.toLowerCase() || '';
+        const key = ((attr as any).key || '').toLowerCase();  // key 是英文标识符，更可靠
         const value = parseFloat(attr.value);
 
         if (isNaN(value)) continue;
 
-        // 长度（cm → mm）
-        if (name.includes('长度') || name === 'length') {
+        // 只用 key 匹配，不依赖多语言的 name
+        if (key === 'length') {
           dimensionsFromAttrs.length = Math.round(value * 10);  // cm → mm
-        }
-        // 宽度（cm → mm）
-        else if (name.includes('宽度') || name === 'width') {
+        } else if (key === 'width') {
           dimensionsFromAttrs.width = Math.round(value * 10);  // cm → mm
-        }
-        // 高度（cm → mm）
-        else if (name.includes('高度') || name === 'height' || name.includes('heiht')) {
+        } else if (key === 'height') {
           dimensionsFromAttrs.height = Math.round(value * 10);  // cm → mm
-        }
-        // 重量（已经是克）
-        else if (name.includes('重量') || name.includes('вес') || name === 'weight') {
+        } else if (key === 'weight') {
           dimensionsFromAttrs.weight = Math.round(value);  // 克
         }
       }

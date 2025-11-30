@@ -284,19 +284,19 @@ function buildDataRows(spbSales: any | null, dimensions: any | null): HTMLElemen
   rows.push(createBadgeRow('FBP', fbp));
 
   // 月销行（两列）
-  const monthlySales = formatNum(spbSales?.monthlySales);
+  const monthlySalesNum = spbSales?.monthlySales;
+  const monthlySalesStr = monthlySalesNum > 0 ? `${formatNum(monthlySalesNum)}件` : '--';
   const monthlyAmount = formatMoney(spbSales?.monthlySalesAmount);
-  rows.push(createTwoColRow('月销', `${monthlySales}件`, '月销额', monthlyAmount));
+  rows.push(createTwoColRow('月销', monthlySalesStr, '月销额', monthlyAmount));
 
   // 日销行（两列）- 根据月销数据计算：月销 / 当天日期
   const dayOfMonth = new Date().getDate();
-  const dailySales = spbSales?.monthlySales != null
-    ? (spbSales.monthlySales / dayOfMonth).toFixed(1)
-    : '---';
-  const dailyAmount = spbSales?.monthlySalesAmount != null
+  const dailySalesNum = monthlySalesNum > 0 ? monthlySalesNum / dayOfMonth : 0;
+  const dailySalesStr = dailySalesNum > 0 ? `${dailySalesNum.toFixed(1)}件` : '--';
+  const dailyAmount = spbSales?.monthlySalesAmount > 0
     ? formatDailyAmount(spbSales.monthlySalesAmount / dayOfMonth)
-    : '---';
-  rows.push(createTwoColRow('日销', dailySales === '---' ? '---' : `${dailySales}件`, '日销额', dailyAmount));
+    : '--';
+  rows.push(createTwoColRow('日销', dailySalesStr, '日销额', dailyAmount));
 
   // 动态 + 点击率（两列）
   const dynamic = formatPercent(spbSales?.salesDynamic);

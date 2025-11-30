@@ -159,9 +159,8 @@ const FIELD_CONFIG: Record<string, FieldConfig> = {
   monthlySales: {
     getValue: (d) => d?.monthlySales,
     format: (v) => {
-      if (v == null) return EMPTY;
-      const formatted = formatNum(v);
-      return formatted === EMPTY ? EMPTY : `${formatted}件`;
+      const num = typeof v === 'number' ? v : parseFloat(v);
+      return num > 0 ? `${formatNum(num)}件` : EMPTY;
     },
     label: '月销'
   },
@@ -173,9 +172,8 @@ const FIELD_CONFIG: Record<string, FieldConfig> = {
   dailySales: {
     getValue: (d) => d?.dailySales,
     format: (v) => {
-      if (v == null) return EMPTY;
-      const formatted = formatNum(v);
-      return formatted === EMPTY ? EMPTY : `${formatted}件`;
+      const num = typeof v === 'number' ? v : parseFloat(v);
+      return num > 0 ? `${formatNum(num)}件` : EMPTY;
     },
     label: '日销'
   },

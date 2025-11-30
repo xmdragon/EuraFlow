@@ -258,8 +258,12 @@ class ProductFetcher:
                     visibility=visibility
                 )
 
-                if attr_response.get("result", {}).get("items"):
-                    for idx, attr_item in enumerate(attr_response["result"]["items"]):
+                # /v4/product/info/attributes 返回的 result 是数组，不是 {"items": [...]}
+                result = attr_response.get("result")
+                if result:
+                    # result 可能是数组或字典
+                    items = result if isinstance(result, list) else result.get("items", [])
+                    for idx, attr_item in enumerate(items):
                         # 类型检查
                         if not isinstance(attr_item, dict):
                             logger.warning(

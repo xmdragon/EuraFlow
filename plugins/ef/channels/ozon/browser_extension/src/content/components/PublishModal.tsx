@@ -1140,7 +1140,7 @@ async function handleFollowPdp(): Promise<void> {
     }
 
     // 成功后显示右上角通知
-    showToast('跟卖成功！', 'success');
+    showToast('跟卖已提交，后续请查看Seller后台是否有错', 'info');
     closeModal();
   } catch (error) {
     console.error('[PublishModal] 跟卖失败:', error);
