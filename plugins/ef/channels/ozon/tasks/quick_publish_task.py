@@ -822,7 +822,25 @@ def update_ozon_product_images_task(self, prev_result: Dict, parent_task_id: str
 @celery_app.task(bind=True, name="ef.ozon.quick_publish.update_price", max_retries=3)
 def update_product_price_task(self, prev_result: Dict, dto_dict: Dict, shop_id: int, parent_task_id: str):
     """
-    步骤 4: 更新商品价格
+    步骤 4: 跳过价格更新（价格已在 import 时设置）
+    """
+    product_id = prev_result["product_id"]
+    price = dto_dict.get("price")
+
+    logger.info(f"[Step 4] 跳过价格更新（已在import时设置）: product_id={product_id}, price={price}")
+
+    update_task_progress(
+        parent_task_id, status="running", current_step="update_price",
+        progress=75, step_details={"status": "skipped", "message": "价格已在创建时设置"}
+    )
+
+    return prev_result
+
+
+@celery_app.task(bind=True, name="ef.ozon.quick_publish.update_price_legacy", max_retries=3)
+def update_product_price_task_legacy(self, prev_result: Dict, dto_dict: Dict, shop_id: int, parent_task_id: str):
+    """
+    步骤 4 (旧版): 更新商品价格
     调用 OZON API /v1/product/import/prices
     """
     product_id = prev_result["product_id"]
