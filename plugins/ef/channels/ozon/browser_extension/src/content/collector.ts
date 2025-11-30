@@ -2,17 +2,47 @@ import { DataFusionEngine } from './fusion/engine';
 import { spbangApiProxy } from '../shared/api';
 import { FilterEngine } from './filter';
 import { getRateLimitConfig } from '../shared/storage';
-import { getOzonStandardHeaders } from '../shared/ozon-headers';
-import { OzonApiRateLimiter } from '../shared/ozon-rate-limiter';
 import type { ProductData, CollectionProgress, RateLimitConfig } from '../shared/types';
 import type { ProductBasicInfo } from '../shared/api/ozon-buyer-api';
 
+// 标记页面注入脚本是否已加载
+let pageScriptInjected = false;
+
 /**
- * 直接在 Content Script 中获取商品列表页数据
- * 避免通过 Service Worker 代理（解决死锁/403问题）
+ * 确保页面注入脚本已加载
+ */
+function ensurePageScriptLoaded(): Promise<void> {
+  return new Promise((resolve) => {
+    if (pageScriptInjected || (window as any).__EURAFLOW_PAGE_SCRIPT_LOADED__) {
+      pageScriptInjected = true;
+      resolve();
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = chrome.runtime.getURL('assets/page-injected.js');
+    script.onload = () => {
+      pageScriptInjected = true;
+      resolve();
+    };
+    script.onerror = () => {
+      console.error('[EuraFlow] 页面注入脚本加载失败');
+      resolve();  // 即使失败也继续
+    };
+    document.head.appendChild(script);
+  });
+}
+
+/**
+ * 在页面上下文中执行商品列表 API 请求
+ * 【关键】通过外部脚本注入到页面中执行，绕过 CSP 和反爬虫检测
  */
 async function fetchProductsPageDirect(pageUrl: string, page: number): Promise<ProductBasicInfo[]> {
-  try {
+  // 确保页面脚本已加载
+  await ensurePageScriptLoaded();
+
+  return new Promise((resolve) => {
+    const requestId = `products_page_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const encodedUrl = encodeURIComponent(pageUrl);
     const apiUrl = `${window.location.origin}/api/entrypoint-api.bx/page/json/v2?url=${encodedUrl}&page=${page}`;
 
@@ -20,38 +50,38 @@ async function fetchProductsPageDirect(pageUrl: string, page: number): Promise<P
       console.log(`[API] fetchProductsPageDirect 请求:`, { url: apiUrl, pageUrl, page });
     }
 
-    const limiter = OzonApiRateLimiter.getInstance();
-    const { headers } = await getOzonStandardHeaders({
-      referer: `${window.location.origin}${pageUrl}`,
-      serviceName: 'composer'
-    });
+    // 监听页面返回的结果
+    const handleResponse = (event: CustomEvent) => {
+      if (event.detail?.requestId === requestId) {
+        window.removeEventListener('euraflow_page_response', handleResponse as EventListener);
 
-    const response = await limiter.executeWithRetry(async () => {
-      const res = await fetch(apiUrl, {
-        method: 'GET',
-        headers,
-        credentials: 'include'
-      });
-      return res;
-    });
+        if (event.detail.success) {
+          const products = parseProductsResponse(event.detail.data);
+          if (__DEBUG__) {
+            console.log(`[API] fetchProductsPageDirect 返回:`, { page, count: products.length });
+          }
+          resolve(products);
+        } else {
+          console.error(`[API] fetchProductsPageDirect 失败:`, event.detail.error);
+          resolve([]);
+        }
+      }
+    };
 
-    if (!response.ok) {
-      console.error(`[API] fetchProductsPageDirect HTTP 错误: ${response.status}`);
-      return [];
-    }
+    window.addEventListener('euraflow_page_response', handleResponse as EventListener);
 
-    const result = await response.json();
-    const products = parseProductsResponse(result);
+    // 超时处理（10秒）
+    setTimeout(() => {
+      window.removeEventListener('euraflow_page_response', handleResponse as EventListener);
+      console.error('[API] fetchProductsPageDirect 超时');
+      resolve([]);
+    }, 10000);
 
-    if (__DEBUG__) {
-      console.log(`[API] fetchProductsPageDirect 返回:`, { page, count: products.length });
-    }
-
-    return products;
-  } catch (error: any) {
-    console.error('[API] fetchProductsPageDirect 失败:', error.message);
-    return [];
-  }
+    // 发送请求到页面上下文
+    window.dispatchEvent(new CustomEvent('euraflow_page_request', {
+      detail: { requestId, type: 'fetch', url: apiUrl }
+    }));
+  });
 }
 
 /**

@@ -47,7 +47,8 @@ export default defineConfig({
     }),
     rollupOptions: {
       input: {
-        popup: 'src/popup/popup.html'
+        popup: 'src/popup/popup.html',
+        'page-injected': 'src/content/page-injected.ts'
       },
       output: {
         entryFileNames: 'assets/[name].js',

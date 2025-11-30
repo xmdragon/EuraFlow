@@ -17,6 +17,53 @@ import { injectEuraflowStyles } from '../styles/injector';
 // ========== 工具函数 ==========
 
 /**
+ * 显示右上角 Toast 通知（5秒后自动消失）
+ */
+function showToast(message: string, type: 'success' | 'error' | 'info' = 'success'): void {
+  const existingToast = document.getElementById('euraflow-toast');
+  if (existingToast) existingToast.remove();
+
+  const toast = document.createElement('div');
+  toast.id = 'euraflow-toast';
+
+  const colors = {
+    success: { bg: '#10b981', icon: '✓' },
+    error: { bg: '#ef4444', icon: '✕' },
+    info: { bg: '#3b82f6', icon: 'ℹ' }
+  };
+  const { bg, icon } = colors[type];
+
+  toast.style.cssText = `
+    position: fixed; top: 20px; right: 20px;
+    background: ${bg}; color: white;
+    padding: 12px 20px; border-radius: 8px;
+    font-size: 14px; font-weight: 500;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 2147483647;
+    display: flex; align-items: center; gap: 8px;
+    animation: euraflow-toast-in 0.3s ease-out;
+    max-width: 400px;
+  `;
+  toast.innerHTML = `<span style="font-size: 16px;">${icon}</span><span>${message}</span>`;
+
+  if (!document.getElementById('euraflow-toast-styles')) {
+    const style = document.createElement('style');
+    style.id = 'euraflow-toast-styles';
+    style.textContent = `
+      @keyframes euraflow-toast-in { from { opacity: 0; transform: translateX(100px); } to { opacity: 1; transform: translateX(0); } }
+      @keyframes euraflow-toast-out { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(100px); } }
+    `;
+    document.head.appendChild(style);
+  }
+
+  document.body.appendChild(toast);
+  setTimeout(() => {
+    toast.style.animation = 'euraflow-toast-out 0.3s ease-in forwards';
+    setTimeout(() => toast.remove(), 300);
+  }, 5000);
+}
+
+/**
  * 获取缓存的降价百分比（默认1%）
  */
 function getCachedDiscountPercent(): number {
@@ -1078,29 +1125,26 @@ async function handleFollowPdp(): Promise<void> {
       },
     };
 
-    // 调用跟卖接口
-    const response = await fetch(`${config.apiUrl}/api/ef/v1/ozon/collection-records/follow-pdp`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': config.apiKey || '',
+    // 通过 Service Worker 调用跟卖接口（避免 CORS）
+    const response = await chrome.runtime.sendMessage({
+      type: 'FOLLOW_PDP',
+      data: {
+        apiUrl: config.apiUrl,
+        apiKey: config.apiKey || '',
+        data: requestData,
       },
-      credentials: 'include',
-      body: JSON.stringify(requestData),
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      throw new Error(errorData?.error?.detail || errorData?.detail || '跟卖失败');
+    if (!response.success) {
+      throw new Error(response.error || '跟卖失败');
     }
 
-    await response.json();
-
-    // 成功后关闭窗口（不显示任何通知）
-    window.close();
+    // 成功后显示右上角通知
+    showToast('跟卖成功！', 'success');
+    closeModal();
   } catch (error) {
     console.error('[PublishModal] 跟卖失败:', error);
-    alert('跟卖失败：' + (error as Error).message);
+    showToast('跟卖失败：' + (error as Error).message, 'error');
 
     // 恢复按钮状态
     if (followPdpBtn) {

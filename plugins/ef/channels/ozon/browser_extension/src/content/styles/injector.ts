@@ -8,6 +8,7 @@ import commonCSS from './common.css?inline';
 import controlPanelCSS from './control-panel.css?inline';
 import priceCalculatorCSS from './price-calculator.css?inline';
 import publishModalCSS from './publish-modal.css?inline';
+import listEnhancerCSS from './list-enhancer.css?inline';
 
 let stylesInjected = false;
 
@@ -34,7 +35,8 @@ export function injectEuraflowStyles(): void {
     commonCSS,
     controlPanelCSS,
     priceCalculatorCSS,
-    publishModalCSS
+    publishModalCSS,
+    listEnhancerCSS
   ].join('\n');
 
   // 创建 <style> 标签

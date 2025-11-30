@@ -145,6 +145,13 @@ chrome.runtime.onMessage.addListener((message: any, _sender: chrome.runtime.Mess
     return true;
   }
 
+  if (message.type === 'FOLLOW_PDP') {
+    handleFollowPdp(message.data)
+      .then(response => sendResponse({ success: true, data: response }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+    return true;
+  }
+
   if (message.type === 'QUICK_PUBLISH_BATCH') {
     handleQuickPublishBatch(message.data)
       .then(response => sendResponse({ success: true, data: response }))
@@ -282,6 +289,12 @@ async function handleQuickPublish(data: { apiUrl: string; apiKey: string; data: 
   const { apiUrl, apiKey, data: publishData } = data;
   const api = createEuraflowApi(apiUrl, apiKey);
   return api.quickPublish(publishData);
+}
+
+async function handleFollowPdp(data: { apiUrl: string; apiKey: string; data: any }) {
+  const { apiUrl, apiKey, data: followData } = data;
+  const api = createEuraflowApi(apiUrl, apiKey);
+  return api.followPdp(followData);
 }
 
 async function handleQuickPublishBatch(data: { apiUrl: string; apiKey: string; data: any }) {

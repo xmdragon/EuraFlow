@@ -10,6 +10,7 @@ import { FilterEngine } from './filter';
 import { getCollectorConfig, getFilterConfig } from '../shared/storage';
 import { ControlPanel } from './components/ControlPanel';
 import { RealPriceCalculator } from './price-calculator';
+import { ProductListEnhancer } from './list-enhancer';
 
 // 检测当前页面是否为商品列表页
 function isProductListPage(): boolean {
@@ -33,16 +34,22 @@ async function init() {
 
   if (isProductListPage()) {
 
-    // 1. 创建数据融合引擎（直接提取OZON原生数据 + 批量调用上品帮API）
+    // 1. 初始化商品列表增强器（检测上品帮，注入数据面板）
+    const listEnhancer = new ProductListEnhancer();
+    listEnhancer.init().catch(error => {
+      console.error('[Main] 商品列表增强器初始化失败:', error);
+    });
+
+    // 2. 创建数据融合引擎（直接提取OZON原生数据 + 批量调用上品帮API）
     const fusionEngine = new DataFusionEngine();
 
-    // 2. 加载采集配置
+    // 3. 加载采集配置
     const collectorConfig = await getCollectorConfig();
 
-    // 3. 创建采集器（API配置和上传由 ControlPanel 负责）
+    // 4. 创建采集器（API配置和上传由 ControlPanel 负责）
     const collector = new ProductCollector(fusionEngine);
 
-    // 4. 加载过滤配置并注入到采集器
+    // 5. 加载过滤配置并注入到采集器
     const filterConfig = await getFilterConfig();
     const filterEngine = new FilterEngine(filterConfig);
     collector.setFilterEngine(filterEngine);
@@ -55,7 +62,7 @@ async function init() {
       });
     }
 
-    // 5. 创建并挂载控制面板
+    // 6. 创建并挂载控制面板
     ControlPanel({
       fusionEngine,
       collector,

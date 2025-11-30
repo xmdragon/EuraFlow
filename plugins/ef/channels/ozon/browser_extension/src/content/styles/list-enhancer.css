@@ -1,0 +1,183 @@
+/**
+ * EuraFlow 浏览器扩展 - 商品列表增强组件样式
+ * 布局参考商品详情页数据面板，紧凑版
+ */
+
+/* ========== 主容器 ========== */
+.euraflow-item {
+  width: 100%;
+  padding: 6px 8px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-top: 1px solid #e2e8f0;
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* ========== 数据面板 ========== */
+.ef-list-data-panel {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ========== 行基础样式 ========== */
+.ef-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+/* 单列行 */
+.ef-row-single {
+  display: flex;
+  align-items: center;
+}
+
+/* 两列行 */
+.ef-row-two {
+  display: flex;
+  align-items: center;
+}
+
+.ef-row-two .ef-col {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+/* ========== 标签和值 ========== */
+.ef-label {
+  color: #64748b;
+  font-size: 11px;
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+
+.ef-value {
+  color: #1e293b;
+  font-weight: 600;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ========== 徽章行（佣金） ========== */
+.ef-row-badge {
+  display: flex;
+  align-items: center;
+}
+
+.ef-badges {
+  display: flex;
+  gap: 4px;
+}
+
+.ef-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 18px;
+  padding: 0 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #1e40af;
+  background: #dbeafe;
+  border-radius: 4px;
+}
+
+/* ========== 无数据提示 ========== */
+.ef-list-no-data {
+  color: #94a3b8;
+  font-size: 10px;
+  text-align: center;
+  padding: 4px 0;
+}
+
+/* ========== 深色主题支持 ========== */
+@media (prefers-color-scheme: dark) {
+  .euraflow-item {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    border-top-color: #334155;
+  }
+
+  .ef-label {
+    color: #94a3b8;
+  }
+
+  .ef-value {
+    color: #e2e8f0;
+  }
+
+  .ef-badge {
+    color: #93c5fd;
+    background: #1e3a8a;
+  }
+
+  .ef-list-no-data {
+    color: #64748b;
+  }
+}
+
+/* ========== 响应式调整 ========== */
+@media (max-width: 300px) {
+  .euraflow-item {
+    padding: 4px 6px;
+  }
+
+  .ef-label {
+    font-size: 10px;
+  }
+
+  .ef-value {
+    font-size: 11px;
+  }
+
+  .ef-badge {
+    min-width: 28px;
+    height: 16px;
+    font-size: 10px;
+  }
+}
+
+/* ========== 值高亮（特殊状态） ========== */
+.ef-value--highlight {
+  color: #059669;
+  font-weight: 600;
+}
+
+.ef-value--warning {
+  color: #d97706;
+}
+
+.ef-value--danger {
+  color: #dc2626;
+}
+
+/* ========== 加载状态 ========== */
+.ef-list-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #64748b;
+  font-size: 10px;
+  padding: 4px 0;
+}
+
+.ef-list-loading::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border: 2px solid #e2e8f0;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: ef-list-spin 0.8s linear infinite;
+}
+
+@keyframes ef-list-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

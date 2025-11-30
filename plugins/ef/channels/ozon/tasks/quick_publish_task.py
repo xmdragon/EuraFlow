@@ -20,6 +20,8 @@ from ef_core.utils.logger import get_logger
 from ..models import OzonShop, OzonProduct
 from ..api.client import OzonAPIClient
 from ..services.cloudinary_service import CloudinaryService, CloudinaryConfigManager
+from ..services.image_storage_factory import ImageStorageFactory
+from ..services.aliyun_oss_service import AliyunOssService
 from ..utils.datetime_utils import utcnow
 
 logger = get_logger(__name__)
@@ -87,6 +89,7 @@ def update_task_progress(task_id: str, status: str, current_step: str, progress:
                     "create_product": {"status": "pending"},
                     "upload_images": {"status": "pending"},
                     "update_images": {"status": "pending"},
+                    "update_price": {"status": "pending"},
                     "update_stock": {"status": "pending"}
                 },
                 "created_at": datetime.now(UTC).isoformat(),
@@ -122,15 +125,28 @@ def get_shop_sync(shop_id: int) -> Optional[OzonShop]:
 
 
 async def get_image_storage_config(db_session):
-    """获取激活的图片存储配置 (优先级: Cloudinary > Aliyun OSS)"""
+    """
+    获取激活的图片存储配置
+
+    优先级（由 ImageStorageFactory 决定）:
+    1. 启用且默认的阿里云 OSS
+    2. 启用且默认的 Cloudinary
+    3. 任何启用的阿里云 OSS
+    4. 任何启用的 Cloudinary
+
+    Returns:
+        (storage_type, storage_service): 图床类型和服务实例
+    """
     try:
-        cloudinary_config = await CloudinaryConfigManager.get_config(db_session)
-        if cloudinary_config:
-            cloudinary_service = await CloudinaryConfigManager.create_service_from_config(
-                cloudinary_config
-            )
-            return ("cloudinary", cloudinary_service)
-        return (None, None)
+        # 获取图床类型
+        storage_type = await ImageStorageFactory.get_active_provider_type(db_session)
+        if not storage_type:
+            return (None, None)
+
+        # 创建服务实例
+        storage_service = await ImageStorageFactory.create_from_db(db_session)
+        logger.info(f"Using image storage: {storage_type}")
+        return (storage_type, storage_service)
     except Exception as e:
         logger.error(f"Failed to get image storage config: {e}", exc_info=True)
         return (None, None)
@@ -229,6 +245,94 @@ def _build_watermark_transformation(watermark_config, position: Optional[str] = 
     return transformation
 
 
+def _map_position_to_aliyun_gravity(position: str) -> str:
+    """
+    映射位置到阿里云OSS gravity参数
+
+    Args:
+        position: 水印位置字符串
+
+    Returns:
+        阿里云OSS的g参数值
+    """
+    mapping = {
+        "top_left": "nw",
+        "top_center": "north",
+        "top_right": "ne",
+        "center_left": "west",
+        "center": "center",
+        "center_right": "east",
+        "bottom_left": "sw",
+        "bottom_center": "south",
+        "bottom_right": "se"
+    }
+    return mapping.get(position, "se")
+
+
+def _build_aliyun_oss_watermark_url(base_url: str, watermark_config, position: Optional[str] = None) -> str:
+    """
+    构建阿里云OSS水印URL（使用x-oss-process参数）
+
+    阿里云OSS支持通过URL参数实现云端水印处理，无需本地处理
+
+    Args:
+        base_url: 原图URL
+        watermark_config: 水印配置
+        position: 指定的水印位置
+
+    Returns:
+        带水印参数的完整URL
+
+    Reference:
+        https://help.aliyun.com/zh/oss/user-guide/add-watermarks
+    """
+    import base64
+    from urllib.parse import urlparse, quote
+
+    try:
+        # 使用配置的第一个位置作为默认
+        if position is None:
+            position = watermark_config.positions[0] if watermark_config.positions else "bottom_right"
+
+        # 获取水印图片URL并提取object key
+        watermark_url = watermark_config.image_url
+        parsed = urlparse(watermark_url)
+        watermark_object_key = parsed.path.lstrip('/')  # 移除开头的 /
+
+        # 水印图片添加resize参数
+        # P_10 表示水印宽度为主图宽度的10%，高度等比缩放
+        scale_percent = int(float(watermark_config.scale_ratio) * 100)  # 0.1 -> 10, 0.2 -> 20
+        watermark_with_resize = f"{watermark_object_key}?x-oss-process=image/resize,P_{scale_percent}"
+
+        # URL-safe Base64编码（+ → -, / → _, 去掉尾部=）
+        watermark_base64 = base64.urlsafe_b64encode(watermark_with_resize.encode('utf-8')).decode('utf-8').rstrip('=')
+
+        # 构建水印参数
+        params = [
+            "image/watermark",
+            f"image_{watermark_base64}",
+            f"t_{int(float(watermark_config.opacity) * 100)}",  # 透明度 0-100
+            f"g_{_map_position_to_aliyun_gravity(position)}",  # 位置
+            f"x_{watermark_config.margin_pixels}",  # X边距
+            f"y_{watermark_config.margin_pixels}",  # Y边距
+        ]
+
+        # 拼接参数
+        process_param = ",".join(params)
+
+        # 构建完整URL
+        separator = "&" if "?" in base_url else "?"
+        watermark_url_final = f"{base_url}{separator}x-oss-process={quote(process_param)}"
+
+        logger.info(f"Generated Aliyun OSS watermark URL with position {position}, scale P_{scale_percent}")
+        return watermark_url_final
+
+    except Exception as e:
+        logger.error(f"Failed to build Aliyun OSS watermark URL: {e}")
+        # 失败时返回原图URL
+        return base_url
+
+
 # ========== Celery 任务 ==========
 
 @celery_app.task(bind=True, name="ef.ozon.quick_publish.chain", max_retries=3)
@@ -255,6 +359,7 @@ def quick_publish_chain_task(self, dto_dict: Dict, user_id: int, shop_id: int):
             create_product_by_sku_task.si(dto_dict, user_id, shop_id, task_id),
             upload_images_to_storage_task.s(dto_dict, shop_id, task_id),
             update_ozon_product_images_task.s(task_id),
+            update_product_price_task.s(dto_dict, shop_id, task_id),
             update_product_stock_task.s(dto_dict, shop_id, task_id)
         )
 
@@ -454,27 +559,31 @@ def upload_images_to_storage_task(self, prev_result: Dict, dto_dict: Dict, shop_
                 watermark_config = await get_active_watermark_config(db, storage_type)
 
                 # 构建水印转换参数（仅Cloudinary）
-                transformations = None
+                cloudinary_transformations = None
                 if watermark_config and storage_type == "cloudinary":
-                    transformations = _build_watermark_transformation(watermark_config)
-                    logger.info(f"Watermark transformation prepared: {watermark_config.name}")
+                    cloudinary_transformations = _build_watermark_transformation(watermark_config)
+                    logger.info(f"Cloudinary watermark transformation prepared: {watermark_config.name}")
+                elif watermark_config and storage_type == "aliyun_oss":
+                    logger.info(f"Aliyun OSS watermark config: {watermark_config.name} (will apply via URL params)")
 
                 tasks = []
                 for idx, ozon_url in enumerate(ozon_image_urls):
                     public_id = f"{shop_id}_{prev_result['offer_id']}_{idx}_{int(time.time())}"
+                    folder = f"{storage_service.product_images_folder or 'products'}/{shop_id}/quick_publish"
 
                     if storage_type == "cloudinary":
-                        folder = f"{storage_service.product_images_folder or 'products'}/{shop_id}/quick_publish"
                         task = storage_service.upload_image_from_url(
                             image_url=ozon_url,
                             public_id=public_id,
                             folder=folder,
-                            transformations=transformations  # 应用水印转换
+                            transformations=cloudinary_transformations  # 应用水印转换
                         )
                     else:
-                        folder = "products"
+                        # 阿里云 OSS：先上传原图，水印通过 URL 参数添加
                         task = storage_service.upload_image_from_url(
-                            image_url=ozon_url, public_id=public_id, folder=folder
+                            image_url=ozon_url,
+                            public_id=public_id,
+                            folder=folder
                         )
 
                     tasks.append(task)
@@ -487,7 +596,14 @@ def upload_images_to_storage_task(self, prev_result: Dict, dto_dict: Dict, shop_
                         logger.error(f"Image {idx} upload failed: {result}")
                         uploaded.append(ozon_image_urls[idx])
                     elif result.get('success'):
-                        uploaded.append(result['url'])
+                        base_url = result['url']
+                        # 阿里云 OSS 水印通过 URL 参数添加
+                        if storage_type == "aliyun_oss" and watermark_config:
+                            watermarked_url = _build_aliyun_oss_watermark_url(base_url, watermark_config)
+                            uploaded.append(watermarked_url)
+                            logger.info(f"Image {idx} uploaded with OSS watermark URL")
+                        else:
+                            uploaded.append(base_url)
                     else:
                         logger.error(f"Image {idx} upload failed: {result.get('error')}")
                         uploaded.append(ozon_image_urls[idx])
@@ -546,13 +662,13 @@ def update_ozon_product_images_task(self, prev_result: Dict, parent_task_id: str
     try:
         update_task_progress(
             parent_task_id, status="running", current_step="update_images",
-            progress=55, step_details={"status": "running", "message": "正在更新商品图片..."}
+            progress=45, step_details={"status": "running", "message": "正在更新商品图片..."}
         )
 
         if not image_urls:
             update_task_progress(
                 parent_task_id, status="running", current_step="update_images",
-                progress=75, step_details={"status": "skipped"}
+                progress=60, step_details={"status": "skipped"}
             )
             return prev_result
 
@@ -572,7 +688,7 @@ def update_ozon_product_images_task(self, prev_result: Dict, parent_task_id: str
             logger.warning(f"Image update failed: {import_result}, continuing...")
             update_task_progress(
                 parent_task_id, status="running", current_step="update_images",
-                progress=75, step_details={"status": "failed", "error": str(import_result)}
+                progress=60, step_details={"status": "failed", "error": str(import_result)}
             )
             return prev_result
 
@@ -584,7 +700,7 @@ def update_ozon_product_images_task(self, prev_result: Dict, parent_task_id: str
 
         update_task_progress(
             parent_task_id, status="running", current_step="update_images",
-            progress=75, step_details={"status": "completed", "ozon_task_id": ozon_task_id}
+            progress=60, step_details={"status": "completed", "ozon_task_id": ozon_task_id}
         )
 
         logger.info(f"[Step 3] Product images updated")
@@ -592,10 +708,96 @@ def update_ozon_product_images_task(self, prev_result: Dict, parent_task_id: str
 
     except Exception as e:
         logger.error(f"[Step 3] Failed: {e}", exc_info=True)
-        logger.warning("Image update failed, continuing to stock update...")
+        logger.warning("Image update failed, continuing to price update...")
 
         update_task_progress(
             parent_task_id, status="running", current_step="update_images",
+            progress=60, step_details={"status": "failed", "error": str(e)}
+        )
+        return prev_result
+
+
+@celery_app.task(bind=True, name="ef.ozon.quick_publish.update_price", max_retries=3)
+def update_product_price_task(self, prev_result: Dict, dto_dict: Dict, shop_id: int, parent_task_id: str):
+    """
+    步骤 4: 更新商品价格
+    调用 OZON API /v1/product/import/prices
+    """
+    product_id = prev_result["product_id"]
+    offer_id = prev_result["offer_id"]
+    price = dto_dict.get("price")
+    old_price = dto_dict.get("old_price")
+    currency_code = dto_dict.get("currency_code", "CNY")
+
+    logger.info(f"[Step 4] Updating price: product_id={product_id}, price={price}, old_price={old_price}, currency={currency_code}")
+
+    try:
+        update_task_progress(
+            parent_task_id, status="running", current_step="update_price",
+            progress=65, step_details={"status": "running", "message": "正在更新价格..."}
+        )
+
+        if not price:
+            logger.warning("No price provided, skipping price update")
+            update_task_progress(
+                parent_task_id, status="running", current_step="update_price",
+                progress=75, step_details={"status": "skipped", "message": "未提供价格"}
+            )
+            return prev_result
+
+        shop = get_shop_sync(shop_id)
+        if not shop:
+            raise ValueError(f"店铺 {shop_id} 不存在")
+
+        api_client = OzonAPIClient(
+            client_id=shop.client_id,
+            api_key=shop.api_key_enc,
+            shop_id=shop.id
+        )
+
+        # 构建价格更新数据
+        price_data = {
+            "product_id": product_id,
+            "offer_id": offer_id,
+            "price": str(price),
+            "currency_code": currency_code,
+        }
+
+        # 添加原价（如果有）
+        if old_price:
+            price_data["old_price"] = str(old_price)
+
+        logger.info(f"[Step 4] Calling OZON API update_prices with data: {price_data}")
+
+        result = run_async_in_celery(api_client.update_prices([price_data]))
+
+        if not result.get('result'):
+            logger.warning(f"Price update failed: {result}, continuing...")
+            update_task_progress(
+                parent_task_id, status="running", current_step="update_price",
+                progress=75, step_details={"status": "failed", "error": str(result)}
+            )
+            return prev_result
+
+        update_task_progress(
+            parent_task_id, status="running", current_step="update_price",
+            progress=75, step_details={
+                "status": "completed",
+                "price": str(price),
+                "old_price": str(old_price) if old_price else None,
+                "currency": currency_code
+            }
+        )
+
+        logger.info(f"[Step 4] Price updated successfully: {price} {currency_code}")
+        return prev_result
+
+    except Exception as e:
+        logger.error(f"[Step 4] Failed: {e}", exc_info=True)
+        logger.warning("Price update failed, continuing to stock update...")
+
+        update_task_progress(
+            parent_task_id, status="running", current_step="update_price",
             progress=75, step_details={"status": "failed", "error": str(e)}
         )
         return prev_result
@@ -604,7 +806,7 @@ def update_ozon_product_images_task(self, prev_result: Dict, parent_task_id: str
 @celery_app.task(bind=True, name="ef.ozon.quick_publish.update_stock", max_retries=3)
 def update_product_stock_task(self, prev_result: Dict, dto_dict: Dict, shop_id: int, parent_task_id: str):
     """
-    步骤 4: 更新库存
+    步骤 5: 更新库存
     调用 OZON API /v2/products/stocks
     """
     product_id = prev_result["product_id"]
@@ -612,12 +814,12 @@ def update_product_stock_task(self, prev_result: Dict, dto_dict: Dict, shop_id: 
     stock = dto_dict.get("stock", 0)
     warehouse_id = dto_dict.get("warehouse_id", 1)
 
-    logger.info(f"[Step 4] Updating stock: product_id={product_id}, stock={stock}")
+    logger.info(f"[Step 5] Updating stock: product_id={product_id}, stock={stock}")
 
     try:
         update_task_progress(
             parent_task_id, status="running", current_step="update_stock",
-            progress=80, step_details={"status": "running", "message": "正在更新库存..."}
+            progress=85, step_details={"status": "running", "message": "正在更新库存..."}
         )
 
         shop = get_shop_sync(shop_id)
@@ -645,7 +847,7 @@ def update_product_stock_task(self, prev_result: Dict, dto_dict: Dict, shop_id: 
             progress=100, step_details={"status": "completed", "stock": stock}
         )
 
-        logger.info(f"[Step 4] Stock updated successfully")
+        logger.info(f"[Step 5] Stock updated successfully")
 
         return {
             "success": True,
@@ -656,10 +858,10 @@ def update_product_stock_task(self, prev_result: Dict, dto_dict: Dict, shop_id: 
         }
 
     except Exception as e:
-        logger.error(f"[Step 4] Failed: {e}", exc_info=True)
+        logger.error(f"[Step 5] Failed: {e}", exc_info=True)
         update_task_progress(
             parent_task_id, status="failed", current_step="update_stock",
-            progress=80, step_details={"status": "failed", "error": str(e)},
+            progress=85, step_details={"status": "failed", "error": str(e)},
             error=f"更新库存失败: {str(e)}"
         )
         raise self.retry(countdown=60, exc=e)

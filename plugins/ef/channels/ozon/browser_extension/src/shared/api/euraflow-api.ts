@@ -313,6 +313,27 @@ export class EuraflowApi extends BaseApiClient {
   }
 
   /**
+   * 跟卖商品（立即上架）
+   */
+  async followPdp(data: any): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/collection-records/follow-pdp`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': this.apiKey
+      },
+      body: JSON.stringify(data)
+    });
+
+    if (!response.ok) {
+      const errorData = await this.parseErrorResponse(response);
+      throw errorData;
+    }
+
+    return await response.json();
+  }
+
+  /**
    * 解析错误响应
    */
   private async parseErrorResponse(response: Response): Promise<ApiError> {

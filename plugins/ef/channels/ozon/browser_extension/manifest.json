@@ -31,7 +31,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["src/content/ui/*", "src/content/injected/*.js"],
+      "resources": ["src/content/ui/*", "src/content/injected/*.js", "assets/page-injected.js"],
       "matches": ["https://www.ozon.ru/*"]
     }
   ]

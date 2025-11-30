@@ -288,9 +288,14 @@ function buildDataRows(spbSales: any | null, dimensions: any | null): HTMLElemen
   const monthlyAmount = formatMoney(spbSales?.monthlySalesAmount);
   rows.push(createTwoColRow('月销', `${monthlySales}件`, '月销额', monthlyAmount));
 
-  // 日销行（两列）
-  const dailySales = formatNum(spbSales?.dailySales);
-  const dailyAmount = formatMoney(spbSales?.dailySalesAmount);
+  // 日销行（两列）- 根据月销数据计算：月销 / 当天日期
+  const dayOfMonth = new Date().getDate();
+  const dailySales = spbSales?.monthlySales != null
+    ? (spbSales.monthlySales / dayOfMonth).toFixed(1)
+    : '---';
+  const dailyAmount = spbSales?.monthlySalesAmount != null
+    ? formatDailyAmount(spbSales.monthlySalesAmount / dayOfMonth)
+    : '---';
   rows.push(createTwoColRow('日销', dailySales === '---' ? '---' : `${dailySales}件`, '日销额', dailyAmount));
 
   // 动态 + 点击率（两列）
@@ -454,6 +459,14 @@ function formatMoney(value: any): string {
   if (isNaN(num)) return '---';
   if (num >= 10000) return `${(num / 10000).toFixed(2)}万₽`;
   return `${num.toFixed(2)}₽`;
+}
+
+/**
+ * 格式化日销额（精确到1位小数）
+ */
+function formatDailyAmount(value: number): string {
+  if (value >= 10000) return `${(value / 10000).toFixed(1)}万₽`;
+  return `${value.toFixed(1)}₽`;
 }
 
 /**

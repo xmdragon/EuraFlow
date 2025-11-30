@@ -175,14 +175,16 @@ async def get_task_status(
 
     步骤说明：
     - create_product: 通过 SKU 创建商品
-    - upload_images: 上传图片到图库 (Cloudinary/Aliyun OSS)
+    - upload_images: 上传图片到图库 (Cloudinary/Aliyun OSS，支持水印)
     - update_images: 更新 OZON 商品图片
+    - update_price: 更新商品价格
     - update_stock: 更新库存
 
     进度计算：
-    - 0-25%: create_product
-    - 25-50%: upload_images
-    - 50-75%: update_images
+    - 0-20%: create_product
+    - 20-40%: upload_images
+    - 40-60%: update_images
+    - 60-75%: update_price
     - 75-100%: update_stock
     """
     try:
