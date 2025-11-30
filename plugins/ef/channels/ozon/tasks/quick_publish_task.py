@@ -546,9 +546,9 @@ def create_product_task(self, prev_result: Dict, dto_dict: Dict, user_id: int, s
                 product_item["images"] = image_urls[1:15]
             logger.info(f"[Step 2] 图片: primary_image={image_urls[0][:50]}..., 附图数量={len(image_urls)-1}")
 
-        # 将所有异步操作合并到单一函数中，避免多次创建/关闭事件循环
-        async def create_and_poll():
-            """创建商品并轮询状态（单一事件循环）"""
+        # 只提交创建请求，不轮询（轮询在 Step 3 中进行）
+        async def submit_import():
+            """提交商品创建请求（不等待完成）"""
             api_client = OzonAPIClient(
                 client_id=shop.client_id,
                 api_key=shop.api_key_enc,
@@ -563,59 +563,23 @@ def create_product_task(self, prev_result: Dict, dto_dict: Dict, user_id: int, s
                 raise ValueError(f"OZON API 错误: {import_result}")
 
             ozon_task_id = import_result['result'].get('task_id')
-            logger.info(f"OZON import task created: {ozon_task_id}")
+            logger.info(f"[Step 2] OZON import task created: {ozon_task_id}")
 
-            update_task_progress(
-                parent_task_id, status="running", current_step="create_product",
-                progress=45, step_details={"status": "polling", "ozon_task_id": ozon_task_id}
-            )
+            return ozon_task_id
 
-            # 轮询任务状态 (最多 5 分钟)
-            import asyncio as async_lib
-            product_id = None
-            max_attempts = 30
-            for attempt in range(max_attempts):
-                await async_lib.sleep(10)
-
-                status_result = await api_client.get_import_product_info(ozon_task_id)
-
-                if not status_result.get('result'):
-                    continue
-
-                items = status_result['result'].get('items', [])
-                if not items:
-                    continue
-
-                item = items[0]
-                item_status = item.get('status')
-
-                if item_status == 'imported':
-                    product_id = item.get('product_id')
-                    logger.info(f"Product created: product_id={product_id}")
-                    break
-                elif item_status == 'failed':
-                    errors = item.get('errors', [])
-                    error_msg = '; '.join([e.get('message', '') for e in errors])
-                    raise ValueError(f"商品创建失败: {error_msg}")
-
-            if not product_id:
-                raise TimeoutError("商品创建超时 (5 分钟)")
-
-            return product_id
-
-        product_id = run_async_in_celery(create_and_poll())
+        ozon_task_id = run_async_in_celery(submit_import())
 
         update_task_progress(
             parent_task_id, status="running", current_step="create_product",
-            progress=70, step_details={"status": "completed", "product_id": product_id}
+            progress=50, step_details={"status": "submitted", "ozon_task_id": ozon_task_id}
         )
 
-        logger.info(f"[Step 2] Product created: product_id={product_id}")
+        logger.info(f"[Step 2] Import task submitted: ozon_task_id={ozon_task_id}")
 
+        # 返回 ozon_task_id，由 Step 3 轮询等待完成
         return {
-            "product_id": product_id,
+            "ozon_task_id": ozon_task_id,
             "offer_id": dto_dict["offer_id"],
-            "sku": dto_dict.get("sku", dto_dict["offer_id"]),
             "shop_id": shop_id
         }
 
@@ -870,48 +834,110 @@ def update_product_price_task_legacy(self, prev_result: Dict, dto_dict: Dict, sh
 @celery_app.task(bind=True, name="ef.ozon.quick_publish.update_stock", max_retries=3)
 def update_product_stock_task(self, prev_result: Dict, dto_dict: Dict, shop_id: int, parent_task_id: str):
     """
-    步骤 3: 更新库存
-    调用 OZON API /v2/products/stocks
+    步骤 3: 轮询商品创建状态 + 更新库存
+
+    流程:
+    1. 轮询 /v1/product/import/info 等待商品创建完成（每30秒，最多20分钟）
+    2. 如果创建成功，获取 product_id 并更新库存
+    3. 如果创建失败，记录错误并结束
     """
-    product_id = prev_result["product_id"]
+    ozon_task_id = prev_result.get("ozon_task_id")
     offer_id = prev_result["offer_id"]
     stock = dto_dict.get("stock", 0)
     warehouse_id = dto_dict.get("warehouse_id", 1)
 
-    logger.info(f"[Step 3] Updating stock: product_id={product_id}, stock={stock}")
+    logger.info(f"[Step 3] Waiting for product creation: ozon_task_id={ozon_task_id}")
 
     try:
         update_task_progress(
             parent_task_id, status="running", current_step="update_stock",
-            progress=75, step_details={"status": "running", "message": "正在更新库存..."}
+            progress=55, step_details={"status": "polling", "message": "等待商品创建完成..."}
         )
 
         shop = get_shop_sync(shop_id)
         if not shop:
             raise ValueError(f"店铺 {shop_id} 不存在")
 
-        api_client = OzonAPIClient(
-            client_id=shop.client_id, api_key=shop.api_key_enc, shop_id=shop.id
-        )
+        # 轮询等待商品创建完成（每30秒，最多20分钟 = 40次）
+        async def poll_and_update_stock():
+            api_client = OzonAPIClient(
+                client_id=shop.client_id, api_key=shop.api_key_enc, shop_id=shop.id
+            )
 
-        stocks = [{
-            "offer_id": offer_id,
-            "product_id": product_id,
-            "stock": stock,
-            "warehouse_id": warehouse_id
-        }]
+            import asyncio as async_lib
+            product_id = None
+            max_attempts = 40  # 40 * 30秒 = 20分钟
+            poll_interval = 30  # 每30秒查询一次
 
-        result = run_async_in_celery(api_client.update_stocks(stocks))
+            for attempt in range(max_attempts):
+                logger.info(f"[Step 3] Polling attempt {attempt + 1}/{max_attempts}")
 
-        if not result.get('result'):
-            raise ValueError(f"OZON API 错误: {result}")
+                status_result = await api_client.get_import_product_info(ozon_task_id)
+
+                if status_result.get('result'):
+                    items = status_result['result'].get('items', [])
+                    if items:
+                        item = items[0]
+                        item_status = item.get('status')
+
+                        if item_status == 'imported':
+                            product_id = item.get('product_id')
+                            logger.info(f"[Step 3] Product created: product_id={product_id}")
+                            break
+                        elif item_status == 'failed':
+                            errors = item.get('errors', [])
+                            error_msg = '; '.join([e.get('message', '') for e in errors])
+                            raise ValueError(f"商品创建失败: {error_msg}")
+                        else:
+                            logger.info(f"[Step 3] Status: {item_status}, waiting...")
+
+                # 更新进度（55% -> 90%）
+                progress = 55 + int((attempt + 1) / max_attempts * 35)
+                update_task_progress(
+                    parent_task_id, status="running", current_step="update_stock",
+                    progress=progress, step_details={
+                        "status": "polling",
+                        "attempt": attempt + 1,
+                        "max_attempts": max_attempts,
+                        "message": f"等待商品创建完成 ({attempt + 1}/{max_attempts})..."
+                    }
+                )
+
+                await async_lib.sleep(poll_interval)
+
+            if not product_id:
+                raise TimeoutError("商品创建超时 (20 分钟)")
+
+            # 商品创建成功，更新库存
+            logger.info(f"[Step 3] Updating stock: product_id={product_id}, stock={stock}")
+
+            update_task_progress(
+                parent_task_id, status="running", current_step="update_stock",
+                progress=92, step_details={"status": "updating_stock", "product_id": product_id}
+            )
+
+            stocks = [{
+                "offer_id": offer_id,
+                "product_id": product_id,
+                "stock": stock,
+                "warehouse_id": warehouse_id
+            }]
+
+            result = await api_client.update_stocks(stocks)
+
+            if not result.get('result'):
+                raise ValueError(f"更新库存失败: {result}")
+
+            return product_id
+
+        product_id = run_async_in_celery(poll_and_update_stock())
 
         update_task_progress(
             parent_task_id, status="completed", current_step="update_stock",
-            progress=100, step_details={"status": "completed", "stock": stock}
+            progress=100, step_details={"status": "completed", "product_id": product_id, "stock": stock}
         )
 
-        logger.info(f"[Step 3] Stock updated successfully")
+        logger.info(f"[Step 3] Stock updated successfully: product_id={product_id}")
 
         return {
             "success": True,
@@ -921,11 +947,40 @@ def update_product_stock_task(self, prev_result: Dict, dto_dict: Dict, shop_id: 
             "stock_updated": True
         }
 
+    except ValueError as e:
+        # 商品创建失败，不重试
+        logger.error(f"[Step 3] Product creation failed: {e}")
+        update_task_progress(
+            parent_task_id, status="failed", current_step="update_stock",
+            progress=55, step_details={"status": "failed", "error": str(e)},
+            error=str(e)
+        )
+        # 不抛出异常，不重试
+        return {
+            "success": False,
+            "offer_id": offer_id,
+            "error": str(e)
+        }
+
+    except TimeoutError as e:
+        # 超时，不重试
+        logger.error(f"[Step 3] Timeout: {e}")
+        update_task_progress(
+            parent_task_id, status="failed", current_step="update_stock",
+            progress=90, step_details={"status": "timeout", "error": str(e)},
+            error=str(e)
+        )
+        return {
+            "success": False,
+            "offer_id": offer_id,
+            "error": str(e)
+        }
+
     except Exception as e:
         logger.error(f"[Step 3] Failed: {e}", exc_info=True)
         update_task_progress(
             parent_task_id, status="failed", current_step="update_stock",
-            progress=75, step_details={"status": "failed", "error": str(e)},
+            progress=55, step_details={"status": "failed", "error": str(e)},
             error=f"更新库存失败: {str(e)}"
         )
         raise self.retry(countdown=60, exc=e)
