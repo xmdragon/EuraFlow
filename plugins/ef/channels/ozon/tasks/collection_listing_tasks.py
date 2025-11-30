@@ -125,46 +125,31 @@ def process_follow_pdp_listing(record_id: int) -> dict:
                 AsyncSession = async_sessionmaker(async_engine, expire_on_commit=False)
 
                 async with AsyncSession() as async_db:
-                    # 验证/查找正确的类目ID
-                    category_id = listing_payload.get("category_id") or product_data.get("category_id")
+                    # 从 "Тип" 属性值查找类目ID（不使用采集的 category_id，因为它是页面跟踪ID而非API的type_id）
                     valid_category_id = None
+                    attributes = listing_payload.get("attributes", [])
 
-                    if category_id:
-                        # 检查类目ID是否存在
-                        result = await async_db.execute(
-                            select(OzonCategory).where(OzonCategory.category_id == category_id)
-                        )
-                        existing_category = result.scalar_one_or_none()
-
-                        if existing_category:
-                            valid_category_id = category_id
-                            logger.info(f"[CollectionListing] 类目ID有效: {category_id} -> {existing_category.name}")
-                        else:
-                            logger.warning(f"[CollectionListing] 类目ID无效: {category_id}，尝试从属性中查找")
-
-                    # 如果类目ID无效，尝试从 "Тип" 属性值查找
-                    if not valid_category_id:
-                        attributes = listing_payload.get("attributes", [])
-                        for attr in attributes:
-                            attr_value = attr.get("value", "")
-                            if attr_value:
-                                # 尝试通过 name_ru 查找类目
-                                result = await async_db.execute(
-                                    select(OzonCategory).where(
-                                        OzonCategory.name_ru == attr_value,
-                                        OzonCategory.is_leaf == True
-                                    )
+                    for attr in attributes:
+                        attr_value = attr.get("value", "")
+                        if attr_value:
+                            # 尝试通过 name_ru 查找类目
+                            result = await async_db.execute(
+                                select(OzonCategory).where(
+                                    OzonCategory.name_ru == attr_value,
+                                    OzonCategory.is_leaf == True
                                 )
-                                found_category = result.scalar_one_or_none()
-                                if found_category:
-                                    valid_category_id = found_category.category_id
-                                    logger.info(f"[CollectionListing] 从属性值 '{attr_value}' 找到类目: {valid_category_id} ({found_category.name})")
-                                    break
+                            )
+                            found_category = result.scalar_one_or_none()
+                            if found_category:
+                                valid_category_id = found_category.category_id
+                                logger.info(f"[CollectionListing] 从属性 '{attr_value}' 找到类目: {valid_category_id} ({found_category.name})")
+                                break
 
                     if not valid_category_id:
-                        raise ValueError(f"无法找到有效的类目ID。原始ID: {category_id}")
+                        attr_values = [a.get("value", "") for a in attributes[:5]]
+                        raise ValueError(f"无法从属性中找到有效的类目ID。属性值: {attr_values}")
 
-                    logger.info(f"[CollectionListing] 最终使用类目ID: {valid_category_id}")
+                    logger.info(f"[CollectionListing] 使用类目ID: {valid_category_id}")
 
                     # 初始化翻译服务
                     translation_service = None
