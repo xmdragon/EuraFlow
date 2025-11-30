@@ -573,8 +573,9 @@ class CatalogService:
 
             # 检查缓存
             if not force_refresh:
+                from sqlalchemy import func as sql_func
                 cached_count = await self.db.scalar(
-                    select(func.count(OzonAttributeDictionaryValue.id)).where(
+                    select(sql_func.count(OzonAttributeDictionaryValue.id)).where(
                         OzonAttributeDictionaryValue.dictionary_id == dictionary_id
                     )
                 )
