@@ -571,7 +571,7 @@ class CatalogService:
 
             dictionary_id = attr.dictionary_id
 
-            # 检查缓存
+            # 检查缓存（同时检查是否有俄文翻译缺失的记录）
             if not force_refresh:
                 from sqlalchemy import func as sql_func
                 cached_count = await self.db.scalar(
@@ -580,41 +580,68 @@ class CatalogService:
                     )
                 )
                 if cached_count and cached_count > 0:
-                    logger.info(f"Dictionary {dictionary_id} cached ({cached_count}), skipping")
-                    return {"success": True, "cached": True, "count": cached_count}
+                    # 检查是否有俄文翻译缺失的记录
+                    missing_ru_count = await self.db.scalar(
+                        select(sql_func.count(OzonAttributeDictionaryValue.id)).where(
+                            and_(
+                                OzonAttributeDictionaryValue.dictionary_id == dictionary_id,
+                                or_(
+                                    OzonAttributeDictionaryValue.value_ru.is_(None),
+                                    OzonAttributeDictionaryValue.value_ru == ""
+                                )
+                            )
+                        )
+                    )
+                    if missing_ru_count and missing_ru_count > 0:
+                        # 有俄文缺失，需要补充同步俄文
+                        logger.info(f"Dictionary {dictionary_id} has {missing_ru_count} entries missing Russian translation, will sync Russian only")
+                        # 跳过中文同步，直接同步俄文
+                        synced_count = cached_count
+                        # 跳转到俄文同步步骤（通过设置标志）
+                        skip_chinese_sync = True
+                    else:
+                        logger.info(f"Dictionary {dictionary_id} fully cached ({cached_count}), skipping")
+                        return {"success": True, "cached": True, "count": cached_count}
+                else:
+                    skip_chinese_sync = False
+            else:
+                skip_chinese_sync = False
 
-            # 第一步：同步中文字典值
-            logger.info(f"Step 1/2: Syncing Chinese dictionary values for dict {dictionary_id}...")
-            synced_count = 0
-            last_value_id = 0
-            has_more = True
+            # 第一步：同步中文字典值（如果需要跳过则直接进入俄文同步）
+            if not skip_chinese_sync:
+                logger.info(f"Step 1/2: Syncing Chinese dictionary values for dict {dictionary_id}...")
+                synced_count = 0
+                last_value_id = 0
+                has_more = True
 
-            while has_more:
-                response = await self.client.get_attribute_values(
-                    attribute_id=attribute_id,
-                    category_id=category_id,
-                    parent_category_id=parent_id,
-                    last_value_id=last_value_id,
-                    limit=2000,
-                    language="ZH_HANS"
-                )
+                while has_more:
+                    response = await self.client.get_attribute_values(
+                        attribute_id=attribute_id,
+                        category_id=category_id,
+                        parent_category_id=parent_id,
+                        last_value_id=last_value_id,
+                        limit=2000,
+                        language="ZH_HANS"
+                    )
 
-                if not response.get("result"):
-                    break
+                    if not response.get("result"):
+                        break
 
-                values = response.get("result", [])
-                if not values:
-                    break
+                    values = response.get("result", [])
+                    if not values:
+                        break
 
-                for value_data in values:
-                    await self._save_dictionary_value(dictionary_id, value_data, language="zh")
-                    synced_count += 1
-                    last_value_id = value_data.get("id", 0)
+                    for value_data in values:
+                        await self._save_dictionary_value(dictionary_id, value_data, language="zh")
+                        synced_count += 1
+                        last_value_id = value_data.get("id", 0)
 
-                has_more = response.get("has_next", False)
+                    has_more = response.get("has_next", False)
 
-            await self.db.flush()
-            logger.info(f"Chinese dictionary values synced: {synced_count}")
+                await self.db.flush()
+                logger.info(f"Chinese dictionary values synced: {synced_count}")
+            else:
+                logger.info(f"Step 1/2: Skipping Chinese sync (already cached), proceeding to Russian sync...")
 
             # 第二步：同步俄文字典值
             logger.info(f"Step 2/2: Syncing Russian dictionary values for dict {dictionary_id}...")
