@@ -404,12 +404,6 @@ def create_product_by_sku_task(self, dto_dict: Dict, user_id: int, shop_id: int,
 
         logger.info(f"[Step 1] Shop info: shop_id={shop.id}, client_id={shop.client_id}")
 
-        api_client = OzonAPIClient(
-            client_id=shop.client_id,
-            api_key=shop.api_key_enc,
-            shop_id=shop.id
-        )
-
         # 构建完整商品数据（/v3/product/import API）
         product_item = {
             "offer_id": dto_dict["offer_id"],
@@ -442,52 +436,64 @@ def create_product_by_sku_task(self, dto_dict: Dict, user_id: int, shop_id: int,
         # 图片（注意：这里暂不传递，因为需要先上传到OZON图库）
         # images 会在后续步骤中处理
 
-        logger.info(f"[Step 1] Calling OZON API /v3/product/import with data: {product_item}")
-        import_result = run_async_in_celery(api_client.import_products([product_item]))
-        logger.info(f"[Step 1] OZON API response: {import_result}")
-
-        if not import_result.get('result'):
-            raise ValueError(f"OZON API 错误: {import_result}")
-
-        ozon_task_id = import_result['result'].get('task_id')
-        logger.info(f"OZON import task created: {ozon_task_id}")
-
-        update_task_progress(
-            parent_task_id, status="running", current_step="create_product",
-            progress=15, step_details={"status": "polling", "ozon_task_id": ozon_task_id}
-        )
-
-        # 轮询任务状态 (最多 5 分钟)
-        product_id = None
-        max_attempts = 30
-        for attempt in range(max_attempts):
-            time.sleep(10)
-
-            status_result = run_async_in_celery(
-                api_client.get_import_product_info(ozon_task_id)
+        # 将所有异步操作合并到单一函数中，避免多次创建/关闭事件循环
+        async def create_and_poll():
+            """创建商品并轮询状态（单一事件循环）"""
+            api_client = OzonAPIClient(
+                client_id=shop.client_id,
+                api_key=shop.api_key_enc,
+                shop_id=shop.id
             )
 
-            if not status_result.get('result'):
-                continue
+            logger.info(f"[Step 1] Calling OZON API /v3/product/import with data: {product_item}")
+            import_result = await api_client.import_products([product_item])
+            logger.info(f"[Step 1] OZON API response: {import_result}")
 
-            items = status_result['result'].get('items', [])
-            if not items:
-                continue
+            if not import_result.get('result'):
+                raise ValueError(f"OZON API 错误: {import_result}")
 
-            item = items[0]
-            item_status = item.get('status')
+            ozon_task_id = import_result['result'].get('task_id')
+            logger.info(f"OZON import task created: {ozon_task_id}")
 
-            if item_status == 'imported':
-                product_id = item.get('product_id')
-                logger.info(f"Product created: product_id={product_id}")
-                break
-            elif item_status == 'failed':
-                errors = item.get('errors', [])
-                error_msg = '; '.join([e.get('message', '') for e in errors])
-                raise ValueError(f"商品创建失败: {error_msg}")
+            update_task_progress(
+                parent_task_id, status="running", current_step="create_product",
+                progress=15, step_details={"status": "polling", "ozon_task_id": ozon_task_id}
+            )
 
-        if not product_id:
-            raise TimeoutError("商品创建超时 (5 分钟)")
+            # 轮询任务状态 (最多 5 分钟)
+            import asyncio as async_lib
+            product_id = None
+            max_attempts = 30
+            for attempt in range(max_attempts):
+                await async_lib.sleep(10)
+
+                status_result = await api_client.get_import_product_info(ozon_task_id)
+
+                if not status_result.get('result'):
+                    continue
+
+                items = status_result['result'].get('items', [])
+                if not items:
+                    continue
+
+                item = items[0]
+                item_status = item.get('status')
+
+                if item_status == 'imported':
+                    product_id = item.get('product_id')
+                    logger.info(f"Product created: product_id={product_id}")
+                    break
+                elif item_status == 'failed':
+                    errors = item.get('errors', [])
+                    error_msg = '; '.join([e.get('message', '') for e in errors])
+                    raise ValueError(f"商品创建失败: {error_msg}")
+
+            if not product_id:
+                raise TimeoutError("商品创建超时 (5 分钟)")
+
+            return product_id
+
+        product_id = run_async_in_celery(create_and_poll())
 
         update_task_progress(
             parent_task_id, status="running", current_step="create_product",
