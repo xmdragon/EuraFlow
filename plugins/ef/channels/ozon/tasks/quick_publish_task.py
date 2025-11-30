@@ -359,7 +359,7 @@ def quick_publish_chain_task(self, dto_dict: Dict, user_id: int, shop_id: int):
             create_product_by_sku_task.si(dto_dict, user_id, shop_id, task_id),
             upload_images_to_storage_task.s(dto_dict, shop_id, task_id),
             update_ozon_product_images_task.s(task_id),
-            update_product_price_task.s(dto_dict, shop_id, task_id),
+            # 价格已在 import 时设置，无需单独更新
             update_product_stock_task.s(dto_dict, shop_id, task_id)
         )
 
