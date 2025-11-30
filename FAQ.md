@@ -1166,6 +1166,43 @@ def bad_task():
 **后果**：
 - 浪费资源
 - 可能导致事件循环状态混乱
+- **httpx 连接池报 "Event loop is closed" 错误**（常见！）
+
+**常见陷阱 - 在轮询循环中调用 `run_async_in_celery`**：
+
+```python
+# ❌ 错误示例（导致 "Event loop is closed" 错误）
+@celery_app.task
+def bad_polling_task():
+    # 第一次调用 - 创建并关闭事件循环
+    result = run_async_in_celery(api_client.create_product(data))
+    task_id = result['task_id']
+
+    # 轮询循环 - 每次都创建和关闭事件循环！
+    for _ in range(30):
+        time.sleep(10)
+        status = run_async_in_celery(api_client.get_status(task_id))  # ❌
+        if status == 'done':
+            break
+    # httpx 连接池在清理时发现事件循环已关闭，抛出 RuntimeError
+
+# ✅ 正确示例 - 将所有异步操作合并到单一函数
+@celery_app.task
+def good_polling_task():
+    async def create_and_poll():
+        """所有异步操作在同一个事件循环中执行"""
+        result = await api_client.create_product(data)
+        task_id = result['task_id']
+
+        for _ in range(30):
+            await asyncio.sleep(10)
+            status = await api_client.get_status(task_id)
+            if status == 'done':
+                break
+        return status
+
+    return run_async_in_celery(create_and_poll())  # ✅ 只调用一次
+```
 
 ##### ❌ 禁止 3：使用 gevent pool
 
