@@ -11,6 +11,77 @@
 import { OzonApiRateLimiter } from '../../shared/ozon-rate-limiter';
 import { getOzonStandardHeaders, generateShortHash } from '../../shared/ozon-headers';
 
+// 标记页面注入脚本是否已加载
+let pageScriptInjected = false;
+
+/**
+ * 确保页面注入脚本已加载
+ */
+function ensurePageScriptLoaded(): Promise<void> {
+  return new Promise((resolve) => {
+    if (pageScriptInjected || (window as any).__EURAFLOW_PAGE_SCRIPT_LOADED__) {
+      pageScriptInjected = true;
+      resolve();
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = chrome.runtime.getURL('assets/page-injected.js');
+    script.onload = () => {
+      pageScriptInjected = true;
+      if (__DEBUG__) {
+        console.log('[EuraFlow] 页面注入脚本已加载');
+      }
+      resolve();
+    };
+    script.onerror = () => {
+      console.error('[EuraFlow] 页面注入脚本加载失败');
+      resolve();  // 即使失败也继续
+    };
+    document.head.appendChild(script);
+  });
+}
+
+/**
+ * 通过页面上下文执行 fetch 请求（避免 Content Script 的 403 反爬虫检测）
+ */
+async function fetchViaPageContext(url: string, timeout = 10000): Promise<any | null> {
+  // 确保页面脚本已加载
+  await ensurePageScriptLoaded();
+
+  return new Promise((resolve) => {
+    const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    const timeoutId = setTimeout(() => {
+      window.removeEventListener('euraflow_page_response', responseHandler);
+      console.warn('[EuraFlow] 页面上下文请求超时');
+      resolve(null);
+    }, timeout);
+
+    const responseHandler = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail?.requestId !== requestId) return;
+
+      clearTimeout(timeoutId);
+      window.removeEventListener('euraflow_page_response', responseHandler);
+
+      if (customEvent.detail.success) {
+        resolve(customEvent.detail.data);
+      } else {
+        console.warn('[EuraFlow] 页面上下文请求失败:', customEvent.detail.error);
+        resolve(null);
+      }
+    };
+
+    window.addEventListener('euraflow_page_response', responseHandler);
+
+    // 发送请求到页面上下文
+    window.dispatchEvent(new CustomEvent('euraflow_page_request', {
+      detail: { requestId, type: 'fetch', url }
+    }));
+  });
+}
+
 export interface ProductDetailData {
   ozon_product_id?: string;
   sku?: string;
@@ -394,8 +465,8 @@ async function fetchCharacteristicsAndDescription(productSlug: string): Promise<
   typeNameRu?: string;
 } | null> {
   try {
-    // 获取 headers（包含 requestId）
-    const { headers, requestId } = await getOzonStandardHeaders({
+    // 获取 requestId 用于构建 URL 参数
+    const { requestId } = await getOzonStandardHeaders({
       referer: window.location.href
     });
 
@@ -419,24 +490,12 @@ async function fetchCharacteristicsAndDescription(productSlug: string): Promise<
       console.log('[API] fetchCharacteristicsAndDescription 请求:', { productSlug, apiUrl });
     }
 
-    // ✅ 使用 executeWithRetry（包含反爬虫检查、智能重试、403/429 处理）
-    const limiter = OzonApiRateLimiter.getInstance();
-
-    const response = await limiter.executeWithRetry(async () => {
-      const res = await fetch(apiUrl, {
-        method: 'GET',
-        headers,
-        credentials: 'include'
-      });
-      return res;
-    });
-
-    if (!response.ok) {
-      console.warn(`[EuraFlow] Page2 API 请求失败: ${response.status}`);
+    // ✅ 通过页面上下文执行请求（避免 403 反爬虫检测）
+    const data = await fetchViaPageContext(apiUrl);
+    if (!data) {
+      console.warn(`[EuraFlow] Page2 API 请求失败（页面上下文）`);
       return null;
     }
-
-    const data = await response.json();
     const widgetStates = data.widgetStates || {};
     const keys = Object.keys(widgetStates);
 
@@ -731,13 +790,58 @@ export async function extractProductData(): Promise<ProductDetailData> {
     }
 
     // ========== 获取尺寸和重量数据 ==========
-    // 优先使用 OZON Seller API，降级到上品帮 DOM
+    // 优先级：1. 特征属性 > 2. OZON Seller API > 3. 上品帮 DOM
+
+    // 方案 0（最高优先级）：从特征属性中提取尺寸
+    // 特征中的长宽高单位是 cm，需要转换为 mm
+    if (baseData.attributes && baseData.attributes.length > 0) {
+      const dimensionsFromAttrs: { weight?: number; height?: number; width?: number; length?: number } = {};
+
+      for (const attr of baseData.attributes) {
+        const name = attr.name?.toLowerCase() || '';
+        const value = parseFloat(attr.value);
+
+        if (isNaN(value)) continue;
+
+        // 长度（cm → mm）
+        if (name.includes('长度') || name === 'length') {
+          dimensionsFromAttrs.length = Math.round(value * 10);  // cm → mm
+        }
+        // 宽度（cm → mm）
+        else if (name.includes('宽度') || name === 'width') {
+          dimensionsFromAttrs.width = Math.round(value * 10);  // cm → mm
+        }
+        // 高度（cm → mm）
+        else if (name.includes('高度') || name === 'height' || name.includes('heiht')) {
+          dimensionsFromAttrs.height = Math.round(value * 10);  // cm → mm
+        }
+        // 重量（已经是克）
+        else if (name.includes('重量') || name.includes('вес') || name === 'weight') {
+          dimensionsFromAttrs.weight = Math.round(value);  // 克
+        }
+      }
+
+      // 如果从属性中提取到了完整的尺寸数据，使用它
+      if (dimensionsFromAttrs.length && dimensionsFromAttrs.width && dimensionsFromAttrs.height && dimensionsFromAttrs.weight) {
+        baseData.dimensions = {
+          length: dimensionsFromAttrs.length,
+          width: dimensionsFromAttrs.width,
+          height: dimensionsFromAttrs.height,
+          weight: dimensionsFromAttrs.weight,
+        };
+        if (__DEBUG__) {
+          console.log('[EuraFlow] 从特征属性提取尺寸（cm→mm）:', baseData.dimensions);
+        }
+      } else if (Object.keys(dimensionsFromAttrs).length > 0 && __DEBUG__) {
+        console.log('[EuraFlow] 特征属性中尺寸数据不完整:', dimensionsFromAttrs);
+      }
+    }
 
     // 提取商品 SKU
     const productSku = baseData.ozon_product_id;
 
-    // 方案 1：尝试通过 OZON Seller API 获取尺寸
-    if (productSku) {
+    // 方案 1（降级）：如果特征中没有尺寸，尝试通过 OZON Seller API 获取
+    if (!baseData.dimensions && productSku) {
       const ozonDimensions = await fetchDimensionsFromOzonAPI(productSku);
 
       if (ozonDimensions) {
@@ -1095,6 +1199,7 @@ export async function extractProductData(): Promise<ProductDetailData> {
         videos_count: finalData.videos?.length || 0,
         dimensions: finalData.dimensions,
         attributes_count: finalData.attributes?.length || 0,
+        attributes: finalData.attributes,  // 显示全部属性
         typeNameRu: finalData.typeNameRu,
         has_variants: finalData.has_variants,
         variants_count: finalData.variants?.length || 0

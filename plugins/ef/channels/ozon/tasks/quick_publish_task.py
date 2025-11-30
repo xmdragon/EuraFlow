@@ -431,9 +431,18 @@ def create_product_by_sku_task(self, dto_dict: Dict, user_id: int, shop_id: int,
                     raise ValueError(f"类目 {category_id} 无父类目ID，无法创建商品")
         product_item["description_category_id"] = description_category_id
 
-        # dimensions（必需）
-        if dto_dict.get("dimensions"):
-            product_item["dimensions"] = dto_dict["dimensions"]
+        # dimensions（必需）- 转换为 OZON v3 API 格式
+        raw_dims = dto_dict.get("dimensions")
+        if raw_dims:
+            # 浏览器扩展传递格式: {weight, height, width, length}
+            # OZON API 需要格式: {depth, height, width, weight, dimension_unit, weight_unit}
+            product_item["depth"] = raw_dims.get("length") or raw_dims.get("depth", 0)
+            product_item["height"] = raw_dims.get("height", 0)
+            product_item["width"] = raw_dims.get("width", 0)
+            product_item["weight"] = raw_dims.get("weight", 0)
+            product_item["dimension_unit"] = "mm"
+            product_item["weight_unit"] = "g"
+            logger.info(f"[Step 1] 尺寸: depth={product_item['depth']}, height={product_item['height']}, width={product_item['width']}, weight={product_item['weight']}")
         else:
             raise ValueError("dimensions 是必需字段，无法创建商品")
 
@@ -491,6 +500,17 @@ def create_product_by_sku_task(self, dto_dict: Dict, user_id: int, shop_id: int,
                 if attr.get("dictionary_value_id"):
                     formatted_attr["values"][0]["dictionary_value_id"] = attr["dictionary_value_id"]
                 formatted_attributes.append(formatted_attr)
+
+        # 自动添加型号名称（attribute_id: 9048）- 使用 offer_id 作为默认值
+        existing_attr_ids = {attr.get("id") for attr in formatted_attributes}
+        if 9048 not in existing_attr_ids:
+            model_name_attr = {
+                "id": 9048,
+                "complex_id": 0,
+                "values": [{"value": dto_dict.get("offer_id", "DEFAULT")}]
+            }
+            formatted_attributes.append(model_name_attr)
+            logger.info(f"[Step 1] 自动添加型号名称: {dto_dict.get('offer_id')}")
 
         product_item["attributes"] = formatted_attributes
         logger.info(f"[Step 1] 最终属性数量: {len(formatted_attributes)}")
