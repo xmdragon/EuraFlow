@@ -411,10 +411,25 @@ def create_product_by_sku_task(self, dto_dict: Dict, user_id: int, shop_id: int,
         }
 
         # type_id（必需，叶子类目）- OZON API 字段名为 type_id
-        if dto_dict.get("category_id"):
-            product_item["type_id"] = dto_dict["category_id"]  # 将 category_id 映射为 type_id
-        else:
+        category_id = dto_dict.get("category_id")
+        if not category_id:
             raise ValueError("category_id 是必需字段，无法创建商品")
+        product_item["type_id"] = category_id
+
+        # description_category_id（必需，父类目ID）- 从数据库查询
+        description_category_id = dto_dict.get("description_category_id")
+        if not description_category_id:
+            # 查询父类目ID
+            from ..models.listing import OzonCategory
+            SessionLocal = get_sync_db_session()
+            with SessionLocal() as db:
+                category = db.query(OzonCategory).filter(OzonCategory.category_id == category_id).first()
+                if category and category.parent_id:
+                    description_category_id = category.parent_id
+                    logger.info(f"[Step 1] 从数据库获取父类目ID: {description_category_id}")
+                else:
+                    raise ValueError(f"类目 {category_id} 无父类目ID，无法创建商品")
+        product_item["description_category_id"] = description_category_id
 
         # dimensions（必需）
         if dto_dict.get("dimensions"):
@@ -422,8 +437,26 @@ def create_product_by_sku_task(self, dto_dict: Dict, user_id: int, shop_id: int,
         else:
             raise ValueError("dimensions 是必需字段，无法创建商品")
 
-        # attributes（必需，即使为空列表）
-        product_item["attributes"] = dto_dict.get("attributes", [])
+        # attributes（必需）- 转换为 OZON v3 API 格式
+        raw_attributes = dto_dict.get("attributes", [])
+        formatted_attributes = []
+        for attr in raw_attributes:
+            # 原格式: {"attribute_id": xxx, "value": "..."} 或 {"id": xxx, "values": [...]}
+            if "values" in attr:
+                # 已经是正确格式
+                formatted_attributes.append(attr)
+            else:
+                # 转换为正确格式
+                formatted_attr = {
+                    "id": attr.get("attribute_id") or attr.get("id"),
+                    "complex_id": attr.get("complex_id", 0),
+                    "values": [{"value": str(attr.get("value", ""))}]
+                }
+                # 如果有 dictionary_value_id，也添加
+                if attr.get("dictionary_value_id"):
+                    formatted_attr["values"][0]["dictionary_value_id"] = attr["dictionary_value_id"]
+                formatted_attributes.append(formatted_attr)
+        product_item["attributes"] = formatted_attributes
 
         # 可选字段
         if dto_dict.get("description"):
