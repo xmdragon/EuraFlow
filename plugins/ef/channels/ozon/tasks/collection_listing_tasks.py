@@ -118,12 +118,54 @@ def process_follow_pdp_listing(record_id: int) -> dict:
                 """异步处理变体翻译和任务创建"""
                 from ..services.translation_factory import TranslationFactory
                 from ..tasks.quick_publish_task import quick_publish_chain_task
+                from ..models.category import OzonCategory
 
                 settings = get_settings()
                 async_engine = create_async_engine(settings.database_url, pool_pre_ping=True)
                 AsyncSession = async_sessionmaker(async_engine, expire_on_commit=False)
 
                 async with AsyncSession() as async_db:
+                    # 验证/查找正确的类目ID
+                    category_id = listing_payload.get("category_id") or product_data.get("category_id")
+                    valid_category_id = None
+
+                    if category_id:
+                        # 检查类目ID是否存在
+                        result = await async_db.execute(
+                            select(OzonCategory).where(OzonCategory.category_id == category_id)
+                        )
+                        existing_category = result.scalar_one_or_none()
+
+                        if existing_category:
+                            valid_category_id = category_id
+                            logger.info(f"[CollectionListing] 类目ID有效: {category_id} -> {existing_category.name}")
+                        else:
+                            logger.warning(f"[CollectionListing] 类目ID无效: {category_id}，尝试从属性中查找")
+
+                    # 如果类目ID无效，尝试从 "Тип" 属性值查找
+                    if not valid_category_id:
+                        attributes = listing_payload.get("attributes", [])
+                        for attr in attributes:
+                            attr_value = attr.get("value", "")
+                            if attr_value:
+                                # 尝试通过 name_ru 查找类目
+                                result = await async_db.execute(
+                                    select(OzonCategory).where(
+                                        OzonCategory.name_ru == attr_value,
+                                        OzonCategory.is_leaf == True
+                                    )
+                                )
+                                found_category = result.scalar_one_or_none()
+                                if found_category:
+                                    valid_category_id = found_category.category_id
+                                    logger.info(f"[CollectionListing] 从属性值 '{attr_value}' 找到类目: {valid_category_id} ({found_category.name})")
+                                    break
+
+                    if not valid_category_id:
+                        raise ValueError(f"无法找到有效的类目ID。原始ID: {category_id}")
+
+                    logger.info(f"[CollectionListing] 最终使用类目ID: {valid_category_id}")
+
                     # 初始化翻译服务
                     translation_service = None
                     try:
@@ -186,7 +228,7 @@ def process_follow_pdp_listing(record_id: int) -> dict:
 
                             # 共享字段
                             "description": russian_description,
-                            "category_id": listing_payload.get("category_id") or product_data.get("category_id"),
+                            "category_id": valid_category_id,  # 使用验证后的类目ID
                             "brand": listing_payload.get("brand") or product_data.get("brand", ""),
                             "barcode": listing_payload.get("barcode") or product_data.get("barcode", ""),
 
