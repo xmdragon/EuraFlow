@@ -118,7 +118,7 @@ def process_follow_pdp_listing(record_id: int) -> dict:
                 """异步处理变体翻译和任务创建"""
                 from ..services.translation_factory import TranslationFactory
                 from ..tasks.quick_publish_task import quick_publish_chain_task
-                from ..models.category import OzonCategory
+                from ..models.listing import OzonCategory
 
                 settings = get_settings()
                 async_engine = create_async_engine(settings.database_url, pool_pre_ping=True)
