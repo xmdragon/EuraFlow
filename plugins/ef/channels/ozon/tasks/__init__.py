@@ -43,9 +43,8 @@ from .image_upload_task import (
 
 from .quick_publish_task import (
     quick_publish_chain_task,
-    create_product_by_sku_task,
+    create_product_task,
     upload_images_to_storage_task,
-    update_ozon_product_images_task,
     update_product_stock_task
 )
 
@@ -67,9 +66,8 @@ __all__ = [
     "batch_finance_sync_task",
     "upload_xiangji_images_to_storage",
     "quick_publish_chain_task",
-    "create_product_by_sku_task",
+    "create_product_task",
     "upload_images_to_storage_task",
-    "update_ozon_product_images_task",
     "update_product_stock_task",
     "aggregate_daily_stats",
 ]
