@@ -165,20 +165,20 @@ const ListingRecords: React.FC = () => {
   const { data, isLoading } = useQuery({
     queryKey: ['listing-records', selectedShop, currentPage, pageSize],
     queryFn: async () => {
-      if (!selectedShop) return { items: [], total: 0 };
+      const params: Record<string, unknown> = {
+        collection_type: 'follow_pdp',
+        page: currentPage,
+        page_size: pageSize,
+      };
 
-      const response = await axios.get('/api/ef/v1/ozon/collection-records', {
-        params: {
-          collection_type: 'follow_pdp',
-          shop_id: selectedShop,
-          page: currentPage,
-          page_size: pageSize,
-        },
-      });
+      // 如果选择了特定店铺（非"全部"），添加 shop_id 参数
+      if (selectedShop !== null) {
+        params.shop_id = selectedShop;
+      }
 
+      const response = await axios.get('/api/ef/v1/ozon/collection-records', { params });
       return response.data.data;
     },
-    enabled: selectedShop !== null,
   });
 
   // 查询每日上架统计数据
@@ -428,7 +428,6 @@ const ListingRecords: React.FC = () => {
             <ShopSelector
               value={selectedShop}
               onChange={handleShopChange}
-              showAllOption={false}
               style={{ width: 200 }}
             />
           </Form.Item>
