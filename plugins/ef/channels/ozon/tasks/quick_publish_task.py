@@ -341,10 +341,9 @@ def quick_publish_chain_task(self, dto_dict: Dict, user_id: int, shop_id: int):
     一键跟卖任务链 (协调器)
 
     流程:
-    1. 通过 SKU 创建商品
-    2. 上传图片到图库
-    3. 更新 OZON 商品图片
-    4. 更新库存
+    1. 上传图片到图床（添加水印，可选）
+    2. 创建商品（直接用水印 URL）
+    3. 更新库存
 
     注意: 不能在任务内部调用 result.get()，会导致死锁
     改为直接返回 chain，让 Celery 自动处理链的执行
@@ -353,13 +352,14 @@ def quick_publish_chain_task(self, dto_dict: Dict, user_id: int, shop_id: int):
     logger.info(f"Quick publish chain started: task_id={task_id}, shop_id={shop_id}")
 
     try:
-        update_task_progress(task_id, status="running", current_step="create_product", progress=0)
+        update_task_progress(task_id, status="running", current_step="upload_images", progress=0)
 
         task_chain = chain(
-            create_product_by_sku_task.si(dto_dict, user_id, shop_id, task_id),
-            upload_images_to_storage_task.s(dto_dict, shop_id, task_id),
-            update_ozon_product_images_task.s(task_id),
-            # 价格已在 import 时设置，无需单独更新
+            # Step 1: 上传图片到图床（添加水印）
+            upload_images_to_storage_task.si(dto_dict, shop_id, task_id),
+            # Step 2: 创建商品（用水印 URL）
+            create_product_task.s(dto_dict, user_id, shop_id, task_id),
+            # Step 3: 更新库存
             update_product_stock_task.s(dto_dict, shop_id, task_id)
         )
 
@@ -378,31 +378,38 @@ def quick_publish_chain_task(self, dto_dict: Dict, user_id: int, shop_id: int):
     except Exception as e:
         logger.error(f"Quick publish chain failed: {e}", exc_info=True)
         update_task_progress(
-            task_id, status="failed", current_step="create_product",
+            task_id, status="failed", current_step="upload_images",
             progress=0, error=str(e)
         )
         raise self.retry(countdown=60, exc=e)
 
 
 @celery_app.task(bind=True, name="ef.ozon.quick_publish.create_product", max_retries=3)
-def create_product_by_sku_task(self, dto_dict: Dict, user_id: int, shop_id: int, parent_task_id: str):
+def create_product_task(self, prev_result: Dict, dto_dict: Dict, user_id: int, shop_id: int, parent_task_id: str):
     """
-    步骤 1: 创建商品（完整商品数据）
+    步骤 2: 创建商品（完整商品数据，使用水印图片 URL）
     调用 OZON API /v3/product/import
+
+    Args:
+        prev_result: 图片上传结果，包含 image_urls 和 storage_type
     """
-    logger.info(f"[Step 1] Creating product: offer_id={dto_dict.get('offer_id')}")
+    # 从上一步获取处理后的图片 URL
+    image_urls = prev_result.get("image_urls", [])
+    storage_type = prev_result.get("storage_type", "none")
+
+    logger.info(f"[Step 2] Creating product: offer_id={dto_dict.get('offer_id')}, images={len(image_urls)}, storage={storage_type}")
 
     try:
         update_task_progress(
             parent_task_id, status="running", current_step="create_product",
-            progress=10, step_details={"status": "running", "message": "正在创建商品..."}
+            progress=35, step_details={"status": "running", "message": "正在创建商品..."}
         )
 
         shop = get_shop_sync(shop_id)
         if not shop:
             raise ValueError(f"店铺 {shop_id} 不存在")
 
-        logger.info(f"[Step 1] Shop info: shop_id={shop.id}, client_id={shop.client_id}")
+        logger.info(f"[Step 2] Shop info: shop_id={shop.id}, client_id={shop.client_id}")
 
         # 构建完整商品数据（/v3/product/import API）
         product_item = {
@@ -432,7 +439,7 @@ def create_product_by_sku_task(self, dto_dict: Dict, user_id: int, shop_id: int,
                 category = db.query(OzonCategory).filter(OzonCategory.category_id == category_id).first()
                 if category and category.parent_id:
                     description_category_id = category.parent_id
-                    logger.info(f"[Step 1] 从数据库获取父类目ID: {description_category_id}")
+                    logger.info(f"[Step 2] 从数据库获取父类目ID: {description_category_id}")
                 else:
                     raise ValueError(f"类目 {category_id} 无父类目ID，无法创建商品")
         product_item["description_category_id"] = description_category_id
@@ -448,7 +455,7 @@ def create_product_by_sku_task(self, dto_dict: Dict, user_id: int, shop_id: int,
             product_item["weight"] = raw_dims.get("weight", 0)
             product_item["dimension_unit"] = "mm"
             product_item["weight_unit"] = "g"
-            logger.info(f"[Step 1] 尺寸: depth={product_item['depth']}, height={product_item['height']}, width={product_item['width']}, weight={product_item['weight']}")
+            logger.info(f"[Step 2] 尺寸: depth={product_item['depth']}, height={product_item['height']}, width={product_item['width']}, weight={product_item['weight']}")
         else:
             raise ValueError("dimensions 是必需字段，无法创建商品")
 
@@ -473,7 +480,7 @@ def create_product_by_sku_task(self, dto_dict: Dict, user_id: int, shop_id: int,
                     attr_name_to_id[ca.name_zh] = ca.attribute_id
                 if ca.name_ru:
                     attr_name_to_id[ca.name_ru] = ca.attribute_id
-            logger.info(f"[Step 1] 加载类目 {category_id} 的 {len(category_attrs)} 个属性映射")
+            logger.info(f"[Step 2] 加载类目 {category_id} 的 {len(category_attrs)} 个属性映射")
 
         for attr in raw_attributes:
             # 原格式: {"attribute_id": xxx, "value": "..."} 或 {"id": xxx, "values": [...]}
@@ -487,13 +494,13 @@ def create_product_by_sku_task(self, dto_dict: Dict, user_id: int, shop_id: int,
                     # 根据属性名查找真实 ID
                     attr_id = attr_name_to_id.get(attr["name"], 0)
                     if attr_id:
-                        logger.info(f"[Step 1] 属性名 '{attr['name']}' -> attribute_id={attr_id}")
+                        logger.info(f"[Step 2] 属性名 '{attr['name']}' -> attribute_id={attr_id}")
                     else:
-                        logger.warning(f"[Step 1] 无法找到属性 '{attr['name']}' 的 ID，跳过")
+                        logger.warning(f"[Step 2] 无法找到属性 '{attr['name']}' 的 ID，跳过")
                         continue
 
                 if not attr_id:
-                    logger.warning(f"[Step 1] 属性缺少有效 ID，跳过: {attr}")
+                    logger.warning(f"[Step 2] 属性缺少有效 ID，跳过: {attr}")
                     continue
 
                 # 转换为正确格式
@@ -516,10 +523,10 @@ def create_product_by_sku_task(self, dto_dict: Dict, user_id: int, shop_id: int,
                 "values": [{"value": dto_dict.get("offer_id", "DEFAULT")}]
             }
             formatted_attributes.append(model_name_attr)
-            logger.info(f"[Step 1] 自动添加型号名称: {dto_dict.get('offer_id')}")
+            logger.info(f"[Step 2] 自动添加型号名称: {dto_dict.get('offer_id')}")
 
         product_item["attributes"] = formatted_attributes
-        logger.info(f"[Step 1] 最终属性数量: {len(formatted_attributes)}")
+        logger.info(f"[Step 2] 最终属性数量: {len(formatted_attributes)}")
 
         # 可选字段
         if dto_dict.get("description"):
@@ -529,8 +536,15 @@ def create_product_by_sku_task(self, dto_dict: Dict, user_id: int, shop_id: int,
         if dto_dict.get("barcode"):
             product_item["barcode"] = dto_dict["barcode"]
 
-        # 图片（注意：这里暂不传递，因为需要先上传到OZON图库）
-        # images 会在后续步骤中处理
+        # 图片（使用 Step 1 处理后的水印图片 URL）
+        # OZON API 支持 primary_image（主图）和 images（其他图片，最多14张）
+        if image_urls:
+            # 第一张作为主图
+            product_item["primary_image"] = image_urls[0]
+            # 其余作为附图（最多14张）
+            if len(image_urls) > 1:
+                product_item["images"] = image_urls[1:15]
+            logger.info(f"[Step 2] 图片: primary_image={image_urls[0][:50]}..., 附图数量={len(image_urls)-1}")
 
         # 将所有异步操作合并到单一函数中，避免多次创建/关闭事件循环
         async def create_and_poll():
@@ -541,9 +555,9 @@ def create_product_by_sku_task(self, dto_dict: Dict, user_id: int, shop_id: int,
                 shop_id=shop.id
             )
 
-            logger.info(f"[Step 1] Calling OZON API /v3/product/import with data: {product_item}")
+            logger.info(f"[Step 2] Calling OZON API /v3/product/import with data: {product_item}")
             import_result = await api_client.import_products([product_item])
-            logger.info(f"[Step 1] OZON API response: {import_result}")
+            logger.info(f"[Step 2] OZON API response: {import_result}")
 
             if not import_result.get('result'):
                 raise ValueError(f"OZON API 错误: {import_result}")
@@ -553,7 +567,7 @@ def create_product_by_sku_task(self, dto_dict: Dict, user_id: int, shop_id: int,
 
             update_task_progress(
                 parent_task_id, status="running", current_step="create_product",
-                progress=15, step_details={"status": "polling", "ozon_task_id": ozon_task_id}
+                progress=45, step_details={"status": "polling", "ozon_task_id": ozon_task_id}
             )
 
             # 轮询任务状态 (最多 5 分钟)
@@ -593,48 +607,48 @@ def create_product_by_sku_task(self, dto_dict: Dict, user_id: int, shop_id: int,
 
         update_task_progress(
             parent_task_id, status="running", current_step="create_product",
-            progress=25, step_details={"status": "completed", "product_id": product_id}
+            progress=70, step_details={"status": "completed", "product_id": product_id}
         )
 
-        logger.info(f"[Step 1] Product created: product_id={product_id}")
+        logger.info(f"[Step 2] Product created: product_id={product_id}")
 
         return {
             "product_id": product_id,
             "offer_id": dto_dict["offer_id"],
-            "sku": dto_dict["sku"],
+            "sku": dto_dict.get("sku", dto_dict["offer_id"]),
             "shop_id": shop_id
         }
 
     except Exception as e:
-        logger.error(f"[Step 1] Failed: {e}", exc_info=True)
+        logger.error(f"[Step 2] Failed: {e}", exc_info=True)
         update_task_progress(
             parent_task_id, status="failed", current_step="create_product",
-            progress=0, step_details={"status": "failed", "error": str(e)},
+            progress=35, step_details={"status": "failed", "error": str(e)},
             error=f"创建商品失败: {str(e)}"
         )
         raise self.retry(countdown=60, exc=e)
 
 
 @celery_app.task(bind=True, name="ef.ozon.quick_publish.upload_images", max_retries=3)
-def upload_images_to_storage_task(self, prev_result: Dict, dto_dict: Dict, shop_id: int, parent_task_id: str):
+def upload_images_to_storage_task(self, dto_dict: Dict, shop_id: int, parent_task_id: str):
     """
-    步骤 2: 上传图片到图库 (Cloudinary/Aliyun OSS)
-    从 OZON URLs 下载并上传到激活的图片存储
+    步骤 1: 上传图片到图床 (Cloudinary/Aliyun OSS)
+    从 OZON URLs 下载并上传到激活的图片存储，添加水印
     """
-    product_id = prev_result["product_id"]
     ozon_image_urls = dto_dict.get("images", [])
+    offer_id = dto_dict.get("offer_id", "unknown")
 
-    logger.info(f"[Step 2] Uploading images: product_id={product_id}, count={len(ozon_image_urls)}")
+    logger.info(f"[Step 1] Uploading images: offer_id={offer_id}, count={len(ozon_image_urls)}")
 
     try:
         update_task_progress(
             parent_task_id, status="running", current_step="upload_images",
-            progress=30, step_details={"status": "running", "total": len(ozon_image_urls), "uploaded": 0}
+            progress=5, step_details={"status": "running", "total": len(ozon_image_urls), "uploaded": 0}
         )
 
         if not ozon_image_urls:
             logger.warning("No images to upload")
-            return {**prev_result, "image_urls": [], "storage_type": "none"}
+            return {"image_urls": [], "storage_type": "none"}
 
         ozon_image_urls = ozon_image_urls[:15]  # 限制最多 15 张
 
@@ -670,7 +684,7 @@ def upload_images_to_storage_task(self, prev_result: Dict, dto_dict: Dict, shop_
 
                 tasks = []
                 for idx, ozon_url in enumerate(ozon_image_urls):
-                    public_id = f"{shop_id}_{prev_result['offer_id']}_{idx}_{int(time.time())}"
+                    public_id = f"{shop_id}_{offer_id}_{idx}_{int(time.time())}"
                     folder = f"{storage_service.product_images_folder or 'products'}/{shop_id}/quick_publish"
 
                     if storage_type == "cloudinary":
@@ -710,7 +724,7 @@ def upload_images_to_storage_task(self, prev_result: Dict, dto_dict: Dict, shop_
                         logger.error(f"Image {idx} upload failed: {result.get('error')}")
                         uploaded.append(ozon_image_urls[idx])
 
-                    progress = 30 + int((idx + 1) / len(ozon_image_urls) * 20)
+                    progress = 5 + int((idx + 1) / len(ozon_image_urls) * 25)
                     update_task_progress(
                         parent_task_id, status="running", current_step="upload_images",
                         progress=progress,
@@ -727,107 +741,37 @@ def upload_images_to_storage_task(self, prev_result: Dict, dto_dict: Dict, shop_
 
         update_task_progress(
             parent_task_id, status="running", current_step="upload_images",
-            progress=50, step_details={
+            progress=30, step_details={
                 "status": "completed", "total": len(ozon_image_urls),
                 "uploaded": len(uploaded_urls), "storage_type": storage_type
             }
         )
 
-        logger.info(f"[Step 2] Images uploaded: count={len(uploaded_urls)}, storage={storage_type}")
+        logger.info(f"[Step 1] Images uploaded: count={len(uploaded_urls)}, storage={storage_type}")
 
-        return {**prev_result, "image_urls": uploaded_urls, "storage_type": storage_type}
+        return {"image_urls": uploaded_urls, "storage_type": storage_type}
 
     except Exception as e:
-        logger.error(f"[Step 2] Failed: {e}", exc_info=True)
+        logger.error(f"[Step 1] Failed: {e}", exc_info=True)
         logger.warning("Image upload failed, using original URLs as fallback")
 
         update_task_progress(
             parent_task_id, status="running", current_step="upload_images",
-            progress=50, step_details={"status": "fallback", "error": str(e), "fallback_urls": ozon_image_urls}
+            progress=30, step_details={"status": "fallback", "error": str(e), "fallback_urls": ozon_image_urls}
         )
 
-        return {**prev_result, "image_urls": ozon_image_urls, "storage_type": "fallback"}
-
-
-@celery_app.task(bind=True, name="ef.ozon.quick_publish.update_images", max_retries=3)
-def update_ozon_product_images_task(self, prev_result: Dict, parent_task_id: str):
-    """
-    步骤 3: 更新 OZON 商品图片
-    调用 OZON API /v1/product/pictures/import
-    """
-    product_id = prev_result["product_id"]
-    image_urls = prev_result["image_urls"]
-    shop_id = prev_result["shop_id"]
-
-    logger.info(f"[Step 3] Updating product images: product_id={product_id}, count={len(image_urls)}")
-
-    try:
-        update_task_progress(
-            parent_task_id, status="running", current_step="update_images",
-            progress=45, step_details={"status": "running", "message": "正在更新商品图片..."}
-        )
-
-        if not image_urls:
-            update_task_progress(
-                parent_task_id, status="running", current_step="update_images",
-                progress=60, step_details={"status": "skipped"}
-            )
-            return prev_result
-
-        shop = get_shop_sync(shop_id)
-        if not shop:
-            raise ValueError("无法获取店铺信息")
-
-        api_client = OzonAPIClient(
-            client_id=shop.client_id, api_key=shop.api_key_enc, shop_id=shop.id
-        )
-
-        import_result = run_async_in_celery(
-            api_client.import_product_pictures(product_id, image_urls)
-        )
-
-        if not import_result.get('result'):
-            logger.warning(f"Image update failed: {import_result}, continuing...")
-            update_task_progress(
-                parent_task_id, status="running", current_step="update_images",
-                progress=60, step_details={"status": "failed", "error": str(import_result)}
-            )
-            return prev_result
-
-        ozon_task_id = import_result['result'].get('task_id')
-
-        # 简化轮询 (最多 3 分钟)
-        for _ in range(18):
-            time.sleep(10)
-
-        update_task_progress(
-            parent_task_id, status="running", current_step="update_images",
-            progress=60, step_details={"status": "completed", "ozon_task_id": ozon_task_id}
-        )
-
-        logger.info(f"[Step 3] Product images updated")
-        return prev_result
-
-    except Exception as e:
-        logger.error(f"[Step 3] Failed: {e}", exc_info=True)
-        logger.warning("Image update failed, continuing to price update...")
-
-        update_task_progress(
-            parent_task_id, status="running", current_step="update_images",
-            progress=60, step_details={"status": "failed", "error": str(e)}
-        )
-        return prev_result
+        return {"image_urls": ozon_image_urls, "storage_type": "fallback"}
 
 
 @celery_app.task(bind=True, name="ef.ozon.quick_publish.update_price", max_retries=3)
 def update_product_price_task(self, prev_result: Dict, dto_dict: Dict, shop_id: int, parent_task_id: str):
     """
-    步骤 4: 跳过价格更新（价格已在 import 时设置）
+    （已废弃）跳过价格更新（价格已在 import 时设置）
     """
     product_id = prev_result["product_id"]
     price = dto_dict.get("price")
 
-    logger.info(f"[Step 4] 跳过价格更新（已在import时设置）: product_id={product_id}, price={price}")
+    logger.info(f"跳过价格更新（已在import时设置）: product_id={product_id}, price={price}")
 
     update_task_progress(
         parent_task_id, status="running", current_step="update_price",
@@ -926,7 +870,7 @@ def update_product_price_task_legacy(self, prev_result: Dict, dto_dict: Dict, sh
 @celery_app.task(bind=True, name="ef.ozon.quick_publish.update_stock", max_retries=3)
 def update_product_stock_task(self, prev_result: Dict, dto_dict: Dict, shop_id: int, parent_task_id: str):
     """
-    步骤 5: 更新库存
+    步骤 3: 更新库存
     调用 OZON API /v2/products/stocks
     """
     product_id = prev_result["product_id"]
@@ -934,12 +878,12 @@ def update_product_stock_task(self, prev_result: Dict, dto_dict: Dict, shop_id: 
     stock = dto_dict.get("stock", 0)
     warehouse_id = dto_dict.get("warehouse_id", 1)
 
-    logger.info(f"[Step 5] Updating stock: product_id={product_id}, stock={stock}")
+    logger.info(f"[Step 3] Updating stock: product_id={product_id}, stock={stock}")
 
     try:
         update_task_progress(
             parent_task_id, status="running", current_step="update_stock",
-            progress=85, step_details={"status": "running", "message": "正在更新库存..."}
+            progress=75, step_details={"status": "running", "message": "正在更新库存..."}
         )
 
         shop = get_shop_sync(shop_id)
@@ -967,7 +911,7 @@ def update_product_stock_task(self, prev_result: Dict, dto_dict: Dict, shop_id: 
             progress=100, step_details={"status": "completed", "stock": stock}
         )
 
-        logger.info(f"[Step 5] Stock updated successfully")
+        logger.info(f"[Step 3] Stock updated successfully")
 
         return {
             "success": True,
@@ -978,10 +922,10 @@ def update_product_stock_task(self, prev_result: Dict, dto_dict: Dict, shop_id: 
         }
 
     except Exception as e:
-        logger.error(f"[Step 5] Failed: {e}", exc_info=True)
+        logger.error(f"[Step 3] Failed: {e}", exc_info=True)
         update_task_progress(
             parent_task_id, status="failed", current_step="update_stock",
-            progress=85, step_details={"status": "failed", "error": str(e)},
+            progress=75, step_details={"status": "failed", "error": str(e)},
             error=f"更新库存失败: {str(e)}"
         )
         raise self.retry(countdown=60, exc=e)
