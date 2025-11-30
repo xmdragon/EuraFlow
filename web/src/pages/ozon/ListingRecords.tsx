@@ -19,7 +19,6 @@ import {
   Space,
   Card,
   Tag,
-  Image,
   App,
   Form,
   Modal,
@@ -27,6 +26,7 @@ import {
   DatePicker,
   Typography,
   Spin,
+  Tooltip,
 } from 'antd';
 import dayjs, { Dayjs } from 'dayjs';
 import React, { useState, useMemo } from 'react';
@@ -36,11 +36,13 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   Legend,
   ResponsiveContainer,
 } from 'recharts';
 
+import CollectionRecordDetailModal from '@/components/ozon/CollectionRecordDetailModal';
+import ProductImage from '@/components/ozon/ProductImage';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import PageTitle from '@/components/PageTitle';
 import { useShopSelection } from '@/hooks/ozon/useShopSelection';
@@ -63,8 +65,20 @@ interface ListingRecord {
   product_data: {
     title?: string;
     title_cn?: string;
-    images?: string[];
+    images?: string[] | { url: string; is_primary?: boolean }[];
     price?: number;
+    old_price?: number;
+    currency?: string;
+    description?: string;
+    specifications?: Record<string, unknown>;
+    variants?: unknown[];
+    dimensions?: {
+      length?: number;
+      width?: number;
+      height?: number;
+      weight?: number;
+    };
+    [key: string]: unknown;
   };
   listing_status: string | null;
   listing_task_id: string | null;
@@ -72,6 +86,21 @@ interface ListingRecord {
   created_at: string;
   updated_at: string;
 }
+
+// 获取图片URL的辅助函数
+const getImageUrl = (images?: string[] | { url: string }[]): string | undefined => {
+  if (!images || images.length === 0) return undefined;
+  const first = images[0];
+  if (typeof first === 'string') return first;
+  return first?.url;
+};
+
+// 截断标题的辅助函数
+const truncateTitle = (title: string | undefined, maxLength: number = 50): string => {
+  if (!title) return '-';
+  if (title.length <= maxLength) return title;
+  return title.slice(0, maxLength) + '...';
+};
 
 const ListingRecords: React.FC = () => {
   const { modal } = App.useApp();
@@ -84,6 +113,10 @@ const ListingRecords: React.FC = () => {
   const [pageSize, setPageSize] = useState(20);
   const { selectedShop, handleShopChange } = useShopSelection();
   const [filterForm] = Form.useForm();
+
+  // 详情弹窗状态
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [currentRecord, setCurrentRecord] = useState<ListingRecord | null>(null);
 
   // 统计弹窗状态
   const [statsModalVisible, setStatsModalVisible] = useState(false);
@@ -181,6 +214,12 @@ const ListingRecords: React.FC = () => {
     });
   }, [dailyStatsData]);
 
+  // 查看记录详情
+  const handleView = (record: ListingRecord) => {
+    setCurrentRecord(record);
+    setDetailModalVisible(true);
+  };
+
   // 删除记录
   const handleDelete = (recordId: number) => {
     modal.confirm({
@@ -250,13 +289,15 @@ const ListingRecords: React.FC = () => {
       title: '商品图片',
       dataIndex: 'product_data',
       key: 'image',
-      width: 100,
+      width: 80,
       render: (product_data: ListingRecord['product_data']) => {
-        const imageUrl = product_data?.images?.[0];
-        return imageUrl ? (
-          <Image src={imageUrl} alt="商品图片" width={60} height={60} />
-        ) : (
-          <div style={{ width: 60, height: 60, background: '#f0f0f0' }} />
+        const imageUrl = getImageUrl(product_data?.images);
+        return (
+          <ProductImage
+            imageUrl={imageUrl}
+            size="small"
+            hoverBehavior="medium"
+          />
         );
       },
     },
@@ -264,43 +305,78 @@ const ListingRecords: React.FC = () => {
       title: '商品标题',
       dataIndex: 'product_data',
       key: 'title',
-      ellipsis: true,
-      render: (product_data: ListingRecord['product_data']) => (
-        <div>
-          <div>{product_data?.title || '-'}</div>
-          <div style={{ color: '#999', fontSize: 12 }}>{product_data?.title_cn || '-'}</div>
-        </div>
-      ),
+      render: (product_data: ListingRecord['product_data']) => {
+        const title = product_data?.title || '';
+        const titleCn = product_data?.title_cn || '';
+        const needTitleTooltip = title.length > 50;
+        const needTitleCnTooltip = titleCn.length > 50;
+
+        return (
+          <div>
+            {needTitleTooltip ? (
+              <Tooltip title={title}>
+                <div>{truncateTitle(title)}</div>
+              </Tooltip>
+            ) : (
+              <div>{title || '-'}</div>
+            )}
+            {titleCn && (
+              needTitleCnTooltip ? (
+                <Tooltip title={titleCn}>
+                  <div style={{ color: '#999', fontSize: 12 }}>{truncateTitle(titleCn)}</div>
+                </Tooltip>
+              ) : (
+                <div style={{ color: '#999', fontSize: 12 }}>{titleCn}</div>
+              )
+            )}
+          </div>
+        );
+      },
     },
     {
       title: '上架状态',
       dataIndex: 'listing_status',
       key: 'listing_status',
-      width: 100,
+      width: 90,
       render: renderStatusTag,
     },
     {
       title: '错误信息',
       dataIndex: 'listing_error_message',
       key: 'listing_error_message',
-      ellipsis: true,
-      width: 200,
-      render: (error: string | null) => error || '-',
+      width: 150,
+      render: (error: string | null) => {
+        if (!error) return '-';
+        return error.length > 30 ? (
+          <Tooltip title={error}>
+            <span style={{ color: '#ff4d4f' }}>{error.slice(0, 30)}...</span>
+          </Tooltip>
+        ) : (
+          <span style={{ color: '#ff4d4f' }}>{error}</span>
+        );
+      },
     },
     {
       title: '创建时间',
       dataIndex: 'created_at',
       key: 'created_at',
-      width: 180,
-      render: (time: string) => dayjs(time).format('YYYY-MM-DD HH:mm:ss'),
+      width: 100,
+      render: (time: string) => dayjs(time).format('MM-DD HH:mm'),
     },
     {
       title: '操作',
       key: 'actions',
-      width: 200,
+      width: 80,
+      align: 'center' as const,
       render: (_: unknown, record: ListingRecord) => (
-        <Space>
-          <Button type="link" size="small" icon={<EyeOutlined />}>
+        <Space direction="vertical" size="small">
+          <Button
+            type="link"
+            size="small"
+            icon={<EyeOutlined />}
+            onClick={() => handleView(record)}
+            style={{ padding: 0 }}
+          >
             查看
           </Button>
           {canOperate && (
@@ -309,13 +385,19 @@ const ListingRecords: React.FC = () => {
               size="small"
               icon={<EditOutlined />}
               onClick={() => handleEdit(record)}
+              style={{ padding: 0 }}
             >
               编辑
             </Button>
           )}
           {record.listing_status === 'failed' && canOperate && (
-            <Button type="link" size="small" icon={<ReloadOutlined />}>
-              重新上架
+            <Button
+              type="link"
+              size="small"
+              icon={<ReloadOutlined />}
+              style={{ padding: 0 }}
+            >
+              重试
             </Button>
           )}
           {canDelete && (
@@ -325,6 +407,7 @@ const ListingRecords: React.FC = () => {
               danger
               icon={<DeleteOutlined />}
               onClick={() => handleDelete(record.id)}
+              style={{ padding: 0 }}
             >
               删除
             </Button>
@@ -364,11 +447,19 @@ const ListingRecords: React.FC = () => {
 
       {/* 数据表格 */}
       <Card>
+        <style>{`
+          .listing-table .ant-table-cell {
+            padding: 4px 8px !important;
+          }
+        `}</style>
         <Table
           columns={columns}
           dataSource={data?.items || []}
           loading={isLoading}
           rowKey="id"
+          size="small"
+          scroll={{ x: true }}
+          className="listing-table"
           pagination={{
             current: currentPage,
             pageSize,
@@ -449,7 +540,7 @@ const ListingRecords: React.FC = () => {
                 tick={{ fontSize: 12 }}
               />
               <YAxis />
-              <Tooltip
+              <RechartsTooltip
                 content={({ active, payload, label }) => {
                   if (active && payload && payload.length) {
                     return (
@@ -490,6 +581,16 @@ const ListingRecords: React.FC = () => {
           </div>
         )}
       </Modal>
+
+      {/* 详情弹窗 */}
+      <CollectionRecordDetailModal
+        visible={detailModalVisible}
+        record={currentRecord}
+        onClose={() => {
+          setDetailModalVisible(false);
+          setCurrentRecord(null);
+        }}
+      />
     </div>
   );
 };
