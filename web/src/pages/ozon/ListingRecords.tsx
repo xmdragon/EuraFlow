@@ -46,6 +46,7 @@ import ProductImage from '@/components/ozon/ProductImage';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import PageTitle from '@/components/PageTitle';
 import { useShopSelection } from '@/hooks/ozon/useShopSelection';
+import { useCurrency } from '@/hooks/useCurrency';
 import { usePermission } from '@/hooks/usePermission';
 import * as ozonApi from '@/services/ozon';
 import { loggers } from '@/utils/logger';
@@ -106,6 +107,7 @@ const ListingRecords: React.FC = () => {
   const { modal } = App.useApp();
   const queryClient = useQueryClient();
   const { canOperate, canDelete } = usePermission();
+  const { formatPrice } = useCurrency();
   const navigate = useNavigate();
 
   // 状态管理
@@ -331,6 +333,16 @@ const ListingRecords: React.FC = () => {
             )}
           </div>
         );
+      },
+    },
+    {
+      title: '价格',
+      dataIndex: 'product_data',
+      key: 'price',
+      width: 100,
+      render: (product_data: ListingRecord['product_data']) => {
+        const price = product_data?.price;
+        return price ? formatPrice(price) : '-';
       },
     },
     {

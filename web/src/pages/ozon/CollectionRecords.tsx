@@ -11,6 +11,7 @@ import {
   Card,
   App,
   Form,
+  Tooltip,
 } from 'antd';
 import dayjs from 'dayjs';
 import React, { useState } from 'react';
@@ -26,6 +27,13 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { loggers } from '@/utils/logger';
 import { notifySuccess, notifyError } from '@/utils/notification';
 import axios from '@/services/axios';
+
+// 截断标题的辅助函数
+const truncateTitle = (title: string | undefined, maxLength: number = 50): string => {
+  if (!title) return '-';
+  if (title.length <= maxLength) return title;
+  return title.slice(0, maxLength) + '...';
+};
 
 interface CollectionRecord {
   id: number;
@@ -214,13 +222,33 @@ const CollectionRecords: React.FC = () => {
       title: '商品标题',
       dataIndex: 'product_data',
       key: 'title',
-      ellipsis: true,
-      render: (product_data: CollectionRecord['product_data']) => (
-        <div>
-          <div>{product_data?.title || '-'}</div>
-          <div style={{ color: '#999', fontSize: 12 }}>{product_data?.title_cn || '-'}</div>
-        </div>
-      ),
+      render: (product_data: CollectionRecord['product_data']) => {
+        const title = product_data?.title || '';
+        const titleCn = product_data?.title_cn || '';
+        const needTitleTooltip = title.length > 50;
+        const needTitleCnTooltip = titleCn.length > 50;
+
+        return (
+          <div>
+            {needTitleTooltip ? (
+              <Tooltip title={title}>
+                <div>{truncateTitle(title)}</div>
+              </Tooltip>
+            ) : (
+              <div>{title || '-'}</div>
+            )}
+            {titleCn && (
+              needTitleCnTooltip ? (
+                <Tooltip title={titleCn}>
+                  <div style={{ color: '#999', fontSize: 12 }}>{truncateTitle(titleCn)}</div>
+                </Tooltip>
+              ) : (
+                <div style={{ color: '#999', fontSize: 12 }}>{titleCn}</div>
+              )
+            )}
+          </div>
+        );
+      },
     },
     {
       title: '价格',
