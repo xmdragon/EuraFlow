@@ -201,9 +201,11 @@ export interface QuickPublishRequest {
     length: number;         // 毫米
   };
   attributes?: Array<{
-    attribute_id: number;
+    attribute_id: number;      // 0 表示需要后端解析
     value: string;
     dictionary_value_id?: number;
+    key?: string;              // OZON 属性 key
+    name?: string;             // OZON 属性名称
   }>;
 }
 
@@ -232,11 +234,14 @@ export interface Dimensions {
 
 /**
  * 类目特征
+ * 采集时保存原始 key/name，后端根据 name 查找真实的 attribute_id
  */
 export interface Attribute {
-  attribute_id: number;
+  attribute_id: number;      // 0 表示需要后端解析
   value: string;
   dictionary_value_id?: number;
+  key?: string;              // OZON 属性 key，如 "Type", "Color"
+  name?: string;             // OZON 属性名称，如 "类型", "颜色"
 }
 
 /**

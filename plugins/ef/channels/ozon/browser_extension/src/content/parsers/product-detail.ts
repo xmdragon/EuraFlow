@@ -468,7 +468,7 @@ async function fetchCharacteristicsAndDescription(productSlug: string): Promise<
     if (characteristicsKey) {
       const characteristicsData = JSON.parse(widgetStates[characteristicsKey]);
       if (characteristicsData?.characteristics && Array.isArray(characteristicsData.characteristics)) {
-        const attributes: Array<{ attribute_id: number; value: string; dictionary_value_id?: number }> = [];
+        const attributes: Array<{ attribute_id: number; value: string; dictionary_value_id?: number; key?: string; name?: string }> = [];
 
         // 遍历所有特征组
         for (const group of characteristicsData.characteristics) {
@@ -478,11 +478,12 @@ async function fetchCharacteristicsAndDescription(productSlug: string): Promise<
               if (attr.values && Array.isArray(attr.values) && attr.values.length > 0) {
                 const value = attr.values.map((v: any) => v.text).join(', ');
 
-                // 简单的 attribute_id 生成（基于 key 的哈希）
-                const attributeId = Math.abs(hashCode(attr.key));
-
+                // 保存原始 key 和 name，后端将根据 name 查找真实的 attribute_id
+                // attribute_id 设为 0，表示需要后端解析
                 attributes.push({
-                  attribute_id: attributeId,
+                  attribute_id: 0,  // 占位，后端根据 name 查找真实 ID
+                  key: attr.key,    // 如 "Type", "Color", "Length"
+                  name: attr.name,  // 如 "类型", "颜色", "长度，厘米"
                   value: value,
                 });
 
@@ -519,19 +520,6 @@ async function fetchCharacteristicsAndDescription(productSlug: string): Promise<
     console.warn('[EuraFlow] [Page2 API] 获取特征失败（可忽略）:', error.message);
     return null;
   }
-}
-
-/**
- * 简单的字符串哈希函数（用于生成 attribute_id）
- */
-function hashCode(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32bit integer
-  }
-  return hash;
 }
 
 /**

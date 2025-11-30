@@ -7,6 +7,8 @@ import time
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 
+from decimal import Decimal
+
 from ef_core.database import get_sync_session
 from ef_core.tasks.celery_app import celery_app
 from ef_core.config import get_settings
@@ -195,6 +197,12 @@ def process_follow_pdp_listing(record_id: int) -> dict:
                             elif isinstance(img, dict) and img.get("url"):
                                 image_urls.append(img["url"])
 
+                        # 价格转换：浏览器扩展传入的是分，需要转换为元
+                        price_fen = variant.get("price", 0) or 0
+                        price_yuan = Decimal(str(price_fen)) / 100  # 分 → 元
+                        old_price_fen = variant.get("old_price")
+                        old_price_yuan = Decimal(str(old_price_fen)) / 100 if old_price_fen else None
+
                         # 构建完整商品数据（用于 /v3/product/import API）
                         variant_dto = {
                             # 基础信息
@@ -206,9 +214,9 @@ def process_follow_pdp_listing(record_id: int) -> dict:
                             "name": russian_name,
                             "offer_id": variant.get("offer_id", f"follow_{record_id}_{idx}_{int(time.time())}"),
                             "sku": variant.get("sku", variant.get("offer_id", "")),
-                            "price": str(variant.get("price", 0)),
+                            "price": str(price_yuan),
                             "stock": variant.get("stock", 10),
-                            "old_price": str(variant.get("old_price")) if variant.get("old_price") else None,
+                            "old_price": str(old_price_yuan) if old_price_yuan else None,
                             "primary_image": variant.get("primary_image") or (image_urls[0] if image_urls else None),
 
                             # 共享字段

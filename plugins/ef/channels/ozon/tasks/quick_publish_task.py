@@ -438,17 +438,52 @@ def create_product_by_sku_task(self, dto_dict: Dict, user_id: int, shop_id: int,
             raise ValueError("dimensions 是必需字段，无法创建商品")
 
         # attributes（必需）- 转换为 OZON v3 API 格式
+        # 浏览器扩展采集时保存了 key/name，需要根据 name 查找真实的 attribute_id
         raw_attributes = dto_dict.get("attributes", [])
         formatted_attributes = []
+
+        # 预先查询该类目的所有属性，用于 name -> attribute_id 映射
+        from ..models.listing import OzonCategoryAttribute
+        SessionLocal = get_sync_db_session()
+        attr_name_to_id = {}
+        with SessionLocal() as db:
+            category_attrs = db.query(OzonCategoryAttribute).filter(
+                OzonCategoryAttribute.category_id == category_id
+            ).all()
+            for ca in category_attrs:
+                # 支持中文名和俄文名查找
+                if ca.name:
+                    attr_name_to_id[ca.name] = ca.attribute_id
+                if ca.name_zh:
+                    attr_name_to_id[ca.name_zh] = ca.attribute_id
+                if ca.name_ru:
+                    attr_name_to_id[ca.name_ru] = ca.attribute_id
+            logger.info(f"[Step 1] 加载类目 {category_id} 的 {len(category_attrs)} 个属性映射")
+
         for attr in raw_attributes:
             # 原格式: {"attribute_id": xxx, "value": "..."} 或 {"id": xxx, "values": [...]}
             if "values" in attr:
                 # 已经是正确格式
                 formatted_attributes.append(attr)
             else:
+                # 获取 attribute_id：如果是 0 或不存在，尝试通过 name 查找
+                attr_id = attr.get("attribute_id") or attr.get("id") or 0
+                if attr_id == 0 and attr.get("name"):
+                    # 根据属性名查找真实 ID
+                    attr_id = attr_name_to_id.get(attr["name"], 0)
+                    if attr_id:
+                        logger.info(f"[Step 1] 属性名 '{attr['name']}' -> attribute_id={attr_id}")
+                    else:
+                        logger.warning(f"[Step 1] 无法找到属性 '{attr['name']}' 的 ID，跳过")
+                        continue
+
+                if not attr_id:
+                    logger.warning(f"[Step 1] 属性缺少有效 ID，跳过: {attr}")
+                    continue
+
                 # 转换为正确格式
                 formatted_attr = {
-                    "id": attr.get("attribute_id") or attr.get("id"),
+                    "id": attr_id,
                     "complex_id": attr.get("complex_id", 0),
                     "values": [{"value": str(attr.get("value", ""))}]
                 }
@@ -456,7 +491,9 @@ def create_product_by_sku_task(self, dto_dict: Dict, user_id: int, shop_id: int,
                 if attr.get("dictionary_value_id"):
                     formatted_attr["values"][0]["dictionary_value_id"] = attr["dictionary_value_id"]
                 formatted_attributes.append(formatted_attr)
+
         product_item["attributes"] = formatted_attributes
+        logger.info(f"[Step 1] 最终属性数量: {len(formatted_attributes)}")
 
         # 可选字段
         if dto_dict.get("description"):
