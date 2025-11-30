@@ -408,7 +408,13 @@ def create_product_by_sku_task(self, dto_dict: Dict, user_id: int, shop_id: int,
         product_item = {
             "offer_id": dto_dict["offer_id"],
             "name": dto_dict.get("name", ""),
+            "price": str(dto_dict.get("price", "0")),
+            "currency_code": dto_dict.get("currency_code", "CNY"),
+            "vat": dto_dict.get("vat", "0"),
         }
+        # old_price 只在有值时添加
+        if dto_dict.get("old_price"):
+            product_item["old_price"] = str(dto_dict["old_price"])
 
         # type_id（必需，叶子类目）- OZON API 字段名为 type_id
         category_id = dto_dict.get("category_id")
