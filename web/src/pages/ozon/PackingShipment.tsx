@@ -962,6 +962,61 @@ const PackingShipment: React.FC = () => {
     return daysDiff > 10;
   };
 
+  // 检查订单是否有多件商品需要确认
+  const hasMultipleItems = (posting: ozonApi.Posting | ozonApi.PostingWithOrder): boolean => {
+    const items = posting.products || posting.items || [];
+    // 多个不同商品
+    if (items.length > 1) return true;
+    // 单个商品数量>1
+    return items.some((item: ozonApi.OrderItem) => item.quantity > 1);
+  };
+
+  // 生成打印确认内容（统一确认弹窗）
+  const buildPrintConfirmContent = (postings: (ozonApi.Posting | ozonApi.PostingWithOrder)[]): React.ReactNode | null => {
+    const warnings: React.ReactNode[] = [];
+
+    postings.forEach((posting) => {
+      const postingWarnings: React.ReactNode[] = [];
+
+      // 检查逾期
+      if (isOrderOverdue(posting.in_process_at)) {
+        postingWarnings.push(
+          <span key="overdue" style={{ color: '#ff4d4f' }}>本订单已逾期！</span>
+        );
+      }
+
+      // 检查多件商品
+      if (hasMultipleItems(posting)) {
+        postingWarnings.push(
+          <span key="multiple">本订单有多件商品，请确认数量！</span>
+        );
+      }
+
+      // 检查备注
+      if (posting.order_notes && posting.order_notes.trim()) {
+        postingWarnings.push(
+          <span key="notes">{posting.order_notes}</span>
+        );
+      }
+
+      // 如果有警告，添加到列表
+      if (postingWarnings.length > 0) {
+        warnings.push(
+          <div key={posting.posting_number} style={{ marginBottom: postings.length > 1 ? '12px' : '0' }}>
+            {postingWarnings.map((warning, idx) => (
+              <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '4px' }}>
+                <span style={{ fontWeight: 500, flexShrink: 0 }}>{posting.posting_number}：</span>
+                {warning}
+              </div>
+            ))}
+          </div>
+        );
+      }
+    });
+
+    return warnings.length > 0 ? <div>{warnings}</div> : null;
+  };
+
   // 从扫描结果打印单个标签
   const handlePrintSingleLabel = async (postingNumber: string) => {
     // 从扫描结果中查找该 posting
@@ -984,46 +1039,22 @@ const PackingShipment: React.FC = () => {
       }
     };
 
-    // 检查是否逾期订单
-    const overdue = posting && isOrderOverdue(posting.in_process_at);
+    // 生成确认内容
+    const confirmContent = posting ? buildPrintConfirmContent([posting]) : null;
 
-    // 检查是否需要数量确认
-    const needsQuantityConfirm = posting && checkNeedsConfirmation([posting]);
-
-    if (overdue) {
-      // 逾期订单需要确认
-      modal.confirm({
-        title: '逾期订单确认',
-        content: '本订单已逾期！确定要打印吗？',
-        okText: '确认打印',
-        cancelText: '取消',
-        okButtonProps: { danger: true },
-        onOk: async () => {
-          if (needsQuantityConfirm) {
-            // 还需要数量确认
-            modal.confirm({
-              title: '确认打印',
-              content: '确认订单商品数量是否正确？',
-              okText: '确认打印',
-              cancelText: '取消',
-              onOk: doPrint,
-            });
-          } else {
-            await doPrint();
-          }
-        },
-      });
-    } else if (needsQuantityConfirm) {
-      // 只需要数量确认
+    if (confirmContent) {
+      // 需要确认
+      const hasOverdue = posting && isOrderOverdue(posting.in_process_at);
       modal.confirm({
         title: '确认打印',
-        content: '确认订单商品数量是否正确？',
+        content: confirmContent,
         okText: '确认打印',
         cancelText: '取消',
+        okButtonProps: hasOverdue ? { danger: true } : undefined,
         onOk: doPrint,
       });
     } else {
-      // 不需要任何确认，直接打印
+      // 不需要确认，直接打印
       await doPrint();
     }
   };
@@ -1033,48 +1064,40 @@ const PackingShipment: React.FC = () => {
     // 获取要打印的 posting 对象
     const postingsToPrint = scanResults.filter((p) => scanSelectedPostings.includes(p.posting_number));
 
-    // 检查是否需要确认
-    if (checkNeedsConfirmation(postingsToPrint)) {
-      modal.confirm({
-        title: '确认打印',
-        content: '确认订单商品数量是否正确？',
-        okText: '确认打印',
-        cancelText: '取消',
-        onOk: async () => {
-          const result = await batchPrint(scanSelectedPostings);
-          if (result?.success && result.pdf_url) {
-            // 弹出窗口显示PDF（与单张打印一致）
-            setPrintLabelUrl(result.pdf_url);
-            setCurrentPrintingPostings([...scanSelectedPostings]); // 保存批量打印的postings
-            setCurrentPrintingPosting(''); // 清空单个posting标记
-            setShowPrintLabelModal(true);
-            notifySuccess('标签加载成功', formatLabelStats(result.total, result.cached_count, result.fetched_count));
-          } else if (result?.error === 'PARTIAL_FAILURE' && result.pdf_url) {
-            // 部分成功 - hook已经显示了错误modal，这里只需要打开PDF
-            setPrintLabelUrl(result.pdf_url);
-            setCurrentPrintingPostings(result.success_postings || []);
-            setCurrentPrintingPosting('');
-            setShowPrintLabelModal(true);
-          }
-        },
-      });
-    } else {
-      // 不需要确认，直接打印
+    // 执行打印
+    const doPrint = async () => {
       const result = await batchPrint(scanSelectedPostings);
       if (result?.success && result.pdf_url) {
-        // 弹出窗口显示PDF（与单张打印一致）
         setPrintLabelUrl(result.pdf_url);
-        setCurrentPrintingPostings([...scanSelectedPostings]); // 保存批量打印的postings
-        setCurrentPrintingPosting(''); // 清空单个posting标记
+        setCurrentPrintingPostings([...scanSelectedPostings]);
+        setCurrentPrintingPosting('');
         setShowPrintLabelModal(true);
         notifySuccess('标签加载成功', formatLabelStats(result.total, result.cached_count, result.fetched_count));
       } else if (result?.error === 'PARTIAL_FAILURE' && result.pdf_url) {
-        // 部分成功 - hook已经显示了错误modal，这里只需要打开PDF
         setPrintLabelUrl(result.pdf_url);
         setCurrentPrintingPostings(result.success_postings || []);
         setCurrentPrintingPosting('');
         setShowPrintLabelModal(true);
       }
+    };
+
+    // 生成确认内容
+    const confirmContent = buildPrintConfirmContent(postingsToPrint);
+
+    if (confirmContent) {
+      // 检查是否有逾期订单
+      const hasOverdue = postingsToPrint.some((p) => isOrderOverdue(p.in_process_at));
+      modal.confirm({
+        title: '确认打印',
+        content: confirmContent,
+        okText: '确认打印',
+        cancelText: '取消',
+        okButtonProps: hasOverdue ? { danger: true } : undefined,
+        onOk: doPrint,
+      });
+    } else {
+      // 不需要确认，直接打印
+      await doPrint();
     }
   };
 
