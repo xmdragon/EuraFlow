@@ -9,7 +9,6 @@ from typing import Optional, Dict, Any, List
 
 from decimal import Decimal
 
-from ef_core.database import get_sync_session
 from ef_core.tasks.celery_app import celery_app
 from ef_core.config import get_settings
 from sqlalchemy import select, create_engine
@@ -316,7 +315,8 @@ def poll_listing_status() -> dict:
     success_count = 0
     failed_count = 0
 
-    with get_sync_session() as db:
+    SessionLocal = get_sync_db_session()
+    with SessionLocal() as db:
         # 查询所有待处理的记录（24小时内创建）
         cutoff_time = datetime.utcnow() - timedelta(hours=24)
 
