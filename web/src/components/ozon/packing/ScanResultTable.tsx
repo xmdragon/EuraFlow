@@ -10,12 +10,21 @@ import {
   PrinterOutlined,
 } from "@ant-design/icons";
 import { Typography } from "antd";
+import dayjs from "dayjs";
 
 import ProductImage from "@/components/ozon/ProductImage";
 import { useDateTime } from "@/hooks/useDateTime";
 import { statusConfig, operationStatusConfig } from "@/utils/packingHelpers";
 import * as ozonApi from "@/services/ozon";
 import styles from "../../../pages/ozon/PackingShipment.module.scss";
+
+// 判断订单是否超过10天（逾期）
+const isOrderOverdue = (inProcessAt: string | undefined): boolean => {
+  if (!inProcessAt) return false;
+  const orderDate = dayjs(inProcessAt);
+  const daysDiff = dayjs().diff(orderDate, 'day');
+  return daysDiff > 10;
+};
 
 const { Text } = Typography;
 
@@ -114,6 +123,9 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
         } as React.CSSProperties
       }
       className={styles.scanResultTable}
+      rowClassName={(row: ScanResultItemRow) =>
+        isOrderOverdue(row.posting.in_process_at) ? styles.overdueRow : ''
+      }
       rowSelection={
         canOperate
           ? {
@@ -495,20 +507,28 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
             }
 
             const posting = row.posting;
+            const overdue = isOrderOverdue(posting.in_process_at);
             return {
               children: (
-                <Tooltip title={posting.order_notes || "暂无备注"}>
-                  <span
-                    style={{
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      display: "block",
-                    }}
-                  >
-                    {posting.order_notes || "-"}
-                  </span>
-                </Tooltip>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {overdue && (
+                    <Text type="danger" strong style={{ fontSize: '12px' }}>
+                      本订单已逾期！
+                    </Text>
+                  )}
+                  <Tooltip title={posting.order_notes || "暂无备注"}>
+                    <span
+                      style={{
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        display: "block",
+                      }}
+                    >
+                      {posting.order_notes || "-"}
+                    </span>
+                  </Tooltip>
+                </div>
               ),
               props: {
                 rowSpan: row.itemCount,

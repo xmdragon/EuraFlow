@@ -684,9 +684,9 @@ async def search_posting_by_tracking(
             # 场景：666666 等内部单号用于标记库存商品，会关联大量 posting
             logger.info(f"识别为国内单号（纯数字或字母开头+数字）: {search_value}, print_status: {print_status}")
 
-            # 优化：添加7天时间过滤，避免查询大量历史数据
+            # 优化：添加12天时间过滤，避免查询大量历史数据
             from datetime import timedelta
-            time_threshold = datetime.now(timezone.utc) - timedelta(days=7)
+            time_threshold = datetime.now(timezone.utc) - timedelta(days=12)
 
             # 构建基础过滤条件（使用 in_process_at 避免 JOIN）
             base_conditions = [
