@@ -1203,24 +1203,24 @@ async def match_attribute_values(
         if not attr_value:
             continue
 
-        # 1. 根据 name（中文名）查找 attribute_id
-        # 优先精确匹配，其次模糊匹配
+        # 1. 根据 name（俄文）查找 attribute_id
+        # 采集的 name 是俄文，匹配 name_ru
         attr_def = await db.scalar(
             select(OzonCategoryAttribute).where(
                 and_(
                     OzonCategoryAttribute.category_id == category_id,
-                    OzonCategoryAttribute.name_zh == attr_name
+                    OzonCategoryAttribute.name_ru == attr_name
                 )
             )
         )
 
         if not attr_def:
-            # 尝试模糊匹配（name_zh 包含 attr_name）
+            # 尝试模糊匹配
             attr_def = await db.scalar(
                 select(OzonCategoryAttribute).where(
                     and_(
                         OzonCategoryAttribute.category_id == category_id,
-                        OzonCategoryAttribute.name_zh.ilike(f"%{attr_name}%")
+                        OzonCategoryAttribute.name_ru.ilike(f"%{attr_name}%")
                     )
                 )
             )
