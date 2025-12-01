@@ -212,9 +212,9 @@ export class OzonSellerApi extends BaseApiClient {
       // 尝试执行脚本（最多重试一次，超时后刷新页面）
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
-          // 2 秒超时
+          // 5 秒超时
           const timeoutPromise = new Promise<null>((resolve) => {
-            setTimeout(() => resolve(null), 2000);
+            setTimeout(() => resolve(null), 5000);
           });
 
           const scriptPromise = chrome.scripting.executeScript({
@@ -363,6 +363,9 @@ export class OzonSellerApi extends BaseApiClient {
         isNewTab = true;
       } else {
         sellerTab = sellerTabs[0];
+        if (__DEBUG__) {
+          console.log(`[OzonSellerApi] 刷新标签页 ID=${sellerTab.id}`);
+        }
         // 刷新已有标签页
         await chrome.tabs.reload(sellerTab.id!);
       }
@@ -377,6 +380,10 @@ export class OzonSellerApi extends BaseApiClient {
       // 额外等待（新建标签页等待更长时间）
       const waitTime = isNewTab ? 2000 : 500;
       await this.sleep(waitTime);
+
+      if (__DEBUG__) {
+        console.log(`[OzonSellerApi] ${isNewTab ? '新建' : '刷新'}完成`);
+      }
 
       return { refreshed: true, tabId: sellerTab.id, created: isNewTab };
     } catch (error: any) {
