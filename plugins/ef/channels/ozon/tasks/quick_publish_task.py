@@ -926,11 +926,46 @@ def update_product_stock_task(self, prev_result: Dict, dto_dict: Dict, shop_id: 
                 logger.warning(f"[Step 3] No warehouse_id provided, skipping stock update")
                 return product_id
 
+            # 等待商品状态变成 price_sent（只有这个状态才能更新库存）
+            # 根据 OZON API 文档：只有当商品状态变为 price_sent 时才能设置库存
+            logger.info(f"[Step 3] Waiting for product status to become price_sent: product_id={product_id}")
+
+            price_sent_attempts = 10  # 最多等待 5 分钟（10 * 30秒）
+            is_price_sent = False
+            for attempt in range(price_sent_attempts):
+                try:
+                    product_info = await api_client.get_product_info(product_id=product_id)
+                    status = product_info.get('result', {}).get('status', {}).get('state', '')
+                    logger.info(f"[Step 3] Product status check {attempt + 1}/{price_sent_attempts}: status={status}")
+
+                    if status == 'price_sent':
+                        is_price_sent = True
+                        break
+                    elif status in ['failed', 'archived']:
+                        logger.warning(f"[Step 3] Product status is {status}, proceeding with stock update anyway")
+                        is_price_sent = True  # 尝试更新，让 OZON 返回具体错误
+                        break
+                except Exception as e:
+                    logger.warning(f"[Step 3] Failed to get product status: {e}")
+
+                update_task_progress(
+                    parent_task_id, status="running", current_step="update_stock",
+                    progress=90 + attempt, step_details={
+                        "status": "waiting_price_sent",
+                        "attempt": attempt + 1,
+                        "message": f"等待价格处理完成 ({attempt + 1}/{price_sent_attempts})..."
+                    }
+                )
+                await async_lib.sleep(30)
+
+            if not is_price_sent:
+                logger.warning(f"[Step 3] Product did not reach price_sent status, proceeding anyway")
+
             logger.info(f"[Step 3] Updating stock: product_id={product_id}, stock={stock}, warehouse_id={warehouse_id}")
 
             update_task_progress(
                 parent_task_id, status="running", current_step="update_stock",
-                progress=92, step_details={"status": "updating_stock", "product_id": product_id}
+                progress=98, step_details={"status": "updating_stock", "product_id": product_id}
             )
 
             stocks = [{
@@ -942,7 +977,15 @@ def update_product_stock_task(self, prev_result: Dict, dto_dict: Dict, shop_id: 
 
             result = await api_client.update_stocks(stocks)
 
-            if not result.get('result'):
+            # 检查返回结果中是否有错误
+            if result.get('result'):
+                for item in result['result']:
+                    if item.get('errors'):
+                        error_msgs = [e.get('message', str(e)) for e in item['errors']]
+                        logger.warning(f"[Step 3] Stock update has errors: {error_msgs}")
+                    if item.get('updated'):
+                        logger.info(f"[Step 3] Stock updated successfully for {item.get('offer_id')}")
+            else:
                 raise ValueError(f"更新库存失败: {result}")
 
             return product_id
