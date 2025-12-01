@@ -36,23 +36,48 @@ class ProductsMixin:
     async def get_product_info(self, offer_id: str = None, product_id: int = None) -> Dict[str, Any]:
         """
         获取商品详细信息（包含图片）
+        使用 /v3/product/info/list 接口（v2已废弃）
 
         Args:
             offer_id: 商品的offer_id
             product_id: 商品的product_id
 
         Returns:
-            商品详情数据
+            商品详情数据，格式：{"result": {...}}
+            status 字段格式转换为与 v2 兼容：{"status": {"state": "xxx"}}
         """
         payload = {}
         if offer_id:
-            payload["offer_id"] = offer_id
+            payload["offer_id"] = [offer_id]
         elif product_id:
-            payload["product_id"] = product_id
+            payload["product_id"] = [product_id]
         else:
             raise ValueError("Either offer_id or product_id must be provided")
 
-        return await self._request("POST", "/v2/product/info", data=payload, resource_type="products")
+        response = await self._request("POST", "/v3/product/info/list", data=payload, resource_type="products")
+
+        # 转换响应格式，保持与旧 v2 API 兼容
+        items = response.get("items", [])
+        if items:
+            item = items[0]
+            # v3 API 的 statuses 对象转换为 v2 兼容的 status 格式
+            # v3: {"statuses": {"status": "price_sent", ...}}
+            # v2: {"status": {"state": "price_sent", ...}}
+            if "statuses" in item and "status" not in item:
+                statuses = item.get("statuses", {})
+                item["status"] = {
+                    "state": statuses.get("status", ""),
+                    "state_failed": statuses.get("status_failed", ""),
+                    "moderate_status": statuses.get("moderate_status", ""),
+                    "state_name": statuses.get("status_name", ""),
+                    "state_description": statuses.get("status_description", ""),
+                    "state_tooltip": statuses.get("status_tooltip", ""),
+                    "state_updated_at": statuses.get("status_updated_at", ""),
+                    "validation_state": statuses.get("validation_status", ""),
+                    "is_created": statuses.get("is_created", False),
+                }
+            return {"result": item}
+        return {"result": {}}
 
     async def get_product_info_list(
         self,
