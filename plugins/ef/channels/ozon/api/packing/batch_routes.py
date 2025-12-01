@@ -296,22 +296,21 @@ async def batch_print_labels(
                 }
             )
 
-        # 4. 获取shop_id（从第一个posting获取，验证所有posting是否属于同一店铺）
+        # 4. 获取所有涉及的店铺信息
         shop_ids = {p.shop_id for p in postings.values()}
-        if len(shop_ids) > 1:
-            raise HTTPException(status_code=400, detail="不能批量打印不同店铺的订单")
-
-        shop_id = list(shop_ids)[0]
-
-        # 获取店铺信息
-        shop_result = await db.execute(
-            select(OzonShop).where(OzonShop.id == shop_id)
+        shops_result = await db.execute(
+            select(OzonShop).where(OzonShop.id.in_(shop_ids))
         )
-        shop = shop_result.scalar_one_or_none()
-        if not shop:
-            raise HTTPException(status_code=404, detail="店铺不存在")
+        shops = {s.id: s for s in shops_result.scalars().all()}
 
-        # 4. 分类：有缓存 vs 无缓存
+        # 检查是否所有店铺都存在
+        missing_shops = shop_ids - set(shops.keys())
+        if missing_shops:
+            raise HTTPException(status_code=404, detail=f"店铺不存在: {missing_shops}")
+
+        logger.info(f"批量打印涉及 {len(shops)} 个店铺: {list(shops.keys())}")
+
+        # 5. 分类：有缓存 vs 无缓存
         cached_postings = []
         need_fetch_postings = []
 
@@ -353,96 +352,110 @@ async def batch_print_labels(
 
         label_service = LabelService(db)
 
-        async with OzonAPIClient(shop.client_id, shop.api_key_enc, shop.id) as client:
-            for pn in need_fetch_postings:
-                # 检查posting是否存在
-                posting = postings.get(pn)
-                if not posting:
-                    failed_postings.append({
-                        "posting_number": pn,
-                        "error": "货件不存在",
-                        "suggestion": "请检查货件编号是否正确"
-                    })
-                    continue
+        # 按店铺分组，为每个店铺创建 API 客户端
+        api_clients: Dict[int, OzonAPIClient] = {}
+
+        for pn in need_fetch_postings:
+            # 检查posting是否存在
+            posting = postings.get(pn)
+            if not posting:
+                failed_postings.append({
+                    "posting_number": pn,
+                    "error": "货件不存在",
+                    "suggestion": "请检查货件编号是否正确"
+                })
+                continue
+
+            # 获取或创建该店铺的 API 客户端
+            shop_id = posting.shop_id
+            if shop_id not in api_clients:
+                shop = shops[shop_id]
+                api_clients[shop_id] = OzonAPIClient(shop.client_id, shop.api_key_enc, shop.id)
+
+            client = api_clients[shop_id]
+
+            try:
+                # 使用标签服务下载并保存PDF
+                download_result = await label_service.download_and_save_label(
+                    posting_number=pn,
+                    api_client=client,
+                    force=False  # 不强制重新下载
+                )
+
+                if not download_result["success"]:
+                    raise ValueError(download_result.get("error", "未知错误"))
+
+                pdf_files.append(download_result["pdf_path"])
+                success_postings.append(pn)
+
+                # 更新打印追踪字段
+                if posting.label_printed_at is None:
+                    posting.label_printed_at = utcnow()
+                posting.label_print_count = (posting.label_print_count or 0) + 1
+
+            except httpx.HTTPStatusError as e:
+                # 捕获HTTP错误，解析OZON API返回的错误信息
+                error_detail = "未知错误"
+                suggestion = "请稍后重试"
 
                 try:
-                    # 使用标签服务下载并保存PDF
-                    download_result = await label_service.download_and_save_label(
-                        posting_number=pn,
-                        api_client=client,
-                        force=False  # 不强制重新下载
-                    )
+                    error_data = e.response.json() if e.response else {}
+                    error_message = error_data.get('message', '') or str(e)
 
-                    if not download_result["success"]:
-                        raise ValueError(download_result.get("error", "未知错误"))
+                    # 解析常见错误
+                    if 'aren\'t ready' in error_message.lower() or 'not ready' in error_message.lower():
+                        error_detail = "标签未就绪"
+                        suggestion = "请在订单装配后45-60秒重试"
+                    elif 'not found' in error_message.lower():
+                        error_detail = "货件不存在"
+                        suggestion = "订单可能已取消或不存在"
+                    elif 'invalid' in error_message.lower():
+                        error_detail = "货件编号无效"
+                        suggestion = "请检查货件编号是否正确"
+                    else:
+                        error_detail = error_message[:100]  # 限制长度
+                except Exception:
+                    error_detail = f"HTTP {e.response.status_code if e.response else 'unknown'}"
 
-                    pdf_files.append(download_result["pdf_path"])
-                    success_postings.append(pn)
+                failed_postings.append({
+                    "posting_number": pn,
+                    "error": error_detail,
+                    "suggestion": suggestion
+                })
+                logger.warning(f"获取标签失败 {pn}: {error_detail}")
 
-                    # 更新打印追踪字段
-                    if posting.label_printed_at is None:
-                        posting.label_printed_at = utcnow()
-                    posting.label_print_count = (posting.label_print_count or 0) + 1
-
-                except httpx.HTTPStatusError as e:
-                    # 捕获HTTP错误，解析OZON API返回的错误信息
-                    error_detail = "未知错误"
-                    suggestion = "请稍后重试"
-
-                    try:
-                        error_data = e.response.json() if e.response else {}
-                        error_message = error_data.get('message', '') or str(e)
-
-                        # 解析常见错误
-                        if 'aren\'t ready' in error_message.lower() or 'not ready' in error_message.lower():
-                            error_detail = "标签未就绪"
-                            suggestion = "请在订单装配后45-60秒重试"
-                        elif 'not found' in error_message.lower():
-                            error_detail = "货件不存在"
-                            suggestion = "订单可能已取消或不存在"
-                        elif 'invalid' in error_message.lower():
-                            error_detail = "货件编号无效"
-                            suggestion = "请检查货件编号是否正确"
+            except Exception as e:
+                # 安全地转换异常为字符串，避免UTF-8解码错误
+                exc_type = type(e).__name__
+                try:
+                    # 对于httpx.HTTPStatusError，提取状态码
+                    if hasattr(e, 'response') and hasattr(e.response, 'status_code'):
+                        error_msg = f"{exc_type}: HTTP {e.response.status_code}"
+                    elif e.args:
+                        # 安全地处理args[0]
+                        arg = e.args[0]
+                        if isinstance(arg, bytes):
+                            error_msg = f"{exc_type}: <binary data, {len(arg)} bytes>"
+                        elif isinstance(arg, str):
+                            error_msg = f"{exc_type}: {arg[:100]}"
                         else:
-                            error_detail = error_message[:100]  # 限制长度
-                    except Exception:
-                        error_detail = f"HTTP {e.response.status_code if e.response else 'unknown'}"
+                            error_msg = f"{exc_type}: {type(arg).__name__}"
+                    else:
+                        error_msg = f"{exc_type}: Unknown"
+                except Exception:
+                    # 如果所有方法都失败，使用安全的默认消息
+                    error_msg = f"{exc_type}: <error details unavailable>"
 
-                    failed_postings.append({
-                        "posting_number": pn,
-                        "error": error_detail,
-                        "suggestion": suggestion
-                    })
-                    logger.warning(f"获取标签失败 {pn}: {error_detail}")
+                failed_postings.append({
+                    "posting_number": pn,
+                    "error": error_msg,
+                    "suggestion": "请检查网络或联系技术支持"
+                })
+                logger.error(f"获取标签异常 {pn}: {error_msg}")
 
-                except Exception as e:
-                    # 安全地转换异常为字符串，避免UTF-8解码错误
-                    exc_type = type(e).__name__
-                    try:
-                        # 对于httpx.HTTPStatusError，提取状态码
-                        if hasattr(e, 'response') and hasattr(e.response, 'status_code'):
-                            error_msg = f"{exc_type}: HTTP {e.response.status_code}"
-                        elif e.args:
-                            # 安全地处理args[0]
-                            arg = e.args[0]
-                            if isinstance(arg, bytes):
-                                error_msg = f"{exc_type}: <binary data, {len(arg)} bytes>"
-                            elif isinstance(arg, str):
-                                error_msg = f"{exc_type}: {arg[:100]}"
-                            else:
-                                error_msg = f"{exc_type}: {type(arg).__name__}"
-                        else:
-                            error_msg = f"{exc_type}: Unknown"
-                    except Exception:
-                        # 如果所有方法都失败，使用安全的默认消息
-                        error_msg = f"{exc_type}: <error details unavailable>"
-
-                    failed_postings.append({
-                        "posting_number": pn,
-                        "error": error_msg,
-                        "suggestion": "请检查网络或联系技术支持"
-                    })
-                    logger.error(f"获取标签异常 {pn}: {error_msg}")
+        # 关闭所有 API 客户端
+        for client in api_clients.values():
+            await client.close()
 
         # 6. 记录审计日志（批量记录所有成功打印的操作）
         request_ip = request.client.host if request.client else None

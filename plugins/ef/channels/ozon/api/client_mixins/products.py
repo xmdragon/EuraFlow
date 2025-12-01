@@ -209,14 +209,19 @@ class ProductsMixin:
             stocks: 库存更新列表
                 [{"product_id": 123, "offer_id": "SKU123", "stock": 100, "warehouse_id": 1}]
         """
-        # 确保每个库存项都有warehouse_id
+        # 确保每个库存项都有warehouse_id，且类型正确
         stocks_data = []
         for stock in stocks:
+            warehouse_id = stock.get("warehouse_id", 1)
+            # 确保 warehouse_id 是整数
+            if isinstance(warehouse_id, str):
+                warehouse_id = int(warehouse_id)
+
             stock_item = {
                 "offer_id": stock.get("offer_id"),
                 "product_id": stock.get("product_id"),
-                "stock": stock.get("stock", 0),
-                "warehouse_id": stock.get("warehouse_id", 1),  # 默认仓库ID为1
+                "stock": int(stock.get("stock", 0)),
+                "warehouse_id": warehouse_id,
             }
             stocks_data.append(stock_item)
 
