@@ -272,6 +272,6 @@ if __name__ == "__main__":
             logger.info(f"\nCompetitor data for product {test_product_id}:")
             logger.info(json.dumps(data, indent=2, ensure_ascii=False))
         else:
-            logger.info("Failed to get competitor data")
+            logger.warning("Failed to get competitor data")
 
     asyncio.run(test())

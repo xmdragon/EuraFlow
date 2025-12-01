@@ -274,16 +274,16 @@ def _update_service_stats(task_name: str, success: bool, task_id: str, error_mes
         task_id: 任务ID
         error_message: 错误信息（失败时）
     """
-    print(f"[DEBUG] _update_service_stats called: task_name={task_name}, success={success}", flush=True)
+    logger.debug(f"_update_service_stats called: task_name={task_name}, success={success}")
 
     # 检查是否是需要统计的服务任务
     service_key = TASK_TO_SERVICE_KEY_MAPPING.get(task_name)
     if not service_key:
         # 不是注册的服务任务，跳过统计
-        print(f"[DEBUG] No service_key mapping for task {task_name}, skipping stats update", flush=True)
+        logger.debug(f"No service_key mapping for task {task_name}, skipping stats update")
         return
 
-    print(f"[DEBUG] Updating stats for service_key={service_key}", flush=True)
+    logger.debug(f"Updating stats for service_key={service_key}")
 
     try:
         from datetime import datetime, UTC
@@ -312,7 +312,6 @@ def _update_service_stats(task_name: str, success: bool, task_id: str, error_mes
 
             if not service:
                 logger.warning(f"Service not found for task {task_name} (service_key: {service_key})")
-                print(f"[DEBUG] ⚠️  Service not found: {service_key}", flush=True)
                 return
 
             # 更新统计字段
@@ -336,39 +335,29 @@ def _update_service_stats(task_name: str, success: bool, task_id: str, error_mes
                 f"success_count={service.success_count}, "
                 f"error_count={service.error_count}"
             )
-            print(
-                f"[DEBUG] ✅ Stats updated successfully: service_key={service_key}, "
-                f"run_count={service.run_count}, success_count={service.success_count}, "
-                f"error_count={service.error_count}",
-                flush=True
-            )
 
     except Exception as e:
         logger.error(f"Failed to update service stats for {task_name}: {e}", exc_info=True)
-        print(f"[DEBUG] ❌ Failed to update stats: {e}", flush=True)
 
 
 # Celery 信号处理器（注意：必须在模块级别定义，Worker 启动时会自动注册）
 @signals.task_prerun.connect
 def task_prerun_handler(sender=None, task_id=None, task=None, args=None, kwargs=None, **kwds):
     """任务开始前的处理"""
-    print(f"[DEBUG] Task prerun: {task.name}, task_id={task_id}", flush=True)
+    logger.debug(f"Task prerun: {task.name}, task_id={task_id}")
     logger.info(f"Task starting: {task.name}", task_id=task_id)
 
 
 @signals.task_postrun.connect
 def task_postrun_handler(sender=None, task_id=None, task=None, args=None, kwargs=None, retval=None, state=None, **kwds):
     """任务完成后的处理"""
-    print(f"[DEBUG] Task postrun: {task.name}, task_id={task_id}, state={state}", flush=True)
+    logger.debug(f"Task postrun: {task.name}, task_id={task_id}, state={state}")
     logger.info(f"Task completed: {task.name}", task_id=task_id, state=state)
 
     # 更新同步服务统计（仅针对注册的服务任务）
-    print(f"[DEBUG] About to call _update_service_stats for {task.name}", flush=True)
     try:
         _update_service_stats(task.name, success=True, task_id=task_id)
-        print(f"[DEBUG] _update_service_stats call completed", flush=True)
     except Exception as e:
-        print(f"[DEBUG] ❌ Exception in _update_service_stats: {e}", flush=True)
         logger.error(f"Exception in _update_service_stats: {e}", exc_info=True)
 
 
@@ -458,15 +447,12 @@ def _initialize_plugins_for_celery():
             logger.info(f"  📋 Registered task: {task_name}")
 
     except Exception as e:
-        logger.error(f"❌ Failed to initialize plugins for Celery: {e}", exc_info=True)
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Failed to initialize plugins for Celery: {e}", exc_info=True)
 
 # 立即执行插件初始化
 _initialize_plugins_for_celery()
 
 # 确认信号处理器已注册
-print(f"[DEBUG] Celery signal handlers registered: task_postrun={len(signals.task_postrun.receivers)}, task_failure={len(signals.task_failure.receivers)}", flush=True)
 logger.info(f"Celery signal handlers registered: task_postrun={len(signals.task_postrun.receivers)}, task_failure={len(signals.task_failure.receivers)}")
 
 

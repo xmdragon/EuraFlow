@@ -116,31 +116,95 @@ class ExchangeRateService:
         Raises:
             Exception: API调用失败
         """
+        import time
+        # 不在日志中记录完整 API key
+        masked_key = api_key[:4] + "***" + api_key[-4:] if len(api_key) > 8 else "***"
         url = f"https://v6.exchangerate-api.com/v6/{api_key}/latest/{from_currency}"
+
+        start_time = time.perf_counter()
 
         async with httpx.AsyncClient(timeout=10.0) as client:
             try:
+                # 记录出站请求
+                logger.info(
+                    "Exchange rate API request",
+                    direction="outbound",
+                    method="GET",
+                    url=f"https://v6.exchangerate-api.com/v6/{masked_key}/latest/{from_currency}",
+                    from_currency=from_currency,
+                    to_currency=to_currency,
+                )
+
                 response = await client.get(url)
+                elapsed_ms = int((time.perf_counter() - start_time) * 1000)
+
                 response.raise_for_status()
                 data = response.json()
 
                 if data.get("result") != "success":
+                    logger.error(
+                        "Exchange rate API error response",
+                        direction="outbound",
+                        status_code=response.status_code,
+                        latency_ms=elapsed_ms,
+                        error=data.get('error-type'),
+                        result="error",
+                    )
                     raise Exception(f"API返回错误: {data.get('error-type')}")
 
                 rate = data["conversion_rates"].get(to_currency)
                 if rate is None:
                     raise Exception(f"目标货币 {to_currency} 不存在")
 
+                # 记录成功响应
+                logger.info(
+                    "Exchange rate API response",
+                    direction="outbound",
+                    status_code=response.status_code,
+                    latency_ms=elapsed_ms,
+                    from_currency=from_currency,
+                    to_currency=to_currency,
+                    rate=str(rate),
+                    result="success",
+                )
+
                 return Decimal(str(rate))
 
             except httpx.TimeoutException:
-                logger.error("Exchange rate API timeout")
+                elapsed_ms = int((time.perf_counter() - start_time) * 1000)
+                logger.error(
+                    "Exchange rate API timeout",
+                    direction="outbound",
+                    latency_ms=elapsed_ms,
+                    from_currency=from_currency,
+                    to_currency=to_currency,
+                    result="error",
+                )
                 raise Exception("API调用超时")
             except httpx.HTTPStatusError as e:
-                logger.error(f"Exchange rate API HTTP error: {e.response.status_code}")
+                elapsed_ms = int((time.perf_counter() - start_time) * 1000)
+                logger.error(
+                    "Exchange rate API HTTP error",
+                    direction="outbound",
+                    status_code=e.response.status_code,
+                    latency_ms=elapsed_ms,
+                    from_currency=from_currency,
+                    to_currency=to_currency,
+                    result="error",
+                )
                 raise Exception(f"API返回错误: {e.response.status_code}")
             except Exception as e:
-                logger.error(f"Exchange rate API error: {e}", exc_info=True)
+                elapsed_ms = int((time.perf_counter() - start_time) * 1000)
+                logger.error(
+                    "Exchange rate API error",
+                    direction="outbound",
+                    latency_ms=elapsed_ms,
+                    from_currency=from_currency,
+                    to_currency=to_currency,
+                    error=str(e),
+                    result="error",
+                    exc_info=True,
+                )
                 raise
 
     async def get_cached_rate(self, from_currency: str = "CNY", to_currency: str = "RUB") -> Optional[Decimal]:

@@ -280,8 +280,7 @@ async def translate_single_image(
     user: User = Depends(get_current_user)
 ) -> dict:
     """单张图片翻译"""
-    print(f"🔍 [BACKEND] translate_single_image 被调用: image_url={request.image_url}, engine_type={request.engine_type}")
-    logger.info(f"translate_single_image 被调用: image_url={request.image_url}, engine_type={request.engine_type}")
+    logger.info(f"translate_single_image called: image_url={request.image_url}, engine_type={request.engine_type}")
     try:
         service = XiangjifanyiService()
         result = await service.translate_single_image(

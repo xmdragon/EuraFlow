@@ -223,7 +223,7 @@ async function fetchDimensionsFromOzonAPI(productSku: string): Promise<{
   try {
     if (__DEBUG__) {
       console.log('[API] fetchDimensionsFromOzonAPI 请求:', {
-        url: `https://seller.ozon.ru/api/product/info?sku=${productSku}`,
+        api: 'search-variant-model',
         productSku
       });
     }

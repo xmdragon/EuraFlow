@@ -150,7 +150,21 @@
 - **样式分离**：禁止 `style={{...}}`，写入 `.module.scss`
 - **日志规范**：
   - 前端：`import { loggers } from '@/utils/logger'`，使用 `loggers.auth.info()` 等；禁止 `console.log/debug/info`
-  - 后端：`logger = logging.getLogger(__name__)`；禁止 `print()`
+  - 后端：`logger = logging.getLogger(__name__)`；禁止 `print()` 和 `traceback.print_exc()`
+  - **日志级别规范**：
+    - `DEBUG`：调试信息，仅开发环境启用
+    - `INFO`：正常业务流程（请求开始/完成、任务执行）
+    - `WARNING`：非致命错误（重试成功、降级处理、可恢复问题）
+    - `ERROR`：需要关注的错误（API 失败、异常捕获）
+    - `CRITICAL`：系统级故障
+  - **错误日志规范**：
+    - 使用 `logger.error(..., exc_info=True)` 替代 `traceback.print_exc()`
+    - 错误信息必须使用 `logger.error()` 或 `logger.warning()`，禁止用 `logger.info()` 记录错误
+  - **API 请求日志（强制）**：
+    - 入站请求：自动由 `LoggingMiddleware` 记录（URL、参数、响应体、耗时）
+    - 出站请求：必须记录 URL、请求参数、响应内容、耗时
+    - 日志字段：`direction`（inbound/outbound）、`method`、`endpoint`、`status_code`、`latency_ms`、`request_body`、`response_body`
+  - **敏感信息脱敏**：password、api_key、token 等字段自动脱敏
 - **复制功能规范**：
   - **统一使用** `useCopy` Hook（`@/hooks/useCopy`）
   - **禁止**直接使用 `navigator.clipboard.writeText` 或 `document.execCommand('copy')`

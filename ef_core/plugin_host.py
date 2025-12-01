@@ -291,8 +291,6 @@ class PluginHost:
             
         except Exception as e:
             logger.error(f"Failed to load plugin {plugin_name}: {str(e)}", exc_info=True)
-            import traceback
-            traceback.print_exc()  # 打印详细错误信息到控制台
             return None
     
     

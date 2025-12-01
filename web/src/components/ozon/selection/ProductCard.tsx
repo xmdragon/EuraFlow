@@ -21,6 +21,7 @@ import {
   formatPrice,
   formatWeight,
   formatCurrency,
+  formatSalesRevenue,
   formatPercent,
   formatNum,
   formatDate,
@@ -291,7 +292,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             <Tooltip title="月销量 & 月销售额"><Text type="secondary">月销: </Text></Tooltip>
             <Text strong>
               {product.monthly_sales_volume ? `${formatNum(product.monthly_sales_volume)} 件` : ''}{' '}
-              {formatCurrency(product.monthly_sales_revenue, exchangeRate)}
+              {formatSalesRevenue(product.monthly_sales_revenue, exchangeRate)}
             </Text>
           </div>
         )}
@@ -302,7 +303,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             <Tooltip title="日销量 & 日销售额"><Text type="secondary">日销: </Text></Tooltip>
             <Text strong>
               {product.daily_sales_volume ? `${formatNum(product.daily_sales_volume)} 件` : ''}{' '}
-              {formatCurrency(product.daily_sales_revenue, exchangeRate)}
+              {formatSalesRevenue(product.daily_sales_revenue, exchangeRate)}
             </Text>
           </div>
         )}

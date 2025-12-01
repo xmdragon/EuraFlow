@@ -256,23 +256,13 @@ export class ProductListEnhancer {
   }
 
   /**
-   * 异步获取佣金和跟卖数据，并更新已注入的组件
+   * 异步获取跟卖数据，并更新已注入的组件
+   * 注意：佣金数据已在 getSalesDataBatch 中获取，无需额外请求
    */
   private async fetchAndUpdateAdditionalData(
     skus: string[],
     salesDataMap: Map<string, any>
   ): Promise<void> {
-    // 检查需要补充佣金数据的SKU
-    const needCommissionSkus: Array<{ goods_id: string; category_name: string }> = [];
-    salesDataMap.forEach((data, sku) => {
-      if (data.rfbsCommissionMid == null && data.fbpCommissionMid == null) {
-        needCommissionSkus.push({
-          goods_id: sku,
-          category_name: data.category || '未知类目'
-        });
-      }
-    });
-
     // 检查需要补充跟卖数据的SKU
     const needFollowSellerSkus: string[] = [];
     salesDataMap.forEach((data, sku) => {
@@ -281,11 +271,8 @@ export class ProductListEnhancer {
       }
     });
 
-    // 并行获取佣金和跟卖数据
-    const [commissionsMap, followSellerMap] = await Promise.all([
-      this.fetchCommissionData(needCommissionSkus),
-      this.fetchFollowSellerData(needFollowSellerSkus)
-    ]);
+    // 获取跟卖数据
+    const followSellerMap = await this.fetchFollowSellerData(needFollowSellerSkus);
 
     // 更新数据并刷新组件
     let updatedCount = 0;
@@ -294,18 +281,6 @@ export class ProductListEnhancer {
       if (!cachedData) return;
 
       let hasUpdate = false;
-
-      // 合并佣金数据
-      const commission = commissionsMap.get(sku);
-      if (commission) {
-        cachedData.rfbsCommissionLow = commission.rfbs_small ?? null;
-        cachedData.rfbsCommissionMid = commission.rfbs ?? null;
-        cachedData.rfbsCommissionHigh = commission.rfbs_large ?? null;
-        cachedData.fbpCommissionLow = commission.fbp_small ?? null;
-        cachedData.fbpCommissionMid = commission.fbp ?? null;
-        cachedData.fbpCommissionHigh = commission.fbp_large ?? null;
-        hasUpdate = true;
-      }
 
       // 合并跟卖数据
       const followSeller = followSellerMap.get(sku);
@@ -337,22 +312,6 @@ export class ProductListEnhancer {
 
     if (__DEBUG__ && updatedCount > 0) {
       console.log(`[ProductListEnhancer] 更新了 ${updatedCount} 个商品的附加数据`);
-    }
-  }
-
-  /**
-   * 获取佣金数据
-   */
-  private async fetchCommissionData(
-    items: Array<{ goods_id: string; category_name: string }>
-  ): Promise<Map<string, any>> {
-    if (items.length === 0) return new Map();
-
-    try {
-      return await spbangApiProxy.getCommissionsBatch(items);
-    } catch (error: any) {
-      console.error('[ProductListEnhancer] 佣金数据获取失败:', error.message);
-      return new Map();
     }
   }
 

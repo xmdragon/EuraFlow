@@ -28,27 +28,19 @@ def get_router() -> Optional[APIRouter]:
         import traceback
 
         # 打印详细错误信息便于调试
-        logger.info(f"════════ OZON ROUTER IMPORT ERROR ════════")
-        logger.info(f"Error: {e}")
-        logger.info("Full traceback:")
-        traceback.print_exc()
-        logger.info(f"═══════════════════════════════════════════")
+        logger.error(f"OZON ROUTER IMPORT ERROR: {e}", exc_info=True)
 
         if 'plugins.ef.channels.ozon.api.routes' in sys.modules:
             try:
                 from .api.routes import router
-                logger.info("✓ Successfully recovered router from sys.modules")
+                logger.info("Successfully recovered router from sys.modules")
                 return router
             except Exception as recovery_error:
-                logger.info(f"✗ Failed to recover router: {recovery_error}")
+                logger.error(f"Failed to recover router: {recovery_error}")
 
         return None
     except Exception as e:
-        import traceback
-        logger.info(f"════════ OZON ROUTER UNEXPECTED ERROR ════════")
-        logger.info(f"Error: {e}")
-        traceback.print_exc()
-        logger.info(f"═════════════════════════════════════════════")
+        logger.error(f"OZON ROUTER UNEXPECTED ERROR: {e}", exc_info=True)
         return None
 
 
@@ -564,9 +556,7 @@ async def setup(hooks) -> None:
         logger.info("✓ Registered ozon_finance_transactions_daily service handler")
 
     except Exception as e:
-        logger.info(f"Warning: Failed to register sync service handlers: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.warning(f"Failed to register sync service handlers: {e}", exc_info=True)
 
     # 注册OZON取消和退货申请同步服务（独立try块避免被其他错误影响）
     try:
@@ -599,9 +589,7 @@ async def setup(hooks) -> None:
         logger.info("✓ Registered ozon_returns_sync service handler")
 
     except Exception as e:
-        logger.warning(f"Warning: Failed to register cancel/return service handlers: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.warning(f"Failed to register cancel/return service handlers: {e}", exc_info=True)
 
     # 注册促销相关定时任务
     try:
@@ -621,11 +609,9 @@ async def setup(hooks) -> None:
             task=promotion_health_check
         )
 
-        logger.info("✓ Registered promotion tasks successfully")
+        logger.info("Registered promotion tasks successfully")
     except Exception as e:
-        logger.warning(f"Warning: Failed to register promotion tasks: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.warning(f"Failed to register promotion tasks: {e}", exc_info=True)
 
     # 注册其他同步服务的定时任务（统一使用 Celery Beat）
     try:
@@ -686,11 +672,9 @@ async def setup(hooks) -> None:
             task=ozon_finance_transactions_task
         )
 
-        logger.info("✓ Registered sync service tasks successfully")
+        logger.info("Registered sync service tasks successfully")
     except Exception as e:
-        logger.warning(f"Warning: Failed to register sync service tasks: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.warning(f"Failed to register sync service tasks: {e}", exc_info=True)
 
     # 注册类目同步定时任务
     try:
@@ -708,11 +692,9 @@ async def setup(hooks) -> None:
             task=attributes_sync_task
         )
 
-        logger.info("✓ Registered category sync tasks successfully")
+        logger.info("Registered category sync tasks successfully")
     except Exception as e:
-        logger.warning(f"Warning: Failed to register category sync tasks: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.warning(f"Failed to register category sync tasks: {e}", exc_info=True)
 
     # 注册草稿清理定时任务
     try:
@@ -739,11 +721,9 @@ async def setup(hooks) -> None:
             task=cleanup_drafts_task
         )
 
-        logger.info("✓ Registered draft cleanup task successfully")
+        logger.info("Registered draft cleanup task successfully")
     except Exception as e:
-        logger.warning(f"Warning: Failed to register draft cleanup task: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.warning(f"Failed to register draft cleanup task: {e}", exc_info=True)
 
     # 注册采集记录上架状态轮询任务
     try:
@@ -756,11 +736,9 @@ async def setup(hooks) -> None:
             task=poll_listing_status
         )
 
-        logger.info("✓ Registered collection listing status polling task successfully")
+        logger.info("Registered collection listing status polling task successfully")
     except Exception as e:
-        logger.warning(f"Warning: Failed to register collection listing polling task: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.warning(f"Failed to register collection listing polling task: {e}", exc_info=True)
 
     # 注册取消和退货申请同步任务
     try:
@@ -806,11 +784,9 @@ async def setup(hooks) -> None:
             task=returns_sync_task
         )
 
-        logger.info("✓ Registered cancel and return sync tasks successfully")
+        logger.info("Registered cancel and return sync tasks successfully")
     except Exception as e:
-        logger.warning(f"Warning: Failed to register cancel and return sync tasks: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.warning(f"Failed to register cancel and return sync tasks: {e}", exc_info=True)
 
     # 注册每日统计聚合任务
     try:
@@ -836,11 +812,9 @@ async def setup(hooks) -> None:
             task=daily_stats_aggregation_task
         )
 
-        logger.info("✓ Registered daily stats aggregation task successfully")
+        logger.info("Registered daily stats aggregation task successfully")
     except Exception as e:
-        logger.warning(f"Warning: Failed to register daily stats aggregation task: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.warning(f"Failed to register daily stats aggregation task: {e}", exc_info=True)
 
     # 配置信息已在上面打印
 
@@ -1071,15 +1045,15 @@ async def sync_inventory_task(**kwargs) -> None:
                             await db.commit()
                             logger.info(f"[{shop_name}] Synced inventory for {len(products_data)} products")
                         else:
-                            logger.info(f"[{shop_name}] Failed to sync inventory: {result}")
+                            logger.warning(f"[{shop_name}] Failed to sync inventory: {result}")
 
                     await client.close()
 
                 except Exception as e:
-                    logger.info(f"Error syncing inventory for shop {shop_name}: {e}")
+                    logger.error(f"Error syncing inventory for shop {shop_name}: {e}", exc_info=True)
 
     except Exception as e:
-        logger.info(f"Error syncing inventory: {e}")
+        logger.error(f"Error syncing inventory: {e}", exc_info=True)
 
 
 async def handle_shipment_request(payload: Dict[str, Any]) -> None:
@@ -1100,7 +1074,7 @@ async def handle_shipment_request(payload: Dict[str, Any]) -> None:
         carrier = payload.get("carrier", "OTHER")
 
         if not order_id or not tracking_number:
-            logger.info("Invalid shipment request: missing order_id or tracking_number")
+            logger.warning("Invalid shipment request: missing order_id or tracking_number")
             return
 
         logger.info(f"Processing shipment for order {order_id} with tracking {tracking_number}")
@@ -1131,12 +1105,12 @@ async def handle_shipment_request(payload: Dict[str, Any]) -> None:
                     order = order_result.scalar_one_or_none()
 
             if not order:
-                logger.info(f"Order {order_id} not found in database")
+                logger.warning(f"Order {order_id} not found in database")
                 return
 
             # 验证订单状态
             if order.status not in ["awaiting_packaging", "awaiting_deliver"]:
-                logger.info(f"Order {order_id} is not ready for shipment. Status: {order.status}")
+                logger.warning(f"Order {order_id} is not ready for shipment. Status: {order.status}")
                 return
 
             # 获取店铺信息
@@ -1146,7 +1120,7 @@ async def handle_shipment_request(payload: Dict[str, Any]) -> None:
             shop = shop_result.scalar_one_or_none()
 
             if not shop:
-                logger.info(f"Shop {order.shop_id} not found")
+                logger.warning(f"Shop {order.shop_id} not found")
                 return
 
             # 创建API客户端
@@ -1183,12 +1157,12 @@ async def handle_shipment_request(payload: Dict[str, Any]) -> None:
 
                 logger.info(f"Successfully shipped order {order_id}")
             else:
-                logger.info(f"Failed to ship order {order_id}: {result}")
+                logger.warning(f"Failed to ship order {order_id}: {result}")
 
             await client.close()
 
     except Exception as e:
-        logger.info(f"Error handling shipment request: {e}")
+        logger.error(f"Error handling shipment request: {e}", exc_info=True)
 
 
 async def handle_inventory_change(payload: Dict[str, Any]) -> None:
@@ -1203,7 +1177,7 @@ async def handle_inventory_change(payload: Dict[str, Any]) -> None:
         quantity = payload.get("quantity")
         
         if not sku:
-            logger.info("Invalid inventory change: missing sku")
+            logger.warning("Invalid inventory change: missing sku")
             return
         
         from ef_core.database import get_task_db_manager
@@ -1228,7 +1202,7 @@ async def handle_inventory_change(payload: Dict[str, Any]) -> None:
             product = product_result.scalar_one_or_none()
 
             if not product:
-                logger.info(f"Product with SKU {sku} not found")
+                logger.warning(f"Product with SKU {sku} not found")
                 return
 
             # 获取店铺信息
@@ -1238,7 +1212,7 @@ async def handle_inventory_change(payload: Dict[str, Any]) -> None:
             shop = shop_result.scalar_one_or_none()
 
             if not shop:
-                logger.info(f"Shop {shop_id} not found")
+                logger.warning(f"Shop {shop_id} not found")
                 return
 
             # 创建API客户端
@@ -1277,12 +1251,12 @@ async def handle_inventory_change(payload: Dict[str, Any]) -> None:
                 product.sync_status = "failed"
                 product.sync_error = str(result)
                 await db.commit()
-                logger.info(f"Failed to update inventory for SKU {sku}: {result}")
+                logger.warning(f"Failed to update inventory for SKU {sku}: {result}")
 
             await client.close()
-        
+
     except Exception as e:
-        logger.info(f"Error handling inventory change: {e}")
+        logger.error(f"Error handling inventory change: {e}", exc_info=True)
 
 
 async def teardown() -> None:
@@ -1329,6 +1303,6 @@ async def teardown() -> None:
         logger.info("Cancelled all pending tasks")
 
     except Exception as e:
-        logger.info(f"Error during teardown: {e}")
+        logger.error(f"Error during teardown: {e}", exc_info=True)
 
     logger.info("Ozon plugin shutdown complete")

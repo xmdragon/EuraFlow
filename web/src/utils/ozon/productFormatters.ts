@@ -80,6 +80,35 @@ export const formatCurrency = (
 };
 
 /**
+ * 格式化销售额（RUB元 → CNY元）
+ * 注意：销售额数据单位是 ₽（元），不是分！与价格字段不同
+ *
+ * @param rubAmount RUB金额（元，上品帮返回的原始值）
+ * @param cnyToRubRate 汇率（1 CNY = X RUB）
+ * @returns 格式化后的CNY金额字符串
+ *
+ * 示例：
+ * - 上品帮返回：soldSum = 36400（表示 36400₽ = 3.64万₽）
+ * - 汇率：1 CNY = 13.5 RUB
+ * - 转换：36400 / 13.5 = 2696 ¥
+ */
+export const formatSalesRevenue = (
+  rubAmount: number | null | undefined,
+  cnyToRubRate: number | null
+): string => {
+  if (!rubAmount || !cnyToRubRate || cnyToRubRate <= 0) return '-';
+
+  // RUB→CNY（RUB / (CNY→RUB汇率) = CNY）
+  // 注意：销售额单位是 ₽（元），不需要除以 100
+  const cny = rubAmount / cnyToRubRate;
+
+  if (cny >= 10000) {
+    return `${formatNumberUtil(cny / 10000)}万¥`;
+  }
+  return `${formatNumberUtil(cny)}¥`;
+};
+
+/**
  * 格式化百分比（带%符号，智能去除无意义的小数）
  * @param value 百分比值
  * @returns 格式化后的百分比字符串

@@ -298,7 +298,6 @@ if __name__ == "__main__":
                     price = f"¥{price:.2f}"
                 logger.info(f"    {i}. {seller.get('seller', 'Unknown')}: {price}")
     else:
-        logger.info("\n❌ Failed to retrieve competitor data")
-        logger.info("   The anti-bot protection is still blocking requests.")
+        logger.warning("Failed to retrieve competitor data - anti-bot protection blocking requests")
 
     logger.info(f"\n{'='*60}")

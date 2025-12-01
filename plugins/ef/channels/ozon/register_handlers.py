@@ -197,9 +197,7 @@ def register_ozon_handlers():
         logger.info(f"OZON plugin: Successfully registered 5 sync service handlers")
 
     except Exception as e:
-        logger.info(f"OZON plugin: Warning - Failed to register sync service handlers: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.warning(f"OZON plugin: Failed to register sync service handlers: {e}", exc_info=True)
 
 
 # 模块级别调用 - import时自动执行

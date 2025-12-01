@@ -153,15 +153,13 @@ class OzonAPIClientBase:
         Returns:
             API 响应数据
         """
+        import json as json_module
+
         # 限流检查
         await self.rate_limiter.acquire(resource_type)
 
         # 生成请求ID
         request_id = str(uuid.uuid4())
-
-        # 调试日志 - 查看实际发送的数据
-        if endpoint in ["/v1/product/pictures/import", "/v3/product/import"]:
-            logger.info(f"[DEBUG] _request sending data to {endpoint}: {data}")
 
         # 构建请求
         headers = {"X-Request-Id": request_id}
@@ -170,9 +168,31 @@ class OzonAPIClientBase:
 
         api_start = time.perf_counter()
 
+        # 截断请求体用于日志（避免日志过大）
+        def truncate_for_log(obj, max_len=5000):
+            """截断对象用于日志记录"""
+            if obj is None:
+                return None
+            try:
+                s = json_module.dumps(obj, ensure_ascii=False)
+                if len(s) > max_len:
+                    return s[:max_len] + f"... [truncated, total {len(s)} chars]"
+                return s
+            except Exception:
+                return str(obj)[:max_len]
+
         try:
+            # 记录出站请求（含请求参数）
             logger.info(
-                f"Ozon API request: {method} {endpoint}", extra={"request_id": request_id, "shop_id": self.shop_id}
+                "OZON API request",
+                direction="outbound",
+                method=method,
+                endpoint=endpoint,
+                url=f"{self.BASE_URL}{endpoint}",
+                shop_id=self.shop_id,
+                request_id=request_id,
+                request_body=truncate_for_log(data),
+                query_params=truncate_for_log(params) if params else None,
             )
 
             response = await self.client.request(method=method, url=endpoint, json=data, params=params, headers=headers)
@@ -184,7 +204,13 @@ class OzonAPIClientBase:
             if response.status_code == 429:
                 # 限流，等待后重试
                 retry_after = int(response.headers.get("Retry-After", 60))
-                logger.warning(f"Rate limited, retry after {retry_after}s")
+                logger.warning(
+                    "OZON API rate limited",
+                    direction="outbound",
+                    endpoint=endpoint,
+                    retry_after=retry_after,
+                    shop_id=self.shop_id,
+                )
                 await asyncio.sleep(retry_after)
                 raise Exception("Rate limited")
 
@@ -196,19 +222,28 @@ class OzonAPIClientBase:
             except UnicodeDecodeError as e:
                 # 如果无法解码为UTF-8，可能是二进制响应（如PDF）
                 logger.error(
-                    f"Failed to decode response as JSON (UTF-8 error): {endpoint}",
-                    extra={
-                        "request_id": request_id,
-                        "content_type": response.headers.get('content-type'),
-                        "content_length": len(response.content)
-                    }
+                    "OZON API response decode error",
+                    direction="outbound",
+                    endpoint=endpoint,
+                    request_id=request_id,
+                    content_type=response.headers.get('content-type'),
+                    content_length=len(response.content),
+                    shop_id=self.shop_id,
                 )
                 raise ValueError("OZON API返回了无法解码的响应 (UTF-8错误)，可能返回了二进制数据") from e
 
-            # 记录成功（含外部 API 耗时）
+            # 记录成功响应（含返回值）
             logger.info(
-                f"Ozon API success: {method} {endpoint}",
-                extra={"request_id": request_id, "status_code": response.status_code},
+                "OZON API response",
+                direction="outbound",
+                method=method,
+                endpoint=endpoint,
+                status_code=response.status_code,
+                latency_ms=int(api_elapsed_ms),
+                shop_id=self.shop_id,
+                request_id=request_id,
+                response_body=truncate_for_log(result),
+                result="success",
             )
 
             # 写入外部 API 计时日志
@@ -232,9 +267,19 @@ class OzonAPIClientBase:
             except Exception:
                 response_content = "<unable to decode response>"
 
+            # 记录错误响应
             logger.error(
-                f"Ozon API error: {e.response.status_code}",
-                extra={"request_id": request_id, "response": response_content},
+                "OZON API error response",
+                direction="outbound",
+                method=method,
+                endpoint=endpoint,
+                status_code=e.response.status_code,
+                latency_ms=int(api_elapsed_ms),
+                shop_id=self.shop_id,
+                request_id=request_id,
+                request_body=truncate_for_log(data),
+                response_body=response_content[:5000] if response_content else None,
+                result="error",
             )
 
             # 写入外部 API 计时日志（错误情况）
@@ -246,7 +291,6 @@ class OzonAPIClientBase:
             # 尝试解析JSON错误响应（OZON API通常返回JSON格式的错误）
             try:
                 error_json = e.response.json()
-                logger.error(f"OZON API JSON error: {error_json}")
                 # 返回结构化的错误而不是抛出异常
                 return error_json
             except Exception:
@@ -255,9 +299,24 @@ class OzonAPIClientBase:
         except Exception as e:
             # 记录外部 API 耗时（如果已经开始计时）
             api_elapsed_ms = (time.perf_counter() - api_start) * 1000
+
+            logger.error(
+                "OZON API request failed",
+                direction="outbound",
+                method=method,
+                endpoint=endpoint,
+                latency_ms=int(api_elapsed_ms),
+                shop_id=self.shop_id,
+                request_id=request_id,
+                request_body=truncate_for_log(data),
+                error=str(e),
+                error_type=type(e).__name__,
+                result="error",
+                exc_info=True,
+            )
+
             log_external_api_timing(
                 "OZON", method, endpoint, api_elapsed_ms,
                 f"shop={self.shop_id} | EXCEPTION={type(e).__name__}"
             )
-            logger.error(f"Ozon API request failed: {str(e)}", extra={"request_id": request_id})
             raise

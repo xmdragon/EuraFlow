@@ -24,29 +24,20 @@ def get_router() -> Optional[APIRouter]:
         return router
     except ImportError as e:
         import sys
-        import traceback
 
-        logger.info(f"════════ SYNC SERVICE ROUTER IMPORT ERROR ════════")
-        logger.info(f"Error: {e}")
-        logger.info("Full traceback:")
-        traceback.print_exc()
-        logger.info(f"═══════════════════════════════════════════════════")
+        logger.error(f"SYNC SERVICE ROUTER IMPORT ERROR: {e}", exc_info=True)
 
         if 'plugins.ef.system.sync_service.api.routes' in sys.modules:
             try:
                 from .api.routes import router
-                logger.info("✓ Successfully recovered router from sys.modules")
+                logger.info("Successfully recovered router from sys.modules")
                 return router
             except Exception as recovery_error:
-                logger.info(f"✗ Failed to recover router: {recovery_error}")
+                logger.error(f"Failed to recover router: {recovery_error}")
 
         return None
     except Exception as e:
-        import traceback
-        logger.info(f"════════ SYNC SERVICE ROUTER UNEXPECTED ERROR ════════")
-        logger.info(f"Error: {e}")
-        traceback.print_exc()
-        logger.info(f"═════════════════════════════════════════════════════")
+        logger.error(f"SYNC SERVICE ROUTER UNEXPECTED ERROR: {e}", exc_info=True)
         return None
 
 

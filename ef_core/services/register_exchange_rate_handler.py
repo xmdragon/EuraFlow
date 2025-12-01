@@ -27,9 +27,7 @@ def register_exchange_rate_handler():
         logger.info("✓ Registered exchange_rate_refresh sync service handler")
 
     except Exception as e:
-        logger.info(f"Warning - Failed to register exchange_rate handler: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.warning(f"Failed to register exchange_rate handler: {e}", exc_info=True)
 
 
 # 模块级别调用 - import时自动执行

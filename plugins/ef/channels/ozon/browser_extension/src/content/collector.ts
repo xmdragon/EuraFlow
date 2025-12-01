@@ -496,10 +496,7 @@ export class ProductCollector {
       onProgress?.(this.progress);
       await this.fillMissingDimensionsForBatch(newProducts);
 
-      // 2.3 获取佣金数据（上品帮批量API）
-      this.progress.status = `获取佣金数据...`;
-      onProgress?.(this.progress);
-      await this.getCommissionsForBatch(newProducts);
+      // 2.3 佣金数据已在 getSalesDataForBatch 中获取，无需额外请求
 
       // 【阶段2过滤】应用上品帮数据过滤（月销量、重量、上架时间、发货模式）
       const spbPassedBatch: ProductData[] = [];
@@ -1362,10 +1359,7 @@ export class ProductCollector {
       onProgress?.(this.progress);
       await this.fillMissingDimensionsForBatch(unprocessedProducts);
 
-      // 2.3 获取佣金数据（上品帮批量API）
-      this.progress.status = `获取佣金数据...`;
-      onProgress?.(this.progress);
-      await this.getCommissionsForBatch(unprocessedProducts);
+      // 2.3 佣金数据已在 getSalesDataForBatch 中获取，无需额外请求
 
       // 【阶段2过滤】应用上品帮数据过滤（月销量、重量、上架时间、发货模式）
       const spbPassedBatch: ProductData[] = [];
@@ -1588,65 +1582,6 @@ export class ProductCollector {
       } catch (error: any) {
         console.warn(`[包装尺寸] SKU=${product.product_id} 失败:`, error.message);
       }
-    }
-  }
-
-  /**
-   * 批量获取佣金数据（上品帮批量API）
-   * 优化：只对缺失佣金数据的商品调用 API（上品帮销售数据可能已包含佣金）
-   */
-  private async getCommissionsForBatch(batch: ProductData[]): Promise<void> {
-    // 过滤出缺少佣金数据的商品
-    const productsWithoutCommissions = batch.filter(p =>
-      p.rfbs_commission_mid == null && p.fbp_commission_mid == null
-    );
-
-    if (productsWithoutCommissions.length === 0) {
-      if (__DEBUG__) {
-        console.log('[佣金数据] 所有商品已有佣金数据，跳过 API 调用');
-      }
-      return;
-    }
-
-    if (__DEBUG__) {
-      console.log(`[佣金数据] ${productsWithoutCommissions.length}/${batch.length} 个商品缺少佣金数据，调用 API 补充`);
-    }
-
-    try {
-      const goodsForCommissions = productsWithoutCommissions.map(p => ({
-        goods_id: p.product_id,
-        category_name: p.category_level_1 || p.category_path?.split(' > ')[0] || '未知类目'
-      }));
-
-      const commissionsMap = await spbangApiProxy.getCommissionsBatch(goodsForCommissions);
-
-      // 合并数据（转换字段名）
-      let successCount = 0;
-      batch.forEach((product) => {
-        const commissionData = commissionsMap.get(product.product_id);
-        if (commissionData) {
-          // 转换字段名：API 返回 rfbs_small → 内部使用 rfbs_commission_low
-          const transformed = {
-            rfbs_commission_low: commissionData.rfbs_small,
-            rfbs_commission_mid: commissionData.rfbs,
-            rfbs_commission_high: commissionData.rfbs_large,
-            fbp_commission_low: commissionData.fbp_small,
-            fbp_commission_mid: commissionData.fbp,
-            fbp_commission_high: commissionData.fbp_large,
-          };
-          Object.assign(product, transformed);
-
-          // 同步更新 this.collected 中的数据
-          const collectedProduct = this.collected.get(product.product_id);
-          if (collectedProduct) {
-            Object.assign(collectedProduct, transformed);
-          }
-
-          successCount++;
-        }
-      });
-    } catch (error: any) {
-      console.error('[佣金数据] 批量获取失败:', error.message);
     }
   }
 

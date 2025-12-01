@@ -20,6 +20,12 @@ interface ControlPanelProps {
 export function ControlPanel(props: ControlPanelProps) {
   const { collector, config } = props;
 
+  // 防止重复挂载
+  if (document.getElementById('ef-control-panel')) {
+    console.warn('[ControlPanel] 控制面板已存在，跳过重复挂载');
+    return document.createElement('div');
+  }
+
   // 注入 EuraFlow 样式（仅注入一次）
   injectEuraflowStyles();
 
@@ -75,6 +81,7 @@ export function ControlPanel(props: ControlPanelProps) {
 
   // 状态变量
   let isCollecting = false;
+  let isUploading = false;  // 防止重复上传
   let collectedCount = 0;
 
   // 绑定事件
@@ -232,7 +239,15 @@ export function ControlPanel(props: ControlPanelProps) {
 
   // 上传到 API
   async function uploadToAPI() {
+    // 防止重复上传
+    if (isUploading) {
+      console.warn('[ControlPanel] 上传正在进行中，跳过重复请求');
+      return;
+    }
+
     try {
+      isUploading = true;
+
       const allProducts = collector.getCollectedProducts();
       if (allProducts.length === 0) {
         updateStatus('⚠️ 没有可上传的商品');
@@ -308,6 +323,8 @@ export function ControlPanel(props: ControlPanelProps) {
 
     } catch (error: any) {
       updateStatus(`❌ 上传失败: ${error.message}`);
+    } finally {
+      isUploading = false;
     }
   }
 

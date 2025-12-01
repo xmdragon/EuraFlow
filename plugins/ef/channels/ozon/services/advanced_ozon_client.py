@@ -401,7 +401,7 @@ if __name__ == "__main__":
                     for seller in data['sellers'][:3]:
                         logger.info(f"    - {seller['seller']}: ¥{seller['price']}")
             else:
-                logger.info("✗ Failed to get competitor data")
+                logger.warning("Failed to get competitor data")
 
         finally:
             await client.close()
