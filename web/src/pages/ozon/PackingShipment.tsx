@@ -28,6 +28,7 @@ import {
   App,
 } from 'antd';
 import type { InputRef } from 'antd';
+import dayjs from 'dayjs';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
@@ -953,43 +954,26 @@ const PackingShipment: React.FC = () => {
     }
   };
 
+  // 判断订单是否逾期（超过10天）
+  const isOrderOverdue = (inProcessAt: string | undefined): boolean => {
+    if (!inProcessAt) return false;
+    const orderDate = dayjs(inProcessAt);
+    const daysDiff = dayjs().diff(orderDate, 'day');
+    return daysDiff > 10;
+  };
+
   // 从扫描结果打印单个标签
   const handlePrintSingleLabel = async (postingNumber: string) => {
     // 从扫描结果中查找该 posting
     const posting = scanResults.find((p) => p.posting_number === postingNumber);
 
-    // 检查是否需要确认
-    if (posting && checkNeedsConfirmation([posting])) {
-      modal.confirm({
-        title: '确认打印',
-        content: '确认订单商品数量是否正确？',
-        okText: '确认打印',
-        cancelText: '取消',
-        onOk: async () => {
-          const result = await batchPrint([postingNumber]);
-          if (result?.success && result.pdf_url) {
-            // 弹出窗口显示PDF，而不是直接打开
-            setPrintLabelUrl(result.pdf_url);
-            setCurrentPrintingPosting(postingNumber);
-            setCurrentPrintingPostings([]); // 单张打印，清空批量标记
-            setShowPrintLabelModal(true);
-            notifySuccess('标签加载成功', '请在弹窗中查看并打印');
-          } else if (result?.error === 'PARTIAL_FAILURE' && result.pdf_url) {
-            setPrintLabelUrl(result.pdf_url);
-            setCurrentPrintingPosting(postingNumber);
-            setCurrentPrintingPostings([]);
-            setShowPrintLabelModal(true);
-          }
-        },
-      });
-    } else {
-      // 不需要确认，直接打印
+    // 执行打印的函数
+    const doPrint = async () => {
       const result = await batchPrint([postingNumber]);
       if (result?.success && result.pdf_url) {
-        // 弹出窗口显示PDF，而不是直接打开
         setPrintLabelUrl(result.pdf_url);
         setCurrentPrintingPosting(postingNumber);
-        setCurrentPrintingPostings([]); // 单张打印，清空批量标记
+        setCurrentPrintingPostings([]);
         setShowPrintLabelModal(true);
         notifySuccess('标签加载成功', '请在弹窗中查看并打印');
       } else if (result?.error === 'PARTIAL_FAILURE' && result.pdf_url) {
@@ -998,6 +982,49 @@ const PackingShipment: React.FC = () => {
         setCurrentPrintingPostings([]);
         setShowPrintLabelModal(true);
       }
+    };
+
+    // 检查是否逾期订单
+    const overdue = posting && isOrderOverdue(posting.in_process_at);
+
+    // 检查是否需要数量确认
+    const needsQuantityConfirm = posting && checkNeedsConfirmation([posting]);
+
+    if (overdue) {
+      // 逾期订单需要确认
+      modal.confirm({
+        title: '逾期订单确认',
+        content: '本订单已逾期！确定要打印吗？',
+        okText: '确认打印',
+        cancelText: '取消',
+        okButtonProps: { danger: true },
+        onOk: async () => {
+          if (needsQuantityConfirm) {
+            // 还需要数量确认
+            modal.confirm({
+              title: '确认打印',
+              content: '确认订单商品数量是否正确？',
+              okText: '确认打印',
+              cancelText: '取消',
+              onOk: doPrint,
+            });
+          } else {
+            await doPrint();
+          }
+        },
+      });
+    } else if (needsQuantityConfirm) {
+      // 只需要数量确认
+      modal.confirm({
+        title: '确认打印',
+        content: '确认订单商品数量是否正确？',
+        okText: '确认打印',
+        cancelText: '取消',
+        onOk: doPrint,
+      });
+    } else {
+      // 不需要任何确认，直接打印
+      await doPrint();
     }
   };
 
