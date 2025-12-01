@@ -99,9 +99,15 @@ class EuraFlowProcessor:
 
 
 def setup_logging(log_level: str = "INFO", log_format: str = "json", enable_pii_masking: bool = True) -> None:
-    """配置日志系统"""
+    """配置日志系统
 
-    # 配置处理器链
+    确保所有模块的日志都能正确输出到 stdout，包括：
+    - structlog 的日志（JSON 格式）
+    - 标准 logging 的日志（所有子模块）
+    """
+    level = getattr(logging, log_level.upper())
+
+    # 配置 structlog 处理器链
     processors = [
         TimeStamper(fmt="iso"),
         add_log_level,
@@ -125,12 +131,58 @@ def setup_logging(log_level: str = "INFO", log_format: str = "json", enable_pii_
         cache_logger_on_first_use=True,
     )
 
-    # 配置标准库日志
-    logging.basicConfig(
-        format="%(message)s",
-        stream=sys.stdout,
-        level=getattr(logging, log_level.upper()),
-    )
+    # 配置标准库日志 - 确保所有子模块的日志都能输出
+    # 1. 配置 root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(level)
+
+    # 2. 移除已有的 handlers，避免重复
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+
+    # 3. 创建 stdout handler
+    stdout_handler = logging.StreamHandler(sys.stdout)
+    stdout_handler.setLevel(level)
+
+    # 4. 设置格式 - 对于标准 logging，使用简单格式以便与 structlog JSON 区分
+    if log_format == "json":
+        # JSON 格式：模块名 + 消息
+        formatter = logging.Formatter(
+            '{"timestamp": "%(asctime)s", "level": "%(levelname)s", "logger": "%(name)s", "message": "%(message)s"}',
+            datefmt="%Y-%m-%dT%H:%M:%S"
+        )
+    else:
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+    stdout_handler.setFormatter(formatter)
+    root_logger.addHandler(stdout_handler)
+
+    # 5. 确保关键模块的日志级别正确设置
+    # 这些模块的日志必须能输出
+    critical_modules = [
+        "plugins",
+        "plugins.ef",
+        "plugins.ef.channels",
+        "plugins.ef.channels.ozon",
+        "ef_core",
+    ]
+    for module in critical_modules:
+        module_logger = logging.getLogger(module)
+        module_logger.setLevel(level)
+        # 确保日志能向上传播到 root logger
+        module_logger.propagate = True
+
+    # 6. 降低第三方库的日志级别，避免噪音
+    noisy_loggers = [
+        "httpx",
+        "httpcore",
+        "asyncio",
+        "uvicorn.access",
+        "sqlalchemy.engine",
+    ]
+    for logger_name in noisy_loggers:
+        logging.getLogger(logger_name).setLevel(logging.WARNING)
 
 
 def get_logger(name: str = __name__) -> structlog.stdlib.BoundLogger:
