@@ -844,12 +844,8 @@ def update_product_stock_task(self, prev_result: Dict, dto_dict: Dict, shop_id: 
     ozon_task_id = prev_result.get("ozon_task_id")
     offer_id = prev_result["offer_id"]
     stock = dto_dict.get("stock", 0)
-    # 支持 warehouse_ids（列表）和 warehouse_id（单个值）
     warehouse_ids = dto_dict.get("warehouse_ids", [])
-    if warehouse_ids and isinstance(warehouse_ids, list):
-        warehouse_id = warehouse_ids[0]  # 使用第一个仓库
-    else:
-        warehouse_id = dto_dict.get("warehouse_id", 1)
+    warehouse_id = warehouse_ids[0] if warehouse_ids else None
 
     logger.info(f"[Step 3] Waiting for product creation: ozon_task_id={ozon_task_id}, warehouse_id={warehouse_id}, stock={stock}")
 
@@ -914,7 +910,11 @@ def update_product_stock_task(self, prev_result: Dict, dto_dict: Dict, shop_id: 
                 raise TimeoutError("商品创建超时 (20 分钟)")
 
             # 商品创建成功，更新库存
-            logger.info(f"[Step 3] Updating stock: product_id={product_id}, stock={stock}")
+            if not warehouse_id:
+                logger.warning(f"[Step 3] No warehouse_id provided, skipping stock update")
+                return product_id
+
+            logger.info(f"[Step 3] Updating stock: product_id={product_id}, stock={stock}, warehouse_id={warehouse_id}")
 
             update_task_progress(
                 parent_task_id, status="running", current_step="update_stock",
