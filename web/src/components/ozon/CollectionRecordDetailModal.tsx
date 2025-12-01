@@ -209,38 +209,12 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
 
       {/* 商品信息表格 */}
       <div className={styles.detailSection}>
-        <Descriptions bordered size="small" column={2} labelStyle={{ width: 120 }}>
-          {product_data?.product_id && (
-            <Descriptions.Item label="商品ID">
-              {product_data.product_id}
-            </Descriptions.Item>
-          )}
-
-          {currentVariant?.variant_id && (
-            <Descriptions.Item label="变体ID">
-              {currentVariant.variant_id}
-            </Descriptions.Item>
-          )}
-
+        <Descriptions bordered size="small" column={2} labelStyle={{ width: 60 }}>
           {currentPrice !== undefined && (
-            <Descriptions.Item label="价格">
+            <Descriptions.Item label="价格" contentStyle={{ width: 120 }}>
               <span className={styles.price}>
                 {formatPrice(currentPrice)}
               </span>
-            </Descriptions.Item>
-          )}
-
-          {currentOriginalPrice && (
-            <Descriptions.Item label="划线价">
-              <span className={styles.oldPrice}>
-                {formatPrice(currentOriginalPrice)}
-              </span>
-            </Descriptions.Item>
-          )}
-
-          {product_data?.currency && (
-            <Descriptions.Item label="货币">
-              {product_data.currency}
             </Descriptions.Item>
           )}
 
@@ -257,28 +231,15 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
 
           {/* 重量信息 */}
           {product_data?.dimensions?.weight && (
-            <Descriptions.Item label="重量">
+            <Descriptions.Item label="重量" contentStyle={{ width: 120 }}>
               {product_data.dimensions.weight} g
             </Descriptions.Item>
           )}
 
           {product_data?.description && (
-            <Descriptions.Item label="商品描述" span={2}>
+            <Descriptions.Item label="描述" span={2}>
               <div className={styles.description}>
                 {product_data.description}
-              </div>
-            </Descriptions.Item>
-          )}
-
-          {product_data?.specifications && Object.keys(product_data.specifications).length > 0 && (
-            <Descriptions.Item label="规格参数" span={2}>
-              <div className={styles.specifications}>
-                {Object.entries(product_data.specifications).map(([key, value]) => (
-                  <div key={key} className={styles.specItem}>
-                    <span className={styles.specKey}>{key}:</span>
-                    <span className={styles.specValue}>{String(value)}</span>
-                  </div>
-                ))}
               </div>
             </Descriptions.Item>
           )}

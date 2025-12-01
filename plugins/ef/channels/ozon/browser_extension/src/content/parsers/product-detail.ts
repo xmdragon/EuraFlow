@@ -715,6 +715,7 @@ function parseFromWidgetStates(apiResponse: any): Omit<ProductDetailData, 'varia
     const characteristicsKey = keys.find(k => k.includes('webCharacteristics'));
     if (characteristicsKey) {
       const characteristicsData = JSON.parse(widgetStates[characteristicsKey]);
+      console.log('[EuraFlow] webCharacteristics 原始数据:', JSON.stringify(characteristicsData, null, 2));
       if (characteristicsData?.characteristics && Array.isArray(characteristicsData.characteristics)) {
         characteristicsData.characteristics.forEach((char: any) => {
           // 跳过已经提取的字段（品牌）
@@ -724,6 +725,7 @@ function parseFromWidgetStates(apiResponse: any): Omit<ProductDetailData, 'varia
 
           if (char.values && char.values.length > 0) {
             const value = char.values.map((v: any) => v.text || v.value).join(', ');
+            console.log(`[EuraFlow] webCharacteristics 特征: title=${char.title}, id=${char.id}, value=${value}, values[0].id=${char.values[0]?.id}`);
             attributes.push({
               attribute_id: char.id || 0,
               value,
@@ -731,6 +733,7 @@ function parseFromWidgetStates(apiResponse: any): Omit<ProductDetailData, 'varia
             });
           }
         });
+        console.log('[EuraFlow] parseFromWidgetStates 提取的 attributes:', JSON.stringify(attributes, null, 2));
       }
     }
 
