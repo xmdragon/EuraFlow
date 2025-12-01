@@ -601,6 +601,7 @@ def upload_images_to_storage_task(self, dto_dict: Dict, shop_id: int, parent_tas
     """
     ozon_image_urls = dto_dict.get("images", [])
     offer_id = dto_dict.get("offer_id", "unknown")
+    watermark_config_id = dto_dict.get("watermark_config_id")  # 用户指定的水印配置
 
     logger.info(f"[Step 1] Uploading images: offer_id={offer_id}, count={len(ozon_image_urls)}")
 
@@ -635,8 +636,22 @@ def upload_images_to_storage_task(self, dto_dict: Dict, shop_id: int, parent_tas
                     logger.warning("No image storage configured, using original URLs")
                     return ozon_image_urls
 
-                # 获取激活的水印配置（与当前图床类型匹配）
-                watermark_config = await get_active_watermark_config(db, storage_type)
+                # 获取水印配置：优先使用用户指定的，否则使用激活的
+                watermark_config = None
+                if watermark_config_id:
+                    from ..models.watermark import WatermarkConfig
+                    result = await db.execute(
+                        select(WatermarkConfig).where(WatermarkConfig.id == watermark_config_id)
+                    )
+                    watermark_config = result.scalar_one_or_none()
+                    if watermark_config:
+                        logger.info(f"Using user-specified watermark config: {watermark_config.name} (ID: {watermark_config_id})")
+                    else:
+                        logger.warning(f"Watermark config ID {watermark_config_id} not found")
+
+                if not watermark_config:
+                    # 没有指定或指定的不存在，使用激活的配置
+                    watermark_config = await get_active_watermark_config(db, storage_type)
 
                 # 构建水印转换参数（仅Cloudinary）
                 cloudinary_transformations = None
