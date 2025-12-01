@@ -47,7 +47,7 @@ class FollowPdpRequest(BaseModel):
     source_url: str = Field(..., description="商品来源URL")
     product_data: dict[str, Any] = Field(..., description="完整商品数据")
     variants: list[dict[str, Any]] = Field(..., description="变体列表")
-    warehouse_ids: list[int] = Field(..., description="仓库ID列表")
+    warehouse_id: int = Field(..., description="仓库ID")
     watermark_config_id: Optional[int] = Field(None, description="水印配置ID")
     images: Optional[list[dict[str, Any]]] = Field(None, description="图片列表")
     videos: Optional[list[str]] = Field(None, description="视频列表")
@@ -174,7 +174,7 @@ async def follow_pdp_listing(
         listing_status="pending",
         listing_request_payload={
             "variants": request.variants,
-            "warehouse_ids": request.warehouse_ids,
+            "warehouse_id": request.warehouse_id,
             "watermark_config_id": request.watermark_config_id,
             "images": request.images,
             "videos": request.videos,
