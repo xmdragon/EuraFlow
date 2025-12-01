@@ -935,7 +935,8 @@ def update_product_stock_task(self, prev_result: Dict, dto_dict: Dict, shop_id: 
             for attempt in range(price_sent_attempts):
                 try:
                     product_info = await api_client.get_product_info(product_id=product_id)
-                    status = product_info.get('result', {}).get('status', {}).get('state', '')
+                    # v3 API 使用 statuses.status 字段
+                    status = product_info.get('result', {}).get('statuses', {}).get('status', '')
                     logger.info(f"[Step 3] Product status check {attempt + 1}/{price_sent_attempts}: status={status}")
 
                     if status == 'price_sent':
