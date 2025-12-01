@@ -136,7 +136,6 @@ class OzonProduct(Base):
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
     
     # 关系
-    variants_list = relationship("OzonProductVariant", back_populates="product", cascade="all, delete-orphan")
     attributes_list = relationship("OzonProductAttribute", back_populates="product", cascade="all, delete-orphan")
     price_history = relationship("OzonPriceHistory", back_populates="product", cascade="all, delete-orphan")
     
@@ -150,41 +149,6 @@ class OzonProduct(Base):
         Index("idx_ozon_products_sync", "shop_id", "sync_status", "last_sync_at"),
         Index("idx_ozon_products_title_cn", "title_cn"),
         {"extend_existing": True}
-    )
-
-
-class OzonProductVariant(Base):
-    """商品变体（颜色、尺码等）"""
-    __tablename__ = "ozon_product_variants"
-    
-    id = Column(BigInteger, primary_key=True)
-    product_id = Column(BigInteger, ForeignKey("ozon_products.id"), nullable=False)
-    
-    # 变体信息
-    variant_id = Column(String(100), nullable=False)
-    variant_type = Column(String(50))  # color/size/material等
-    variant_value = Column(String(200))
-    
-    # SKU
-    variant_sku = Column(String(100))
-    variant_barcode = Column(String(50))
-    
-    # 价格和库存（变体级别）
-    price = Column(Numeric(18, 4))
-    stock = Column(Integer, default=0)
-    
-    # 图片
-    images = Column(JSONB)
-
-    created_at = Column(DateTime(timezone=True), default=utcnow)
-    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
-    
-    # 关系
-    product = relationship("OzonProduct", back_populates="variants_list")
-    
-    __table_args__ = (
-        UniqueConstraint("product_id", "variant_id", name="uq_ozon_variants"),
-        Index("idx_ozon_variants_sku", "variant_sku")
     )
 
 
