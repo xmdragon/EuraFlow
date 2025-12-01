@@ -209,7 +209,7 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
 
       {/* 商品信息表格 */}
       <div className={styles.detailSection}>
-        <Descriptions bordered size="small" column={2}>
+        <Descriptions bordered size="small" column={2} labelStyle={{ width: 120 }}>
           {product_data?.product_id && (
             <Descriptions.Item label="商品ID">
               {product_data.product_id}

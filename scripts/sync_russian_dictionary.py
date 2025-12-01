@@ -15,7 +15,7 @@ from sqlalchemy import select, func, and_, or_
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
 from ef_core.config import get_settings
-from plugins.ef.channels.ozon.models.listing import OzonCategoryAttribute, OzonAttributeDictionaryValue
+from plugins.ef.channels.ozon.models.listing import OzonCategory, OzonCategoryAttribute, OzonAttributeDictionaryValue
 from plugins.ef.channels.ozon.models import OzonShop
 from plugins.ef.channels.ozon.api.client import OzonAPIClient
 
@@ -50,39 +50,58 @@ async def sync_russian_translations():
 
         logger.info(f"使用店铺: {shop.shop_name} (ID: {shop.id})")
 
-        # 2. 查找缺少俄文翻译的字典（从 OzonCategoryAttribute 获取 category_id 和 attribute_id）
+        # 2. 查找缺少俄文翻译的唯一字典（按 dictionary_id 去重，只取第一个匹配的类目和特征）
+        # 子查询：获取每个 dictionary_id 缺失俄文的数量
+        missing_counts_subquery = (
+            select(
+                OzonAttributeDictionaryValue.dictionary_id,
+                func.count().label('missing_count')
+            )
+            .where(
+                or_(
+                    OzonAttributeDictionaryValue.value_ru.is_(None),
+                    OzonAttributeDictionaryValue.value_ru == ""
+                )
+            )
+            .group_by(OzonAttributeDictionaryValue.dictionary_id)
+            .subquery()
+        )
+
+        # 主查询：获取每个 dictionary_id 对应的一个类目和特征
+        # 只选择在 ozon_categories 表中存在、是叶子节点、且 category_id > 900000000 的新类目
+        # 同时获取 parent_id 作为 description_category_id
         missing_ru_query = (
             select(
                 OzonCategoryAttribute.dictionary_id,
-                OzonCategoryAttribute.category_id,
-                OzonCategoryAttribute.attribute_id,
-                func.count().label('missing_count')
+                func.max(OzonCategoryAttribute.category_id).label('category_id'),  # type_id
+                func.max(OzonCategory.parent_id).label('parent_id'),  # description_category_id
+                func.min(OzonCategoryAttribute.attribute_id).label('attribute_id'),
+                missing_counts_subquery.c.missing_count
             )
             .join(
-                OzonAttributeDictionaryValue,
-                OzonAttributeDictionaryValue.dictionary_id == OzonCategoryAttribute.dictionary_id
+                missing_counts_subquery,
+                missing_counts_subquery.c.dictionary_id == OzonCategoryAttribute.dictionary_id
             )
-            .where(
+            .join(
+                OzonCategory,
                 and_(
-                    OzonCategoryAttribute.dictionary_id.isnot(None),
-                    or_(
-                        OzonAttributeDictionaryValue.value_ru.is_(None),
-                        OzonAttributeDictionaryValue.value_ru == ""
-                    )
+                    OzonCategory.category_id == OzonCategoryAttribute.category_id,
+                    OzonCategory.is_leaf == True,  # 只选择叶子类目
+                    OzonCategory.category_id > 900000000  # 只选择新类目（9xxx开头）
                 )
             )
+            .where(OzonCategoryAttribute.dictionary_id.isnot(None))
             .group_by(
                 OzonCategoryAttribute.dictionary_id,
-                OzonCategoryAttribute.category_id,
-                OzonCategoryAttribute.attribute_id
+                missing_counts_subquery.c.missing_count
             )
-            .order_by(func.count().desc())
+            .order_by(missing_counts_subquery.c.missing_count.desc())
         )
 
         result = await db.execute(missing_ru_query)
         dictionaries = result.fetchall()
 
-        logger.info(f"找到 {len(dictionaries)} 个字典需要同步俄文翻译")
+        logger.info(f"找到 {len(dictionaries)} 个唯一字典需要同步俄文翻译")
 
         if not dictionaries:
             logger.info("所有字典都已有俄文翻译")
@@ -101,11 +120,12 @@ async def sync_russian_translations():
 
         for idx, row in enumerate(dictionaries):
             dictionary_id = row.dictionary_id
-            category_id = row.category_id
+            category_id = row.category_id  # type_id
+            parent_id = row.parent_id      # description_category_id
             attribute_id = row.attribute_id
             missing_count = row.missing_count
 
-            logger.info(f"[{idx+1}/{len(dictionaries)}] 同步字典 {dictionary_id} (类目={category_id}, 特征={attribute_id}, 缺失俄文={missing_count})")
+            logger.info(f"[{idx+1}/{len(dictionaries)}] 同步字典 {dictionary_id} (类目={category_id}, 父类目={parent_id}, 特征={attribute_id}, 缺失俄文={missing_count})")
 
             try:
                 # 调用 OZON API 获取俄文字典值
@@ -113,10 +133,11 @@ async def sync_russian_translations():
                 last_value_id = 0
 
                 while True:
-                    response = await client.get_category_attribute_values(
-                        category_id=category_id,
+                    response = await client.get_attribute_values(
                         attribute_id=attribute_id,
-                        limit=5000,
+                        category_id=category_id,            # type_id
+                        parent_category_id=parent_id,       # description_category_id
+                        limit=2000,
                         last_value_id=last_value_id,
                         language="DEFAULT"  # 俄文
                     )
