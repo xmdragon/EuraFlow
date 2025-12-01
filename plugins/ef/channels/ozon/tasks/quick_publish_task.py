@@ -844,9 +844,14 @@ def update_product_stock_task(self, prev_result: Dict, dto_dict: Dict, shop_id: 
     ozon_task_id = prev_result.get("ozon_task_id")
     offer_id = prev_result["offer_id"]
     stock = dto_dict.get("stock", 0)
-    warehouse_id = dto_dict.get("warehouse_id", 1)
+    # 支持 warehouse_ids（列表）和 warehouse_id（单个值）
+    warehouse_ids = dto_dict.get("warehouse_ids", [])
+    if warehouse_ids and isinstance(warehouse_ids, list):
+        warehouse_id = warehouse_ids[0]  # 使用第一个仓库
+    else:
+        warehouse_id = dto_dict.get("warehouse_id", 1)
 
-    logger.info(f"[Step 3] Waiting for product creation: ozon_task_id={ozon_task_id}")
+    logger.info(f"[Step 3] Waiting for product creation: ozon_task_id={ozon_task_id}, warehouse_id={warehouse_id}, stock={stock}")
 
     try:
         update_task_progress(
