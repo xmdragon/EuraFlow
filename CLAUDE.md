@@ -202,27 +202,34 @@
 - **启动方式**：项目根目录执行 `./start.sh`、`./stop.sh`、`./restart.sh`
 - **禁止**：`cd web && npm run dev`（会在随机端口启动）
 - **端口**：后端 8000，前端 3000
-- **前端构建**：`cd web && rm -rf dist && npm run build`
+- **前端构建**：
+  - 本地开发：`cd web && npm run build`
+  - **生产部署**：`cd web && STATIC_CDN=https://static.hjdtrading.com npm run build`（使用 CDN 加速静态资源）
 
 ---
 
 ## 13) 远程部署流程
 - **SSH 访问**：`ssh ozon`
 - **部署路径**：`/opt/euraflow`
+- **域名配置**：
+  - 主站：`euraflow.hjdtrading.com`（应用入口）
+  - 静态资源：`static.hjdtrading.com`（JS/CSS/图片 CDN 加速）
+  - Nginx 配置参考：`docs/nginx/`
 - **版本号检查**：
   - 更新浏览器扩展版本前，必须先检查 `manifest.json` 中的版本号
   - 确保 `manifest.json` 版本号与打包文件名版本号一致
   - 用户脚本版本号也需同步更新
 - **标准流程**（本地构建后上传，避免远程服务器内存不足）：
   1. 本地提交并推送：`git add . && git commit -m "描述" && git push`
-  2. 本地构建前端：`cd web && rm -rf dist && npm run build`
+  2. 本地构建前端：`cd web && STATIC_CDN=https://static.hjdtrading.com npm run build`
   3. 打包并上传dist：`cd web && tar -czf dist.tar.gz dist && scp dist.tar.gz ozon:/opt/euraflow/web/`
   4. 远程解压并同步：`ssh ozon "cd /opt/euraflow && git pull && cd web && tar -xzf dist.tar.gz && rm dist.tar.gz"`
   5. 重启服务：`ssh ozon "cd /opt/euraflow && ./restart.sh"`
 - **注意事项**：
   - 🚫 执行远程部署命令前必须询问用户确认
-  - ⚠️ 远程服务器内存仅2GB，**禁止在远程执行 `npm run build`**（会导致OOM和系统卡死）
+  - ⚠️ 远程服务器内存仅4GB，**禁止在远程执行 `npm run build`**（会导致OOM和系统卡死）
   - ✅ 必须在本地构建后上传dist目录
+  - ✅ 生产构建必须使用 `STATIC_CDN` 环境变量
 - **查看日志**：`ssh ozon "tail -200 /opt/euraflow/logs/backend-stderr.log 2>/dev/null || supervisorctl -c /opt/euraflow/supervisord.conf tail -200 euraflow:backend stderr"`
 
 ---

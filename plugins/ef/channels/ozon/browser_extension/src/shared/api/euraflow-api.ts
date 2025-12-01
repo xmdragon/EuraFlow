@@ -126,6 +126,8 @@ export class EuraflowApi extends BaseApiClient {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 60000);
 
+    console.log(`[EuraflowApi] 开始上传 ${products.length} 个商品到 ${this.baseUrl}`);
+
     try {
       const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/product-selection/upload`, {
         method: 'POST',
@@ -139,20 +141,27 @@ export class EuraflowApi extends BaseApiClient {
 
       clearTimeout(timeoutId);
 
+      console.log(`[EuraflowApi] 上传响应状态: ${response.status}`);
+
       if (!response.ok) {
         const errorData = await this.parseErrorResponse(response);
+        console.error(`[EuraflowApi] 上传失败:`, errorData);
         throw errorData;
       }
 
-      return await response.json();
+      const result = await response.json();
+      console.log(`[EuraflowApi] 上传成功:`, result);
+      return result;
     } catch (error: any) {
       clearTimeout(timeoutId);
+
+      console.error(`[EuraflowApi] 上传异常:`, error.message || error);
 
       if (error.name === 'AbortError') {
         throw createApiError('TIMEOUT', '上传超时（请检查网络连接或减少上传数量）');
       } else if (error.code) {
         throw error;
-      } else if (error.message.includes('NetworkError') || error.message.includes('Failed to fetch')) {
+      } else if (error.message?.includes('NetworkError') || error.message?.includes('Failed to fetch')) {
         throw createApiError('NETWORK_ERROR', '网络连接失败（请检查 API 地址和网络）');
       } else {
         throw error;
@@ -343,8 +352,23 @@ export class EuraflowApi extends BaseApiClient {
     try {
       const errorData = await response.json();
 
+      // 输出原始错误响应用于调试
+      console.error('[EuraflowApi] 原始错误响应:', JSON.stringify(errorData));
+
+      // FastAPI 422 验证错误格式: {"detail": [{"loc": [...], "msg": "...", "type": "..."}]}
+      if (Array.isArray(errorData.detail)) {
+        const validationErrors = errorData.detail.map((err: any) => {
+          const loc = err.loc?.join('.') || 'unknown';
+          return `${loc}: ${err.msg}`;
+        });
+        errorMessage = `数据验证失败: ${validationErrors.slice(0, 3).join('; ')}`;
+        if (validationErrors.length > 3) {
+          errorMessage += ` (还有 ${validationErrors.length - 3} 个错误)`;
+        }
+        errorCode = 'VALIDATION_ERROR';
+      }
       // 多层级解析错误信息
-      if (errorData.detail && typeof errorData.detail === 'object' && errorData.detail.message) {
+      else if (errorData.detail && typeof errorData.detail === 'object' && errorData.detail.message) {
         errorMessage = errorData.detail.message;
         if (errorData.detail.code) {
           errorCode = errorData.detail.code;

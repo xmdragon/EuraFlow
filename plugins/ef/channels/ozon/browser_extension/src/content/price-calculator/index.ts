@@ -141,8 +141,38 @@ export class RealPriceCalculator {
       // 1. 第一时间预加载配置数据（后台并行）
       this.preloadConfigInBackground();
 
-      // 2. 计算真实售价
-      const { greenPrice, blackPrice, currency } = findPrices();
+      // 2. 提取商品ID
+      const productId = extractProductId();
+      if (!productId) {
+        console.error('[EuraFlow] 无法提取商品ID');
+        return;
+      }
+
+      // 3. 【先提取商品数据】（从 API 获取，包含正确的价格）
+      let productDetail = null;
+      try {
+        productDetail = await extractProductData();
+      } catch (error: any) {
+        console.error('[EuraFlow] 商品详情提取失败:', error);
+      }
+
+      // 4. 从 API 数据计算真实售价（优先使用 API 价格，fallback 到 DOM）
+      let greenPrice: number | null = null;
+      let blackPrice: number | null = null;
+      let currency: string | null = '¥';
+
+      if (productDetail && (productDetail.price > 0 || productDetail.original_price)) {
+        // 使用 API 数据：price = 绿色价格(cardPrice)，original_price = 黑色价格(price)
+        greenPrice = productDetail.price > 0 ? productDetail.price : null;
+        blackPrice = productDetail.original_price || null;
+      } else {
+        // Fallback: 从 DOM 提取
+        const domPrices = findPrices();
+        greenPrice = domPrices.greenPrice;
+        blackPrice = domPrices.blackPrice;
+        currency = domPrices.currency;
+      }
+
       if (blackPrice === null && greenPrice === null) {
         console.warn('[EuraFlow] 未找到价格');
         return;
@@ -152,21 +182,6 @@ export class RealPriceCalculator {
       if (!message) {
         console.warn('[EuraFlow] 无法计算真实售价');
         return;
-      }
-
-      // 3. 提取商品ID
-      const productId = extractProductId();
-      if (!productId) {
-        console.error('[EuraFlow] 无法提取商品ID');
-        return;
-      }
-
-      // 4. 【先提取变体数据】（必须在 content script 中调用 Modal API）
-      let productDetail = null;
-      try {
-        productDetail = await extractProductData();
-      } catch (error: any) {
-        console.error('[EuraFlow] 商品详情提取失败:', error);
       }
 
       // 5. 【发送数据到 background】（包含已提取的变体数据）
@@ -191,12 +206,12 @@ export class RealPriceCalculator {
         return;
       }
 
-      // 5. 【再等待 DOM 稳定】（此时配送日期应该已经加载好了）
+      // 6. 【再等待 DOM 稳定】（此时配送日期应该已经加载好了）
       await this.waitForContainerReady();
 
       const { ozonProduct, spbSales, euraflowConfig } = response.data;
 
-      // 6. 一次性注入完整组件
+      // 7. 一次性注入完整组件
       await injectCompleteDisplay({
         message,
         price,

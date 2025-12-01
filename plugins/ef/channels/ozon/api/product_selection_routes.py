@@ -96,9 +96,9 @@ class ProductUploadItem(BaseModel):
     fbp_commission_low: Optional[float] = None
     fbp_commission_mid: Optional[float] = None
     fbp_commission_high: Optional[float] = None
-    monthly_sales_volume: Optional[int] = None
+    monthly_sales_volume: Optional[float] = None
     monthly_sales_revenue: Optional[float] = None
-    daily_sales_volume: Optional[int] = None
+    daily_sales_volume: Optional[float] = None
     daily_sales_revenue: Optional[float] = None
     sales_dynamic_percent: Optional[float] = None
     conversion_rate: Optional[float] = None
@@ -1103,11 +1103,11 @@ async def upload_products(
 
                 # 销量和销售额
                 if product.monthly_sales_volume is not None:
-                    cleaned_data['monthly_sales_volume'] = product.monthly_sales_volume
+                    cleaned_data['monthly_sales_volume'] = int(product.monthly_sales_volume)  # 数据库是Integer
                 if product.monthly_sales_revenue is not None:
                     cleaned_data['monthly_sales_revenue'] = Decimal(str(product.monthly_sales_revenue))
                 if product.daily_sales_volume is not None:
-                    cleaned_data['daily_sales_volume'] = product.daily_sales_volume
+                    cleaned_data['daily_sales_volume'] = Decimal(str(product.daily_sales_volume))  # 数据库是Numeric
                 if product.daily_sales_revenue is not None:
                     cleaned_data['daily_sales_revenue'] = Decimal(str(product.daily_sales_revenue))
 

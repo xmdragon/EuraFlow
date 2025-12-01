@@ -120,7 +120,17 @@ chrome.runtime.onMessage.addListener((message: any, _sender: chrome.runtime.Mess
   if (message.type === 'UPLOAD_PRODUCTS') {
     handleUploadProducts(message.data)
       .then(response => sendResponse({ success: true, data: response }))
-      .catch(error => sendResponse({ success: false, error: error.message }));
+      .catch(error => {
+        // 详细记录上传错误
+        console.error('[EuraFlow] 上传失败:', error.message || error);
+        if (error.code) {
+          console.error('[EuraFlow] 错误代码:', error.code);
+        }
+        if (error.status) {
+          console.error('[EuraFlow] HTTP状态:', error.status);
+        }
+        sendResponse({ success: false, error: error.message || '上传失败（未知错误）' });
+      });
     return true;
   }
 

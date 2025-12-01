@@ -8,7 +8,6 @@
  * 4. Modal API - variants（完整变体数据）
  */
 
-import { OzonApiRateLimiter } from '../../shared/ozon-rate-limiter';
 import { getOzonStandardHeaders, generateShortHash } from '../../shared/ozon-headers';
 
 // 标记页面注入脚本是否已加载
@@ -29,9 +28,6 @@ function ensurePageScriptLoaded(): Promise<void> {
     script.src = chrome.runtime.getURL('assets/page-injected.js');
     script.onload = () => {
       pageScriptInjected = true;
-      if (__DEBUG__) {
-        console.log('[EuraFlow] 页面注入脚本已加载');
-      }
       resolve();
     };
     script.onerror = () => {
@@ -128,34 +124,19 @@ export interface ProductDetailData {
 
 async function fetchProductDataFromOzonAPI(productUrl: string): Promise<any | null> {
   try {
-    const apiUrl = `https://www.ozon.ru/api/entrypoint-api.bx/page/json/v2?url=${encodeURIComponent(productUrl)}`;
+    const apiUrl = `${window.location.origin}/api/entrypoint-api.bx/page/json/v2?url=${encodeURIComponent(productUrl)}`;
 
     if (__DEBUG__) {
       console.log('[API] fetchProductDataFromOzonAPI 请求:', { url: apiUrl, productUrl });
     }
 
-    // ✅ 使用 executeWithRetry（包含反爬虫检查、智能重试、403/429 处理）
-    const limiter = OzonApiRateLimiter.getInstance();
-
-    const { headers } = await getOzonStandardHeaders({
-      referer: window.location.href,
-      includeContentType: false
-    });
-
-    const response = await limiter.executeWithRetry(() =>
-      fetch(apiUrl, {
-        method: 'GET',
-        headers,
-        credentials: 'include',
-      })
-    );
-
-    if (!response.ok) {
-      console.error(`[EuraFlow] OZON API 请求失败: ${response.status}`);
-      throw new Error(`API请求失败: ${response.status}`);
+    // ✅ 通过页面上下文执行请求（避免 403 反爬虫检测）
+    const data = await fetchViaPageContext(apiUrl);
+    if (!data) {
+      console.error(`[EuraFlow] OZON API 请求失败（页面上下文）`);
+      throw new Error(`API请求失败（页面上下文）`);
     }
 
-    const data = await response.json();
     if (!data.widgetStates) {
       console.error('[EuraFlow] OZON API 返回数据中没有 widgetStates');
       throw new Error('widgetStates 不存在');
@@ -182,7 +163,7 @@ async function fetchProductDataFromOzonAPI(productUrl: string): Promise<any | nu
  * 通过 OZON Modal API 获取完整变体数据（上品帮方案）
  * 调用 /modal/aspectsNew?product_id={id} 获取 webAspectsModal（包含所有颜色×尺码组合）
  *
- * Content Script 直接请求（在页面上下文中，可以访问页面 cookies）
+ * ✅ 通过页面上下文执行请求（避免 403 反爬虫检测）
  */
 async function fetchFullVariantsFromModal(productId: string): Promise<any[] | null> {
   try {
@@ -193,26 +174,13 @@ async function fetchFullVariantsFromModal(productId: string): Promise<any[] | nu
       console.log('[API] fetchFullVariantsFromModal 请求:', { url: apiUrl, productId });
     }
 
-    const limiter = OzonApiRateLimiter.getInstance();
-    const { headers } = await getOzonStandardHeaders({
-      referer: window.location.href
-    });
-
-    const response = await limiter.executeWithRetry(async () => {
-      const res = await fetch(apiUrl, {
-        method: 'GET',
-        headers,
-        credentials: 'include'
-      });
-      return res;
-    });
-
-    if (!response.ok) {
-      console.warn(`[EuraFlow] Modal API 请求失败: ${response.status}`);
+    // ✅ 通过页面上下文执行请求（避免 403 反爬虫检测）
+    const data = await fetchViaPageContext(apiUrl);
+    if (!data) {
+      console.warn(`[EuraFlow] Modal API 请求失败（页面上下文）`);
       return null;
     }
 
-    const data = await response.json();
     const widgetStates = data.widgetStates || {};
     const keys = Object.keys(widgetStates);
 
@@ -597,12 +565,21 @@ function parseFromWidgetStates(apiResponse: any): Omit<ProductDetailData, 'varia
     const title = headingData?.title || '';
 
     // 2. 提取价格（webPrice 中的价格已经是人民币元，不需要转换）
-    const priceKey = keys.find(k => k.includes('webPrice'));
+    // cardPrice = 绿色价格（Ozon卡价格）
+    // price = 黑色价格（普通价格）
+    // originalPrice = 划线价（原价）
+    // 注意：必须精确匹配 webPrice-，排除 webPriceDecreasedCompact 等其他 widget
+    const priceKey = keys.find(k => /^webPrice-\d+-/.test(k));
     const priceData = priceKey ? JSON.parse(widgetStates[priceKey]) : null;
     // 移除空格、逗号（欧洲格式），替换为点
     const cleanPrice = (str: string) => str.replace(/\s/g, '').replace(/,/g, '.');
-    const price = parseFloat(cleanPrice(priceData?.price || priceData?.cardPrice || '0'));
-    const original_price = parseFloat(cleanPrice(priceData?.originalPrice || '0'));
+    // 绿色价格优先取 cardPrice，fallback 到 price
+    const price = parseFloat(cleanPrice(priceData?.cardPrice || priceData?.price || '0'));
+    // 黑色价格取 price（当存在 cardPrice 时）
+    const original_price = priceData?.cardPrice
+      ? parseFloat(cleanPrice(priceData?.price || '0'))
+      : parseFloat(cleanPrice(priceData?.originalPrice || '0'));
+
 
     // 3. 提取图片和视频
     const galleryKey = keys.find(k => k.includes('webGallery'));
@@ -1008,30 +985,18 @@ export async function extractProductData(): Promise<ProductDetailData> {
         });
       });
 
-      // ✅ 访问其他颜色的详情页，提取尺码
-      const limiter = OzonApiRateLimiter.getInstance();
-      const { headers } = await getOzonStandardHeaders({ referer: window.location.href });
-
+      // ✅ 访问其他颜色的详情页，提取尺码（通过页面上下文执行）
       for (const variantLink of allVariantLinks) {
         try {
 
           const apiUrl = `${window.location.origin}/api/entrypoint-api.bx/page/json/v2?url=${encodeURIComponent(variantLink.link)}`;
 
-          const response = await limiter.executeWithRetry(async () => {
-            const res = await fetch(apiUrl, {
-              method: 'GET',
-              headers,
-              credentials: 'include'
-            });
-            return res;
-          });
-
-          if (!response.ok) {
-            console.warn(`[EuraFlow] ⚠️ 访问 ${variantLink.link} 失败: ${response.status}`);
+          // ✅ 通过页面上下文执行请求（避免 403 反爬虫检测）
+          const data = await fetchViaPageContext(apiUrl);
+          if (!data) {
+            console.warn(`[EuraFlow] ⚠️ 访问 ${variantLink.link} 失败（页面上下文）`);
             continue;
           }
-
-          const data = await response.json();
           const variantWidgetStates = data.widgetStates || {};
           const variantAspectsKey = Object.keys(variantWidgetStates).find(k => k.includes('webAspects'));
 
