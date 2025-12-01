@@ -442,14 +442,14 @@
   }
 }
 
-// 逾期订单行（超过10天）灰色背景
+// 逾期订单行（超过10天）淡红色背景
 .overdueRow {
   td {
-    background-color: #f5f5f5 !important;
+    background-color: #fff1f0 !important;
   }
 
   &:hover td {
-    background-color: #e8e8e8 !important;
+    background-color: #ffccc7 !important;
   }
 }
 
