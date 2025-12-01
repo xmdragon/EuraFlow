@@ -499,17 +499,18 @@ const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdm
     formatProgressContent: (info) => {
       const typedInfo = info as CategorySyncProgress;
       const { processed_categories = 0, total_categories = 0, current_category = '', percent = 0 } = typedInfo;
+      const isPreparing = current_category.includes('准备中') || current_category.includes('等待');
       return (
         <div>
           <Progress percent={percent} size="small" status="active" />
           <div style={{ marginTop: 8 }}>
-            {current_category.includes('准备中') || current_category.includes('等待')
-              ? current_category
-              : `正在处理 "${current_category}"...`}
+            {isPreparing ? current_category : `正在处理 "${current_category}"...`}
           </div>
-          <div style={{ marginTop: 4, fontSize: 12, color: '#666' }}>
-            已完成 {processed_categories}/{total_categories} 个类目
-          </div>
+          {!isPreparing && (
+            <div style={{ marginTop: 4, fontSize: 12, color: '#666' }}>
+              已完成 {processed_categories}/{total_categories} 个类目
+            </div>
+          )}
         </div>
       );
     },
@@ -556,17 +557,18 @@ const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdm
     formatProgressContent: (info) => {
       const typedInfo = info as FeatureSyncProgress;
       const { synced_categories = 0, total_categories = 0, current_category = '', percent = 0 } = typedInfo;
+      const isPreparing = current_category.includes('准备中') || current_category.includes('等待');
       return (
         <div>
           <Progress percent={percent} size="small" status="active" />
           <div style={{ marginTop: 8 }}>
-            {current_category.includes('准备中') || current_category.includes('等待')
-              ? current_category
-              : `正在同步 "${current_category}" 特征...`}
+            {isPreparing ? current_category : `正在同步 "${current_category}" 特征...`}
           </div>
-          <div style={{ marginTop: 4, fontSize: 12, color: '#666' }}>
-            已完成 {synced_categories}/{total_categories} 个类目
-          </div>
+          {!isPreparing && (
+            <div style={{ marginTop: 4, fontSize: 12, color: '#666' }}>
+              已完成 {synced_categories}/{total_categories} 个类目
+            </div>
+          )}
         </div>
       );
     },

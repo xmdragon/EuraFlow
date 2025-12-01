@@ -103,8 +103,9 @@ interface VariantEditData {
   specifications: string;       // 规格描述（如 "白色,M"）
   spec_details?: Record<string, string>; // 规格详情（如 { color: "白色", size: "M" }）
   image_url: string;           // 变体图片
-  original_price: number;      // 原价格（元）
+  original_price: number;      // 原价格（元）- 真实售价
   original_old_price?: number; // 原划线价（元）
+  min_follow_price?: number;   // 最低跟卖价（元）- 从商品详情获取
   custom_price: number;        // 用户自定义价格（元）
   custom_old_price?: number;   // 用户自定义划线价（元）
   offer_id: string;            // 商家SKU
@@ -114,16 +115,21 @@ interface VariantEditData {
 }
 
 /**
- * 定价策略类型（移除毛利率策略）
+ * 定价策略类型
+ * - discount_original: 基于原价（真实售价）降价
+ * - discount_min_follow: 基于最低跟卖价降价
+ * - fixed_price: 自定义固定价格
+ * - original_price: 使用原价（不调整）
  */
-type PricingStrategy = 'manual' | 'discount';
+type PricingStrategy = 'discount_original' | 'discount_min_follow' | 'fixed_price' | 'original_price';
 
 /**
  * 批量定价配置
  */
 interface BatchPricingConfig {
   strategy: PricingStrategy;
-  discountPercent?: number; // 降价百分比（1-99）
+  discountPercent?: number; // 降价百分比（1-99），用于 discount_original 和 discount_min_follow
+  fixedPrice?: number; // 固定价格（元），用于 fixed_price
 }
 
 /**
@@ -186,8 +192,10 @@ let purchaseNote: string = '';
 /**
  * 显示上架配置弹窗（入口）
  * @param product 商品详情数据（包括变体价格信息）
+ * @param currentRealPrice 当前页面显示的真实售价
+ * @param minFollowPrice 最低跟卖价（可选）
  */
-export async function showPublishModal(product: any = null, currentRealPrice: number | null = null): Promise<void> {
+export async function showPublishModal(product: any = null, currentRealPrice: number | null = null, minFollowPrice: number | null = null): Promise<void> {
   // 注入 EuraFlow 样式（仅注入一次）
   injectEuraflowStyles();
 
@@ -222,9 +230,9 @@ export async function showPublishModal(product: any = null, currentRealPrice: nu
     updateLoadingMessage('正在加载配置数据...');
     await loadConfigData();
 
-    // 3. 初始化变体数据（传递当前页面显示的真实售价）
+    // 3. 初始化变体数据（传递当前页面显示的真实售价和最低跟卖价）
     updateLoadingMessage('正在处理变体数据...');
-    initializeVariants(currentRealPrice);
+    initializeVariants(currentRealPrice, minFollowPrice);
 
     // 4. 渲染主弹窗（仅关闭加载弹窗，不重置数据）
     closeModalElement();
@@ -293,8 +301,9 @@ async function loadWarehouses(shopId: number): Promise<void> {
 /**
  * 初始化变体数据
  * @param pageRealPrice 当前页面显示的真实售价（从DOM提取，最新）
+ * @param minFollowPrice 最低跟卖价（可选）
  */
-function initializeVariants(pageRealPrice: number | null = null): void {
+function initializeVariants(pageRealPrice: number | null = null, minFollowPrice: number | null = null): void {
   variants = [];
 
   if (!productData) return;
@@ -340,6 +349,7 @@ function initializeVariants(pageRealPrice: number | null = null): void {
         image_url: variantImageUrl,
         original_price: price, // 原价格
         original_old_price: price, // 原划线价（与原价格相同）
+        min_follow_price: minFollowPrice || undefined, // 最低跟卖价
         custom_price: customPrice, // 改后售价应用降价策略
         custom_old_price: customPrice * 1.6, // 划线价 = 改后售价 × 1.6（比例 0.625:1）
         offer_id: generateOfferId(), // 使用生成函数
@@ -387,6 +397,7 @@ function initializeVariants(pageRealPrice: number | null = null): void {
       image_url: singleImageUrl,
       original_price: realPrice, // 原价格显示真实售价
       original_old_price: blackPrice,
+      min_follow_price: minFollowPrice || undefined, // 最低跟卖价
       custom_price: customPrice, // 改后售价应用降价策略
       custom_old_price: customPrice * 1.6, // 划线价 = 改后售价 × 1.6（比例 0.625:1）
       offer_id: generateOfferId(),
@@ -848,6 +859,11 @@ function showBatchPricingModal(): void {
   const overlay = createOverlay();
   const modal = createModalContainer('500px');
 
+  // 检查是否有最低跟卖价
+  const hasMinFollowPrice = variants.some(v => v.min_follow_price && v.min_follow_price > 0);
+  const sampleMinFollowPrice = variants.find(v => v.min_follow_price)?.min_follow_price || 0;
+  const sampleOriginalPrice = variants[0]?.original_price || 100;
+
   modal.innerHTML = `
     <div class="ef-batch-pricing-header">
       <h3 class="ef-batch-pricing-header__title">批量定价</h3>
@@ -855,28 +871,65 @@ function showBatchPricingModal(): void {
     </div>
 
     <div class="ef-batch-pricing-options">
-      <label class="ef-batch-pricing-option ef-batch-pricing-option--selected" id="strategy-discount-label">
-        <input type="radio" name="batch-strategy" value="discount" checked class="ef-batch-pricing-option__radio">
+      <!-- 策略1: 基于原价降价 -->
+      <label class="ef-batch-pricing-option ef-batch-pricing-option--selected" id="strategy-discount-original-label">
+        <input type="radio" name="batch-strategy" value="discount_original" checked class="ef-batch-pricing-option__radio">
         <div class="ef-batch-pricing-option__content">
-          <div class="ef-batch-pricing-option__title">降价策略</div>
-          <div class="ef-batch-pricing-option__desc">在原价基础上降价指定百分比</div>
+          <div class="ef-batch-pricing-option__title">基于原价降价</div>
+          <div class="ef-batch-pricing-option__desc">在真实售价基础上降价指定百分比</div>
         </div>
       </label>
 
-      <div id="discount-input-container" class="ef-batch-pricing-discount">
+      <div id="discount-original-input-container" class="ef-batch-pricing-discount">
         <label class="ef-batch-pricing-discount__label">
           <span class="ef-batch-pricing-discount__text">降价</span>
-          <input type="number" id="discount-percent" value="${cachedDiscountPercent}" min="1" max="99" step="1" class="ef-batch-pricing-discount__input">
+          <input type="number" id="discount-original-percent" value="${cachedDiscountPercent}" min="1" max="99" step="1" class="ef-batch-pricing-discount__input">
           <span class="ef-batch-pricing-discount__text">%</span>
-          <span class="ef-batch-pricing-discount__hint">（例：原价 ¥100，降价 ${cachedDiscountPercent}% = ¥${(100 * (1 - cachedDiscountPercent / 100)).toFixed(0)}）</span>
+          <span class="ef-batch-pricing-discount__hint">（例：¥${sampleOriginalPrice.toFixed(0)} × ${100 - cachedDiscountPercent}% = ¥${(sampleOriginalPrice * (1 - cachedDiscountPercent / 100)).toFixed(0)}）</span>
         </label>
       </div>
 
-      <label class="ef-batch-pricing-option" id="strategy-manual-label">
-        <input type="radio" name="batch-strategy" value="manual" class="ef-batch-pricing-option__radio">
+      <!-- 策略2: 基于最低跟卖价降价 -->
+      <label class="ef-batch-pricing-option ${!hasMinFollowPrice ? 'ef-batch-pricing-option--disabled' : ''}" id="strategy-discount-min-follow-label">
+        <input type="radio" name="batch-strategy" value="discount_min_follow" class="ef-batch-pricing-option__radio" ${!hasMinFollowPrice ? 'disabled' : ''}>
         <div class="ef-batch-pricing-option__content">
-          <div class="ef-batch-pricing-option__title">真实售价</div>
-          <div class="ef-batch-pricing-option__desc">使用 OZON 真实售价</div>
+          <div class="ef-batch-pricing-option__title">基于最低跟卖价降价</div>
+          <div class="ef-batch-pricing-option__desc">${hasMinFollowPrice ? `最低跟卖价 ¥${sampleMinFollowPrice.toFixed(2)}` : '当前商品无最低跟卖价数据'}</div>
+        </div>
+      </label>
+
+      <div id="discount-min-follow-input-container" class="ef-batch-pricing-discount" style="display: none;">
+        <label class="ef-batch-pricing-discount__label">
+          <span class="ef-batch-pricing-discount__text">降价</span>
+          <input type="number" id="discount-min-follow-percent" value="${cachedDiscountPercent}" min="1" max="99" step="1" class="ef-batch-pricing-discount__input">
+          <span class="ef-batch-pricing-discount__text">%</span>
+          <span class="ef-batch-pricing-discount__hint">（例：¥${sampleMinFollowPrice.toFixed(0)} × ${100 - cachedDiscountPercent}% = ¥${(sampleMinFollowPrice * (1 - cachedDiscountPercent / 100)).toFixed(0)}）</span>
+        </label>
+      </div>
+
+      <!-- 策略3: 自定义固定价格 -->
+      <label class="ef-batch-pricing-option" id="strategy-fixed-price-label">
+        <input type="radio" name="batch-strategy" value="fixed_price" class="ef-batch-pricing-option__radio">
+        <div class="ef-batch-pricing-option__content">
+          <div class="ef-batch-pricing-option__title">自定义固定价格</div>
+          <div class="ef-batch-pricing-option__desc">为所有变体设置统一价格</div>
+        </div>
+      </label>
+
+      <div id="fixed-price-input-container" class="ef-batch-pricing-discount" style="display: none;">
+        <label class="ef-batch-pricing-discount__label">
+          <span class="ef-batch-pricing-discount__text">价格</span>
+          <input type="number" id="fixed-price-value" value="${sampleOriginalPrice.toFixed(2)}" min="0.01" step="0.01" class="ef-batch-pricing-discount__input" style="width: 100px;">
+          <span class="ef-batch-pricing-discount__text">元</span>
+        </label>
+      </div>
+
+      <!-- 策略4: 使用原价 -->
+      <label class="ef-batch-pricing-option" id="strategy-original-price-label">
+        <input type="radio" name="batch-strategy" value="original_price" class="ef-batch-pricing-option__radio">
+        <div class="ef-batch-pricing-option__content">
+          <div class="ef-batch-pricing-option__title">使用原价</div>
+          <div class="ef-batch-pricing-option__desc">直接使用 OZON 真实售价，不调整</div>
         </div>
       </label>
     </div>
@@ -905,16 +958,27 @@ function showBatchPricingModal(): void {
 function bindBatchPricingEvents(batchOverlay: HTMLElement): void {
   // 策略选择
   const strategyRadios = batchOverlay.querySelectorAll('input[name="batch-strategy"]');
-  const discountContainer = batchOverlay.querySelector('#discount-input-container') as HTMLElement;
+  const discountOriginalContainer = batchOverlay.querySelector('#discount-original-input-container') as HTMLElement;
+  const discountMinFollowContainer = batchOverlay.querySelector('#discount-min-follow-input-container') as HTMLElement;
+  const fixedPriceContainer = batchOverlay.querySelector('#fixed-price-input-container') as HTMLElement;
 
   strategyRadios.forEach((radio) => {
     radio.addEventListener('change', (e) => {
       const value = (e.target as HTMLInputElement).value;
-      if (value === 'discount') {
-        discountContainer.style.display = 'block';
-      } else {
-        discountContainer.style.display = 'none';
+      // 隐藏所有输入容器
+      discountOriginalContainer.style.display = 'none';
+      discountMinFollowContainer.style.display = 'none';
+      fixedPriceContainer.style.display = 'none';
+
+      // 根据选择显示对应的输入容器
+      if (value === 'discount_original') {
+        discountOriginalContainer.style.display = 'block';
+      } else if (value === 'discount_min_follow') {
+        discountMinFollowContainer.style.display = 'block';
+      } else if (value === 'fixed_price') {
+        fixedPriceContainer.style.display = 'block';
       }
+      // original_price 不需要额外输入
     });
   });
 
@@ -930,17 +994,32 @@ function bindBatchPricingEvents(batchOverlay: HTMLElement): void {
     const selectedStrategy = batchOverlay.querySelector('input[name="batch-strategy"]:checked') as HTMLInputElement;
     const strategy = selectedStrategy?.value as PricingStrategy;
 
-    if (strategy === 'discount') {
-      const discountInput = batchOverlay.querySelector('#discount-percent') as HTMLInputElement;
+    if (strategy === 'discount_original') {
+      const discountInput = batchOverlay.querySelector('#discount-original-percent') as HTMLInputElement;
       const discountPercent = parseFloat(discountInput.value) || 0;
       if (discountPercent <= 0 || discountPercent >= 100) {
         alert('降价百分比必须在 1-99 之间');
         return;
       }
-      applyBatchPricing({ strategy: 'discount', discountPercent });
-    } else if (strategy === 'manual') {
-      // 真实售价策略
-      applyBatchPricing({ strategy: 'manual' });
+      applyBatchPricing({ strategy: 'discount_original', discountPercent });
+    } else if (strategy === 'discount_min_follow') {
+      const discountInput = batchOverlay.querySelector('#discount-min-follow-percent') as HTMLInputElement;
+      const discountPercent = parseFloat(discountInput.value) || 0;
+      if (discountPercent <= 0 || discountPercent >= 100) {
+        alert('降价百分比必须在 1-99 之间');
+        return;
+      }
+      applyBatchPricing({ strategy: 'discount_min_follow', discountPercent });
+    } else if (strategy === 'fixed_price') {
+      const fixedPriceInput = batchOverlay.querySelector('#fixed-price-value') as HTMLInputElement;
+      const fixedPrice = parseFloat(fixedPriceInput.value) || 0;
+      if (fixedPrice <= 0) {
+        alert('请输入有效的价格（大于0）');
+        return;
+      }
+      applyBatchPricing({ strategy: 'fixed_price', fixedPrice });
+    } else if (strategy === 'original_price') {
+      applyBatchPricing({ strategy: 'original_price' });
     }
 
     batchOverlay.remove();
@@ -954,35 +1033,40 @@ function applyBatchPricing(config: BatchPricingConfig): void {
   variants.forEach((variant, index) => {
     if (!variant.enabled) return;
 
-    if (config.strategy === 'manual') {
-      // 真实价格策略：使用 OZON 真实售价（original_price）
-      variant.custom_price = variant.original_price;
-      variant.custom_old_price = variant.original_price * 1.6;
+    let newPrice: number;
 
-      // 更新输入框
-      const priceInput = document.querySelector(`.custom-price-input[data-index="${index}"]`) as HTMLInputElement;
-      if (priceInput) priceInput.value = variant.custom_price.toFixed(2);
-
-      const oldPriceInput = document.querySelector(`.custom-old-price-input[data-index="${index}"]`) as HTMLInputElement;
-      if (oldPriceInput) oldPriceInput.value = variant.custom_old_price.toFixed(2);
-    } else if (config.strategy === 'discount' && config.discountPercent) {
-      // 降价策略：价格 = 原价 * (1 - 百分比/100)
-      const newPrice = variant.original_price * (1 - config.discountPercent / 100);
-      variant.custom_price = Math.max(0.01, newPrice); // 最低 0.01 元
-
-      // 自动计算划线价（比例 0.625:1，即划线价 = 改后售价 × 1.6）
-      variant.custom_old_price = variant.custom_price * 1.6;
-
-      // 更新输入框
-      const priceInput = document.querySelector(`.custom-price-input[data-index="${index}"]`) as HTMLInputElement;
-      if (priceInput) priceInput.value = variant.custom_price.toFixed(2);
-
-      const oldPriceInput = document.querySelector(`.custom-old-price-input[data-index="${index}"]`) as HTMLInputElement;
-      if (oldPriceInput) oldPriceInput.value = variant.custom_old_price.toFixed(2);
-
+    if (config.strategy === 'original_price') {
+      // 使用原价策略：直接使用 OZON 真实售价（original_price）
+      newPrice = variant.original_price;
+    } else if (config.strategy === 'discount_original' && config.discountPercent) {
+      // 基于原价降价策略：价格 = 原价 * (1 - 百分比/100)
+      newPrice = variant.original_price * (1 - config.discountPercent / 100);
       // 缓存降价百分比
       setCachedDiscountPercent(config.discountPercent);
+    } else if (config.strategy === 'discount_min_follow' && config.discountPercent) {
+      // 基于最低跟卖价降价策略
+      const basePrice = variant.min_follow_price || variant.original_price;
+      newPrice = basePrice * (1 - config.discountPercent / 100);
+      // 缓存降价百分比
+      setCachedDiscountPercent(config.discountPercent);
+    } else if (config.strategy === 'fixed_price' && config.fixedPrice) {
+      // 自定义固定价格策略
+      newPrice = config.fixedPrice;
+    } else {
+      return; // 无效策略，跳过
     }
+
+    // 确保价格不低于 0.01 元
+    variant.custom_price = Math.max(0.01, newPrice);
+    // 自动计算划线价（比例 0.625:1，即划线价 = 改后售价 × 1.6）
+    variant.custom_old_price = variant.custom_price * 1.6;
+
+    // 更新输入框
+    const priceInput = document.querySelector(`.custom-price-input[data-index="${index}"]`) as HTMLInputElement;
+    if (priceInput) priceInput.value = variant.custom_price.toFixed(2);
+
+    const oldPriceInput = document.querySelector(`.custom-old-price-input[data-index="${index}"]`) as HTMLInputElement;
+    if (oldPriceInput) oldPriceInput.value = variant.custom_old_price.toFixed(2);
   });
 }
 

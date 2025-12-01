@@ -208,8 +208,9 @@ const ProductListing: React.FC = () => {
           return (
             <Space direction="vertical" size={2} style={{ width: '100%' }}>
               {record.warehouse_stocks.map((ws, index) => {
-                // 提取仓库名称缩写（取前4个字符）
-                const warehouseAbbr = ws.warehouse_name?.substring(0, 4) || `W${ws.warehouse_id}`;
+                // 提取仓库名称缩写（取前4个字符），如果没有名称则显示仓库ID或序号
+                const warehouseAbbr = ws.warehouse_name?.substring(0, 4)
+                  || (ws.warehouse_id ? `仓${ws.warehouse_id}` : `仓${index + 1}`);
                 const totalStock = ws.present + ws.reserved;
 
                 return (

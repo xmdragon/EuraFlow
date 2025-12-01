@@ -464,6 +464,16 @@
   background: #f0f7ff;
 }
 
+.ef-batch-pricing-option--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #f5f5f5;
+}
+
+.ef-batch-pricing-option--disabled:hover {
+  border-color: #e0e0e0;
+}
+
 .ef-batch-pricing-option__radio {
   margin-right: 12px;
   cursor: pointer;

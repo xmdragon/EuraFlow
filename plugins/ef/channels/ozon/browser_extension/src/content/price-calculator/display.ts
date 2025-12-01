@@ -574,13 +574,22 @@ function createFollowButton(
         || ozonProduct?.images?.[0]?.url
         || null;
 
+      // 计算最低跟卖价：优先用 competitorMinPrice，其次从 followSellerPrices 取最小值
+      let minFollowPrice: number | null = spbSales?.competitorMinPrice ?? null;
+      if (minFollowPrice == null && spbSales?.followSellerPrices?.length > 0) {
+        const prices = spbSales.followSellerPrices.filter((p: number) => p > 0);
+        if (prices.length > 0) {
+          minFollowPrice = Math.min(...prices);
+        }
+      }
+
       const productData = {
         ...ozonProduct,
         dimensions: finalDimensions,  // 确保包含尺寸数据
         price: realPrice,  // 使用真实售价
         primary_image: primaryImage
       };
-      showPublishModal(productData, realPrice);
+      showPublishModal(productData, realPrice, minFollowPrice);
     } catch (error) {
       console.error('[EuraFlow] 打开跟卖弹窗失败:', error);
       alert('打开上架配置失败，请稍后重试');

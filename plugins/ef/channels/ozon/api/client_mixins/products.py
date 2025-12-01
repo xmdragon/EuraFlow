@@ -261,6 +261,39 @@ class ProductsMixin:
             "POST", "/v4/product/info/stocks", data=data, resource_type="products"
         )
 
+    async def get_fbs_stocks_by_warehouse(self, skus: List[int]) -> Dict[str, Any]:
+        """
+        按仓库获取 FBS 库存信息
+        使用 /v1/product/info/stocks-by-warehouse/fbs API
+
+        此 API 直接返回 warehouse_id 和 warehouse_name，比 /v4/product/info/stocks 更准确
+
+        Args:
+            skus: 商品 SKU 列表（ozon_sku，数值型）
+
+        Returns:
+            库存信息响应，格式：
+            {
+                "result": [
+                    {
+                        "product_id": 123,
+                        "sku": 456,
+                        "warehouse_id": 789,
+                        "warehouse_name": "GUOO",
+                        "present": 10,
+                        "reserved": 0,
+                        "offer_id": "xxx"
+                    }
+                ]
+            }
+        """
+        return await self._request(
+            "POST",
+            "/v1/product/info/stocks-by-warehouse/fbs",
+            data={"sku": skus},
+            resource_type="products"
+        )
+
     async def archive_products(self, product_ids: List[int]) -> Dict[str, Any]:
         """
         将商品归档

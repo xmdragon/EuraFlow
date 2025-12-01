@@ -5,14 +5,13 @@
 """
 
 from datetime import timedelta
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import logging
 
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ....models import OzonShop, OzonProduct
-from ....models import OzonWarehouse
 from ....api.client import OzonAPIClient
 from ....utils.datetime_utils import utcnow
 
@@ -85,9 +84,6 @@ class ProductSyncService:
                 filter_params["last_changed_since"] = last_sync_time.strftime("%Y-%m-%dT%H:%M:%S.000Z")
                 logger.info(f"Incremental sync: fetching products changed since {last_sync_time}")
 
-            # 预加载仓库信息
-            warehouse_map = await self._load_warehouse_map(db, shop_id)
-
             # 状态统计计数器
             counters = {
                 "on_sale": 0,
@@ -120,7 +116,6 @@ class ProductSyncService:
                     visibility_desc=description,
                     is_archived=is_archived,
                     filter_params=filter_params,
-                    warehouse_map=warehouse_map,
                     counters=counters,
                     total_synced=total_synced,
                 )
@@ -167,20 +162,6 @@ class ProductSyncService:
             self.task_manager.fail_task(task_id, str(e))
             raise
 
-    async def _load_warehouse_map(
-        self,
-        db: AsyncSession,
-        shop_id: int
-    ) -> Dict[int, str]:
-        """加载仓库 ID 到名称的映射"""
-        warehouse_map = {}
-        warehouses_result = await db.execute(
-            select(OzonWarehouse).where(OzonWarehouse.shop_id == shop_id)
-        )
-        for warehouse in warehouses_result.scalars().all():
-            warehouse_map[warehouse.warehouse_id] = warehouse.name
-        return warehouse_map
-
     async def _sync_visibility_products(
         self,
         db: AsyncSession,
@@ -191,7 +172,6 @@ class ProductSyncService:
         visibility_desc: str,
         is_archived: bool,
         filter_params: Dict[str, Any],
-        warehouse_map: Dict[int, str],
         counters: Dict[str, int],
         total_synced: int,
     ) -> tuple[int, int]:
@@ -215,7 +195,8 @@ class ProductSyncService:
             # 批量获取各种信息
             products_detail_map = await self.fetcher.fetch_product_details_batch(client, offer_ids)
             products_price_map = await self.fetcher.fetch_prices_batch(client, offer_ids)
-            products_stock_map = await self.fetcher.fetch_stocks_batch(client, offer_ids, warehouse_map)
+            # 使用 /v1/product/info/stocks-by-warehouse/fbs API，直接返回仓库名
+            products_stock_map = await self.fetcher.fetch_stocks_batch(client, products_detail_map)
             products_attributes_map = await self.fetcher.fetch_attributes_batch(
                 client, offer_ids, visibility
             )

@@ -166,61 +166,75 @@ class ProductFetcher:
     async def fetch_stocks_batch(
         self,
         client: OzonAPIClient,
-        offer_ids: List[str],
-        warehouse_map: Dict[int, str],
-        batch_size: int = 1000,
+        products_detail_map: Dict[str, Dict],
+        batch_size: int = 500,
     ) -> Dict[str, Dict]:
         """
-        批量获取库存信息
+        批量获取库存信息（使用 /v1/product/info/stocks-by-warehouse/fbs API）
+
+        此 API 直接返回 warehouse_id 和 warehouse_name，比旧 API 更准确
 
         Args:
             client: OZON API 客户端
-            offer_ids: 商品 offer_id 列表
-            warehouse_map: 仓库 ID 到名称的映射
-            batch_size: 每批获取数量
+            products_detail_map: {offer_id: product_detail} 映射，用于获取 SKU
+            batch_size: 每批获取数量（API 限制 500）
 
         Returns:
             {offer_id: stock_info} 映射
         """
         products_stock_map: Dict[str, Dict] = {}
 
-        if not offer_ids:
+        if not products_detail_map:
             return products_stock_map
 
+        # 构建 SKU 到 offer_id 的映射
+        sku_to_offer_id: Dict[int, str] = {}
+        for offer_id, detail in products_detail_map.items():
+            sku = detail.get("sku")
+            if sku:
+                sku_to_offer_id[int(sku)] = offer_id
+
+        if not sku_to_offer_id:
+            logger.warning("No SKU found in products_detail_map, skipping stock fetch")
+            return products_stock_map
+
+        skus = list(sku_to_offer_id.keys())
+
         try:
-            for i in range(0, len(offer_ids), batch_size):
-                batch_ids = offer_ids[i:i + batch_size]
-                stock_response = await client.get_product_stocks(offer_ids=batch_ids)
+            for i in range(0, len(skus), batch_size):
+                batch_skus = skus[i:i + batch_size]
+                stock_response = await client.get_fbs_stocks_by_warehouse(skus=batch_skus)
 
-                if stock_response.get("items"):
-                    for stock_item in stock_response["items"]:
-                        if stock_item.get("offer_id"):
-                            total_present = 0
-                            total_reserved = 0
-                            warehouse_stocks = []
+                # 按 offer_id 聚合库存数据
+                offer_stocks: Dict[str, List[Dict]] = {}
 
-                            if stock_item.get("stocks"):
-                                for stock_info in stock_item["stocks"]:
-                                    total_present += stock_info.get("present", 0)
-                                    total_reserved += stock_info.get("reserved", 0)
+                for stock_item in stock_response.get("result", []):
+                    offer_id = stock_item.get("offer_id")
+                    if not offer_id:
+                        continue
 
-                                    warehouse_ids = stock_info.get("warehouse_ids", [])
-                                    warehouse_id = warehouse_ids[0] if warehouse_ids else None
-                                    warehouse_name = warehouse_map.get(warehouse_id) if warehouse_id else None
+                    if offer_id not in offer_stocks:
+                        offer_stocks[offer_id] = []
 
-                                    warehouse_stocks.append({
-                                        "warehouse_id": warehouse_id,
-                                        "warehouse_name": warehouse_name,
-                                        "present": stock_info.get("present", 0),
-                                        "reserved": stock_info.get("reserved", 0)
-                                    })
+                    offer_stocks[offer_id].append({
+                        "warehouse_id": stock_item.get("warehouse_id"),
+                        "warehouse_name": stock_item.get("warehouse_name"),
+                        "present": stock_item.get("present", 0),
+                        "reserved": stock_item.get("reserved", 0)
+                    })
 
-                            products_stock_map[stock_item["offer_id"]] = {
-                                "present": total_present,
-                                "reserved": total_reserved,
-                                "total": total_present + total_reserved,
-                                "warehouse_stocks": warehouse_stocks
-                            }
+                # 汇总每个商品的库存
+                for offer_id, stocks in offer_stocks.items():
+                    total_present = sum(s["present"] for s in stocks)
+                    total_reserved = sum(s["reserved"] for s in stocks)
+
+                    products_stock_map[offer_id] = {
+                        "present": total_present,
+                        "reserved": total_reserved,
+                        "total": total_present + total_reserved,
+                        "warehouse_stocks": stocks
+                    }
+
         except Exception as e:
             logger.error(f"Failed to get products stock batch: {e}")
 
