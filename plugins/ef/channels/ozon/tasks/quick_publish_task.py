@@ -636,7 +636,7 @@ def upload_images_to_storage_task(self, dto_dict: Dict, shop_id: int, parent_tas
                     logger.warning("No image storage configured, using original URLs")
                     return ozon_image_urls
 
-                # 获取水印配置：优先使用用户指定的，否则使用激活的
+                # 获取水印配置：仅当用户指定时才使用
                 watermark_config = None
                 if watermark_config_id:
                     from ..models.watermark import WatermarkConfig
@@ -645,13 +645,11 @@ def upload_images_to_storage_task(self, dto_dict: Dict, shop_id: int, parent_tas
                     )
                     watermark_config = result.scalar_one_or_none()
                     if watermark_config:
-                        logger.info(f"Using user-specified watermark config: {watermark_config.name} (ID: {watermark_config_id})")
+                        logger.info(f"Using watermark config: {watermark_config.name} (ID: {watermark_config_id})")
                     else:
-                        logger.warning(f"Watermark config ID {watermark_config_id} not found")
-
-                if not watermark_config:
-                    # 没有指定或指定的不存在，使用激活的配置
-                    watermark_config = await get_active_watermark_config(db, storage_type)
+                        logger.warning(f"Watermark config ID {watermark_config_id} not found, no watermark will be applied")
+                else:
+                    logger.info("No watermark config specified, uploading without watermark")
 
                 # 构建水印转换参数（仅Cloudinary）
                 cloudinary_transformations = None
