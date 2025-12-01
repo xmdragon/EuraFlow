@@ -1000,7 +1000,6 @@ class OzonWebhookHandler:
         logger.info(f"Product {product_id} price changed: {old_price} -> {new_price}")
 
         from ..models import OzonProduct
-        from ..models.products import OzonPriceHistory
         from decimal import Decimal
 
         db_manager = get_db_manager()
@@ -1012,31 +1011,19 @@ class OzonWebhookHandler:
                 )
             )
             product = await session.scalar(stmt)
-            
+
             if product:
-                # 记录价格历史
-                price_history = OzonPriceHistory(
-                    product_id=product.id,
-                    shop_id=self.shop_id,
-                    price_before=Decimal(str(old_price)),
-                    price_after=Decimal(str(new_price)),
-                    change_reason="ozon_platform",
-                    changed_by="ozon",
-                    source="webhook"
-                )
-                session.add(price_history)
-                
                 # 更新商品价格
                 product.price = Decimal(str(new_price))
                 session.add(product)
-                
+
                 await session.commit()
-                
+
                 webhook_event.entity_type = "product"
                 webhook_event.entity_id = str(product.id)
-                
+
                 return {"product_id": product.id, "price_updated": True}
-            
+
             return {"message": "Product not found"}
     
     async def _handle_product_stock_changed(

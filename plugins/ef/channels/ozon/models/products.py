@@ -135,9 +135,8 @@ class OzonProduct(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
     
-    # 关系
-    attributes_list = relationship("OzonProductAttribute", back_populates="product", cascade="all, delete-orphan")
-    price_history = relationship("OzonPriceHistory", back_populates="product", cascade="all, delete-orphan")
+    # 注意：属性数据存储在 OzonProduct.attributes (JSON字段) 和 OzonProduct.ozon_attributes (JSONB字段)
+    # 价格历史功能暂未启用
     
     # 索引
     __table_args__ = (
@@ -149,66 +148,6 @@ class OzonProduct(Base):
         Index("idx_ozon_products_sync", "shop_id", "sync_status", "last_sync_at"),
         Index("idx_ozon_products_title_cn", "title_cn"),
         {"extend_existing": True}
-    )
-
-
-class OzonProductAttribute(Base):
-    """商品属性（类目特定属性）"""
-    __tablename__ = "ozon_product_attributes"
-    
-    id = Column(BigInteger, primary_key=True)
-    product_id = Column(BigInteger, ForeignKey("ozon_products.id"), nullable=False)
-    
-    # 属性信息
-    attribute_id = Column(Integer, nullable=False)
-    attribute_name = Column(String(200))
-    attribute_type = Column(String(50))  # text/number/boolean/select等
-    
-    # 属性值（使用JSON存储不同类型的值）
-    value = Column(JSONB)
-    
-    # 是否必填
-    is_required = Column(Boolean, default=False)
-
-    created_at = Column(DateTime(timezone=True), default=utcnow)
-    
-    # 关系
-    product = relationship("OzonProduct", back_populates="attributes_list")
-    
-    __table_args__ = (
-        UniqueConstraint("product_id", "attribute_id", name="uq_ozon_attributes"),
-    )
-
-
-class OzonPriceHistory(Base):
-    """价格历史记录"""
-    __tablename__ = "ozon_price_history"
-    
-    id = Column(BigInteger, primary_key=True)
-    product_id = Column(BigInteger, ForeignKey("ozon_products.id"), nullable=False)
-    shop_id = Column(Integer, nullable=False)
-    
-    # 价格变更
-    price_before = Column(Numeric(18, 4))
-    price_after = Column(Numeric(18, 4), nullable=False)
-    old_price_before = Column(Numeric(18, 4))
-    old_price_after = Column(Numeric(18, 4))
-    
-    # 变更信息
-    change_reason = Column(String(200))
-    changed_by = Column(String(100))  # user_id or "system"
-    source = Column(String(50))  # manual/rule/competitor/promotion
-    
-    # 生效时间
-    effective_at = Column(DateTime(timezone=True), default=utcnow)
-    created_at = Column(DateTime(timezone=True), default=utcnow)
-    
-    # 关系
-    product = relationship("OzonProduct", back_populates="price_history")
-    
-    __table_args__ = (
-        Index("idx_ozon_price_history", "product_id", "effective_at"),
-        Index("idx_ozon_price_history_shop", "shop_id", "created_at")
     )
 
 

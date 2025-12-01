@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ef_core.utils.logger import get_logger
 from ..api.client import OzonAPIClient
-from ..models.products import OzonProduct, OzonProductAttribute
+from ..models.products import OzonProduct
 from ..models.listing import OzonProductImportLog, OzonMediaImportLog
 
 logger = get_logger(__name__)
@@ -265,7 +265,7 @@ class ProductImportService:
         product_id: int
     ) -> List[Dict[str, Any]]:
         """
-        获取商品属性列表
+        获取商品属性列表（从 OzonProduct.attributes JSON 字段）
 
         Args:
             product_id: 商品ID
@@ -273,40 +273,22 @@ class ProductImportService:
         Returns:
             属性列表
         """
-        stmt = select(OzonProductAttribute).where(
-            OzonProductAttribute.product_id == product_id
-        )
-        attrs = list(await self.db.scalars(stmt))
+        # 从 OzonProduct.attributes JSON 字段读取
+        stmt = select(OzonProduct.attributes).where(OzonProduct.id == product_id)
+        result = await self.db.execute(stmt)
+        attrs_json = result.scalar_one_or_none()
 
-        logger.info(f"Found {len(attrs)} attributes for product_id={product_id}")
+        if not attrs_json:
+            logger.info(f"No attributes found for product_id={product_id}")
+            return []
 
-        attributes = []
-        for attr in attrs:
-            logger.debug(f"Processing attribute: id={attr.attribute_id}, type={type(attr)}, has _sa_instance_state: {hasattr(attr, '_sa_instance_state')}")
-            # 构建属性对象
-            attr_obj = {
-                "id": attr.attribute_id
-            }
+        # attrs_json 已经是 OZON API 格式，直接返回
+        if isinstance(attrs_json, list):
+            logger.info(f"Found {len(attrs_json)} attributes for product_id={product_id}")
+            return attrs_json
 
-            # 处理属性值
-            value = attr.value
-            if isinstance(value, list):
-                attr_obj["values"] = value
-            elif isinstance(value, dict):
-                # 复杂属性（如dictionary_value_id）
-                if "dictionary_value_id" in value:
-                    attr_obj["dictionary_value_id"] = value["dictionary_value_id"]
-                elif "complex_id" in value:
-                    attr_obj["complex_id"] = value["complex_id"]
-                    attr_obj["values"] = value.get("values", [])
-                else:
-                    attr_obj["values"] = [value]
-            else:
-                attr_obj["values"] = [{"value": str(value)}]
-
-            attributes.append(attr_obj)
-
-        return attributes
+        logger.warning(f"Unexpected attributes format for product_id={product_id}: {type(attrs_json)}")
+        return []
 
     async def poll_import_task(
         self,
