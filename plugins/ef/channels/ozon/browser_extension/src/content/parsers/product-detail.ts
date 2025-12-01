@@ -710,33 +710,6 @@ function parseFromWidgetStates(apiResponse: any): Omit<ProductDetailData, 'varia
       }
     }
 
-    // 8. 提取类目特征（webCharacteristics）
-    const attributes: ProductDetailData['attributes'] = [];
-    const characteristicsKey = keys.find(k => k.includes('webCharacteristics'));
-    if (characteristicsKey) {
-      const characteristicsData = JSON.parse(widgetStates[characteristicsKey]);
-      console.log('[EuraFlow] webCharacteristics 原始数据:', JSON.stringify(characteristicsData, null, 2));
-      if (characteristicsData?.characteristics && Array.isArray(characteristicsData.characteristics)) {
-        characteristicsData.characteristics.forEach((char: any) => {
-          // 跳过已经提取的字段（品牌）
-          if (['Бренд'].includes(char.title)) {
-            return;
-          }
-
-          if (char.values && char.values.length > 0) {
-            const value = char.values.map((v: any) => v.text || v.value).join(', ');
-            console.log(`[EuraFlow] webCharacteristics 特征: title=${char.title}, id=${char.id}, value=${value}, values[0].id=${char.values[0]?.id}`);
-            attributes.push({
-              attribute_id: char.id || 0,
-              value,
-              dictionary_value_id: char.values[0]?.id || undefined,
-            });
-          }
-        });
-        console.log('[EuraFlow] parseFromWidgetStates 提取的 attributes:', JSON.stringify(attributes, null, 2));
-      }
-    }
-
     return {
       ozon_product_id,
       title,
@@ -750,7 +723,6 @@ function parseFromWidgetStates(apiResponse: any): Omit<ProductDetailData, 'varia
       category_level_2,
       category_level_3,
       brand,
-      attributes: attributes.length > 0 ? attributes : undefined,
     };
   } catch (error) {
     console.error('[EuraFlow] 解析 widgetStates 失败:', error);
