@@ -217,6 +217,49 @@ class CloudinaryService:
                 "error": str(e)
             }
 
+    def _build_transformation_string(self, transformations: List[Dict]) -> str:
+        """
+        将 transformation 字典列表转换为 Cloudinary URL transformation 字符串
+
+        Args:
+            transformations: Cloudinary转换参数列表，例如：
+                [{"overlay": "watermarks:logo", "opacity": 50, "width": 20, ...}]
+
+        Returns:
+            transformation 字符串，例如：
+                "l_watermarks:logo,o_50,w_20,fl_relative.layer_apply,g_south_east,x_10,y_10"
+        """
+        parts = []
+        for t in transformations:
+            t_parts = []
+            # overlay -> l_
+            if "overlay" in t:
+                t_parts.append(f"l_{t['overlay']}")
+            # opacity -> o_
+            if "opacity" in t:
+                t_parts.append(f"o_{t['opacity']}")
+            # width -> w_
+            if "width" in t:
+                t_parts.append(f"w_{t['width']}")
+            # flags -> fl_ (需要把逗号替换为点号)
+            if "flags" in t:
+                flags = t['flags'].replace(',', '.')
+                t_parts.append(f"fl_{flags}")
+            # gravity -> g_
+            if "gravity" in t:
+                t_parts.append(f"g_{t['gravity']}")
+            # x -> x_
+            if "x" in t:
+                t_parts.append(f"x_{t['x']}")
+            # y -> y_
+            if "y" in t:
+                t_parts.append(f"y_{t['y']}")
+
+            if t_parts:
+                parts.append(",".join(t_parts))
+
+        return "/".join(parts)
+
     async def upload_image_from_url(
         self,
         image_url: str,
@@ -260,10 +303,22 @@ class CloudinaryService:
 
             logger.info(f"Image uploaded from URL successfully: {result['public_id']}")
 
+            # 确定返回的 URL
+            # Cloudinary upload 的 transformation 参数只存储元数据，secure_url 是原图
+            # 如果需要带水印的 URL，必须手动构建带 transformation 的 URL
+            final_url = result["secure_url"]
+            if transformations:
+                # 手动构建带水印的 URL
+                # Cloudinary URL 格式: https://res.cloudinary.com/{cloud}/image/upload/{transformation}/{public_id}
+                # 在 /upload/ 后面插入 transformation 字符串
+                transformation_str = self._build_transformation_string(transformations)
+                final_url = result["secure_url"].replace('/upload/', f'/upload/{transformation_str}/')
+                logger.info(f"Built watermarked URL: {final_url[:100]}...")
+
             return {
                 "success": True,
                 "public_id": result["public_id"],
-                "url": result["secure_url"],
+                "url": final_url,
                 "width": result.get("width"),
                 "height": result.get("height"),
                 "bytes": result.get("bytes"),

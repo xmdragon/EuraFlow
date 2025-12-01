@@ -603,7 +603,7 @@ def upload_images_to_storage_task(self, dto_dict: Dict, shop_id: int, parent_tas
     offer_id = dto_dict.get("offer_id", "unknown")
     watermark_config_id = dto_dict.get("watermark_config_id")  # 用户指定的水印配置
 
-    logger.info(f"[Step 1] Uploading images: offer_id={offer_id}, count={len(ozon_image_urls)}")
+    logger.info(f"[Step 1] Uploading images: offer_id={offer_id}, count={len(ozon_image_urls)}, watermark_config_id={watermark_config_id}")
 
     try:
         update_task_progress(
@@ -694,9 +694,11 @@ def upload_images_to_storage_task(self, dto_dict: Dict, shop_id: int, parent_tas
                         if storage_type == "aliyun_oss" and watermark_config:
                             watermarked_url = _build_aliyun_oss_watermark_url(base_url, watermark_config)
                             uploaded.append(watermarked_url)
-                            logger.info(f"Image {idx} uploaded with OSS watermark URL")
+                            logger.info(f"Image {idx} uploaded with OSS watermark URL: {watermarked_url[:100]}...")
                         else:
+                            # Cloudinary 已经在 upload_image_from_url 中处理了水印 URL
                             uploaded.append(base_url)
+                            logger.info(f"Image {idx} uploaded, URL: {base_url[:100]}...")
                     else:
                         logger.error(f"Image {idx} upload failed: {result.get('error')}")
                         uploaded.append(ozon_image_urls[idx])
