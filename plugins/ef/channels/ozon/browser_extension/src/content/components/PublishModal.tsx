@@ -1175,7 +1175,7 @@ async function handleFollowPdp(): Promise<void> {
     // 构建请求数据
     const requestData = {
       shop_id: selectedShopId,
-      warehouse_ids: selectedWarehouseIds,
+      warehouse_id: selectedWarehouseIds[0],
       watermark_config_id: selectedWatermarkId || undefined,
       source_url: window.location.href,
       variants: variantsData,

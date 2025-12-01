@@ -844,8 +844,7 @@ def update_product_stock_task(self, prev_result: Dict, dto_dict: Dict, shop_id: 
     ozon_task_id = prev_result.get("ozon_task_id")
     offer_id = prev_result["offer_id"]
     stock = dto_dict.get("stock", 0)
-    warehouse_ids = dto_dict.get("warehouse_ids", [])
-    warehouse_id = warehouse_ids[0] if warehouse_ids else None
+    warehouse_id = dto_dict.get("warehouse_id")
 
     logger.info(f"[Step 3] Waiting for product creation: ozon_task_id={ozon_task_id}, warehouse_id={warehouse_id}, stock={stock}")
 

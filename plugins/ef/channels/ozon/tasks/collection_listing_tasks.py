@@ -215,7 +215,7 @@ def process_follow_pdp_listing(record_id: int) -> dict:
                         variant_dto = {
                             # 基础信息
                             "shop_id": shop_id,
-                            "warehouse_ids": listing_payload.get("warehouse_ids", []),
+                            "warehouse_id": listing_payload.get("warehouse_id"),
                             "watermark_config_id": listing_payload.get("watermark_config_id"),
 
                             # 变体特有字段
