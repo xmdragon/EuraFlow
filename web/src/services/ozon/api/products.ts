@@ -100,6 +100,18 @@ export const deleteProduct = async (productId: number) => {
 };
 
 /**
+ * 批量删除商品
+ * @param productIds 要删除的商品ID列表
+ * @returns 删除结果，包含成功数量和错误列表
+ */
+export const batchDeleteProducts = async (productIds: number[]) => {
+  const response = await apiClient.post("/ozon/products/batch-delete", {
+    product_ids: productIds,
+  });
+  return response.data;
+};
+
+/**
  * 批量更新价格
  */
 export const updatePrices = async (updates: PriceUpdate[], shopId?: number) => {

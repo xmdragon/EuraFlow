@@ -8,6 +8,7 @@ import {
   DollarOutlined,
   ShoppingOutlined,
   SettingOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import { Space, Button, Tooltip } from 'antd';
 import React from 'react';
@@ -19,12 +20,16 @@ export interface ProductToolbarProps {
   canSync: boolean;
   /** 是否可以操作 */
   canOperate: boolean;
+  /** 是否可以删除 */
+  canDelete?: boolean;
   /** 选中的行数量 */
   selectedRowsCount: number;
   /** 同步是否正在进行 */
   syncLoading: boolean;
   /** 是否选择了店铺 */
   hasSelectedShop?: boolean;
+  /** 是否在归档标签页 */
+  isArchivedTab?: boolean;
   /** 增量同步回调 */
   onIncrementalSync: () => void;
   /** 全量同步回调 */
@@ -35,6 +40,8 @@ export interface ProductToolbarProps {
   onBatchStockUpdate: () => void;
   /** 列配置回调 */
   onColumnSettings: () => void;
+  /** 批量删除回调 */
+  onBatchDelete?: () => void;
 }
 
 /**
@@ -43,14 +50,17 @@ export interface ProductToolbarProps {
 export const ProductToolbar: React.FC<ProductToolbarProps> = ({
   canSync,
   canOperate,
+  canDelete = false,
   selectedRowsCount,
   syncLoading,
   hasSelectedShop = true,
+  isArchivedTab = false,
   onIncrementalSync,
   onFullSync,
   onBatchPriceUpdate,
   onBatchStockUpdate,
   onColumnSettings,
+  onBatchDelete,
 }) => {
   return (
     <div className={styles.actionWrapper}>
@@ -125,6 +135,24 @@ export const ProductToolbar: React.FC<ProductToolbarProps> = ({
               disabled={!hasSelectedShop}
             >
               批量改库存
+            </Button>
+          </Tooltip>
+        )}
+        {canDelete && isArchivedTab && (
+          <Tooltip
+            title={
+              selectedRowsCount === 0
+                ? '请先选择要删除的商品'
+                : `删除选中的 ${selectedRowsCount} 个商品（仅限无SKU的归档商品）`
+            }
+          >
+            <Button
+              danger
+              icon={<DeleteOutlined />}
+              onClick={onBatchDelete}
+              disabled={selectedRowsCount === 0}
+            >
+              批量删除
             </Button>
           </Tooltip>
         )}

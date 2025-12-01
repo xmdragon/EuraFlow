@@ -335,18 +335,19 @@ class ProductsMixin:
             "POST", "/v1/product/unarchive", data={"product_id": product_ids}, resource_type="products"
         )
 
-    async def delete_products(self, product_ids: List[int]) -> Dict[str, Any]:
+    async def delete_products(self, offer_ids: List[str]) -> Dict[str, Any]:
         """
-        删除商品（仅限未通过审核的商品）
+        删除商品（仅限未通过审核、没有SKU的归档商品）
 
         Args:
-            product_ids: 要删除的商品ID列表
+            offer_ids: 要删除的商品 offer_id 列表
 
         Returns:
-            删除结果
+            删除结果，格式：{"status": [{"offer_id": "xxx", "is_deleted": true, "error": ""}]}
         """
+        products = [{"offer_id": offer_id} for offer_id in offer_ids]
         return await self._request(
-            "POST", "/v2/products/delete", data={"product_ids": product_ids}, resource_type="products"
+            "POST", "/v2/products/delete", data={"products": products}, resource_type="products"
         )
 
     async def update_product_media(self, products: List[Dict[str, Any]]) -> Dict[str, Any]:

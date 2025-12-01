@@ -601,6 +601,7 @@ const ListingRecords: React.FC = () => {
           setDetailModalVisible(false);
           setCurrentRecord(null);
         }}
+        isListingRecord={true}
       />
     </div>
   );

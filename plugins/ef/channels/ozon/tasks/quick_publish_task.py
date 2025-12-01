@@ -686,7 +686,7 @@ def upload_images_to_storage_task(self, dto_dict: Dict, shop_id: int, parent_tas
                 uploaded = []
                 for idx, result in enumerate(results):
                     if isinstance(result, Exception):
-                        logger.error(f"Image {idx} upload failed: {result}")
+                        logger.error(f"Image {idx} upload failed with exception: {type(result).__name__}: {result or repr(result)}")
                         uploaded.append(ozon_image_urls[idx])
                     elif result.get('success'):
                         base_url = result['url']
@@ -700,7 +700,8 @@ def upload_images_to_storage_task(self, dto_dict: Dict, shop_id: int, parent_tas
                             uploaded.append(base_url)
                             logger.info(f"Image {idx} uploaded, URL: {base_url[:100]}...")
                     else:
-                        logger.error(f"Image {idx} upload failed: {result.get('error')}")
+                        error_msg = result.get('error') or 'Unknown error (no error message)'
+                        logger.error(f"Image {idx} upload failed: {error_msg}, result={result}")
                         uploaded.append(ozon_image_urls[idx])
 
                     progress = 5 + int((idx + 1) / len(ozon_image_urls) * 25)

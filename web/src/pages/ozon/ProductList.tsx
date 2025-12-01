@@ -245,6 +245,7 @@ const ProductList: React.FC = () => {
     handleArchive,
     handleRestore,
     handleDelete,
+    handleBatchDelete,
   } = useProductOperations(selectedShop);
 
   // 商品同步 Hook
@@ -418,14 +419,17 @@ const ProductList: React.FC = () => {
         <ProductToolbar
           canSync={canSync}
           canOperate={canOperate}
+          canDelete={canDelete}
           selectedRowsCount={selectedRows.length}
           syncLoading={syncProductsMutation.isPending}
           hasSelectedShop={selectedShop !== null}
+          isArchivedTab={filterValues.status === 'archived'}
           onIncrementalSync={() => handleSync(false)}
           onFullSync={() => handleSync(true)}
           onBatchPriceUpdate={handleBatchPriceUpdate}
           onBatchStockUpdate={handleBatchStockUpdate}
           onColumnSettings={openColumnConfig}
+          onBatchDelete={() => handleBatchDelete(selectedRows)}
         />
 
         {/* 商品表格 */}

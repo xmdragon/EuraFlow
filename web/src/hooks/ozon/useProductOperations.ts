@@ -283,6 +283,65 @@ export const useProductOperations = (selectedShop: number | null) => {
     });
   };
 
+  // 批量删除商品
+  const handleBatchDelete = (products: ozonApi.Product[]) => {
+    if (!products || products.length === 0) {
+      notifyError('操作失败', '请选择要删除的商品');
+      return;
+    }
+
+    // 检查是否所有商品都已归档
+    const notArchived = products.filter((p) => !p.ozon_archived);
+    if (notArchived.length > 0) {
+      notifyError(
+        '操作失败',
+        `以下商品未归档，无法删除：${notArchived.map((p) => p.offer_id).join(', ')}`
+      );
+      return;
+    }
+
+    // 检查是否有商品有SKU（OZON不允许删除有SKU的商品）
+    const hasSku = products.filter((p) => p.ozon_sku);
+    const noSku = products.filter((p) => !p.ozon_sku);
+
+    let contentMessage = `确定要删除选中的 ${products.length} 个商品吗？此操作不可恢复！`;
+    if (hasSku.length > 0) {
+      contentMessage += `\n\n⚠️ 注意：${hasSku.length} 个商品有SKU，OZON不允许删除有SKU的商品，将跳过这些商品。`;
+      if (noSku.length > 0) {
+        contentMessage += `\n将删除 ${noSku.length} 个无SKU的商品。`;
+      }
+    }
+
+    modal.confirm({
+      title: '确认批量删除？',
+      content: contentMessage,
+      okType: 'danger',
+      okText: '删除',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          const productIds = products.map((p) => p.id);
+          const result = await ozonApi.batchDeleteProducts(productIds);
+
+          if (result.success) {
+            notifySuccess('删除成功', result.message || '商品删除成功');
+            queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
+            queryClient.invalidateQueries({ queryKey: ['ozonStatistics'] });
+          } else {
+            // 显示详细错误
+            const errorDetail = result.errors?.length > 0
+              ? `\n${result.errors.slice(0, 5).join('\n')}${result.errors.length > 5 ? `\n... 等 ${result.errors.length} 个错误` : ''}`
+              : '';
+            notifyError('删除失败', (result.message || '商品删除失败') + errorDetail);
+          }
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : '批量删除失败';
+          notifyError('删除失败', errorMsg);
+        }
+      },
+    });
+  };
+
   return {
     // State
     priceModalVisible,
@@ -308,5 +367,6 @@ export const useProductOperations = (selectedShop: number | null) => {
     handleArchive,
     handleRestore,
     handleDelete,
+    handleBatchDelete,
   };
 };

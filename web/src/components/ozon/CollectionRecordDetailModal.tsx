@@ -1,16 +1,20 @@
 /**
- * 采集记录详情弹窗
+ * 采集/上架记录详情弹窗
  * UI风格参考浏览器扩展的"跟卖"弹窗
  * 支持变体切换和图片预览
  */
-import { LinkOutlined } from '@ant-design/icons';
+import { LinkOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import { Modal, Descriptions, Image, Tag } from 'antd';
 import dayjs from 'dayjs';
 import React, { useState, useMemo } from 'react';
 
 import styles from './CollectionRecordDetailModal.module.scss';
 
+import { useQuery } from '@tanstack/react-query';
+
 import { useCurrency } from '@/hooks/useCurrency';
+import * as ozonApi from '@/services/ozon';
+import * as watermarkApi from '@/services/watermarkApi';
 
 interface Variant {
   variant_id: string;
@@ -29,6 +33,16 @@ interface ProductDimensions {
   width?: number;
   height?: number;
   weight?: number;
+}
+
+interface ListingRequestPayload {
+  warehouse_id?: number;
+  watermark_config_id?: number;
+  variants?: Array<{
+    variant_id: string;
+    stock?: number;
+  }>;
+  [key: string]: unknown;
 }
 
 interface CollectionRecordData {
@@ -52,6 +66,8 @@ interface CollectionRecordData {
     dimensions?: ProductDimensions;
     [key: string]: unknown;
   };
+  listing_request_payload?: ListingRequestPayload;
+  listing_status?: string;
   created_at: string;
   updated_at: string;
 }
@@ -60,15 +76,44 @@ interface CollectionRecordDetailModalProps {
   visible: boolean;
   record: CollectionRecordData | null;
   onClose: () => void;
+  /** 是否为上架记录（显示上架相关信息） */
+  isListingRecord?: boolean;
 }
 
 const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = ({
   visible,
   record,
   onClose,
+  isListingRecord = false,
 }) => {
   const { formatPrice } = useCurrency();
   const [selectedVariantIndex, setSelectedVariantIndex] = useState(0);
+
+  // 获取店铺数据
+  const { data: shopsData } = useQuery({
+    queryKey: ['ozon', 'shops'],
+    queryFn: () => ozonApi.getShops(),
+    staleTime: 5 * 60 * 1000,
+    enabled: isListingRecord && visible,
+  });
+  const shops = shopsData?.data || [];
+
+  // 获取仓库数据
+  const { data: warehousesData } = useQuery({
+    queryKey: ['ozon', 'warehouses', record?.shop_id],
+    queryFn: () => ozonApi.getWarehouses(record?.shop_id as number),
+    staleTime: 5 * 60 * 1000,
+    enabled: isListingRecord && visible && !!record?.shop_id,
+  });
+  const warehouses = warehousesData?.data || [];
+
+  // 获取水印配置
+  const { data: watermarkConfigs } = useQuery({
+    queryKey: ['watermarkConfigs'],
+    queryFn: () => watermarkApi.getWatermarkConfigs(),
+    staleTime: 5 * 60 * 1000,
+    enabled: isListingRecord && visible,
+  });
 
   // 当弹窗关闭时重置选中的变体
   const handleClose = () => {
@@ -98,6 +143,25 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
 
   const mainImage = currentVariant?.image_url || currentImages[0] || '';
 
+  // 获取上架相关信息
+  const listingPayload = record.listing_request_payload;
+  // 店铺字段: id, shop_name
+  const shopInfo = shops?.find((s: { id: number }) => s.id === record.shop_id);
+  const shopName = shopInfo?.shop_name || '-';
+  // 仓库字段: warehouse_id, name
+  const warehouseInfo = warehouses?.find((w: { warehouse_id: number }) => w.warehouse_id === listingPayload?.warehouse_id);
+  const warehouseName = warehouseInfo?.name || '-';
+  // 水印配置字段: id, name
+  const watermarkConfig = watermarkConfigs?.find((w: { id: number }) => w.id === listingPayload?.watermark_config_id);
+  const watermarkName = watermarkConfig?.name || '未选择';
+
+  // 计算变体库存信息
+  const getVariantStock = (variantId: string): number | undefined => {
+    const variantPayload = listingPayload?.variants?.find(v => v.variant_id === variantId);
+    return variantPayload?.stock;
+  };
+  const currentStock = currentVariant ? getVariantStock(currentVariant.variant_id) : undefined;
+
   // 获取当前价格
   const currentPrice = currentVariant?.price || product_data?.price || 0;
   const currentOriginalPrice = currentVariant?.original_price || product_data?.old_price;
@@ -115,7 +179,9 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
       title={
         <div className={styles.modalTitle}>
           <span>商品详情</span>
-          <Tag color="blue">采集记录</Tag>
+          <Tag color={isListingRecord ? 'green' : 'blue'}>
+            {isListingRecord ? '上架记录' : '采集记录'}
+          </Tag>
         </div>
       }
     >
@@ -172,7 +238,7 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
             </div>
           )}
           <div className={styles.metadata}>
-            <span>采集时间：{dayjs(record.created_at).format('YYYY-MM-DD HH:mm:ss')}</span>
+            <span>{isListingRecord ? '上架时间' : '采集时间'}：{dayjs(record.created_at).format('YYYY-MM-DD HH:mm:ss')}</span>
             {currentImages.length > 1 && (
               <span>{currentImages.length} 张图片</span>
             )}
@@ -204,6 +270,32 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* 上架信息区域（仅上架记录显示） */}
+      {isListingRecord && (
+        <div className={styles.detailSection}>
+          <Descriptions bordered size="small" column={2} labelStyle={{ width: 80 }} title="上架配置">
+            <Descriptions.Item label="上架店铺">
+              {shopName}
+            </Descriptions.Item>
+            <Descriptions.Item label="仓库">
+              {warehouseName}
+            </Descriptions.Item>
+            <Descriptions.Item label="水印">
+              {listingPayload?.watermark_config_id ? (
+                <Tag color="blue">{watermarkName}</Tag>
+              ) : (
+                <Tag>未选择</Tag>
+              )}
+            </Descriptions.Item>
+            {currentStock !== undefined && (
+              <Descriptions.Item label="库存">
+                {currentStock}
+              </Descriptions.Item>
+            )}
+          </Descriptions>
         </div>
       )}
 

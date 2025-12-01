@@ -1148,7 +1148,16 @@ async def delete_product(
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(require_role("operator"))
 ):
-    """删除商品（需要操作员权限）"""
+    """
+    删除商品（需要操作员权限）
+
+    流程：
+    1. 检查商品是否已归档（只有归档商品才能删除）
+    2. 调用 OZON API 删除商品
+    3. OZON 删除成功后，删除本地记录
+    """
+    from .client import OzonAPIClient
+
     # 获取商品
     result = await db.execute(
         select(OzonProduct).where(OzonProduct.id == product_id)
@@ -1156,22 +1165,236 @@ async def delete_product(
     product = result.scalar_one_or_none()
 
     if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+        raise HTTPException(status_code=404, detail="商品不存在")
 
-    try:
-        title = product.title
-        await db.delete(product)
-        await db.commit()
-
+    # 检查是否已归档
+    if not product.ozon_archived:
         return {
-            "success": True,
-            "message": f"商品 {title} 已删除"
+            "success": False,
+            "message": "只能删除已归档的商品，请先归档商品"
         }
 
+    # 检查是否有 OZON product_id
+    if not product.ozon_product_id:
+        # 没有 OZON product_id，说明可能是本地创建但未同步的商品，直接删除本地
+        try:
+            offer_id = product.offer_id
+            await db.delete(product)
+            await db.commit()
+            return {
+                "success": True,
+                "message": f"商品 {offer_id} 已删除（本地记录）"
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"删除失败: {str(e)}"
+            }
+
+    # 获取店铺信息
+    shop_result = await db.execute(
+        select(OzonShop).where(OzonShop.id == product.shop_id)
+    )
+    shop = shop_result.scalar_one_or_none()
+
+    if not shop:
+        return {
+            "success": False,
+            "message": "店铺不存在"
+        }
+
+    try:
+        offer_id = product.offer_id
+
+        # 调用 OZON API 删除商品（使用 offer_id）
+        async with OzonAPIClient(shop.client_id, shop.api_key_enc, shop.id) as client:
+            ozon_result = await client.delete_products([offer_id])
+
+            # 检查 OZON API 返回结果
+            # 返回格式：{"status": [{"offer_id": "xxx", "is_deleted": true, "error": ""}]}
+            status_list = ozon_result.get("status", [])
+            if status_list:
+                item_status = status_list[0]
+                if item_status.get("is_deleted"):
+                    # OZON 删除成功，删除本地记录
+                    await db.delete(product)
+                    await db.commit()
+
+                    return {
+                        "success": True,
+                        "message": f"商品 {offer_id} 已从 OZON 和本地删除"
+                    }
+                else:
+                    # OZON 删除失败
+                    error_msg = item_status.get("error") or "未知错误"
+                    return {
+                        "success": False,
+                        "message": f"OZON 删除失败: {error_msg}"
+                    }
+            else:
+                # 没有返回状态，可能是请求格式错误
+                error_msg = ozon_result.get("message") or ozon_result.get("error") or str(ozon_result)
+                return {
+                    "success": False,
+                    "message": f"OZON 删除失败: {error_msg}"
+                }
+
     except Exception as e:
+        logging.error(f"删除商品失败: {e}", exc_info=True)
         return {
             "success": False,
             "message": f"删除失败: {str(e)}"
+        }
+
+
+class BatchDeleteRequest(BaseModel):
+    """批量删除请求"""
+    product_ids: List[int] = Field(..., description="要删除的商品ID列表")
+
+
+@router.post("/products/batch-delete")
+async def batch_delete_products(
+    request: BatchDeleteRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
+):
+    """
+    批量删除商品（需要操作员权限）
+
+    前置条件：
+    1. 商品必须已归档（ozon_archived=True）
+    2. 商品必须没有 SKU（ozon_sku 为空）- OZON只允许删除没有通过审核、没有SKU的归档商品
+
+    流程：
+    1. 检查所有商品是否满足删除条件
+    2. 按店铺分组，调用 OZON API 批量删除
+    3. 删除成功的商品从本地删除
+    """
+    from .client import OzonAPIClient
+
+    product_ids = request.product_ids
+    if not product_ids:
+        return {
+            "success": False,
+            "message": "请选择要删除的商品"
+        }
+
+    # 查询所有商品
+    result = await db.execute(
+        select(OzonProduct).where(OzonProduct.id.in_(product_ids))
+    )
+    products = result.scalars().all()
+
+    if not products:
+        return {
+            "success": False,
+            "message": "未找到要删除的商品"
+        }
+
+    # 检查商品是否满足删除条件
+    errors = []
+    valid_products = []
+
+    for product in products:
+        if not product.ozon_archived:
+            errors.append(f"{product.offer_id}: 未归档，请先归档商品")
+        elif product.ozon_sku:
+            errors.append(f"{product.offer_id}: 有SKU，OZON不允许删除有SKU的商品")
+        else:
+            valid_products.append(product)
+
+    if errors and not valid_products:
+        # 全部不满足条件
+        return {
+            "success": False,
+            "message": "所有商品都不满足删除条件",
+            "errors": errors
+        }
+
+    # 按店铺分组
+    shop_products: Dict[int, List[OzonProduct]] = {}
+    for product in valid_products:
+        if product.shop_id not in shop_products:
+            shop_products[product.shop_id] = []
+        shop_products[product.shop_id].append(product)
+
+    # 查询店铺信息
+    shop_ids = list(shop_products.keys())
+    shop_result = await db.execute(
+        select(OzonShop).where(OzonShop.id.in_(shop_ids))
+    )
+    shops = {shop.id: shop for shop in shop_result.scalars().all()}
+
+    # 执行删除
+    deleted_count = 0
+    delete_errors = []
+
+    for shop_id, products_to_delete in shop_products.items():
+        shop = shops.get(shop_id)
+        if not shop:
+            for product in products_to_delete:
+                delete_errors.append(f"{product.offer_id}: 店铺不存在")
+            continue
+
+        try:
+            # 分离本地商品和已同步商品
+            local_only = [p for p in products_to_delete if not p.ozon_product_id]
+            synced = [p for p in products_to_delete if p.ozon_product_id]
+
+            # 直接删除本地商品
+            for product in local_only:
+                await db.delete(product)
+                deleted_count += 1
+                logger.info(f"删除本地商品: {product.offer_id}")
+
+            # 调用 OZON API 删除已同步商品
+            if synced:
+                offer_ids = [p.offer_id for p in synced]
+                async with OzonAPIClient(shop.client_id, shop.api_key_enc, shop.id) as client:
+                    ozon_result = await client.delete_products(offer_ids)
+
+                    # 解析 OZON 返回结果
+                    status_list = ozon_result.get("status", [])
+                    status_map = {s.get("offer_id"): s for s in status_list}
+
+                    for product in synced:
+                        status = status_map.get(product.offer_id, {})
+                        if status.get("is_deleted"):
+                            await db.delete(product)
+                            deleted_count += 1
+                            logger.info(f"删除OZON商品: {product.offer_id}")
+                        else:
+                            error_msg = status.get("error") or "删除失败"
+                            delete_errors.append(f"{product.offer_id}: {error_msg}")
+
+        except Exception as e:
+            logger.error(f"店铺 {shop_id} 批量删除失败: {e}", exc_info=True)
+            for product in products_to_delete:
+                delete_errors.append(f"{product.offer_id}: {str(e)}")
+
+    await db.commit()
+
+    # 合并所有错误
+    all_errors = errors + delete_errors
+
+    if deleted_count == 0:
+        return {
+            "success": False,
+            "message": "删除失败",
+            "errors": all_errors
+        }
+    elif all_errors:
+        return {
+            "success": True,
+            "message": f"部分删除成功: {deleted_count} 个商品已删除，{len(all_errors)} 个失败",
+            "deleted_count": deleted_count,
+            "errors": all_errors
+        }
+    else:
+        return {
+            "success": True,
+            "message": f"{deleted_count} 个商品已删除",
+            "deleted_count": deleted_count
         }
 
 

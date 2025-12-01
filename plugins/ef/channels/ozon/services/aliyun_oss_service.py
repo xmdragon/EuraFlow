@@ -192,6 +192,10 @@ class AliyunOssService:
         """
         同步上传图片到OSS（内部方法）
         """
+        # 确保客户端已初始化
+        if not hasattr(self, 'client') or self.client is None:
+            raise ValueError("OSS client not initialized. Please call configure() first.")
+
         # 构建对象键（类似 Cloudinary 的 public_id）
         object_key = f"{folder}/{public_id}.jpg"
 
@@ -256,10 +260,10 @@ class AliyunOssService:
             return result
 
         except Exception as e:
-            logger.error(f"Failed to upload image to OSS: {e}")
+            logger.error(f"Failed to upload image to OSS: {e}", exc_info=True)
             return {
                 "success": False,
-                "error": str(e)
+                "error": str(e) or repr(e)
             }
 
     async def upload_base64_image(
@@ -328,10 +332,10 @@ class AliyunOssService:
             return await self.upload_image(image_data, public_id, folder)
 
         except Exception as e:
-            logger.error(f"Failed to upload image from URL to OSS: {e}")
+            logger.error(f"Failed to upload image from URL to OSS: {e}", exc_info=True)
             return {
                 "success": False,
-                "error": str(e)
+                "error": str(e) or repr(e)
             }
 
     async def delete_resource(self, public_id: str) -> Dict[str, Any]:
