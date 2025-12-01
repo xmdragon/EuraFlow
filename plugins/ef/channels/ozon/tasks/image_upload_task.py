@@ -12,7 +12,7 @@ from ef_core.tasks.celery_app import celery_app
 from ef_core.database import get_task_db_manager
 from ef_core.utils.logger import get_logger
 
-from ..models.products import OzonProduct, OzonProductVariant
+from ..models.products import OzonProduct
 from ..services.image_storage_factory import ImageStorageFactory
 from ..utils.image_utils import has_xiangji_urls, extract_xiangji_urls, replace_urls
 
@@ -92,19 +92,11 @@ async def _upload_images_async(product_id: int, variant_id: Optional[int], task_
 
     async with db_manager.get_session() as db:
         try:
-            # 1. 查询商品或变体的images字段
-            if variant_id:
-                # 查询变体
-                stmt = select(OzonProductVariant).where(OzonProductVariant.id == variant_id)
-                result = await db.execute(stmt)
-                entity = result.scalar_one_or_none()
-                entity_type = "variant"
-            else:
-                # 查询主商品
-                stmt = select(OzonProduct).where(OzonProduct.id == product_id)
-                result = await db.execute(stmt)
-                entity = result.scalar_one_or_none()
-                entity_type = "product"
+            # 1. 查询商品的images字段
+            stmt = select(OzonProduct).where(OzonProduct.id == product_id)
+            result = await db.execute(stmt)
+            entity = result.scalar_one_or_none()
+            entity_type = "product"
 
             if not entity:
                 logger.error(f"[Task {task_id}] {entity_type} not found: product_id={product_id}, variant_id={variant_id}")
@@ -186,14 +178,9 @@ async def _upload_images_async(product_id: int, variant_id: Optional[int], task_
             if uploaded_count > 0:
                 new_images = replace_urls(images, url_mapping)
 
-                if variant_id:
-                    stmt = update(OzonProductVariant).where(
-                        OzonProductVariant.id == variant_id
-                    ).values(images=new_images)
-                else:
-                    stmt = update(OzonProduct).where(
-                        OzonProduct.id == product_id
-                    ).values(images=new_images)
+                stmt = update(OzonProduct).where(
+                    OzonProduct.id == product_id
+                ).values(images=new_images)
 
                 await db.execute(stmt)
                 await db.commit()

@@ -65,7 +65,8 @@ class UpdateDomesticTrackingDTO(BaseModel):
 
 class DiscardPostingDTO(BaseModel):
     """丢弃发货单请求 DTO"""
-    reason: str = Field(..., description="丢弃原因")
+    reason: Optional[str] = Field(None, description="丢弃原因")
+    sync_to_kuajing84: bool = Field(False, description="是否同步到跨境巴士")
 
 @router.post("/postings/{posting_number}/prepare")
 async def prepare_stock(
