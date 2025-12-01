@@ -499,12 +499,14 @@ const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdm
     formatProgressContent: (info) => {
       const typedInfo = info as CategorySyncProgress;
       const { processed_categories = 0, total_categories = 0, current_category = '', percent = 0 } = typedInfo;
-      const isPreparing = current_category.includes('准备中') || current_category.includes('等待');
+      // 准备中判断：包含关键词 或 进度数据都是0
+      const isPreparing = current_category.includes('准备中') || current_category.includes('等待')
+        || (processed_categories === 0 && total_categories === 0);
       return (
         <div>
           <Progress percent={percent} size="small" status="active" />
           <div style={{ marginTop: 8 }}>
-            {isPreparing ? current_category : `正在处理 "${current_category}"...`}
+            {isPreparing ? (current_category || '准备中...') : `正在处理 "${current_category}"...`}
           </div>
           {!isPreparing && (
             <div style={{ marginTop: 4, fontSize: 12, color: '#666' }}>
@@ -557,12 +559,14 @@ const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdm
     formatProgressContent: (info) => {
       const typedInfo = info as FeatureSyncProgress;
       const { synced_categories = 0, total_categories = 0, current_category = '', percent = 0 } = typedInfo;
-      const isPreparing = current_category.includes('准备中') || current_category.includes('等待');
+      // 准备中判断：包含关键词 或 进度数据都是0
+      const isPreparing = current_category.includes('准备中') || current_category.includes('等待')
+        || (synced_categories === 0 && total_categories === 0);
       return (
         <div>
           <Progress percent={percent} size="small" status="active" />
           <div style={{ marginTop: 8 }}>
-            {isPreparing ? current_category : `正在同步 "${current_category}" 特征...`}
+            {isPreparing ? (current_category || '准备中...') : `正在同步 "${current_category}" 特征...`}
           </div>
           {!isPreparing && (
             <div style={{ marginTop: 4, fontSize: 12, color: '#666' }}>
