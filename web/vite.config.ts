@@ -3,8 +3,13 @@ import react from '@vitejs/plugin-react'
 import path from 'path'
 import fs from 'fs'
 
+// 静态资源 CDN 域名（生产环境）
+const STATIC_CDN = process.env.STATIC_CDN || ''
+
 // https://vitejs.dev/config/
 export default defineConfig({
+  // 生产环境使用 CDN 域名加载静态资源
+  base: STATIC_CDN ? `${STATIC_CDN}/` : '/',
   plugins: [
     react(),
     // 构建完成后删除 dist/downloads 目录（nginx 直接提供 public/downloads）
