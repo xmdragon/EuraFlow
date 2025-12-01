@@ -480,6 +480,48 @@ async def convert_to_draft(
     }
 
 
+class MatchAttributesRequest(BaseModel):
+    """匹配属性值请求"""
+    category_id: int = Field(..., description="类目ID")
+    attributes: list[dict[str, Any]] = Field(..., description="属性列表")
+
+
+@router.post("/match-attributes")
+async def match_attributes(
+    request: MatchAttributesRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
+):
+    """匹配属性值到字典 value_id
+
+    用于采集转草稿场景，用户选择类目后调用此接口匹配属性值。
+    支持多值情况（用 ", " 分隔的多个值）。
+
+    Args:
+        category_id: 类目ID
+        attributes: 采集的属性列表，格式: [{key, name, value}, ...]
+
+    Returns:
+        匹配后的属性列表，格式: [{attribute_id, values: [{dictionary_value_id, value}]}, ...]
+    """
+    from ..services.catalog_service import match_attribute_values
+
+    matched_attributes = await match_attribute_values(
+        db=db,
+        category_id=request.category_id,
+        attributes=request.attributes
+    )
+
+    return {
+        "ok": True,
+        "data": {
+            "matched_attributes": matched_attributes,
+            "input_count": len(request.attributes),
+            "matched_count": len(matched_attributes)
+        }
+    }
+
+
 @router.delete("/{record_id}")
 async def delete_record(
     record_id: int,

@@ -153,6 +153,15 @@ def process_follow_pdp_listing(record_id: int) -> dict:
 
                     logger.info(f"[CollectionListing] 使用类目ID: {valid_category_id}")
 
+                    # 匹配属性值到字典 value_id
+                    from ..services.catalog_service import match_attribute_values
+                    matched_attributes = await match_attribute_values(
+                        db=async_db,
+                        category_id=valid_category_id,
+                        attributes=attributes
+                    )
+                    logger.info(f"[CollectionListing] 属性匹配完成: {len(matched_attributes)} 个属性")
+
                     # 初始化翻译服务
                     translation_service = None
                     try:
@@ -232,8 +241,8 @@ def process_follow_pdp_listing(record_id: int) -> dict:
                             "images": image_urls,
                             "videos": listing_payload.get("videos", []),
 
-                            # 类目特征
-                            "attributes": listing_payload.get("attributes", []),
+                            # 类目特征（使用匹配后的属性）
+                            "attributes": matched_attributes,
 
                             # OZON API 必需字段
                             "vat": "0",

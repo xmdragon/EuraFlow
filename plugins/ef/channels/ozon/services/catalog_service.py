@@ -1167,3 +1167,114 @@ class CatalogService:
 
 # 导入func用于count
 from sqlalchemy import func
+
+
+async def match_attribute_values(
+    db,
+    category_id: int,
+    attributes: list[dict]
+) -> list[dict]:
+    """
+    匹配属性值到字典 value_id
+
+    处理采集的属性数据，将文本值匹配到字典中的 value_id。
+    支持多值情况（用 ", " 分隔的多个值）。
+
+    Args:
+        db: 数据库会话
+        category_id: 类目ID
+        attributes: 采集的属性列表，格式: [{key, name, value}, ...]
+
+    Returns:
+        匹配后的属性列表，格式: [{attribute_id, values: [{dictionary_value_id, value}]}, ...]
+    """
+    from ..models import OzonCategoryAttribute, OzonAttributeDictionaryValue
+
+    if not attributes:
+        return []
+
+    matched_attributes = []
+
+    for attr in attributes:
+        attr_key = attr.get("key", "")
+        attr_name = attr.get("name", "")
+        attr_value = attr.get("value", "")
+
+        if not attr_value:
+            continue
+
+        # 1. 根据 name（中文名）查找 attribute_id
+        # 优先精确匹配，其次模糊匹配
+        attr_def = await db.scalar(
+            select(OzonCategoryAttribute).where(
+                and_(
+                    OzonCategoryAttribute.category_id == category_id,
+                    OzonCategoryAttribute.name_zh == attr_name
+                )
+            )
+        )
+
+        if not attr_def:
+            # 尝试模糊匹配（name_zh 包含 attr_name）
+            attr_def = await db.scalar(
+                select(OzonCategoryAttribute).where(
+                    and_(
+                        OzonCategoryAttribute.category_id == category_id,
+                        OzonCategoryAttribute.name_zh.ilike(f"%{attr_name}%")
+                    )
+                )
+            )
+
+        if not attr_def:
+            logger.debug(f"[match_attribute_values] 未找到属性定义: name={attr_name}, key={attr_key}")
+            continue
+
+        attribute_id = attr_def.attribute_id
+        dictionary_id = attr_def.dictionary_id
+
+        # 2. 如果有字典ID，匹配字典值
+        if dictionary_id:
+            # 分割多值（用 ", " 分隔）
+            value_texts = [v.strip() for v in attr_value.split(", ") if v.strip()]
+
+            matched_values = []
+            for value_text in value_texts:
+                # 精确匹配字典值（优先匹配中文 value，其次俄文 value_ru）
+                dict_value = await db.scalar(
+                    select(OzonAttributeDictionaryValue).where(
+                        and_(
+                            OzonAttributeDictionaryValue.dictionary_id == dictionary_id,
+                            or_(
+                                OzonAttributeDictionaryValue.value == value_text,
+                                OzonAttributeDictionaryValue.value_zh == value_text,
+                                OzonAttributeDictionaryValue.value_ru == value_text
+                            )
+                        )
+                    )
+                )
+
+                if dict_value:
+                    matched_values.append({
+                        "dictionary_value_id": dict_value.value_id,
+                        "value": str(dict_value.value_id)
+                    })
+                    logger.debug(f"[match_attribute_values] 匹配成功: {value_text} -> {dict_value.value_id}")
+                else:
+                    logger.warning(f"[match_attribute_values] 未找到字典值: {value_text} (dictionary_id={dictionary_id})")
+
+            if matched_values:
+                matched_attributes.append({
+                    "complex_id": 0,
+                    "id": attribute_id,
+                    "values": matched_values
+                })
+        else:
+            # 3. 非字典类型，直接使用文本值
+            matched_attributes.append({
+                "complex_id": 0,
+                "id": attribute_id,
+                "values": [{"value": attr_value}]
+            })
+
+    logger.info(f"[match_attribute_values] 匹配完成: 输入 {len(attributes)} 个属性, 匹配成功 {len(matched_attributes)} 个")
+    return matched_attributes
