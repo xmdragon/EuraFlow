@@ -36,7 +36,7 @@ class OzonCollectionSource(Base):
     source_type = Column(
         String(20),
         nullable=False,
-        comment="类型：category（类目页）| seller（店铺页）"
+        comment="类型：category（类目页）| seller（店铺页）| highlight（专题页）| other（其他）"
     )
     source_url = Column(
         Text,
@@ -137,10 +137,6 @@ class OzonCollectionSource(Base):
         Index('idx_collection_source_status', 'user_id', 'status'),
 
         # 检查约束
-        CheckConstraint(
-            "source_type IN ('category', 'seller')",
-            name="chk_collection_source_type"
-        ),
         CheckConstraint(
             "status IN ('pending', 'collecting', 'completed', 'failed')",
             name="chk_collection_source_status"

@@ -84,7 +84,8 @@ function Popup() {
     maxConcurrentTabs: 1,
     productsPerSource: 100,
     autoUpload: true,
-    closeTabAfterCollect: true
+    closeTabAfterCollect: true,
+    collectionTimeoutMinutes: 10
   });
 
   // 自动采集器状态

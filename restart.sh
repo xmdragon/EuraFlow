@@ -19,9 +19,10 @@ echo -e "${YELLOW}========================================${NC}"
 if [ -f "tmp/supervisord.pid" ]; then
     PID=$(cat tmp/supervisord.pid)
     if ps -p $PID > /dev/null 2>&1; then
-        # Supervisord 正在运行，重启所有euraflow服务
-        echo -e "\n${YELLOW}Restarting services...${NC}"
-        supervisorctl -c supervisord.conf restart euraflow:*
+        # Supervisord 正在运行，并行重启所有服务
+        echo -e "\n${YELLOW}Restarting services in parallel...${NC}"
+        supervisorctl -c supervisord.conf stop euraflow:*
+        supervisorctl -c supervisord.conf start euraflow:*
     else
         # PID 文件存在但进程不存在
         echo -e "${YELLOW}!${NC} Supervisord not running, starting fresh..."

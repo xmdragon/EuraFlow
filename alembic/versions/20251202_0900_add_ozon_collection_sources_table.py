@@ -42,7 +42,6 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('user_id', 'source_path', name='uq_collection_source_user_path'),
-        sa.CheckConstraint("source_type IN ('category', 'seller')", name='chk_collection_source_type'),
         sa.CheckConstraint("status IN ('pending', 'collecting', 'completed', 'failed')", name='chk_collection_source_status'),
         sa.CheckConstraint('target_count > 0', name='chk_collection_source_target_count'),
     )

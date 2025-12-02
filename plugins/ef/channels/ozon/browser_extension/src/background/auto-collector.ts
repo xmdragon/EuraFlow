@@ -53,6 +53,7 @@ class AutoCollector {
   // 采集配置（运行时从存储读取）
   private config = {
     collectionTimeoutMs: 10 * 60 * 1000, // 单个地址采集超时：默认10分钟（运行时更新）
+    productsPerSource: 100,              // 每地址目标数量：默认100（运行时更新）
     tabCloseDelay: 2000,                 // 关闭标签页前的等待时间：2秒
     nextSourceDelay: 3000,               // 处理下一个地址前的等待时间：3秒
     maxConsecutiveErrors: 3,             // 连续错误次数上限
@@ -82,7 +83,9 @@ class AutoCollector {
     // 获取自动采集配置
     const autoCollectConfig = await getAutoCollectConfig();
     this.config.collectionTimeoutMs = (autoCollectConfig.collectionTimeoutMinutes || 10) * 60 * 1000;
+    this.config.productsPerSource = autoCollectConfig.productsPerSource || 100;
     console.log(`[AutoCollector] 采集超时设置为 ${autoCollectConfig.collectionTimeoutMinutes || 10} 分钟`);
+    console.log(`[AutoCollector] 每地址目标数量设置为 ${this.config.productsPerSource} 个`);
 
     this.apiUrl = apiConfig.apiUrl;
     this.apiKey = apiConfig.apiKey;
@@ -275,7 +278,8 @@ class AutoCollector {
     await this.sleep(3000);
 
     // 4. 发送采集命令并等待结果
-    const result = await this.sendCollectionCommand(tab.id, source.target_count);
+    // 使用配置的 productsPerSource，而不是 source.target_count
+    const result = await this.sendCollectionCommand(tab.id, this.config.productsPerSource);
 
     return result;
   }
