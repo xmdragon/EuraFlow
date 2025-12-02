@@ -578,6 +578,36 @@ function Popup() {
 
             {/* 配置项 */}
             <div className="form-group">
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={autoCollectConfig.enabled}
+                  onChange={(e) => setAutoCollectConfigState({ ...autoCollectConfig, enabled: e.target.checked })}
+                  disabled={autoCollectorState.isRunning}
+                />
+                <span>启用自动采集</span>
+              </label>
+              <p className="hint">启用后，插件会按配置自动执行采集任务</p>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">并发标签页数:</label>
+              <select
+                className="form-input"
+                value={autoCollectConfig.maxConcurrentTabs}
+                onChange={(e) => setAutoCollectConfigState({ ...autoCollectConfig, maxConcurrentTabs: parseInt(e.target.value) || 1 })}
+                disabled={autoCollectorState.isRunning}
+              >
+                <option value={1}>1 个标签页</option>
+                <option value={2}>2 个标签页</option>
+                <option value={3}>3 个标签页</option>
+                <option value={4}>4 个标签页</option>
+                <option value={5}>5 个标签页</option>
+              </select>
+              <p className="hint">同时打开的采集标签页数量，越多越快但风险越高</p>
+            </div>
+
+            <div className="form-group">
               <label className="form-label">采集间隔 (分钟):</label>
               <input
                 type="number"

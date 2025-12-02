@@ -5,7 +5,7 @@ from datetime import datetime, timezone, timedelta
 from urllib.parse import urlparse
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, case, func, and_
+from sqlalchemy import select, case, func, and_, or_
 from typing import Optional
 from pydantic import BaseModel, Field, field_validator
 import logging
@@ -501,7 +501,12 @@ async def get_next_collection_source(
 ):
     """获取下一个待采集地址（插件专用）
 
-    返回优先级最高的一个待采集地址，排序规则同 /queue 端点
+    返回优先级最高的一个待采集地址
+    规则：
+    1. 排除一周内采集过的（last_collected_at >= 7天前）
+    2. 从未采集的优先（last_collected_at IS NULL）
+    3. 按优先级降序
+    4. 按上次采集时间升序（越久没采集越优先）
     """
     one_week_ago = utcnow() - timedelta(days=7)
 
@@ -510,18 +515,22 @@ async def get_next_collection_source(
         .where(
             OzonCollectionSource.user_id == current_user.id,
             OzonCollectionSource.is_enabled == True,  # noqa: E712
-            OzonCollectionSource.status.in_(['pending', 'completed', 'failed'])
+            OzonCollectionSource.status.in_(['pending', 'completed', 'failed']),
+            # 排除一周内采集过的记录（从未采集的 NULL 会通过）
+            or_(
+                OzonCollectionSource.last_collected_at == None,  # noqa: E711
+                OzonCollectionSource.last_collected_at < one_week_ago
+            )
         )
         .order_by(
             # 优先级降序
             OzonCollectionSource.priority.desc(),
-            # 超过7天未采集的优先（NULL 视为从未采集，最优先）
+            # 从未采集的优先（NULL 排最前）
             case(
                 (OzonCollectionSource.last_collected_at == None, 0),  # noqa: E711
-                (OzonCollectionSource.last_collected_at < one_week_ago, 1),
-                else_=2
+                else_=1
             ),
-            # 上次采集时间升序（从未采集的排前面）
+            # 上次采集时间升序（越久没采集越优先）
             OzonCollectionSource.last_collected_at.asc().nullsfirst()
         )
         .limit(1)

@@ -52,12 +52,22 @@ class AutoCollector {
 
   // 采集配置（运行时从存储读取）
   private config = {
-    collectionTimeoutMs: 10 * 60 * 1000, // 单个地址采集超时：默认10分钟（运行时更新）
-    productsPerSource: 100,              // 每地址目标数量：默认100（运行时更新）
+    // 用户可配置项（运行时从存储读取）
+    enabled: false,                      // 是否启用自动采集
+    maxConcurrentTabs: 1,                // 最大并发标签页数：默认1
+    collectionTimeoutMs: 10 * 60 * 1000, // 单个地址采集超时：默认10分钟
+    productsPerSource: 100,              // 每地址目标数量：默认100
+    intervalMinutes: 30,                 // 采集间隔：默认30分钟
+    autoUpload: true,                    // 采集后自动上传：默认开启
+    closeTabAfterCollect: true,          // 采集后关闭标签页：默认开启
+    // 固定配置项
     tabCloseDelay: 2000,                 // 关闭标签页前的等待时间：2秒
     nextSourceDelay: 3000,               // 处理下一个地址前的等待时间：3秒
     maxConsecutiveErrors: 3,             // 连续错误次数上限
   };
+
+  // 并发采集：当前活跃的标签页
+  private activeTabs: Map<number, { tabId: number; sourceId: number }> = new Map();
 
   /**
    * 获取当前状态
@@ -82,10 +92,23 @@ class AutoCollector {
 
     // 获取自动采集配置
     const autoCollectConfig = await getAutoCollectConfig();
+    this.config.enabled = autoCollectConfig.enabled ?? false;
+    this.config.maxConcurrentTabs = autoCollectConfig.maxConcurrentTabs || 1;
     this.config.collectionTimeoutMs = (autoCollectConfig.collectionTimeoutMinutes || 10) * 60 * 1000;
     this.config.productsPerSource = autoCollectConfig.productsPerSource || 100;
-    console.log(`[AutoCollector] 采集超时设置为 ${autoCollectConfig.collectionTimeoutMinutes || 10} 分钟`);
-    console.log(`[AutoCollector] 每地址目标数量设置为 ${this.config.productsPerSource} 个`);
+    this.config.intervalMinutes = autoCollectConfig.intervalMinutes || 30;
+    this.config.autoUpload = autoCollectConfig.autoUpload ?? true;
+    this.config.closeTabAfterCollect = autoCollectConfig.closeTabAfterCollect ?? true;
+
+    console.log(`[AutoCollector] 配置加载完成:`, {
+      enabled: this.config.enabled,
+      maxConcurrentTabs: this.config.maxConcurrentTabs,
+      productsPerSource: this.config.productsPerSource,
+      intervalMinutes: this.config.intervalMinutes,
+      collectionTimeoutMinutes: autoCollectConfig.collectionTimeoutMinutes || 10,
+      autoUpload: this.config.autoUpload,
+      closeTabAfterCollect: this.config.closeTabAfterCollect,
+    });
 
     this.apiUrl = apiConfig.apiUrl;
     this.apiKey = apiConfig.apiKey;
@@ -120,10 +143,10 @@ class AutoCollector {
     console.log('[AutoCollector] 停止采集请求');
     this.stopRequested = true;
 
-    // 如果当前有标签页在采集，发送停止消息
-    if (this.state.currentTabId) {
+    // 向所有活跃标签页发送停止消息
+    for (const [tabId] of this.activeTabs) {
       try {
-        await chrome.tabs.sendMessage(this.state.currentTabId, {
+        await chrome.tabs.sendMessage(tabId, {
           type: 'STOP_COLLECTION'
         });
       } catch {
@@ -131,91 +154,82 @@ class AutoCollector {
       }
     }
 
+    // 关闭所有活跃标签页
+    await this.closeAllTabs();
+
     this.state.isRunning = false;
   }
 
   /**
-   * 采集循环
+   * 采集循环（支持并发）
    */
   private async runCollectionLoop(): Promise<void> {
     let consecutiveErrors = 0;
+    const maxConcurrent = this.config.maxConcurrentTabs;
+
+    console.log(`[AutoCollector] 开始采集循环，最大并发: ${maxConcurrent}`);
 
     while (!this.stopRequested) {
       try {
-        // 1. 获取下一个待采集地址
+        // 检查当前活跃的采集任务数
+        const activeCount = this.activeTabs.size;
+        const slotsAvailable = maxConcurrent - activeCount;
+
+        if (slotsAvailable <= 0) {
+          // 等待一段时间后重试
+          await this.sleep(1000);
+          continue;
+        }
+
+        // 获取下一个待采集地址
         console.log('[AutoCollector] 正在获取下一个待采集地址...');
         const source = await this.getNextSource();
 
         if (!source) {
-          console.log('[AutoCollector] 没有待采集的地址，停止');
-          break;
+          // 没有新地址了，等待所有活跃任务完成
+          if (this.activeTabs.size === 0) {
+            console.log('[AutoCollector] 没有待采集的地址，停止');
+            break;
+          }
+          // 还有活跃任务，等待后继续检查
+          await this.sleep(2000);
+          continue;
         }
 
         this.state.currentSource = source;
         console.log(`[AutoCollector] 开始采集: ${source.display_name || source.source_path} (ID: ${source.id})`);
 
-        // 2. 更新状态为"采集中"
-        console.log(`[AutoCollector] 更新状态为 collecting...`);
+        // 更新状态为"采集中"
         await this.updateSourceStatus(source.id, 'collecting');
 
-        // 3. 打开标签页并执行采集
-        console.log(`[AutoCollector] 打开标签页并执行采集...`);
-        const result = await this.collectFromSource(source);
-        console.log(`[AutoCollector] 采集完成，获取 ${result.products.length} 个商品`);
+        // 启动采集任务（不等待完成）
+        this.startCollectionTask(source).catch((error: any) => {
+          console.error(`[AutoCollector] 采集任务异常 (ID: ${source.id}):`, error.message);
+        });
 
-        // 4. 上传采集结果
-        if (result.products.length > 0) {
-          console.log(`[AutoCollector] 上传 ${result.products.length} 个商品...`);
-          await this.uploadProducts(result.products, source);
-          this.state.collectedCount += result.products.length;
-          console.log(`[AutoCollector] 上传成功`);
-        } else {
-          console.log(`[AutoCollector] 没有采集到商品，跳过上传`);
-        }
+        consecutiveErrors = 0;
 
-        // 5. 更新状态为"完成"
-        console.log(`[AutoCollector] 更新状态为 completed...`);
-        await this.updateSourceStatus(source.id, 'completed', result.products.length);
-
-        // 6. 关闭标签页
-        await this.closeCollectionTab();
-
-        this.state.processedSources++;
-        consecutiveErrors = 0;  // 重置连续错误计数
-
-        console.log(`[AutoCollector] 地址处理完成，等待 ${this.config.nextSourceDelay}ms 后处理下一个`);
-
-        // 7. 等待一段时间再处理下一个
+        // 短暂等待后继续获取下一个地址
         await this.sleep(this.config.nextSourceDelay);
 
       } catch (error: any) {
-        console.error('[AutoCollector] 采集错误:', error.message, error.stack);
+        console.error('[AutoCollector] 采集循环错误:', error.message);
         this.state.errors.push(error.message);
-
-        // 更新状态为"失败"
-        if (this.state.currentSource) {
-          await this.updateSourceStatus(
-            this.state.currentSource.id,
-            'failed',
-            0,
-            error.message
-          );
-        }
-
-        // 关闭可能打开的标签页
-        await this.closeCollectionTab();
-
         consecutiveErrors++;
 
-        // 连续错误过多，停止采集
         if (consecutiveErrors >= this.config.maxConsecutiveErrors) {
           console.error('[AutoCollector] 连续错误过多，停止采集');
           break;
         }
 
-        // 等待更长时间后重试
         await this.sleep(this.config.nextSourceDelay * 2);
       }
+    }
+
+    // 等待所有活跃任务完成
+    while (this.activeTabs.size > 0) {
+      console.log(`[AutoCollector] 等待 ${this.activeTabs.size} 个活跃任务完成...`);
+      await this.sleep(2000);
     }
 
     // 采集结束
@@ -228,6 +242,55 @@ class AutoCollector {
       collected: this.state.collectedCount,
       errors: this.state.errors.length,
     });
+  }
+
+  /**
+   * 启动单个采集任务
+   */
+  private async startCollectionTask(source: CollectionSource): Promise<void> {
+    let tabId: number | null = null;
+
+    try {
+      // 打开标签页并执行采集
+      const result = await this.collectFromSource(source);
+      tabId = this.state.currentTabId;
+
+      console.log(`[AutoCollector] 采集完成 (ID: ${source.id})，获取 ${result.products.length} 个商品`);
+
+      // 上传采集结果（根据配置）
+      if (result.products.length > 0 && this.config.autoUpload) {
+        console.log(`[AutoCollector] 上传 ${result.products.length} 个商品...`);
+        await this.uploadProducts(result.products, source);
+        this.state.collectedCount += result.products.length;
+        console.log(`[AutoCollector] 上传成功`);
+      } else if (result.products.length > 0) {
+        console.log(`[AutoCollector] 自动上传已禁用，跳过上传 ${result.products.length} 个商品`);
+        this.state.collectedCount += result.products.length;
+      } else {
+        console.log(`[AutoCollector] 没有采集到商品，跳过上传`);
+      }
+
+      // 更新状态为"完成"
+      await this.updateSourceStatus(source.id, 'completed', result.products.length);
+
+      this.state.processedSources++;
+
+    } catch (error: any) {
+      console.error(`[AutoCollector] 采集错误 (ID: ${source.id}):`, error.message);
+      this.state.errors.push(error.message);
+
+      // 更新状态为"失败"
+      await this.updateSourceStatus(source.id, 'failed', 0, error.message);
+
+    } finally {
+      // 关闭标签页（根据配置）
+      if (tabId) {
+        this.activeTabs.delete(tabId);
+        if (this.config.closeTabAfterCollect) {
+          await this.closeTab(tabId);
+        }
+      }
+    }
   }
 
   /**
@@ -269,7 +332,9 @@ class AutoCollector {
       throw new Error('无法创建标签页');
     }
 
+    // 注册活跃标签页
     this.state.currentTabId = tab.id;
+    this.activeTabs.set(tab.id, { tabId: tab.id, sourceId: source.id });
 
     // 2. 等待页面加载完成
     await this.waitForTabLoaded(tab.id);
@@ -382,22 +447,26 @@ class AutoCollector {
   }
 
   /**
-   * 关闭采集标签页
+   * 关闭指定标签页
    */
-  private async closeCollectionTab(): Promise<void> {
-    if (!this.state.currentTabId) {
-      return;
-    }
-
+  private async closeTab(tabId: number): Promise<void> {
     try {
       // 等待一小段时间确保数据已保存
       await this.sleep(this.config.tabCloseDelay);
-
-      await chrome.tabs.remove(this.state.currentTabId);
+      await chrome.tabs.remove(tabId);
     } catch {
       // 标签页可能已关闭
     }
+  }
 
+  /**
+   * 关闭所有活跃标签页
+   */
+  private async closeAllTabs(): Promise<void> {
+    for (const [tabId] of this.activeTabs) {
+      await this.closeTab(tabId);
+    }
+    this.activeTabs.clear();
     this.state.currentTabId = null;
   }
 
