@@ -45,6 +45,7 @@ async function fetchProductsPageDirect(pageUrl: string, page: number): Promise<P
     const requestId = `products_page_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const encodedUrl = encodeURIComponent(pageUrl);
     const apiUrl = `${window.location.origin}/api/entrypoint-api.bx/page/json/v2?url=${encodedUrl}&page=${page}`;
+    let resolved = false;  // 防止重复 resolve
 
     if (__DEBUG__) {
       console.log(`[API] fetchProductsPageDirect 请求:`, { url: apiUrl, pageUrl, page });
@@ -52,7 +53,8 @@ async function fetchProductsPageDirect(pageUrl: string, page: number): Promise<P
 
     // 监听页面返回的结果
     const handleResponse = (event: CustomEvent) => {
-      if (event.detail?.requestId === requestId) {
+      if (event.detail?.requestId === requestId && !resolved) {
+        resolved = true;
         window.removeEventListener('euraflow_page_response', handleResponse as EventListener);
 
         if (event.detail.success) {
@@ -70,12 +72,15 @@ async function fetchProductsPageDirect(pageUrl: string, page: number): Promise<P
 
     window.addEventListener('euraflow_page_response', handleResponse as EventListener);
 
-    // 超时处理（10秒）
+    // 超时处理（15秒）
     setTimeout(() => {
-      window.removeEventListener('euraflow_page_response', handleResponse as EventListener);
-      console.error('[API] fetchProductsPageDirect 超时');
-      resolve([]);
-    }, 10000);
+      if (!resolved) {
+        resolved = true;
+        window.removeEventListener('euraflow_page_response', handleResponse as EventListener);
+        console.error('[API] fetchProductsPageDirect 超时');
+        resolve([]);
+      }
+    }, 15000);
 
     // 发送请求到页面上下文
     window.dispatchEvent(new CustomEvent('euraflow_page_request', {
