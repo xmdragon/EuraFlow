@@ -518,7 +518,7 @@ async function handleFetchAllProductData(data: {
   productDetail: any;
   ratingData?: { rating: number | null; reviewCount: number | null };
   spbSalesData?: any;  // 可选：content script 已预先获取的上品帮数据
-  followSellerData?: { count: number; skus: string[]; prices: number[] } | null;  // 可选：content script 通过页面上下文获取的跟卖数据
+  followSellerData?: { count: number; skus: string[]; prices: number[]; sellers?: any[] } | null;  // 可选：content script 通过页面上下文获取的跟卖数据
 }): Promise<any> {
   const { url, productSku, productDetail, ratingData, spbSalesData: preloadedSpbSales, followSellerData } = data;
 
@@ -597,6 +597,7 @@ async function handleFetchAllProductData(data: {
     spbSales.competitorCount = followSellerData.count;
     spbSales.followSellerSkus = followSellerData.skus;
     spbSales.followSellerPrices = followSellerData.prices;
+    spbSales.followSellerList = followSellerData.sellers;  // 完整的卖家列表（用于悬浮窗口）
     if (followSellerData.prices?.length > 0) {
       spbSales.competitorMinPrice = Math.min(...followSellerData.prices);
     }

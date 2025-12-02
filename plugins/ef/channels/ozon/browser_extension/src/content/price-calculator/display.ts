@@ -399,7 +399,8 @@ function buildDataRows(spbSales: any | null, dimensions: any | null): HTMLElemen
 
   // 只有有跟卖时才显示最低价，否则显示单列
   if (follower != null && follower > 0) {
-    rows.push(createTwoColRow('跟卖', followerStr, '最低价', minPriceStr));
+    // 使用带悬浮窗口的跟卖行
+    rows.push(createFollowerRow(follower, followerStr, minPriceStr, spbSales?.followSellerList));
   } else {
     rows.push(createSingleRow('跟卖', followerStr));
   }
@@ -472,6 +473,174 @@ function createBottomRow(rating: number | null, reviewCount: number | null, date
 
   row.innerHTML = ratingHtml + dateHtml;
   return row;
+}
+
+/**
+ * 创建跟卖行（带悬浮窗口）
+ */
+function createFollowerRow(_count: number, countStr: string, minPriceStr: string, sellerList: any[] | null): HTMLElement {
+  const row = document.createElement('div');
+  row.className = 'ef-row ef-row-two';
+
+  // 左列：跟卖数量（可点击显示悬浮窗口）
+  const leftCol = document.createElement('div');
+  leftCol.className = 'ef-col';
+
+  const label = document.createElement('span');
+  label.className = 'ef-label';
+  label.textContent = '跟卖:';
+
+  const valueWrapper = document.createElement('span');
+  valueWrapper.className = 'ef-follower-value';
+  valueWrapper.style.cssText = 'position: relative; display: inline-block;';
+
+  const valueSpan = document.createElement('span');
+  valueSpan.className = 'ef-value ef-value-clickable';
+  valueSpan.textContent = countStr;
+  valueSpan.style.cssText = 'color: #005bff; cursor: pointer; text-decoration: underline;';
+
+  // 悬浮窗口容器
+  const popover = createFollowerPopover(sellerList);
+  popover.style.display = 'none';
+
+  // 鼠标事件
+  let hideTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  const showPopover = () => {
+    if (hideTimeout) {
+      clearTimeout(hideTimeout);
+      hideTimeout = null;
+    }
+    popover.style.display = 'block';
+  };
+
+  const hidePopover = () => {
+    hideTimeout = setTimeout(() => {
+      popover.style.display = 'none';
+    }, 200);
+  };
+
+  valueSpan.addEventListener('mouseenter', showPopover);
+  valueSpan.addEventListener('mouseleave', hidePopover);
+  popover.addEventListener('mouseenter', showPopover);
+  popover.addEventListener('mouseleave', hidePopover);
+
+  valueWrapper.appendChild(valueSpan);
+  valueWrapper.appendChild(popover);
+  leftCol.appendChild(label);
+  leftCol.appendChild(valueWrapper);
+
+  // 右列：最低价
+  const rightCol = document.createElement('div');
+  rightCol.className = 'ef-col';
+  rightCol.innerHTML = `<span class="ef-label">最低价:</span><span class="ef-value">${minPriceStr}</span>`;
+
+  row.appendChild(leftCol);
+  row.appendChild(rightCol);
+
+  return row;
+}
+
+/**
+ * 创建跟卖者悬浮窗口
+ */
+function createFollowerPopover(sellerList: any[] | null): HTMLElement {
+  const popover = document.createElement('div');
+  popover.className = 'ef-follower-popover';
+  popover.style.cssText = `
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    min-width: 500px;
+    max-width: 600px;
+    max-height: 400px;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    z-index: 10000;
+    margin-bottom: 8px;
+    font-size: 12px;
+  `;
+
+  if (!sellerList || sellerList.length === 0) {
+    popover.innerHTML = '<div style="padding: 16px; text-align: center; color: #999;">暂无跟卖数据</div>';
+    return popover;
+  }
+
+  // 创建表格
+  const table = document.createElement('table');
+  table.style.cssText = 'width: 100%; border-collapse: collapse;';
+
+  // 表头
+  const thead = document.createElement('thead');
+  thead.innerHTML = `
+    <tr style="background: #f5f5f5; border-bottom: 1px solid #e0e0e0;">
+      <th style="padding: 10px 8px; text-align: left; font-weight: 500; color: #666; width: 50px;">头像</th>
+      <th style="padding: 10px 8px; text-align: left; font-weight: 500; color: #666; min-width: 120px;">卖家名称</th>
+      <th style="padding: 10px 8px; text-align: center; font-weight: 500; color: #666; width: 60px;">地区</th>
+      <th style="padding: 10px 8px; text-align: center; font-weight: 500; color: #666; width: 100px;">商品SKU</th>
+      <th style="padding: 10px 8px; text-align: right; font-weight: 500; color: #666; width: 80px;">售价</th>
+    </tr>
+  `;
+  table.appendChild(thead);
+
+  // 表体
+  const tbody = document.createElement('tbody');
+
+  sellerList.forEach((seller, index) => {
+    const tr = document.createElement('tr');
+    tr.style.cssText = `border-bottom: 1px solid #f0f0f0;${index % 2 === 1 ? ' background: #fafafa;' : ''}`;
+
+    // 头像
+    const logoUrl = seller.logoImageUrl || '';
+    const logoHtml = logoUrl
+      ? `<img src="${logoUrl}" style="width: 32px; height: 32px; border-radius: 4px; object-fit: cover;" onerror="this.style.display='none'">`
+      : '<div style="width: 32px; height: 32px; background: #e0e0e0; border-radius: 4px;"></div>';
+
+    // 卖家名称（可点击跳转）
+    const sellerLink = seller.link || '#';
+    const sellerName = seller.name || '未知卖家';
+
+    // 地区（从 credentials 提取，找包含 CN 的行）
+    let region = '未知';
+    if (seller.credentials && Array.isArray(seller.credentials)) {
+      const cnLine = seller.credentials.find((c: string) => c.includes('CN,'));
+      if (cnLine) {
+        region = '中国';
+      } else if (seller.credentials.some((c: string) => c.includes('RU,'))) {
+        region = '俄罗斯';
+      }
+    }
+
+    // SKU
+    const sku = seller.sku || '---';
+    const productLink = seller.productLink || '#';
+
+    // 价格（从 cardPrice 或 price 提取）
+    let priceStr = '---';
+    if (seller.price?.cardPrice?.price) {
+      priceStr = seller.price.cardPrice.price;
+    } else if (seller.price?.price) {
+      priceStr = seller.price.price;
+    }
+
+    tr.innerHTML = `
+      <td style="padding: 8px;">${logoHtml}</td>
+      <td style="padding: 8px;"><a href="${sellerLink}" target="_blank" style="color: #005bff; text-decoration: none; word-break: break-word;">${sellerName}</a></td>
+      <td style="padding: 8px; text-align: center;">${region}</td>
+      <td style="padding: 8px; text-align: center;"><a href="${productLink}" target="_blank" style="color: #005bff; text-decoration: none;">${sku}</a></td>
+      <td style="padding: 8px; text-align: right; font-weight: 500; color: #ff5722;">${priceStr}</td>
+    `;
+
+    tbody.appendChild(tr);
+  });
+
+  table.appendChild(tbody);
+  popover.appendChild(table);
+
+  return popover;
 }
 
 /**

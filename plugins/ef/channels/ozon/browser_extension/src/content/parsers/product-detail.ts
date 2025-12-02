@@ -1187,6 +1187,7 @@ export async function fetchFollowSellerData(productId: string): Promise<{
   count: number;
   skus: string[];
   prices: number[];
+  sellers: any[];  // 完整的卖家列表（用于悬浮窗口显示）
 } | null> {
   try {
     const modalUrl = `/modal/otherOffersFromSellers?product_id=${productId}&page_changed=true`;
@@ -1211,7 +1212,7 @@ export async function fetchFollowSellerData(productId: string): Promise<{
     // 查找 webSellerList widget（跟卖者列表）
     const modalKey = keys.find(k => k.includes('webSellerList'));
     if (!modalKey) {
-      return { count: 0, skus: [], prices: [] };
+      return { count: 0, skus: [], prices: [], sellers: [] };
     }
 
     const modalData = JSON.parse(widgetStates[modalKey]);
@@ -1238,7 +1239,8 @@ export async function fetchFollowSellerData(productId: string): Promise<{
     const result = {
       count: sellers.length,
       skus,
-      prices
+      prices,
+      sellers  // 返回完整的卖家列表
     };
 
     if (__DEBUG__) {

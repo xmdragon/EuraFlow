@@ -217,7 +217,7 @@ export class RealPriceCalculator {
       const euraflowConfig = configResponse?.success ? configResponse.data : null;
 
       // 6. 如果上品帮没有跟卖数据，通过页面上下文获取
-      let followSellerData: { count: number; skus: string[]; prices: number[] } | null = null;
+      let followSellerData: { count: number; skus: string[]; prices: number[]; sellers: any[] } | null = null;
       if (!spbSalesData?.competitorCount && spbSalesData?.competitorCount !== 0) {
         followSellerData = await fetchFollowSellerData(productId);
       }
