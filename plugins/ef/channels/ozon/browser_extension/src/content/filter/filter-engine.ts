@@ -155,10 +155,11 @@ export class FilterEngine {
         };
       }
       const normalizedMode = mode.toUpperCase();
-      if (normalizedMode !== this.config.sellerMode) {
+      // 使用 includes 检查，支持 "FBO,FBS" 这样的复合模式
+      if (!normalizedMode.includes(this.config.sellerMode)) {
         return {
           passed: false,
-          failedReason: `发货模式 ${mode} 不是 ${this.config.sellerMode}`,
+          failedReason: `发货模式 ${mode} 不包含 ${this.config.sellerMode}`,
           stage: 'spb'
         };
       }
