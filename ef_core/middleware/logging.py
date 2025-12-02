@@ -57,10 +57,10 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         # 记录请求开始
         start_time = time.time()
 
-        # 读取请求体（仅对需要的请求）
+        # 注意：不能在 BaseHTTPMiddleware 中预先读取请求体
+        # 因为这会导致后续路由处理器无法读取请求体
+        # 如果需要记录请求体，应使用纯 ASGI 中间件或在请求处理后记录
         request_body = None
-        if not skip_detail and method in ("POST", "PUT", "PATCH"):
-            request_body = await self._read_request_body(request)
 
         # 读取查询参数
         query_params = dict(request.query_params) if request.query_params else None
@@ -78,9 +78,6 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
             if query_params and not skip_detail:
                 log_data["query_params"] = self._mask_sensitive(query_params)
-
-            if request_body and not skip_detail:
-                log_data["request_body"] = self._truncate_body(request_body)
 
             self.logger.info("API request", **log_data)
 
@@ -135,24 +132,6 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                 )
 
                 raise
-
-    async def _read_request_body(self, request: Request) -> Optional[str]:
-        """读取请求体"""
-        try:
-            body = await request.body()
-            if not body:
-                return None
-
-            # 尝试解析为 JSON 并脱敏
-            try:
-                json_body = json.loads(body)
-                masked_body = self._mask_sensitive(json_body)
-                return json.dumps(masked_body, ensure_ascii=False)
-            except json.JSONDecodeError:
-                # 非 JSON，直接返回字符串
-                return body.decode("utf-8", errors="replace")
-        except Exception:
-            return None
 
     async def _read_response_body(self, response: Response) -> Optional[str]:
         """读取响应体"""
