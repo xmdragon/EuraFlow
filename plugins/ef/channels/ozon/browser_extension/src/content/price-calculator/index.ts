@@ -15,8 +15,39 @@ import { extractProductData } from '../parsers/product-detail';
  */
 function extractProductId(): string | null {
   const url = window.location.href;
-  const match = url.match(/-(\d+)\/(\?|$)/);
-  return match ? match[1] : null;
+
+  // 方法1: URL末尾带斜杠或问号
+  let match = url.match(/-(\d+)\/(\?|$)/);
+  if (match) return match[1];
+
+  // 方法2: URL末尾不带斜杠
+  match = url.match(/-(\d+)$/);
+  if (match) return match[1];
+
+  // 方法3: 从 pathname 分割提取
+  const pathname = window.location.pathname;
+  if (pathname.includes('/product/')) {
+    const pathPart = pathname.split('/product/')[1]?.split('?')[0]?.replace(/\/$/, '');
+    if (pathPart) {
+      const lastDashIndex = pathPart.lastIndexOf('-');
+      if (lastDashIndex !== -1) {
+        const sku = pathPart.substring(lastDashIndex + 1);
+        if (/^\d{6,}$/.test(sku)) {
+          return sku;
+        }
+      }
+    }
+  }
+
+  // 方法4: 从页面 DOM 提取（Артикул）
+  const articleEl = document.querySelector('[class*="tsBodyControl400Small"]');
+  if (articleEl?.textContent) {
+    const articleMatch = articleEl.textContent.match(/Артикул:\s*(\d+)/);
+    if (articleMatch) return articleMatch[1];
+  }
+
+  console.warn('[EuraFlow] 无法从URL提取商品ID:', url);
+  return null;
 }
 
 /**

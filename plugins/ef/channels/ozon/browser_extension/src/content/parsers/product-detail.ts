@@ -64,7 +64,7 @@ async function fetchViaPageContext(url: string, timeout = 10000): Promise<any | 
       if (customEvent.detail.success) {
         resolve(customEvent.detail.data);
       } else {
-        console.warn('[EuraFlow] 页面上下文请求失败:', customEvent.detail.error);
+        // 静默处理：商品不存在或已下架是正常情况
         resolve(null);
       }
     };

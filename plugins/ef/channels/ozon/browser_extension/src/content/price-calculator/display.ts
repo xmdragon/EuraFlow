@@ -104,7 +104,10 @@ function formatDate(dateStr: string | null): string {
 }
 
 /**
- * 一次性注入完整显示组件（无骨架屏，等待所有数据后再注入）
+ * 分阶段注入显示组件
+ * 阶段1：显示主体（价格+数据区），按钮区域显示加载占位
+ * 阶段2：跟卖数据就绪后显示跟卖按钮
+ * 阶段3：采集数据就绪后显示采集按钮
  */
 export async function injectCompleteDisplay(data: {
   message: string;
@@ -153,16 +156,57 @@ export async function injectCompleteDisplay(data: {
   // 使用 CSS 类
   euraflowContainer.className = 'ef-price-container';
 
-  // 添加三个部分
+  // 阶段1：先添加价格区和数据区
   euraflowContainer.appendChild(createPriceSection(message));
   euraflowContainer.appendChild(await createDataSection(spbSales, dimensions));
-  euraflowContainer.appendChild(createButtonRow(price, ozonProduct, spbSales, dimensions, euraflowConfig));
+
+  // 阶段1：创建按钮行容器（先隐藏）
+  const buttonRow = document.createElement('div');
+  buttonRow.id = 'euraflow-button-row';
+  buttonRow.setAttribute('data-euraflow-component', 'button-row');
+  buttonRow.className = 'ef-button-row';
+  buttonRow.style.display = 'none';  // 初始隐藏
+  euraflowContainer.appendChild(buttonRow);
 
   // 设置高度并注入
   if (rightSide.children[0]?.firstChild) {
     (rightSide.children[0].firstChild as HTMLElement).classList.add('ef-ozon-right-side-fix');
   }
   targetContainer.insertBefore(euraflowContainer, targetContainer.firstElementChild);
+
+  // 阶段2：检查数据就绪后显示按钮
+  const checkDataAndShowButtons = () => {
+    // 检查跟卖数据是否就绪（需要 ozonProduct 和尺寸信息）
+    const hasDimensions = dimensions &&
+      dimensions.weight !== null && dimensions.weight !== undefined;
+    const hasSpbDimensions = spbSales &&
+      spbSales.weight !== null && spbSales.weight !== undefined;
+    const hasAnyDimensions = hasDimensions || hasSpbDimensions;
+
+    // 检查采集数据是否就绪
+    const hasCollectData = ozonProduct && euraflowConfig;
+
+    // 只要有 ozonProduct 就可以显示按钮
+    if (ozonProduct && hasAnyDimensions) {
+      // 创建跟卖按钮
+      const followButton = createFollowButton(price, ozonProduct, spbSales, dimensions);
+      buttonRow.appendChild(followButton);
+    }
+
+    if (hasCollectData) {
+      // 创建采集按钮
+      const collectButton = createCollectButton(price, ozonProduct, spbSales, dimensions, euraflowConfig);
+      buttonRow.appendChild(collectButton);
+    }
+
+    // 如果有任何按钮，显示按钮行
+    if (buttonRow.children.length > 0) {
+      buttonRow.style.display = '';  // 显示按钮行
+    }
+  };
+
+  // 立即检查一次
+  checkDataAndShowButtons();
 
   // 监听组件是否被移除，如果被移除则重新注入（最多重试3次）
   let retryCount = 0;
@@ -490,32 +534,6 @@ function formatDimensions(dimensions: any, spbSales: any): string {
   const h = dimensions?.height ?? spbSales?.height;
   if (d == null || w == null || h == null) return '---';
   return `${d}×${w}×${h}`;
-}
-
-/**
- * 创建按钮行
- */
-function createButtonRow(
-  realPrice: number | null,
-  ozonProduct: any,
-  spbSales: any | null,
-  dimensions: any | null,
-  euraflowConfig: any | null
-): HTMLElement {
-  const buttonRow = document.createElement('div');
-  buttonRow.id = 'euraflow-button-row';
-  buttonRow.setAttribute('data-euraflow-component', 'button-row');
-  buttonRow.className = 'ef-button-row';
-
-  // 创建"跟卖"按钮
-  const followButton = createFollowButton(realPrice, ozonProduct, spbSales, dimensions);
-  buttonRow.appendChild(followButton);
-
-  // 创建"采集"按钮
-  const collectButton = createCollectButton(realPrice, ozonProduct, spbSales, dimensions, euraflowConfig);
-  buttonRow.appendChild(collectButton);
-
-  return buttonRow;
 }
 
 /**
