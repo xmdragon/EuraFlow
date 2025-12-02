@@ -480,6 +480,63 @@ async def get_collection_queue(
     }
 
 
+@router.get("/queue/next")
+async def get_next_collection_source(
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
+):
+    """获取下一个待采集地址（插件专用）
+
+    返回优先级最高的一个待采集地址，排序规则同 /queue 端点
+    """
+    one_week_ago = utcnow() - timedelta(days=7)
+
+    query = (
+        select(OzonCollectionSource)
+        .where(
+            OzonCollectionSource.user_id == current_user.id,
+            OzonCollectionSource.is_enabled == True,  # noqa: E712
+            OzonCollectionSource.status.in_(['pending', 'completed', 'failed'])
+        )
+        .order_by(
+            # 优先级降序
+            OzonCollectionSource.priority.desc(),
+            # 超过7天未采集的优先（NULL 视为从未采集，最优先）
+            case(
+                (OzonCollectionSource.last_collected_at == None, 0),  # noqa: E711
+                (OzonCollectionSource.last_collected_at < one_week_ago, 1),
+                else_=2
+            ),
+            # 上次采集时间升序（从未采集的排前面）
+            OzonCollectionSource.last_collected_at.asc().nullsfirst()
+        )
+        .limit(1)
+    )
+
+    result = await db.execute(query)
+    source = result.scalar_one_or_none()
+
+    if not source:
+        return {
+            "ok": True,
+            "data": None
+        }
+
+    return {
+        "ok": True,
+        "data": {
+            "id": source.id,
+            "source_type": source.source_type,
+            "source_url": source.source_url,
+            "source_path": source.source_path,
+            "display_name": source.display_name,
+            "priority": source.priority,
+            "target_count": source.target_count,
+            "last_collected_at": source.last_collected_at.isoformat() if source.last_collected_at else None
+        }
+    }
+
+
 @router.post("/{source_id}/status")
 async def update_source_status(
     source_id: int,
