@@ -13,15 +13,26 @@ import {
   setRateLimitConfig,
   getFilterConfig,
   setFilterConfig,
-  clearFilterConfig
+  clearFilterConfig,
+  getAutoCollectConfig,
+  setAutoCollectConfig
 } from '../shared/storage';
-import type { ApiConfig, CollectorConfig, ShangpinbangConfig, DataPanelConfig, RateLimitConfig, FilterConfig } from '../shared/types';
+import type { ApiConfig, CollectorConfig, ShangpinbangConfig, DataPanelConfig, RateLimitConfig, FilterConfig, AutoCollectConfig } from '../shared/types';
 import { FIELD_GROUPS, DEFAULT_FIELDS } from '../shared/types';
 import './popup.scss';
 
+// 自动采集状态类型
+interface AutoCollectorState {
+  isRunning: boolean;
+  currentSource: { source_path: string; display_name: string | null } | null;
+  collectedCount: number;
+  processedSources: number;
+  errors: string[];
+}
+
 function Popup() {
   // 标签页状态
-  const [activeTab, setActiveTab] = useState<'api' | 'spb' | 'filter' | 'rateLimit' | 'dataPanel'>('api');
+  const [activeTab, setActiveTab] = useState<'api' | 'autoCollect' | 'filter' | 'rateLimit' | 'dataPanel'>('api');
 
   // API配置
   const [apiConfig, setApiConfigState] = useState<ApiConfig>({
@@ -66,6 +77,25 @@ function Popup() {
     followSellerMax: undefined
   });
 
+  // 自动采集配置
+  const [autoCollectConfig, setAutoCollectConfigState] = useState<AutoCollectConfig>({
+    enabled: false,
+    intervalMinutes: 30,
+    maxConcurrentTabs: 1,
+    productsPerSource: 100,
+    autoUpload: true,
+    closeTabAfterCollect: true
+  });
+
+  // 自动采集器状态
+  const [autoCollectorState, setAutoCollectorState] = useState<AutoCollectorState>({
+    isRunning: false,
+    currentSource: null,
+    collectedCount: 0,
+    processedSources: 0,
+    errors: []
+  });
+
   // UI状态
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
@@ -86,14 +116,37 @@ function Popup() {
       const dataPanel = await getDataPanelConfig();
       const rateLimit = await getRateLimitConfig();
       const filter = await getFilterConfig();
+      const autoCollect = await getAutoCollectConfig();
       setApiConfigState(api);
       setCollectorConfigState(collector);
       setSpbConfig(spb);
       setDataPanelConfigState(dataPanel);
       setRateLimitConfigState(rateLimit);
       setFilterConfigState(filter);
+      setAutoCollectConfigState(autoCollect);
     };
     loadConfig();
+  }, []);
+
+  // 轮询自动采集状态
+  useEffect(() => {
+    const pollStatus = async () => {
+      try {
+        const response = await chrome.runtime.sendMessage({ type: 'AUTO_COLLECTOR_STATUS' });
+        if (response.success) {
+          setAutoCollectorState(response.data);
+        }
+      } catch (error) {
+        // 忽略错误
+      }
+    };
+
+    // 首次加载
+    pollStatus();
+
+    // 每2秒轮询一次
+    const interval = setInterval(pollStatus, 2000);
+    return () => clearInterval(interval);
   }, []);
 
   // 测试连接
@@ -287,6 +340,60 @@ function Popup() {
     );
   };
 
+  // 自动采集：保存配置
+  const handleSaveAutoCollect = async () => {
+    setIsSaving(true);
+    setSaveMessage('');
+
+    try {
+      await setAutoCollectConfig(autoCollectConfig);
+      setSaveMessage('配置已保存');
+      setTimeout(() => setSaveMessage(''), 3000);
+    } catch (error) {
+      setSaveMessage('保存失败');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // 自动采集：启动
+  const handleStartAutoCollect = async () => {
+    try {
+      // 先保存配置
+      await setAutoCollectConfig(autoCollectConfig);
+
+      const response = await chrome.runtime.sendMessage({
+        type: 'AUTO_COLLECTOR_START',
+        data: autoCollectConfig
+      });
+
+      if (response.success) {
+        setSaveMessage('自动采集已启动');
+        setTimeout(() => setSaveMessage(''), 3000);
+      } else {
+        setSaveMessage('启动失败: ' + (response.error || '未知错误'));
+      }
+    } catch (error: any) {
+      setSaveMessage('启动失败: ' + error.message);
+    }
+  };
+
+  // 自动采集：停止
+  const handleStopAutoCollect = async () => {
+    try {
+      const response = await chrome.runtime.sendMessage({ type: 'AUTO_COLLECTOR_STOP' });
+
+      if (response.success) {
+        setSaveMessage('自动采集已停止');
+        setTimeout(() => setSaveMessage(''), 3000);
+      } else {
+        setSaveMessage('停止失败: ' + (response.error || '未知错误'));
+      }
+    } catch (error: any) {
+      setSaveMessage('停止失败: ' + error.message);
+    }
+  };
+
   return (
     <div className="popup-container">
       <header className="popup-header">
@@ -303,10 +410,10 @@ function Popup() {
           API配置
         </button>
         <button
-          className={`tab-button ${activeTab === 'spb' ? 'active' : ''}`}
-          onClick={() => setActiveTab('spb')}
+          className={`tab-button ${activeTab === 'autoCollect' ? 'active' : ''} ${autoCollectorState.isRunning ? 'running' : ''}`}
+          onClick={() => setActiveTab('autoCollect')}
         >
-          上品帮
+          自动采集{autoCollectorState.isRunning ? ' ●' : ''}
         </button>
         <button
           className={`tab-button ${activeTab === 'filter' ? 'active' : ''}`}
@@ -330,9 +437,11 @@ function Popup() {
 
       {/* 标签页内容 */}
       <div className="tab-content">
-        {/* API配置 */}
+        {/* API配置（含上品帮） */}
         {activeTab === 'api' && (
           <div className="tab-panel">
+            {/* EuraFlow API 配置 */}
+            <h3 className="section-title">EuraFlow API</h3>
             <div className="form-group">
               <label className="form-label">API URL:</label>
               <input
@@ -380,17 +489,10 @@ function Popup() {
               </p>
             )}
 
-            {saveMessage && (
-              <p className={`save-message ${saveMessage.includes('失败') ? 'error' : 'success'}`}>
-                {saveMessage}
-              </p>
-            )}
-          </div>
-        )}
+            {/* 上品帮配置 */}
+            <div className="section-divider"></div>
+            <h3 className="section-title">上品帮账号</h3>
 
-        {/* 上品帮配置 */}
-        {activeTab === 'spb' && (
-          <div className="tab-panel">
             <div className="form-group">
               <label className="form-label">手机号:</label>
               <input
@@ -415,7 +517,7 @@ function Popup() {
 
             <div className="button-group">
               <button
-                className="btn btn-primary"
+                className="btn btn-secondary"
                 onClick={handleSpbLogin}
                 disabled={isSpbLoggingIn || !spbConfig.phone || !spbConfig.password}
               >
@@ -433,7 +535,141 @@ function Popup() {
               </p>
             )}
 
-            <p className="hint">用于后续直接调用上品帮 API</p>
+            {saveMessage && (
+              <p className={`save-message ${saveMessage.includes('失败') ? 'error' : 'success'}`}>
+                {saveMessage}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* 自动采集 */}
+        {activeTab === 'autoCollect' && (
+          <div className="tab-panel auto-collect-config">
+            {/* 运行状态 */}
+            {autoCollectorState.isRunning && (
+              <div className="status-card running">
+                <h4>● 采集中...</h4>
+                <div className="status-info">
+                  <p>当前地址: {autoCollectorState.currentSource?.display_name || autoCollectorState.currentSource?.source_path || '准备中...'}</p>
+                  <p>已采集: {autoCollectorState.collectedCount} 个商品</p>
+                  <p>已处理: {autoCollectorState.processedSources} 个地址</p>
+                </div>
+                {autoCollectorState.errors.length > 0 && (
+                  <div className="status-errors">
+                    <p className="error-title">最近错误:</p>
+                    <ul>
+                      {autoCollectorState.errors.slice(-3).map((err, i) => (
+                        <li key={i}>{err}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!autoCollectorState.isRunning && (
+              <div className="status-card idle">
+                <h4>○ 未运行</h4>
+                <p className="hint">配置参数后点击"启动采集"开始自动采集</p>
+              </div>
+            )}
+
+            {/* 配置项 */}
+            <div className="form-group">
+              <label className="form-label">采集间隔 (分钟):</label>
+              <input
+                type="number"
+                className="form-input"
+                min="5"
+                max="1440"
+                value={autoCollectConfig.intervalMinutes}
+                onChange={(e) => setAutoCollectConfigState({ ...autoCollectConfig, intervalMinutes: parseInt(e.target.value) || 30 })}
+                disabled={autoCollectorState.isRunning}
+              />
+              <p className="hint">每个采集地址的采集间隔时间</p>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">每地址目标数量:</label>
+              <input
+                type="number"
+                className="form-input"
+                min="10"
+                max="1000"
+                value={autoCollectConfig.productsPerSource}
+                onChange={(e) => setAutoCollectConfigState({ ...autoCollectConfig, productsPerSource: parseInt(e.target.value) || 100 })}
+                disabled={autoCollectorState.isRunning}
+              />
+              <p className="hint">每个采集地址的目标商品数量</p>
+            </div>
+
+            <div className="form-group">
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={autoCollectConfig.autoUpload}
+                  onChange={(e) => setAutoCollectConfigState({ ...autoCollectConfig, autoUpload: e.target.checked })}
+                  disabled={autoCollectorState.isRunning}
+                />
+                <span>采集后自动上传</span>
+              </label>
+            </div>
+
+            <div className="form-group">
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={autoCollectConfig.closeTabAfterCollect}
+                  onChange={(e) => setAutoCollectConfigState({ ...autoCollectConfig, closeTabAfterCollect: e.target.checked })}
+                  disabled={autoCollectorState.isRunning}
+                />
+                <span>采集后关闭标签页</span>
+              </label>
+            </div>
+
+            {/* 操作按钮 */}
+            <div className="button-group">
+              {!autoCollectorState.isRunning ? (
+                <>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={handleSaveAutoCollect}
+                    disabled={isSaving}
+                  >
+                    {isSaving ? '保存中...' : '保存配置'}
+                  </button>
+                  <button
+                    className="btn btn-primary"
+                    onClick={handleStartAutoCollect}
+                    disabled={!apiConfig.apiUrl || !apiConfig.apiKey}
+                  >
+                    启动采集
+                  </button>
+                </>
+              ) : (
+                <button
+                  className="btn btn-danger"
+                  onClick={handleStopAutoCollect}
+                >
+                  停止采集
+                </button>
+              )}
+            </div>
+
+            {!apiConfig.apiUrl || !apiConfig.apiKey ? (
+              <p className="hint warning">请先在"API配置"中配置 EuraFlow API</p>
+            ) : null}
+
+            {saveMessage && (
+              <p className={`save-message ${saveMessage.includes('失败') ? 'error' : 'success'}`}>
+                {saveMessage}
+              </p>
+            )}
+
+            <p className="hint">
+              采集地址需要在 EuraFlow 后台的"采集地址管理"中配置
+            </p>
           </div>
         )}
 

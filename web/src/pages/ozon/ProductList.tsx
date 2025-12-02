@@ -91,28 +91,21 @@ const ProductList: React.FC = () => {
   const [previewIndex, setPreviewIndex] = useState(0);
   const [currentPreviewProduct, setCurrentPreviewProduct] = useState<ozonApi.Product | null>(null);
 
-  // 处理排序
-  const handleSort = (field: string) => {
-    if (sortBy === field) {
-      // 同一字段：无排序 → 升序 → 降序 → 无排序
-      if (sortOrder === null) {
-        setSortOrder('asc');
-      } else if (sortOrder === 'asc') {
-        setSortOrder('desc');
-      } else {
-        setSortBy(null);
-        setSortOrder(null);
-      }
+  // 处理排序 - 直接设置排序方向
+  const handleSort = (field: string, order: 'asc' | 'desc') => {
+    // 如果点击的是当前激活的排序，则取消排序
+    if (sortBy === field && sortOrder === order) {
+      setSortBy(null);
+      setSortOrder(null);
     } else {
-      // 切换到新字段，默认升序
       setSortBy(field);
-      setSortOrder('asc');
+      setSortOrder(order);
     }
     // 重置到第一页
     setCurrentPage(1);
   };
 
-  // 列标题排序组件
+  // 列标题排序组件 - 升序降序分开显示，可直接点击
   const SortableColumnTitle: React.FC<{ title: string; field: string }> = ({ title, field }) => {
     const isActive = sortBy === field;
     const isAsc = isActive && sortOrder === 'asc';
@@ -121,24 +114,46 @@ const ProductList: React.FC = () => {
     return (
       <div
         style={{
-          cursor: 'pointer',
           display: 'inline-flex',
           alignItems: 'center',
-          gap: '4px',
+          gap: '2px',
           userSelect: 'none',
         }}
-        onClick={() => handleSort(field)}
       >
+        <span
+          style={{
+            cursor: 'pointer',
+            fontSize: '10px',
+            color: isAsc ? '#1890ff' : '#bfbfbf',
+            padding: '2px 4px',
+            borderRadius: '2px',
+            transition: 'all 0.2s',
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleSort(field, 'asc');
+          }}
+          title="升序"
+        >
+          ▲
+        </span>
         <span>{title}</span>
         <span
           style={{
-            display: 'inline-flex',
-            flexDirection: 'column',
+            cursor: 'pointer',
             fontSize: '10px',
+            color: isDesc ? '#1890ff' : '#bfbfbf',
+            padding: '2px 4px',
+            borderRadius: '2px',
+            transition: 'all 0.2s',
           }}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleSort(field, 'desc');
+          }}
+          title="降序"
         >
-          <span style={{ lineHeight: 1, color: isAsc ? '#1890ff' : '#bfbfbf' }}>▲</span>
-          <span style={{ lineHeight: 1, color: isDesc ? '#1890ff' : '#bfbfbf' }}>▼</span>
+          ▼
         </span>
       </div>
     );

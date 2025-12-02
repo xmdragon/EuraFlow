@@ -42,6 +42,19 @@ export type ProductUploadData = Omit<ProductData, 'product_created_date' | 'list
 };
 
 /**
+ * 采集源信息（用于自动采集）
+ */
+export interface CollectionSource {
+  id: number;
+  source_type: 'category' | 'seller';
+  source_url: string;
+  source_path: string;
+  display_name: string | null;
+  target_count: number;
+  priority: number;
+}
+
+/**
  * EuraFlow 后端 API 客户端
  *
  * 仅在 Service Worker 中使用（跨域请求）
@@ -115,8 +128,15 @@ export class EuraflowApi extends BaseApiClient {
 
   /**
    * 上传商品数据
+   * @param products 商品数据列表
+   * @param batchName 批次名称（可选，用于自动采集）
+   * @param sourceId 采集源ID（可选，用于自动采集）
    */
-  async uploadProducts(products: ProductUploadData[]): Promise<{
+  async uploadProducts(
+    products: ProductUploadData[],
+    batchName?: string,
+    sourceId?: number
+  ): Promise<{
     success: boolean;
     total: number;
     success_count?: number;
@@ -126,7 +146,7 @@ export class EuraflowApi extends BaseApiClient {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 60000);
 
-    console.log(`[EuraflowApi] 开始上传 ${products.length} 个商品到 ${this.baseUrl}`);
+    console.log(`[EuraflowApi] 开始上传 ${products.length} 个商品到 ${this.baseUrl}${batchName ? ` (批次: ${batchName})` : ''}`);
 
     try {
       const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/product-selection/upload`, {
@@ -135,7 +155,11 @@ export class EuraflowApi extends BaseApiClient {
           'Content-Type': 'application/json',
           'X-API-Key': this.apiKey
         },
-        body: JSON.stringify({ products }),
+        body: JSON.stringify({
+          products,
+          ...(batchName && { batch_name: batchName }),
+          ...(sourceId && { source_id: sourceId })
+        }),
         signal: controller.signal
       });
 
@@ -318,6 +342,81 @@ export class EuraflowApi extends BaseApiClient {
     } catch (error: any) {
       console.error('[EuraflowApi] 类目查询异常:', error.message);
       return null;
+    }
+  }
+
+  // ========== 自动采集 API ==========
+
+  /**
+   * 获取下一个待采集的地址
+   * 优先返回超过 7 天未采集的地址
+   */
+  async getNextCollectionSource(): Promise<CollectionSource | null> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/collection-sources/queue/next`, {
+        method: 'GET',
+        headers: {
+          'X-API-Key': this.apiKey
+        }
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          // 没有待采集的地址
+          return null;
+        }
+        const errorData = await response.json().catch(() => ({}));
+        throw createApiError(
+          'QUEUE_FAILED',
+          errorData.detail?.message || `HTTP ${response.status}`,
+          response.status
+        );
+      }
+
+      const result = await response.json();
+      return result.data || null;
+    } catch (error: any) {
+      if (error.code === 'QUEUE_FAILED') {
+        throw error;
+      }
+      console.error('[EuraflowApi] 获取采集队列失败:', error.message);
+      return null;
+    }
+  }
+
+  /**
+   * 更新采集源状态
+   * @param sourceId 采集源 ID
+   * @param status 新状态
+   * @param productCount 本次采集的商品数量（可选）
+   * @param error 错误信息（可选，失败时使用）
+   */
+  async updateCollectionSourceStatus(
+    sourceId: number,
+    status: 'collecting' | 'completed' | 'failed',
+    productCount?: number,
+    error?: string
+  ): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/collection-sources/${sourceId}/status`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': this.apiKey
+      },
+      body: JSON.stringify({
+        status,
+        ...(productCount !== undefined && { product_count: productCount }),
+        ...(error && { error })
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw createApiError(
+        'STATUS_UPDATE_FAILED',
+        errorData.detail?.message || `HTTP ${response.status}`,
+        response.status
+      );
     }
   }
 

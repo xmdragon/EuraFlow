@@ -75,5 +75,6 @@ export type {
   QuickPublishBatchRequest,
   QuickPublishBatchResponse,
   TaskStatus,
-  ProductUploadData
+  ProductUploadData,
+  CollectionSource
 } from './euraflow-api';

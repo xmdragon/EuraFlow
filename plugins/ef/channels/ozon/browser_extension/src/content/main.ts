@@ -12,6 +12,9 @@ import { ControlPanel } from './components/ControlPanel';
 import { RealPriceCalculator } from './price-calculator';
 import { ProductListEnhancer } from './list-enhancer';
 
+// 模块级别的采集器引用（用于自动采集消息处理）
+let globalCollector: ProductCollector | null = null;
+
 // 检测当前页面是否为商品列表页
 function isProductListPage(): boolean {
   return window.location.href.includes('ozon.ru') &&
@@ -48,6 +51,7 @@ async function init() {
 
     // 4. 创建采集器（API配置和上传由 ControlPanel 负责）
     const collector = new ProductCollector(fusionEngine);
+    globalCollector = collector;  // 保存到全局引用
 
     // 5. 加载过滤配置并注入到采集器
     const filterConfig = await getFilterConfig();
@@ -83,8 +87,9 @@ export function onExecute() {
   }
 }
 
-// ========== 消息监听器：响应 background 的变体提取请求 ==========
+// ========== 消息监听器：响应 background 的请求 ==========
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  // 变体提取请求
   if (message.type === 'EXTRACT_PRODUCT_DATA') {
     // 动态导入并执行
     import('./parsers/product-detail').then(async (module) => {
@@ -102,4 +107,54 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
     return true; // 异步响应
   }
+
+  // 自动采集请求（从 auto-collector 发送）
+  if (message.type === 'AUTO_COLLECT') {
+    handleAutoCollect(message.data)
+      .then(result => sendResponse({ success: true, data: result }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+    return true;
+  }
+
+  // 停止采集请求
+  if (message.type === 'STOP_COLLECTION') {
+    if (globalCollector) {
+      globalCollector.stopCollection();
+      sendResponse({ success: true });
+    } else {
+      sendResponse({ success: false, error: '采集器未初始化' });
+    }
+    return true;
+  }
 });
+
+/**
+ * 处理自动采集请求
+ */
+async function handleAutoCollect(data: { targetCount: number; autoMode?: boolean }): Promise<{ products: any[] }> {
+  const { targetCount } = data;
+
+  // 检查采集器是否已初始化
+  if (!globalCollector) {
+    // 如果页面刚加载，采集器可能还未初始化，等待一下
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    if (!globalCollector) {
+      throw new Error('采集器未初始化（请确保页面为商品列表页）');
+    }
+  }
+
+  // 检查是否已在运行
+  if (globalCollector.isRunning) {
+    throw new Error('采集已在进行中');
+  }
+
+  console.log(`[AutoCollect] 开始自动采集，目标数量: ${targetCount}`);
+
+  // 执行采集
+  const products = await globalCollector.startCollection(targetCount);
+
+  console.log(`[AutoCollect] 采集完成，共 ${products.length} 个商品`);
+
+  return { products };
+}

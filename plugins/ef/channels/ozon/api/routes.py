@@ -188,5 +188,12 @@ try:
 except ImportError as e:
     logger.warning(f"Could not import stock routes: {e}")
 
+try:
+    from .collection_source_routes import router as collection_source_router
+    router.include_router(collection_source_router)
+    logger.info("✓ Loaded collection_source_routes")
+except ImportError as e:
+    logger.warning(f"Could not import collection source routes: {e}")
+
 
 logger.info("Ozon API routes initialized successfully")

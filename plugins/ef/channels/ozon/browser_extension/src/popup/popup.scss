@@ -398,3 +398,111 @@ body {
     user-select: none;
   }
 }
+
+/* 分节标题和分隔线 */
+.section-title {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.section-divider {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 20px 0;
+}
+
+/* 自动采集配置 */
+.auto-collect-config {
+  .status-card {
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+
+    h4 {
+      margin: 0 0 8px 0;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    &.running {
+      background: #dbeafe;
+      border: 1px solid #93c5fd;
+
+      h4 {
+        color: #1d4ed8;
+      }
+    }
+
+    &.idle {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+
+      h4 {
+        color: #6b7280;
+      }
+    }
+
+    .status-info {
+      font-size: 12px;
+      color: #4b5563;
+      line-height: 1.6;
+
+      p {
+        margin: 4px 0;
+      }
+    }
+
+    .status-errors {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(0, 0, 0, 0.1);
+
+      .error-title {
+        font-size: 12px;
+        font-weight: 600;
+        color: #dc2626;
+        margin: 0 0 4px 0;
+      }
+
+      ul {
+        margin: 0;
+        padding: 0 0 0 16px;
+        font-size: 11px;
+        color: #991b1b;
+        line-height: 1.5;
+      }
+    }
+  }
+
+  .hint.warning {
+    color: #d97706;
+    font-weight: 500;
+  }
+}
+
+/* 危险按钮 */
+.btn-danger {
+  background: #ef4444;
+  color: white;
+
+  &:not(:disabled):hover {
+    background: #dc2626;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+  }
+}
+
+/* 运行中标签页指示器 */
+.tab-button.running {
+  color: #1d4ed8;
+
+  &.active {
+    color: #1d4ed8;
+
+    &::after {
+      background: #1d4ed8;
+    }
+  }
+}

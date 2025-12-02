@@ -42,10 +42,12 @@ interface ItemPrepareData {
   productImage: string | null;
   stockAvailable: number;
   orderQuantity: number;
-  useStock: boolean; // 是否使用库存
+  useStock: boolean; // 是否使用库存（库存>0时有效）
+  addStockQuantity: number | undefined; // 增加库存数量（库存=0时使用）
   purchasePrice: number | undefined; // 进货价格
   sourcePlatform: string[]; // 采购平台
   notes: string; // 备注
+  shopId?: number; // 店铺ID（用于添加库存）
 }
 
 const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
@@ -103,9 +105,11 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
         stockAvailable: item.stock_available,
         orderQuantity: item.order_quantity,
         useStock: item.is_sufficient, // 库存充足时默认使用库存
+        addStockQuantity: undefined, // 增加库存数量（库存=0时使用）
         purchasePrice: item.is_sufficient ? 0 : undefined, // 使用库存时为0，其他留空
         sourcePlatform: item.is_sufficient ? ['库存'] : [],
         notes: '',
+        shopId: posting?.order?.shop_id, // 记录店铺ID
       }));
       setItemsData(items);
     }
@@ -194,8 +198,44 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
-      const summary = getSummaryData();
 
+      // 1. 检查是否需要增加库存
+      const itemsNeedAddStock = itemsData.filter(
+        (item) => item.stockAvailable === 0 && item.addStockQuantity && item.addStockQuantity > 0
+      );
+
+      // 2. 先添加库存
+      if (itemsNeedAddStock.length > 0) {
+        loggers.stock.info('需要增加库存的商品', { items: itemsNeedAddStock });
+
+        for (const item of itemsNeedAddStock) {
+          if (!item.shopId) {
+            notifyError('添加库存失败', `商品 ${item.sku} 缺少店铺信息`);
+            return;
+          }
+
+          try {
+            await ozonApi.addStock({
+              shop_id: item.shopId,
+              sku: item.sku,
+              quantity: item.addStockQuantity!,
+              notes: `备货时添加库存 - ${postingNumber}`,
+            });
+            loggers.stock.info('添加库存成功', { sku: item.sku, quantity: item.addStockQuantity });
+          } catch (error) {
+            const errorMsg = axios.isAxiosError(error)
+              ? error.response?.data?.detail || error.message || '添加库存失败'
+              : error instanceof Error
+                ? error.message
+                : '添加库存失败';
+            notifyError('添加库存失败', `商品 ${item.sku}: ${errorMsg}`);
+            return;
+          }
+        }
+      }
+
+      // 3. 提交备货
+      const summary = getSummaryData();
       const data: ozonApi.PrepareStockRequest = {
         source_platform: summary.platforms,
         purchase_price: String(summary.totalPrice),
@@ -277,17 +317,44 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
       ),
     },
     {
-      title: '使用库存',
+      title: '库存操作',
       dataIndex: 'useStock',
       key: 'useStock',
-      width: 80,
-      render: (_: unknown, record: ItemPrepareData) => (
-        <Checkbox
-          checked={record.useStock}
-          onChange={(e) => updateItemData(record.sku, 'useStock', e.target.checked)}
-          disabled={record.stockAvailable === 0}
-        />
-      ),
+      width: 140,
+      render: (_: unknown, record: ItemPrepareData) => {
+        // 库存为0时，显示"增加库存"输入框
+        if (record.stockAvailable === 0) {
+          return (
+            <InputNumber
+              value={record.addStockQuantity}
+              onChange={(value) => {
+                updateItemData(record.sku, 'addStockQuantity', value ?? undefined);
+                // 设置增加库存时，自动设置平台为"库存"
+                if (value && value > 0) {
+                  const newPlatforms = record.sourcePlatform.includes('库存')
+                    ? record.sourcePlatform
+                    : [...record.sourcePlatform, '库存'];
+                  updateItemData(record.sku, 'sourcePlatform', newPlatforms);
+                }
+              }}
+              min={1}
+              max={9999}
+              style={{ width: '100%' }}
+              placeholder="新增库存数量"
+              size="small"
+            />
+          );
+        }
+        // 有库存时，显示"使用库存"复选框
+        return (
+          <Checkbox
+            checked={record.useStock}
+            onChange={(e) => updateItemData(record.sku, 'useStock', e.target.checked)}
+          >
+            使用库存
+          </Checkbox>
+        );
+      },
     },
     {
       title: '进货价格',

@@ -28,6 +28,7 @@ from .collection_record import OzonProductCollectionRecord
 from .draft_template import OzonProductTemplate
 from .cancel_return import OzonCancellation, OzonReturn
 from .stats import OzonDailyStats
+from .collection_source import OzonCollectionSource
 
 __all__ = [
     "OzonShop",
@@ -79,4 +80,6 @@ __all__ = [
     "OzonReturn",
     # Statistics
     "OzonDailyStats",
+    # Collection sources (auto collection)
+    "OzonCollectionSource",
 ]

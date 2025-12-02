@@ -568,24 +568,44 @@ export const useProductSelection = (): UseProductSelectionReturn => {
       localStorage.setItem('productSelectionFilters', JSON.stringify(filtersToSave));
     }
 
+    // 检查参数是否变化，用于决定是否需要强制刷新
+    const paramsChanged = JSON.stringify(params) !== JSON.stringify(searchParams);
+
     setSearchParams(params);
     setCurrentPage(1);
     setAllProducts([]);
     setHasMoreData(true);
     setPageSize(initialPageSize);
+    setLastId(0);
     loadingLockRef.current = false;
     lastRequestPageRef.current = 0;
+
+    // 如果参数没有变化，使查询失效以强制重新获取
+    if (!paramsChanged) {
+      queryClient.invalidateQueries({ queryKey: ['productSelectionProducts'] });
+    }
   };
 
   const handleReset = () => {
     form.resetFields();
     localStorage.removeItem('productSelectionFilters');
-    setSearchParams({ is_read: false });
+
+    // 检查是否需要强制刷新（如果重置后参数与当前相同）
+    const resetParams = { is_read: false };
+    const paramsChanged = JSON.stringify(resetParams) !== JSON.stringify(searchParams);
+
+    setSearchParams(resetParams);
     setCurrentPage(1);
     setAllProducts([]);
     setHasMoreData(true);
     setPageSize(initialPageSize);
+    setLastId(0);
     setSelectedProductIds(new Set());
+
+    // 如果参数没有变化，使查询失效以强制重新获取
+    if (!paramsChanged) {
+      queryClient.invalidateQueries({ queryKey: ['productSelectionProducts'] });
+    }
   };
 
   const toggleProductSelection = (productId: number) => {

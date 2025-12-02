@@ -141,6 +141,8 @@ class ProductUploadItem(BaseModel):
 class ProductsUploadRequest(BaseModel):
     """批量上传商品请求"""
     products: List[ProductUploadItem]
+    batch_name: Optional[str] = Field(None, description="批次名称（用于自动采集，如不提供则自动生成）")
+    source_id: Optional[int] = Field(None, description="关联的采集源ID（自动采集时使用）")
 
 
 class ProductsUploadResponse(BaseModel):
@@ -1234,8 +1236,14 @@ async def upload_products(
             process_duration = int(time.time() - start_time)
             import_time_str = datetime.now().strftime('%Y%m%d_%H%M%S')
 
+            # 使用自定义批次名或默认名称
+            if request.batch_name:
+                file_name = f"自动采集 - {request.batch_name}"
+            else:
+                file_name = f"浏览器插件导入 - {import_time_str}"
+
             import_history = ImportHistory(
-                file_name=f"浏览器插件导入 - {import_time_str}",
+                file_name=file_name,
                 file_type="api",
                 file_size=0,
                 imported_by=api_key_user.id,
@@ -1246,7 +1254,12 @@ async def upload_products(
                 updated_rows=result['updated'],
                 skipped_rows=result['skipped'],
                 process_duration=process_duration,
-                import_log={"source": "browser_extension", "api_key_user_id": api_key_user.id},
+                import_log={
+                    "source": "browser_extension",
+                    "api_key_user_id": api_key_user.id,
+                    "batch_name": request.batch_name,
+                    "source_id": request.source_id
+                },
                 error_details=errors[:100] if errors else []
             )
 

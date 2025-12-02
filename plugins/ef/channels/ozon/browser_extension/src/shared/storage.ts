@@ -1,4 +1,4 @@
-import type { ApiConfig, CollectorConfig, ShangpinbangConfig, DataPanelConfig, RateLimitConfig, FilterConfig } from './types';
+import type { ApiConfig, CollectorConfig, ShangpinbangConfig, DataPanelConfig, RateLimitConfig, FilterConfig, AutoCollectConfig } from './types';
 import { DEFAULT_FIELDS } from './types';
 
 /**
@@ -273,4 +273,54 @@ export async function clearFilterConfig(): Promise<void> {
     'filterSellerMode',
     'filterFollowSellerMax'
   ]);
+}
+
+// ========== 自动采集配置存储 ==========
+
+const DEFAULT_AUTO_COLLECT_CONFIG: AutoCollectConfig = {
+  enabled: false,
+  intervalMinutes: 30,         // 默认30分钟
+  maxConcurrentTabs: 1,        // 默认单标签页
+  productsPerSource: 100,      // 默认每个地址采集100个商品
+  autoUpload: true,            // 默认自动上传
+  closeTabAfterCollect: true,  // 默认采集后关闭标签页
+};
+
+/**
+ * 获取自动采集配置
+ */
+export async function getAutoCollectConfig(): Promise<AutoCollectConfig> {
+  const result = await chrome.storage.sync.get([
+    'autoCollectEnabled',
+    'autoCollectInterval',
+    'autoCollectMaxTabs',
+    'autoCollectProductsPerSource',
+    'autoCollectAutoUpload',
+    'autoCollectCloseTab'
+  ]);
+
+  return {
+    enabled: result.autoCollectEnabled ?? DEFAULT_AUTO_COLLECT_CONFIG.enabled,
+    intervalMinutes: result.autoCollectInterval ?? DEFAULT_AUTO_COLLECT_CONFIG.intervalMinutes,
+    maxConcurrentTabs: result.autoCollectMaxTabs ?? DEFAULT_AUTO_COLLECT_CONFIG.maxConcurrentTabs,
+    productsPerSource: result.autoCollectProductsPerSource ?? DEFAULT_AUTO_COLLECT_CONFIG.productsPerSource,
+    autoUpload: result.autoCollectAutoUpload ?? DEFAULT_AUTO_COLLECT_CONFIG.autoUpload,
+    closeTabAfterCollect: result.autoCollectCloseTab ?? DEFAULT_AUTO_COLLECT_CONFIG.closeTabAfterCollect,
+  };
+}
+
+/**
+ * 保存自动采集配置
+ */
+export async function setAutoCollectConfig(config: Partial<AutoCollectConfig>): Promise<void> {
+  const storageData: { [key: string]: any } = {};
+
+  if (config.enabled !== undefined) storageData.autoCollectEnabled = config.enabled;
+  if (config.intervalMinutes !== undefined) storageData.autoCollectInterval = config.intervalMinutes;
+  if (config.maxConcurrentTabs !== undefined) storageData.autoCollectMaxTabs = config.maxConcurrentTabs;
+  if (config.productsPerSource !== undefined) storageData.autoCollectProductsPerSource = config.productsPerSource;
+  if (config.autoUpload !== undefined) storageData.autoCollectAutoUpload = config.autoUpload;
+  if (config.closeTabAfterCollect !== undefined) storageData.autoCollectCloseTab = config.closeTabAfterCollect;
+
+  await chrome.storage.sync.set(storageData);
 }

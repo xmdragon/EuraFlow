@@ -500,6 +500,18 @@ export interface RateLimitConfig {
 }
 
 /**
+ * 自动采集配置
+ */
+export interface AutoCollectConfig {
+  enabled: boolean;                // 是否启用自动采集
+  intervalMinutes: number;         // 采集间隔（分钟）
+  maxConcurrentTabs: number;       // 最大并发标签页数
+  productsPerSource: number;       // 每个采集地址的目标商品数
+  autoUpload: boolean;             // 采集后自动上传
+  closeTabAfterCollect: boolean;   // 采集后关闭标签页
+}
+
+/**
  * 数据字段定义（用于配置界面）
  */
 export interface DataField {
