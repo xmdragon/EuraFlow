@@ -488,6 +488,10 @@ async function handleFetchAllProductData(data: {
 }): Promise<any> {
   const { url, productSku, productDetail, ratingData } = data;
 
+  if (__DEBUG__) {
+    console.log('[商品数据] handleFetchAllProductData 开始, productSku:', productSku);
+  }
+
   // 数据完整性检查
   if (!productDetail) {
     throw new Error('Content Script 未传递 productDetail，数据采集失败');
@@ -496,6 +500,9 @@ async function handleFetchAllProductData(data: {
   // 1. 检查缓存
   const cached = productDataCache.get(url);
   if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    if (__DEBUG__) {
+      console.log('[商品数据] 命中缓存, url:', url);
+    }
     return {
       ozonProduct: cached.ozonProduct,
       spbSales: cached.spbSales,

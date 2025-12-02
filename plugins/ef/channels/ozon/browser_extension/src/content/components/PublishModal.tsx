@@ -578,7 +578,11 @@ function renderShopSelect(): string {
   }
 
   const options = shops
-    .map(shop => `<option value="${shop.id}" ${shop.id === selectedShopId ? 'selected' : ''}>${shop.display_name}</option>`)
+    .map(shop => {
+      // 显示格式：俄文名 [中文名]，与前端 ShopSelector 保持一致
+      const displayName = shop.shop_name + (shop.shop_name_cn ? ` [${shop.shop_name_cn}]` : '');
+      return `<option value="${shop.id}" ${shop.id === selectedShopId ? 'selected' : ''}>${displayName}</option>`;
+    })
     .join('');
 
   return `<select id="shop-select" class="ef-operations-bar__select">${options}</select>`;

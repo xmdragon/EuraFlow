@@ -353,7 +353,8 @@ async def get_quick_publish_config(
             shops_data.append({
                 "id": shop.id,
                 "display_name": shop.shop_name_cn or shop.shop_name,
-                "shop_name": shop.shop_name,
+                "shop_name": shop.shop_name,  # 俄文名
+                "shop_name_cn": shop.shop_name_cn or "",  # 中文名
                 "warehouses": warehouses_by_shop.get(shop.id, [])
             })
 

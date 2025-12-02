@@ -173,6 +173,8 @@ export const useProductSelection = (): UseProductSelectionReturn => {
   const loadingLockRef = useRef(false);
   const lastRequestPageRef = useRef(0);
   const [lastId, setLastId] = useState<number>(0);
+  // 搜索版本号，用于强制触发数据更新
+  const [searchVersion, setSearchVersion] = useState(0);
 
   // 字段配置状态
   const [fieldConfig, setFieldConfig] = useState<FieldConfig>(() => {
@@ -327,7 +329,7 @@ export const useProductSelection = (): UseProductSelectionReturn => {
     isLoading: productsLoading,
     refetch: refetchProducts,
   } = useQuery({
-    queryKey: ['productSelectionProducts', searchParams, currentPage],
+    queryKey: ['productSelectionProducts', searchParams, currentPage, searchVersion],
     queryFn: () =>
       api.searchProducts({
         ...searchParams,
@@ -568,9 +570,6 @@ export const useProductSelection = (): UseProductSelectionReturn => {
       localStorage.setItem('productSelectionFilters', JSON.stringify(filtersToSave));
     }
 
-    // 检查参数是否变化，用于决定是否需要强制刷新
-    const paramsChanged = JSON.stringify(params) !== JSON.stringify(searchParams);
-
     setSearchParams(params);
     setCurrentPage(1);
     setAllProducts([]);
@@ -579,33 +578,23 @@ export const useProductSelection = (): UseProductSelectionReturn => {
     setLastId(0);
     loadingLockRef.current = false;
     lastRequestPageRef.current = 0;
-
-    // 如果参数没有变化，使查询失效以强制重新获取
-    if (!paramsChanged) {
-      queryClient.invalidateQueries({ queryKey: ['productSelectionProducts'] });
-    }
+    // 递增搜索版本号，强制触发新的查询（绕过缓存）
+    setSearchVersion((v) => v + 1);
   };
 
   const handleReset = () => {
     form.resetFields();
     localStorage.removeItem('productSelectionFilters');
 
-    // 检查是否需要强制刷新（如果重置后参数与当前相同）
-    const resetParams = { is_read: false };
-    const paramsChanged = JSON.stringify(resetParams) !== JSON.stringify(searchParams);
-
-    setSearchParams(resetParams);
+    setSearchParams({ is_read: false });
     setCurrentPage(1);
     setAllProducts([]);
     setHasMoreData(true);
     setPageSize(initialPageSize);
     setLastId(0);
     setSelectedProductIds(new Set());
-
-    // 如果参数没有变化，使查询失效以强制重新获取
-    if (!paramsChanged) {
-      queryClient.invalidateQueries({ queryKey: ['productSelectionProducts'] });
-    }
+    // 递增搜索版本号，强制触发新的查询（绕过缓存）
+    setSearchVersion((v) => v + 1);
   };
 
   const toggleProductSelection = (productId: number) => {

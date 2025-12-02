@@ -278,6 +278,10 @@ export class SpbangApi extends BaseApiClient {
   async getSalesDataBatch(productIds: string[]): Promise<Map<string, SpbSalesData>> {
     const results = new Map<string, SpbSalesData>();
 
+    if (__DEBUG__) {
+      console.log('[API] SpbangApi.getSalesDataBatch 调用, productIds:', productIds);
+    }
+
     if (!productIds || productIds.length === 0) {
       return results;
     }

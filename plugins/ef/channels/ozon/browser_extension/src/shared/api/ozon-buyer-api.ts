@@ -223,6 +223,13 @@ export class OzonBuyerApi extends BaseApiClient {
       );
       const apiUrl = `${origin}/api/entrypoint-api.bx/page/json/v2?url=${encodedUrl}`;
 
+      if (__DEBUG__) {
+        console.log('[API] OzonBuyerApi.getFollowSellerDataSingle 请求:', {
+          url: apiUrl,
+          productId
+        });
+      }
+
       // 直接请求（不使用 tryExecuteInPage，避免从 Content Script 调用时死锁）
       const { headers: baseHeaders } = await getOzonStandardHeaders({
         referer: `https://www.ozon.ru/product/${productId}/`,
@@ -248,11 +255,25 @@ export class OzonBuyerApi extends BaseApiClient {
       );
 
       if (!response.ok) {
+        if (__DEBUG__) {
+          console.log('[API] OzonBuyerApi.getFollowSellerDataSingle HTTP 错误:', response.status);
+        }
         return null;
       }
 
       const data = await response.json();
-      return this.parseFollowSellerResponse(data);
+
+      if (__DEBUG__) {
+        console.log('[API] OzonBuyerApi.getFollowSellerDataSingle 返回:', JSON.stringify(data, null, 2).slice(0, 2000));
+      }
+
+      const result = this.parseFollowSellerResponse(data);
+
+      if (__DEBUG__) {
+        console.log('[API] OzonBuyerApi.getFollowSellerDataSingle 解析结果:', result);
+      }
+
+      return result;
     } catch (error: any) {
       return null;
     }
