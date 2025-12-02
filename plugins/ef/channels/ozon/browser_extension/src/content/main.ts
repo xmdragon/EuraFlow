@@ -15,6 +15,13 @@ import { ProductListEnhancer } from './list-enhancer';
 // 模块级别的采集器引用（用于自动采集消息处理）
 let globalCollector: ProductCollector | null = null;
 
+// 商品详情页预加载数据（document_start 时立即开始，不需要 Cookie）
+let prefetchedData: {
+  productId: string;
+  spbDataPromise: Promise<any>;
+  configPromise: Promise<any>;
+} | null = null;
+
 // 检测当前页面是否为商品列表页
 function isProductListPage(): boolean {
   return window.location.href.includes('ozon.ru') &&
@@ -29,9 +36,9 @@ function isProductDetailPage(): boolean {
 async function init() {
   // 分支处理：商品详情页 vs 商品列表页
   if (isProductDetailPage()) {
-    // 初始化真实售价计算器（等待Vue渲染完成）
+    // 初始化真实售价计算器，传入预加载的数据
     const priceCalculator = new RealPriceCalculator();
-    await priceCalculator.init();
+    await priceCalculator.init(prefetchedData);
     return;
   }
 
@@ -77,9 +84,67 @@ async function init() {
   }
 }
 
+/**
+ * 从 URL 提取商品 ID（轻量版，用于预加载）
+ */
+function extractProductIdFromUrl(): string | null {
+  const url = window.location.href;
+  const pathname = window.location.pathname;
+
+  // 方法1: URL末尾带斜杠或问号
+  let match = url.match(/-(\d+)\/(\?|$)/);
+  if (match) return match[1];
+
+  // 方法2: URL末尾不带斜杠
+  match = url.match(/-(\d+)$/);
+  if (match) return match[1];
+
+  // 方法3: 纯数字格式
+  if (pathname.includes('/product/')) {
+    const pureNumMatch = pathname.match(/\/product\/(\d{6,})\/?$/);
+    if (pureNumMatch) return pureNumMatch[1];
+
+    const pathPart = pathname.split('/product/')[1]?.split('?')[0]?.replace(/\/$/, '');
+    if (pathPart) {
+      const lastDashIndex = pathPart.lastIndexOf('-');
+      if (lastDashIndex !== -1) {
+        const sku = pathPart.substring(lastDashIndex + 1);
+        if (/^\d{6,}$/.test(sku)) return sku;
+      }
+    }
+  }
+
+  return null;
+}
+
 // 导出 onExecute 函数（Vite CRXJS 插件要求）
 // 注意：不要在这里直接调用 onExecute()，loader 会调用它
 export function onExecute() {
+  // 【document_start 优化】商品详情页：第一时间并行请求不需要 Cookie 的 API
+  if (isProductDetailPage()) {
+    const productId = extractProductIdFromUrl();
+    if (productId) {
+      // 并行发起：上品帮 API + EuraFlow 配置预加载（都不需要 OZON Cookie）
+      prefetchedData = {
+        productId,
+        spbDataPromise: chrome.runtime.sendMessage({
+          type: 'GET_SPB_SALES_DATA',
+          data: { productSku: productId }
+        }).catch(err => {
+          console.warn('[EuraFlow] 上品帮数据预加载失败:', err.message);
+          return { success: false, data: null };
+        }),
+        configPromise: chrome.runtime.sendMessage({
+          type: 'GET_CONFIG_PREFETCH'
+        }).catch(err => {
+          console.warn('[EuraFlow] 配置预加载失败:', err.message);
+          return { success: false, data: null };
+        })
+      };
+    }
+  }
+
+  // 等 DOM ready 后再进行 DOM 操作（需要 Cookie 的 API 在此之后调用）
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {

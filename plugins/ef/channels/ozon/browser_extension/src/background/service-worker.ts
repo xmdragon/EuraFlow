@@ -151,6 +151,14 @@ chrome.runtime.onMessage.addListener((message: any, _sender: chrome.runtime.Mess
     return true;
   }
 
+  // 配置预加载（document_start 时调用，不需要 Cookie）
+  if (message.type === 'GET_CONFIG_PREFETCH') {
+    handleGetConfigPrefetch()
+      .then(response => sendResponse({ success: true, data: response }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+    return true;
+  }
+
   if (message.type === 'QUICK_PUBLISH') {
     handleQuickPublish(message.data)
       .then(response => sendResponse({ success: true, data: response }))
@@ -296,6 +304,30 @@ async function handleGetConfig(data: { apiUrl: string; apiKey: string }) {
   const { apiUrl, apiKey } = data;
   const api = createEuraflowApi(apiUrl, apiKey);
   return api.getConfig();
+}
+
+/**
+ * 配置预加载（document_start 时调用）
+ * 从 chrome.storage 获取 API 配置，并预加载 EuraFlow 配置
+ */
+async function handleGetConfigPrefetch(): Promise<any> {
+  const storageData = await new Promise<any>((resolve) => {
+    chrome.storage.sync.get(['apiUrl', 'apiKey'], resolve);
+  });
+
+  if (!storageData.apiUrl || !storageData.apiKey) {
+    return { apiUrl: null, apiKey: null, config: null };
+  }
+
+  // 预加载 EuraFlow 配置
+  const api = createEuraflowApi(storageData.apiUrl, storageData.apiKey);
+  const config = await api.getConfig().catch(() => null);
+
+  return {
+    apiUrl: storageData.apiUrl,
+    apiKey: storageData.apiKey,
+    config
+  };
 }
 
 async function handleQuickPublish(data: { apiUrl: string; apiKey: string; data: any }) {
@@ -485,11 +517,13 @@ async function handleFetchAllProductData(data: {
   productSku: string;
   productDetail: any;
   ratingData?: { rating: number | null; reviewCount: number | null };
+  spbSalesData?: any;  // 可选：content script 已预先获取的上品帮数据
+  followSellerData?: { count: number; skus: string[]; prices: number[] } | null;  // 可选：content script 通过页面上下文获取的跟卖数据
 }): Promise<any> {
-  const { url, productSku, productDetail, ratingData } = data;
+  const { url, productSku, productDetail, ratingData, spbSalesData: preloadedSpbSales, followSellerData } = data;
 
   if (__DEBUG__) {
-    console.log('[商品数据] handleFetchAllProductData 开始, productSku:', productSku);
+    console.log('[商品数据] handleFetchAllProductData 开始, productSku:', productSku, 'hasPreloadedSpbSales:', !!preloadedSpbSales);
   }
 
   // 数据完整性检查
@@ -510,87 +544,68 @@ async function handleFetchAllProductData(data: {
     };
   }
 
-  // 2. 并发获取辅助数据
+  // 2. 获取辅助数据
   const spbangApi = getSpbangApi();
-  const buyerApi = getOzonBuyerApi();
 
-  const [spbSalesData, euraflowConfig] = await Promise.all([
-    spbangApi.getSalesData(productSku).catch(err => {
-      console.error('[商品数据] 上品帮销售数据获取失败:', err.message);
-      return null;
-    }),
-    getEuraflowConfig().catch(err => {
+  // 如果 content script 已预先获取上品帮数据，直接使用；否则在此获取
+  let spbSalesDataResult: any = preloadedSpbSales;
+  let euraflowConfig: any = null;
+
+  if (preloadedSpbSales) {
+    // 上品帮数据已预加载，只需获取 EuraFlow 配置
+    euraflowConfig = await getEuraflowConfig().catch(err => {
       console.error('[商品数据] EuraFlow配置获取失败:', err.message);
       return null;
-    })
-  ]);
-
-  // 初始化 spbSales 对象（即使上品帮没数据也需要存储 OZON 数据）
-  let spbSales: any = spbSalesData || {};
-
-  // 2.5 获取佣金数据（独立接口，不依赖销售数据是否存在）
-  const hasCommissions = spbSales.rfbsCommissionMid != null || spbSales.fbpCommissionMid != null;
-  if (!hasCommissions) {
-    try {
-      // 类目名称：优先从销售数据获取，否则用"未知类目"
-      const categoryName = spbSales.category || '未知类目';
-      const commissionsMap = await spbangApi.getCommissionsBatch([
-        { goods_id: productSku, category_name: categoryName }
-      ]);
-
-      const commissionData = commissionsMap.get(productSku);
-      if (commissionData) {
-        spbSales.rfbsCommissionLow = commissionData.rfbs_small ?? null;
-        spbSales.rfbsCommissionMid = commissionData.rfbs ?? null;
-        spbSales.rfbsCommissionHigh = commissionData.rfbs_large ?? null;
-        spbSales.fbpCommissionLow = commissionData.fbp_small ?? null;
-        spbSales.fbpCommissionMid = commissionData.fbp ?? null;
-        spbSales.fbpCommissionHigh = commissionData.fbp_large ?? null;
-        if (__DEBUG__) {
-          console.log('[商品数据] 佣金数据:', commissionData);
-        }
-      }
-    } catch (err: any) {
-      console.error('[商品数据] 佣金数据获取失败:', err.message);
-    }
+    });
+  } else {
+    // 并发获取上品帮数据和 EuraFlow 配置
+    const [spbResult, configResult] = await Promise.all([
+      spbangApi.getSalesData(productSku).catch(err => {
+        console.error('[商品数据] 上品帮销售数据获取失败:', err.message);
+        return null;
+      }),
+      getEuraflowConfig().catch(err => {
+        console.error('[商品数据] EuraFlow配置获取失败:', err.message);
+        return null;
+      })
+    ]);
+    spbSalesDataResult = spbResult;
+    euraflowConfig = configResult;
   }
 
-  // 2.6 跟卖数据处理
-  // 优先使用上品帮返回的跟卖数据（followSellerPrices 数组）
-  // 如果上品帮有 followSellerPrices，从中计算跟卖数量和最低价
+  // 初始化 spbSales 对象（即使上品帮没数据也需要存储 OZON 数据）
+  let spbSales: any = spbSalesDataResult || {};
+
+  // 佣金数据已包含在 getSalesData 返回中，无需单独获取
+  // （如果 getSalesData 没返回佣金，getCommissionsBatch 也不会有数据）
+
+  // 2.5 跟卖数据处理
+  // 优先使用上品帮返回的数据，否则使用 Content Script 通过页面上下文获取的数据
   if (spbSales.followSellerPrices?.length > 0) {
     // 上品帮已返回跟卖数据
     const prices = spbSales.followSellerPrices.filter((p: number) => p > 0);
     if (prices.length > 0) {
-      // 如果没有 competitorCount，用数组长度
       if (spbSales.competitorCount == null) {
         spbSales.competitorCount = prices.length;
       }
-      // 如果没有 competitorMinPrice，计算最小值
       if (spbSales.competitorMinPrice == null) {
         spbSales.competitorMinPrice = Math.min(...prices);
       }
     }
-  } else if (spbSales.competitorCount == null) {
-    // 上品帮没有跟卖数据，调用 OZON Buyer API
-    try {
-      const followSellerMap = await buyerApi.getFollowSellerDataBatch([productSku]);
-      const followData = followSellerMap.get(productSku);
-      if (followData) {
-        spbSales.competitorCount = followData.count ?? null;
-        spbSales.followSellerSkus = followData.skus ?? [];
-        spbSales.followSellerPrices = followData.prices ?? [];
-        // 计算最低价
-        if (followData.prices?.length > 0) {
-          spbSales.competitorMinPrice = Math.min(...followData.prices);
-        }
-      }
-    } catch (err: any) {
-      console.error('[商品数据] 跟卖数据获取失败:', err.message);
+  } else if (followSellerData && spbSales.competitorCount == null) {
+    // 使用 Content Script 通过页面上下文获取的跟卖数据
+    spbSales.competitorCount = followSellerData.count;
+    spbSales.followSellerSkus = followSellerData.skus;
+    spbSales.followSellerPrices = followSellerData.prices;
+    if (followSellerData.prices?.length > 0) {
+      spbSales.competitorMinPrice = Math.min(...followSellerData.prices);
+    }
+    if (__DEBUG__) {
+      console.log('[商品数据] 使用页面上下文获取的跟卖数据:', followSellerData);
     }
   }
 
-  // 2.7 合并页面提取的评分数据
+  // 2.6 合并页面提取的评分数据
   if (ratingData) {
     if (ratingData.rating != null) {
       spbSales.rating = ratingData.rating;

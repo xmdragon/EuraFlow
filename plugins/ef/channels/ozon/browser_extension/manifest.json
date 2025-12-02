@@ -20,7 +20,7 @@
     {
       "matches": ["https://www.ozon.ru/*"],
       "js": ["src/content/main.ts"],
-      "run_at": "document_idle"
+      "run_at": "document_start"
     }
   ],
   "background": {

@@ -4,29 +4,41 @@
  * 在商品详情页自动计算并显示真实售价
  */
 
-import { findPrices, calculateRealPrice } from './calculator';
+import { calculateRealPrice } from './calculator';
 import { injectCompleteDisplay } from './display';
-import { configCache } from '../../shared/config-cache';
-import { createEuraflowApiProxy } from '../../shared/api';
-import { extractProductData } from '../parsers/product-detail';
+import { extractProductData, fetchFollowSellerData } from '../parsers/product-detail';
 
 /**
- * 提取商品ID从URL
+ * 预加载数据类型
+ */
+interface PrefetchedData {
+  productId: string;
+  spbDataPromise: Promise<any>;
+  configPromise: Promise<any>;
+}
+
+/**
+ * 提取商品ID从URL（不使用 DOM fallback）
  */
 function extractProductId(): string | null {
   const url = window.location.href;
+  const pathname = window.location.pathname;
 
-  // 方法1: URL末尾带斜杠或问号
+  // 方法1: URL末尾带斜杠或问号（带商品名称的格式：/product/xxx-123456/）
   let match = url.match(/-(\d+)\/(\?|$)/);
   if (match) return match[1];
 
-  // 方法2: URL末尾不带斜杠
+  // 方法2: URL末尾不带斜杠（带商品名称的格式：/product/xxx-123456）
   match = url.match(/-(\d+)$/);
   if (match) return match[1];
 
-  // 方法3: 从 pathname 分割提取
-  const pathname = window.location.pathname;
+  // 方法3: 纯数字格式（/product/123456/ 或 /product/123456?...）
   if (pathname.includes('/product/')) {
+    // 先尝试纯数字格式：/product/123456/
+    const pureNumMatch = pathname.match(/\/product\/(\d{6,})\/?$/);
+    if (pureNumMatch) return pureNumMatch[1];
+
+    // 再尝试带商品名称的格式
     const pathPart = pathname.split('/product/')[1]?.split('?')[0]?.replace(/\/$/, '');
     if (pathPart) {
       const lastDashIndex = pathPart.lastIndexOf('-');
@@ -39,14 +51,8 @@ function extractProductId(): string | null {
     }
   }
 
-  // 方法4: 从页面 DOM 提取（Артикул）
-  const articleEl = document.querySelector('[class*="tsBodyControl400Small"]');
-  if (articleEl?.textContent) {
-    const articleMatch = articleEl.textContent.match(/Артикул:\s*(\d+)/);
-    if (articleMatch) return articleMatch[1];
-  }
-
-  console.warn('[EuraFlow] 无法从URL提取商品ID:', url);
+  // 不使用 DOM fallback，遇到新 URL 格式时报错，由开发者添加新的正则
+  console.error('[EuraFlow] 无法从URL提取商品ID，请反馈此URL格式:', url);
   return null;
 }
 
@@ -104,22 +110,6 @@ function extractRatingFromJsonLd(): { rating: number | null; reviewCount: number
  */
 export class RealPriceCalculator {
   /**
-   * 后台预加载配置数据（不阻塞主流程）
-   * 在页面加载的第一时间就开始，与数据采集并行
-   */
-  private preloadConfigInBackground(): void {
-    chrome.storage.sync.get(['apiUrl', 'apiKey'], (result) => {
-      if (result.apiUrl && result.apiKey) {
-        const apiClient = createEuraflowApiProxy(result.apiUrl, result.apiKey);
-        configCache.preload(apiClient)
-          .catch((error) => {
-            console.warn('[EuraFlow] 配置数据预加载失败:', error.message);
-          });
-      }
-    });
-  }
-
-  /**
    * 等待 OZON 页面 DOM 稳定（Vue hydration 完成）
    * 检测 webSale 组件内的配送信息是否加载完成
    * 检测逻辑：pdp_fa 容器内容不是 SVG 图标时，说明内容已加载
@@ -130,7 +120,6 @@ export class RealPriceCalculator {
 
     return new Promise((resolve) => {
       const startTime = Date.now();
-      let checkCount = 0;
 
       // 检查关键元素是否已加载（Vue hydration 完成的标志）
       const checkKeyElements = (): boolean => {
@@ -145,7 +134,6 @@ export class RealPriceCalculator {
       };
 
       const checkReady = () => {
-        checkCount++;
         const elapsed = Date.now() - startTime;
 
         if (elapsed > MAX_WAIT_TIME) {
@@ -166,59 +154,75 @@ export class RealPriceCalculator {
 
   /**
    * 初始化计算器
+   * @param prefetchedData 预加载的数据（document_start 时已开始请求，不需要 Cookie）
    */
-  public async init(): Promise<void> {
+  public async init(prefetchedData?: PrefetchedData | null): Promise<void> {
     try {
-      // 1. 第一时间预加载配置数据（后台并行）
-      this.preloadConfigInBackground();
-
-      // 2. 提取商品ID
-      const productId = extractProductId();
+      // 1. 提取商品ID（使用预加载的或重新提取）
+      const productId = prefetchedData?.productId || extractProductId();
       if (!productId) {
         console.error('[EuraFlow] 无法提取商品ID');
         return;
       }
 
-      // 3. 【先提取商品数据】（从 API 获取，包含正确的价格）
+      // 2. 使用预加载的 Promise 或新建
+      const spbSalesPromise = prefetchedData?.spbDataPromise || chrome.runtime.sendMessage({
+        type: 'GET_SPB_SALES_DATA',
+        data: { productSku: productId }
+      }).catch(err => {
+        console.warn('[EuraFlow] 上品帮销售数据获取失败:', err.message);
+        return { success: false, data: null };
+      });
+
+      const configPromise = prefetchedData?.configPromise || chrome.runtime.sendMessage({
+        type: 'GET_CONFIG_PREFETCH'
+      }).catch(err => {
+        console.warn('[EuraFlow] 配置预加载失败:', err.message);
+        return { success: false, data: null };
+      });
+
+      // 3. 【需要 Cookie/DOM】调用 OZON API 获取商品数据（包含价格）
       let productDetail = null;
       try {
         productDetail = await extractProductData();
       } catch (error: any) {
         console.error('[EuraFlow] 商品详情提取失败:', error);
-      }
-
-      // 4. 从 API 数据计算真实售价（优先使用 API 价格，fallback 到 DOM）
-      let greenPrice: number | null = null;
-      let blackPrice: number | null = null;
-      let currency: string | null = '¥';
-
-      if (productDetail && (productDetail.price > 0 || productDetail.original_price)) {
-        // 使用 API 数据：price = 绿色价格(cardPrice)，original_price = 黑色价格(price)
-        greenPrice = productDetail.price > 0 ? productDetail.price : null;
-        blackPrice = productDetail.original_price || null;
-      } else {
-        // Fallback: 从 DOM 提取
-        const domPrices = findPrices();
-        greenPrice = domPrices.greenPrice;
-        blackPrice = domPrices.blackPrice;
-        currency = domPrices.currency;
-      }
-
-      if (blackPrice === null && greenPrice === null) {
-        console.warn('[EuraFlow] 未找到价格');
         return;
       }
 
-      const { message, price } = calculateRealPrice(greenPrice, blackPrice, currency);
+      // 4. 从 OZON API 数据提取价格（不使用 DOM fallback）
+      if (!productDetail || (productDetail.price <= 0 && !productDetail.original_price)) {
+        console.error('[EuraFlow] OZON API 未返回价格数据');
+        return;
+      }
+
+      // price = 绿色价格(cardPrice)，original_price = 黑色价格(price)
+      const greenPrice = productDetail.price > 0 ? productDetail.price : null;
+      const blackPrice = productDetail.original_price || null;
+
+      if (blackPrice === null && greenPrice === null) {
+        console.error('[EuraFlow] 未找到价格');
+        return;
+      }
+
+      const { message, price } = calculateRealPrice(greenPrice, blackPrice, '¥');
       if (!message) {
         console.warn('[EuraFlow] 无法计算真实售价');
         return;
       }
 
-      // 5. 【发送数据到 background】（包含已提取的变体数据）
-      const pageCookie = document.cookie;
+      // 5. 等待预加载的 Promise 完成
+      const [spbSalesResponse, configResponse] = await Promise.all([spbSalesPromise, configPromise]);
+      const spbSalesData = spbSalesResponse?.success ? spbSalesResponse.data : null;
+      const euraflowConfig = configResponse?.success ? configResponse.data : null;
 
-      // 从页面 JSON-LD 提取评分数据
+      // 6. 如果上品帮没有跟卖数据，通过页面上下文获取
+      let followSellerData: { count: number; skus: string[]; prices: number[] } | null = null;
+      if (!spbSalesData?.competitorCount && spbSalesData?.competitorCount !== 0) {
+        followSellerData = await fetchFollowSellerData(productId);
+      }
+
+      // 7. 发送数据到 background 进行后续处理（类目查询等）
       const ratingData = extractRatingFromJsonLd();
 
       const response = await chrome.runtime.sendMessage({
@@ -226,9 +230,10 @@ export class RealPriceCalculator {
         data: {
           url: window.location.href,
           productSku: productId,
-          cookieString: pageCookie,
-          productDetail: productDetail,  // 传递已提取的完整商品数据
-          ratingData: ratingData  // 从页面 JSON-LD 提取的评分数据
+          productDetail: productDetail,
+          ratingData: ratingData,
+          spbSalesData: spbSalesData,
+          followSellerData: followSellerData
         }
       });
 
@@ -237,12 +242,12 @@ export class RealPriceCalculator {
         return;
       }
 
-      // 6. 【再等待 DOM 稳定】（此时配送日期应该已经加载好了）
+      // 8. 等待 DOM 稳定后注入 UI
       await this.waitForContainerReady();
 
-      const { ozonProduct, spbSales, euraflowConfig } = response.data;
+      const { ozonProduct, spbSales } = response.data;
 
-      // 7. 一次性注入完整组件
+      // 9. 一次性注入完整组件
       await injectCompleteDisplay({
         message,
         price,

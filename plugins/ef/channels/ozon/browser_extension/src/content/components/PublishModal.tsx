@@ -17,6 +17,22 @@ import { injectEuraflowStyles } from '../styles/injector';
 // ========== 工具函数 ==========
 
 /**
+ * 将OZON图片URL转换为指定尺寸的wc格式，加速图片加载
+ * @param url 原始图片URL
+ * @param size wc尺寸（如80、50）
+ * @returns 转换后的URL
+ */
+function toWcImageUrl(url: string | undefined | null, size: number): string {
+  if (!url) return '';
+  // 如果已经有wc格式，先移除再添加新的
+  const cleanUrl = url.replace(/\/wc\d+\//, '/');
+  // 在最后一个斜杠前插入 /wcXX/
+  const lastSlashIndex = cleanUrl.lastIndexOf('/');
+  if (lastSlashIndex === -1) return cleanUrl;
+  return cleanUrl.slice(0, lastSlashIndex) + `/wc${size}` + cleanUrl.slice(lastSlashIndex);
+}
+
+/**
  * 显示右上角 Toast 通知（5秒后自动消失）
  */
 function showToast(message: string, type: 'success' | 'error' | 'info' = 'success'): void {
@@ -556,9 +572,12 @@ function renderProductPreview(): string {
   const realPrice = variants.length > 0 ? variants[0].original_price : 0;
   const priceText = realPrice > 0 ? ` (真实售价：${formatYuan(realPrice)})` : '';
 
+  // 使用wc80格式加速主图加载
+  const wcImageUrl = toWcImageUrl(imageUrl, 80);
+
   return `
     <div class="ef-product-preview">
-      ${imageUrl ? `<img src="${imageUrl}" class="ef-product-preview__image">` : ''}
+      ${wcImageUrl ? `<img src="${wcImageUrl}" class="ef-product-preview__image">` : ''}
       <div class="ef-product-preview__info">
         <div class="ef-product-preview__name">${title}${priceText}</div>
         <div class="ef-product-preview__variant-count">
@@ -635,7 +654,7 @@ function renderVariantRows(): string {
         <input type="checkbox" class="variant-checkbox ef-variants-table__checkbox" data-index="${index}" ${variant.enabled ? 'checked' : ''} ${!variant.available ? 'disabled' : ''}>
       </td>
       <td class="ef-variants-table__td">
-        ${variant.image_url ? `<img src="${variant.image_url}" class="ef-variants-table__image">` : '<div class="ef-variants-table__image-placeholder">无图</div>'}
+        ${variant.image_url ? `<img src="${toWcImageUrl(variant.image_url, 50)}" class="ef-variants-table__image">` : '<div class="ef-variants-table__image-placeholder">无图</div>'}
       </td>
       <td class="ef-variants-table__td">
         <span class="ef-variants-table__spec">${variant.specifications}</span>

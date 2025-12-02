@@ -725,7 +725,31 @@ export async function extractProductData(): Promise<ProductDetailData> {
     const slugMatch = productUrl.match(/\/product\/([^\/\?]+)/);
     const productSlug = slugMatch ? slugMatch[1] : null;
 
-    // 调用 Page2 API 获取完整特征和描述
+    // 提取商品 SKU（提前，用于 Modal API）
+    const productSku = baseData.ozon_product_id;
+
+    // ========== 从 Modal API 获取完整变体数据（优先执行，让 UI 尽早显示）==========
+    // 检查页面是否有变体
+    const widgetStates = apiResponse?.widgetStates || {};
+    const aspectsKey = Object.keys(widgetStates).find(k => k.includes('webAspects'));
+    let modalAspects: any[] = [];
+    let hasVariantsOnPage = false;
+
+    if (aspectsKey) {
+      const aspectsData = JSON.parse(widgetStates[aspectsKey]);
+      modalAspects = aspectsData?.aspects || [];
+      hasVariantsOnPage = modalAspects.length > 0;
+    }
+
+    // ✅ 优先调用 Modal API 获取完整变体（在 Page2 API 之前）
+    if (productSku && hasVariantsOnPage) {
+      const modalApiAspects = await fetchFullVariantsFromModal(productSku);
+      if (modalApiAspects && modalApiAspects.length > 0) {
+        modalAspects = modalApiAspects;
+      }
+    }
+
+    // 调用 Page2 API 获取完整特征和描述（在 Modal API 之后）
     if (productSlug) {
       const page2Data = await fetchCharacteristicsAndDescription(productSlug);
       if (page2Data) {
@@ -783,9 +807,6 @@ export async function extractProductData(): Promise<ProductDetailData> {
         console.log('[EuraFlow] 特征属性中尺寸数据不完整:', dimensionsFromAttrs);
       }
     }
-
-    // 提取商品 SKU
-    const productSku = baseData.ozon_product_id;
 
     // 方案 1（降级）：如果特征中没有尺寸，尝试通过 OZON Seller API 获取
     if (!baseData.dimensions && productSku) {
@@ -875,30 +896,9 @@ export async function extractProductData(): Promise<ProductDetailData> {
     }
     }
 
-    // ========== 从 Modal API 获取完整变体数据 ==========
-    // ✅ 上品帮方案：调用 Modal API 获取 webAspectsModal（包含所有颜色×尺码组合）
+    // ========== 处理变体数据 ==========
+    // Modal API 已在前面调用（优先执行），此处直接使用 modalAspects
     let allVariants: any[] = [];
-
-    // 首先从页面的 webAspects 获取基础 aspects
-    const widgetStates = apiResponse?.widgetStates || {};
-    const aspectsKey = Object.keys(widgetStates).find(k => k.includes('webAspects'));
-
-    let modalAspects: any[] = [];
-    let hasVariantsOnPage = false;  // 页面是否有变体
-
-    if (aspectsKey) {
-      const aspectsData = JSON.parse(widgetStates[aspectsKey]);
-      modalAspects = aspectsData?.aspects || [];
-      hasVariantsOnPage = modalAspects.length > 0;
-    }
-
-    // ✅ 只有当页面有变体时，才调用 Modal API 获取完整变体
-    if (productSku && hasVariantsOnPage) {
-      const modalApiAspects = await fetchFullVariantsFromModal(productSku);
-      if (modalApiAspects && modalApiAspects.length > 0) {
-        modalAspects = modalApiAspects;
-      }
-    }
 
     if (modalAspects && modalAspects.length > 0) {
 
@@ -1177,4 +1177,77 @@ export function getCurrentProductUrl(): string {
  */
 export function isProductDetailPage(): boolean {
   return window.location.pathname.includes('/product/');
+}
+
+/**
+ * 通过页面上下文获取跟卖数据
+ * 调用 OZON 的 otherOffersFromSellers API
+ */
+export async function fetchFollowSellerData(productId: string): Promise<{
+  count: number;
+  skus: string[];
+  prices: number[];
+} | null> {
+  try {
+    const modalUrl = `/modal/otherOffersFromSellers?product_id=${productId}&page_changed=true`;
+    const apiUrl = `${window.location.origin}/api/entrypoint-api.bx/page/json/v2?url=${encodeURIComponent(modalUrl)}`;
+
+    if (__DEBUG__) {
+      console.log('[API] fetchFollowSellerData 请求:', { productId, apiUrl });
+    }
+
+    // 通过页面上下文执行请求（避免 403 反爬虫检测）
+    const data = await fetchViaPageContext(apiUrl);
+    if (!data) {
+      if (__DEBUG__) {
+        console.log('[API] fetchFollowSellerData 返回: null（请求失败）');
+      }
+      return null;
+    }
+
+    const widgetStates = data.widgetStates || {};
+    const keys = Object.keys(widgetStates);
+
+    // 查找 webSellerList widget（跟卖者列表）
+    const modalKey = keys.find(k => k.includes('webSellerList'));
+    if (!modalKey) {
+      return { count: 0, skus: [], prices: [] };
+    }
+
+    const modalData = JSON.parse(widgetStates[modalKey]);
+    const sellers = modalData?.sellers || [];
+
+    const skus: string[] = [];
+    const prices: number[] = [];
+
+    for (const seller of sellers) {
+      if (seller.sku) {
+        skus.push(seller.sku);
+      }
+      // 提取价格（从 price.cardPrice.price 或 price.price）
+      const priceStr = seller.price?.cardPrice?.price || seller.price?.price || '';
+      if (priceStr) {
+        // 价格格式如 "61,23 ¥"
+        const priceNum = parseFloat(priceStr.replace(/\s/g, '').replace(',', '.').replace(/[^\d.]/g, ''));
+        if (!isNaN(priceNum) && priceNum > 0) {
+          prices.push(priceNum);
+        }
+      }
+    }
+
+    const result = {
+      count: sellers.length,
+      skus,
+      prices
+    };
+
+    if (__DEBUG__) {
+      console.log('[API] fetchFollowSellerData 返回:', result);
+    }
+
+    return result;
+  } catch (error: any) {
+    console.error('[EuraFlow] 获取跟卖数据失败:', error.message);
+    return null;
+  }
 }
