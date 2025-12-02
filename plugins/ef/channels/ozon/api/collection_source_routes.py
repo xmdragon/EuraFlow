@@ -537,7 +537,7 @@ async def get_next_collection_source(
     }
 
 
-@router.post("/{source_id}/status")
+@router.put("/{source_id}/status")
 async def update_source_status(
     source_id: int,
     request: UpdateStatusRequest,

@@ -406,7 +406,7 @@ export class EuraflowApi extends BaseApiClient {
       body: JSON.stringify({
         status,
         ...(productCount !== undefined && { product_count: productCount }),
-        ...(error && { error })
+        ...(error && { error_message: error })
       })
     });
 
