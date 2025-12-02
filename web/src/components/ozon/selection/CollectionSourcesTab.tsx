@@ -248,7 +248,7 @@ export const CollectionSourcesTab: React.FC = () => {
       title: '优先级',
       dataIndex: 'priority',
       key: 'priority',
-      width: 70,
+      width: 90,
       align: 'center',
       sorter: (a, b) => b.priority - a.priority,
     },
