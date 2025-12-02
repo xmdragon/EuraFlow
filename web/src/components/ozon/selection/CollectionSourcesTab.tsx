@@ -121,16 +121,12 @@ const SourceFormModal: React.FC<{
           rules={[
             { required: true, message: '请输入 OZON 地址' },
             {
-              pattern: /ozon\.ru\/(category|seller)\//,
-              message: '请输入有效的 OZON 类目或店铺地址',
+              pattern: /ozon\.ru\/(?!product\/)/,
+              message: '不支持单个商品页面',
             },
           ]}
-          extra="支持类目页面（/category/xxx）和店铺页面（/seller/xxx）"
         >
-          <Input
-            placeholder="https://www.ozon.ru/category/xxx 或 https://www.ozon.ru/seller/xxx"
-            prefix={<LinkOutlined />}
-          />
+          <Input prefix={<LinkOutlined />} />
         </Form.Item>
 
         <Form.Item

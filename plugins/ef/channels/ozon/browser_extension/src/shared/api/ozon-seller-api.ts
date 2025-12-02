@@ -230,8 +230,8 @@ export class OzonSellerApi extends BaseApiClient {
             if (result.success) {
               return result.data as SellerProductDetail;
             } else {
-              console.warn('[OzonSellerApi] 页面上下文请求失败:', result.error);
-              return null; // 请求失败，不需要重试
+              // 静默处理：商品不存在或已下架是正常情况
+              return null;
             }
           }
 

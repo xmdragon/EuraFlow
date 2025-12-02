@@ -15,6 +15,7 @@
  */
 
 import { createEuraflowApi, type CollectionSource } from '../shared/api/euraflow-api';
+import { getAutoCollectConfig } from '../shared/storage';
 
 /**
  * 自动采集状态
@@ -49,12 +50,12 @@ class AutoCollector {
   private apiKey: string = '';
   private stopRequested: boolean = false;
 
-  // 采集配置
+  // 采集配置（运行时从存储读取）
   private config = {
-    collectionTimeout: 5 * 60 * 1000,  // 单个地址采集超时：5分钟
-    tabCloseDelay: 2000,               // 关闭标签页前的等待时间：2秒
-    nextSourceDelay: 3000,             // 处理下一个地址前的等待时间：3秒
-    maxConsecutiveErrors: 3,           // 连续错误次数上限
+    collectionTimeoutMs: 10 * 60 * 1000, // 单个地址采集超时：默认10分钟（运行时更新）
+    tabCloseDelay: 2000,                 // 关闭标签页前的等待时间：2秒
+    nextSourceDelay: 3000,               // 处理下一个地址前的等待时间：3秒
+    maxConsecutiveErrors: 3,             // 连续错误次数上限
   };
 
   /**
@@ -73,13 +74,18 @@ class AutoCollector {
     }
 
     // 获取 API 配置
-    const config = await this.getApiConfig();
-    if (!config.apiUrl || !config.apiKey) {
+    const apiConfig = await this.getApiConfig();
+    if (!apiConfig.apiUrl || !apiConfig.apiKey) {
       throw new Error('请先配置 EuraFlow API 地址和密钥');
     }
 
-    this.apiUrl = config.apiUrl;
-    this.apiKey = config.apiKey;
+    // 获取自动采集配置
+    const autoCollectConfig = await getAutoCollectConfig();
+    this.config.collectionTimeoutMs = (autoCollectConfig.collectionTimeoutMinutes || 10) * 60 * 1000;
+    console.log(`[AutoCollector] 采集超时设置为 ${autoCollectConfig.collectionTimeoutMinutes || 10} 分钟`);
+
+    this.apiUrl = apiConfig.apiUrl;
+    this.apiKey = apiConfig.apiKey;
     this.stopRequested = false;
 
     // 初始化状态
@@ -134,6 +140,7 @@ class AutoCollector {
     while (!this.stopRequested) {
       try {
         // 1. 获取下一个待采集地址
+        console.log('[AutoCollector] 正在获取下一个待采集地址...');
         const source = await this.getNextSource();
 
         if (!source) {
@@ -142,21 +149,29 @@ class AutoCollector {
         }
 
         this.state.currentSource = source;
-        console.log(`[AutoCollector] 开始采集: ${source.display_name || source.source_path}`);
+        console.log(`[AutoCollector] 开始采集: ${source.display_name || source.source_path} (ID: ${source.id})`);
 
         // 2. 更新状态为"采集中"
+        console.log(`[AutoCollector] 更新状态为 collecting...`);
         await this.updateSourceStatus(source.id, 'collecting');
 
         // 3. 打开标签页并执行采集
+        console.log(`[AutoCollector] 打开标签页并执行采集...`);
         const result = await this.collectFromSource(source);
+        console.log(`[AutoCollector] 采集完成，获取 ${result.products.length} 个商品`);
 
         // 4. 上传采集结果
         if (result.products.length > 0) {
+          console.log(`[AutoCollector] 上传 ${result.products.length} 个商品...`);
           await this.uploadProducts(result.products, source);
           this.state.collectedCount += result.products.length;
+          console.log(`[AutoCollector] 上传成功`);
+        } else {
+          console.log(`[AutoCollector] 没有采集到商品，跳过上传`);
         }
 
         // 5. 更新状态为"完成"
+        console.log(`[AutoCollector] 更新状态为 completed...`);
         await this.updateSourceStatus(source.id, 'completed', result.products.length);
 
         // 6. 关闭标签页
@@ -165,11 +180,13 @@ class AutoCollector {
         this.state.processedSources++;
         consecutiveErrors = 0;  // 重置连续错误计数
 
+        console.log(`[AutoCollector] 地址处理完成，等待 ${this.config.nextSourceDelay}ms 后处理下一个`);
+
         // 7. 等待一段时间再处理下一个
         await this.sleep(this.config.nextSourceDelay);
 
       } catch (error: any) {
-        console.error('[AutoCollector] 采集错误:', error.message);
+        console.error('[AutoCollector] 采集错误:', error.message, error.stack);
         this.state.errors.push(error.message);
 
         // 更新状态为"失败"
@@ -267,10 +284,12 @@ class AutoCollector {
    * 等待标签页加载完成
    */
   private waitForTabLoaded(tabId: number): Promise<void> {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const timeout = setTimeout(() => {
         chrome.tabs.onUpdated.removeListener(listener);
-        reject(new Error('标签页加载超时'));
+        console.log('[AutoCollector] 标签页加载超时，尝试继续...');
+        // 超时后不 reject，而是继续尝试（页面可能部分加载成功）
+        resolve();
       }, 30000);
 
       const listener = (
@@ -280,9 +299,22 @@ class AutoCollector {
         if (updatedTabId === tabId && changeInfo.status === 'complete') {
           clearTimeout(timeout);
           chrome.tabs.onUpdated.removeListener(listener);
+          console.log('[AutoCollector] 标签页加载完成');
           resolve();
         }
       };
+
+      // 先检查当前状态，可能已经加载完成
+      chrome.tabs.get(tabId).then(tab => {
+        if (tab.status === 'complete') {
+          clearTimeout(timeout);
+          chrome.tabs.onUpdated.removeListener(listener);
+          console.log('[AutoCollector] 标签页已加载完成');
+          resolve();
+        }
+      }).catch(() => {
+        // 标签页可能已关闭，忽略
+      });
 
       chrome.tabs.onUpdated.addListener(listener);
     });
@@ -298,7 +330,7 @@ class AutoCollector {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         reject(new Error('采集超时'));
-      }, this.config.collectionTimeout);
+      }, this.config.collectionTimeoutMs);
 
       // 发送采集命令
       chrome.tabs.sendMessage(tabId, {

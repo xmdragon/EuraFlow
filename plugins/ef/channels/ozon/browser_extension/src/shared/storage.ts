@@ -284,6 +284,7 @@ const DEFAULT_AUTO_COLLECT_CONFIG: AutoCollectConfig = {
   productsPerSource: 100,      // 默认每个地址采集100个商品
   autoUpload: true,            // 默认自动上传
   closeTabAfterCollect: true,  // 默认采集后关闭标签页
+  collectionTimeoutMinutes: 10, // 默认10分钟超时
 };
 
 /**
@@ -296,7 +297,8 @@ export async function getAutoCollectConfig(): Promise<AutoCollectConfig> {
     'autoCollectMaxTabs',
     'autoCollectProductsPerSource',
     'autoCollectAutoUpload',
-    'autoCollectCloseTab'
+    'autoCollectCloseTab',
+    'autoCollectTimeout'
   ]);
 
   return {
@@ -306,6 +308,7 @@ export async function getAutoCollectConfig(): Promise<AutoCollectConfig> {
     productsPerSource: result.autoCollectProductsPerSource ?? DEFAULT_AUTO_COLLECT_CONFIG.productsPerSource,
     autoUpload: result.autoCollectAutoUpload ?? DEFAULT_AUTO_COLLECT_CONFIG.autoUpload,
     closeTabAfterCollect: result.autoCollectCloseTab ?? DEFAULT_AUTO_COLLECT_CONFIG.closeTabAfterCollect,
+    collectionTimeoutMinutes: result.autoCollectTimeout ?? DEFAULT_AUTO_COLLECT_CONFIG.collectionTimeoutMinutes,
   };
 }
 
@@ -321,6 +324,7 @@ export async function setAutoCollectConfig(config: Partial<AutoCollectConfig>): 
   if (config.productsPerSource !== undefined) storageData.autoCollectProductsPerSource = config.productsPerSource;
   if (config.autoUpload !== undefined) storageData.autoCollectAutoUpload = config.autoUpload;
   if (config.closeTabAfterCollect !== undefined) storageData.autoCollectCloseTab = config.closeTabAfterCollect;
+  if (config.collectionTimeoutMinutes !== undefined) storageData.autoCollectTimeout = config.collectionTimeoutMinutes;
 
   await chrome.storage.sync.set(storageData);
 }

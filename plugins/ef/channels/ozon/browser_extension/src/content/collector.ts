@@ -408,9 +408,13 @@ export class ProductCollector {
 
       // 3. 转换为 ProductData 格式并添加到 collected
       const newProducts: ProductData[] = [];
+      let duplicateCount = 0;
+      let priceFilteredCount = 0;
+
       for (const apiProduct of pageProducts) {
         // 跳过已处理的商品
         if (processedSKUs.has(apiProduct.sku)) {
+          duplicateCount++;
           continue;
         }
         processedSKUs.add(apiProduct.sku);
@@ -433,6 +437,7 @@ export class ProductCollector {
           const priceResult = this.filterEngine.filterByPrice(product);
           if (!priceResult.passed) {
             this.filteredOutCount++;
+            priceFilteredCount++;
             if (__DEBUG__) {
               console.log(`[过滤-价格] SKU=${apiProduct.sku} 失败: ${priceResult.failedReason}`);
             }
@@ -443,6 +448,16 @@ export class ProductCollector {
         // 通过价格过滤，加入待处理列表
         newProducts.push(product);
         this.collected.set(apiProduct.sku, product);
+      }
+
+      // 输出过滤统计
+      if (__DEBUG__) {
+        if (duplicateCount > 0) {
+          console.log(`[过滤-重复] 重复SKU，过滤 ${duplicateCount} 个`);
+        }
+        if (priceFilteredCount > 0) {
+          console.log(`[过滤-价格] 价格不符合条件，过滤 ${priceFilteredCount} 个`);
+        }
       }
 
       // 更新进度

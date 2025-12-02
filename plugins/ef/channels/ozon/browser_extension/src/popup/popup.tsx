@@ -605,6 +605,20 @@ function Popup() {
             </div>
 
             <div className="form-group">
+              <label className="form-label">采集超时 (分钟):</label>
+              <input
+                type="number"
+                className="form-input"
+                min="1"
+                max="60"
+                value={autoCollectConfig.collectionTimeoutMinutes}
+                onChange={(e) => setAutoCollectConfigState({ ...autoCollectConfig, collectionTimeoutMinutes: parseInt(e.target.value) || 10 })}
+                disabled={autoCollectorState.isRunning}
+              />
+              <p className="hint">单个地址采集的超时时间，超时后跳过</p>
+            </div>
+
+            <div className="form-group">
               <label className="checkbox-label">
                 <input
                   type="checkbox"

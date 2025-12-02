@@ -509,6 +509,7 @@ export interface AutoCollectConfig {
   productsPerSource: number;       // 每个采集地址的目标商品数
   autoUpload: boolean;             // 采集后自动上传
   closeTabAfterCollect: boolean;   // 采集后关闭标签页
+  collectionTimeoutMinutes: number; // 单个地址采集超时（分钟）
 }
 
 /**

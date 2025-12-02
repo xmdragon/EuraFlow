@@ -56,6 +56,10 @@ def parse_ozon_url(url: str) -> tuple[str, str]:
 
     path = parsed.path.rstrip('/')
 
+    # 禁止单个商品页面
+    if '/product/' in path:
+        raise ValueError("不支持单个商品页面，请使用类目、店铺或专题页面")
+
     # 判断类型
     if '/category/' in path:
         source_type = 'category'
@@ -73,8 +77,18 @@ def parse_ozon_url(url: str) -> tuple[str, str]:
             source_path = match.group(1)
         else:
             source_path = path
+    elif '/highlight/' in path:
+        source_type = 'highlight'
+        # 提取专题路径，例如 /highlight/tovary-iz-kitaya-935133
+        match = re.search(r'(/highlight/[^/]+)', path)
+        if match:
+            source_path = match.group(1)
+        else:
+            source_path = path
     else:
-        raise ValueError("URL 必须包含 /category/ 或 /seller/ 路径")
+        # 其他页面类型（如搜索结果等）
+        source_type = 'other'
+        source_path = path if path else '/'
 
     return source_type, source_path
 
