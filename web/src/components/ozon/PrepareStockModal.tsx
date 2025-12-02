@@ -44,7 +44,8 @@ interface ItemPrepareData {
   orderQuantity: number;
   useStock: boolean; // 是否使用库存（库存>0时有效）
   addStockQuantity: number | undefined; // 增加库存数量（库存=0时使用）
-  purchasePrice: number | undefined; // 进货价格
+  unitPrice: number | undefined; // 采购单价（每件商品价格）
+  purchasePrice: number | undefined; // 进货价格（总价）
   sourcePlatform: string[]; // 采购平台
   notes: string; // 备注
   shopId?: number; // 店铺ID（用于添加库存）
@@ -98,19 +99,28 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
   // 初始化商品数据
   useEffect(() => {
     if (visible && stockCheckData?.items) {
-      const items: ItemPrepareData[] = stockCheckData.items.map((item) => ({
-        sku: item.sku,
-        productTitle: item.product_title || item.sku,
-        productImage: item.product_image,
-        stockAvailable: item.stock_available,
-        orderQuantity: item.order_quantity,
-        useStock: item.is_sufficient, // 库存充足时默认使用库存
-        addStockQuantity: undefined, // 增加库存数量（库存=0时使用）
-        purchasePrice: item.is_sufficient ? 0 : undefined, // 使用库存时为0，其他留空
-        sourcePlatform: item.is_sufficient ? ['库存'] : [],
-        notes: '',
-        shopId: posting?.order?.shop_id, // 记录店铺ID
-      }));
+      const items: ItemPrepareData[] = stockCheckData.items.map((item) => {
+        // 计算进货价格：使用库存时 = 单价 × 订单数量
+        const unitPrice = item.unit_price ?? undefined;
+        const purchasePrice = item.is_sufficient && unitPrice
+          ? unitPrice * item.order_quantity
+          : (item.is_sufficient ? 0 : undefined);
+
+        return {
+          sku: item.sku,
+          productTitle: item.product_title || item.sku,
+          productImage: item.product_image,
+          stockAvailable: item.stock_available,
+          orderQuantity: item.order_quantity,
+          useStock: item.is_sufficient, // 库存充足时默认使用库存
+          addStockQuantity: undefined, // 增加库存数量（库存=0时使用）
+          unitPrice, // 采购单价（从库存获取）
+          purchasePrice, // 进货价格（总价）
+          sourcePlatform: item.is_sufficient ? ['库存'] : [],
+          notes: '',
+          shopId: posting?.order?.shop_id, // 记录店铺ID
+        };
+      });
       setItemsData(items);
     }
 
@@ -129,14 +139,18 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
         if (item.sku === sku) {
           const updated = { ...item, [field]: value };
 
-          // 如果勾选使用库存且库存充足，自动设置价格为0，平台为库存
+          // 如果勾选使用库存且库存充足，自动设置价格和平台
           if (field === 'useStock' && value && item.stockAvailable >= item.orderQuantity) {
-            updated.purchasePrice = 0;
+            // 进货价格 = 单价 × 订单数量（如果有单价），否则为0
+            updated.purchasePrice = item.unitPrice
+              ? item.unitPrice * item.orderQuantity
+              : 0;
             updated.sourcePlatform = ['库存'];
           }
 
-          // 如果取消使用库存，清空库存平台
+          // 如果取消使用库存，清空价格和库存平台
           if (field === 'useStock' && !value) {
+            updated.purchasePrice = undefined;
             updated.sourcePlatform = updated.sourcePlatform.filter((p) => p !== '库存');
           }
 
@@ -219,9 +233,10 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
               shop_id: item.shopId,
               sku: item.sku,
               quantity: item.addStockQuantity!,
+              unit_price: item.unitPrice, // 采购单价
               notes: `备货时添加库存 - ${postingNumber}`,
             });
-            loggers.stock.info('添加库存成功', { sku: item.sku, quantity: item.addStockQuantity });
+            loggers.stock.info('添加库存成功', { sku: item.sku, quantity: item.addStockQuantity, unitPrice: item.unitPrice });
           } catch (error) {
             const errorMsg = axios.isAxiosError(error)
               ? error.response?.data?.detail || error.message || '添加库存失败'
@@ -320,29 +335,51 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
       title: '库存操作',
       dataIndex: 'useStock',
       key: 'useStock',
-      width: 140,
+      width: 200,
       render: (_: unknown, record: ItemPrepareData) => {
-        // 库存为0时，显示"增加库存"输入框
+        // 库存为0时，显示"增加库存"输入框和"采购单价"输入框
         if (record.stockAvailable === 0) {
           return (
-            <InputNumber
-              value={record.addStockQuantity}
-              onChange={(value) => {
-                updateItemData(record.sku, 'addStockQuantity', value ?? undefined);
-                // 设置增加库存时，自动设置平台为"库存"
-                if (value && value > 0) {
-                  const newPlatforms = record.sourcePlatform.includes('库存')
-                    ? record.sourcePlatform
-                    : [...record.sourcePlatform, '库存'];
-                  updateItemData(record.sku, 'sourcePlatform', newPlatforms);
-                }
-              }}
-              min={1}
-              max={9999}
-              style={{ width: '100%' }}
-              placeholder="新增库存数量"
-              size="small"
-            />
+            <Space direction="vertical" size={4} style={{ width: '100%' }}>
+              <InputNumber
+                value={record.addStockQuantity}
+                onChange={(value) => {
+                  updateItemData(record.sku, 'addStockQuantity', value ?? undefined);
+                  // 设置增加库存时，自动设置平台为"库存"
+                  if (value && value > 0) {
+                    const newPlatforms = record.sourcePlatform.includes('库存')
+                      ? record.sourcePlatform
+                      : [...record.sourcePlatform, '库存'];
+                    updateItemData(record.sku, 'sourcePlatform', newPlatforms);
+                  }
+                  // 自动计算进货价格 = 单价 × 数量
+                  if (value && value > 0 && record.unitPrice) {
+                    updateItemData(record.sku, 'purchasePrice', record.unitPrice * value);
+                  }
+                }}
+                min={1}
+                max={9999}
+                style={{ width: '100%' }}
+                placeholder="新增库存数量"
+                size="small"
+              />
+              <InputNumber
+                value={record.unitPrice}
+                onChange={(value) => {
+                  updateItemData(record.sku, 'unitPrice', value ?? undefined);
+                  // 自动计算进货价格 = 单价 × 数量
+                  if (value && record.addStockQuantity) {
+                    updateItemData(record.sku, 'purchasePrice', value * record.addStockQuantity);
+                  }
+                }}
+                min={0}
+                precision={2}
+                style={{ width: '100%' }}
+                placeholder="采购单价"
+                size="small"
+                addonBefore={currencySymbol}
+              />
+            </Space>
           );
         }
         // 有库存时，显示"使用库存"复选框

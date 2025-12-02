@@ -28,12 +28,14 @@ class AddStockRequest(BaseModel):
     shop_id: int = Field(..., description="店铺ID")
     sku: str = Field(..., description="商品SKU")
     quantity: int = Field(..., gt=0, description="库存数量（必须>0）")
+    unit_price: Optional[Decimal] = Field(None, ge=0, description="采购单价（每件商品采购价格）")
     notes: Optional[str] = Field(None, max_length=500, description="备注")
 
 
 class UpdateStockRequest(BaseModel):
     """更新库存请求"""
     quantity: int = Field(..., ge=0, description="库存数量（≥0，0表示删除）")
+    unit_price: Optional[Decimal] = Field(None, ge=0, description="采购单价（每件商品采购价格）")
     notes: Optional[str] = Field(None, max_length=500, description="备注")
 
 
@@ -48,6 +50,7 @@ class StockItemResponse(BaseModel):
     product_price: Optional[Decimal]
     qty_available: int
     threshold: int
+    unit_price: Optional[Decimal]
     notes: Optional[str]
     updated_at: datetime
 
@@ -63,6 +66,7 @@ class StockCheckResponse(BaseModel):
     stock_available: int
     order_quantity: int
     is_sufficient: bool
+    unit_price: Optional[Decimal] = None  # 采购单价（用于自动填充进货价格）
 
 
 @router.get("/stock")
@@ -155,6 +159,7 @@ async def get_stock_list(
             product_price=price,
             qty_available=inventory.qty_available,
             threshold=inventory.threshold,
+            unit_price=inventory.unit_price,
             notes=inventory.notes,
             updated_at=inventory.updated_at
         ))
@@ -238,6 +243,7 @@ async def add_stock(
             sku=data.sku,  # 使用 ozon_sku
             qty_available=data.quantity,
             threshold=0,
+            unit_price=data.unit_price,
             notes=data.notes
         )
         db.add(inventory)
@@ -320,6 +326,7 @@ async def update_stock(
 
     # 保存旧值（用于审计日志）
     old_quantity = inventory.qty_available
+    old_unit_price = inventory.unit_price
     old_notes = inventory.notes
 
     # 获取请求上下文
@@ -360,6 +367,8 @@ async def update_stock(
 
     # 3. 更新库存
     inventory.qty_available = data.quantity
+    if data.unit_price is not None:
+        inventory.unit_price = data.unit_price
     if data.notes is not None:
         inventory.notes = data.notes
 
@@ -371,6 +380,12 @@ async def update_stock(
             "change": data.quantity - old_quantity
         }
     }
+
+    if data.unit_price is not None and data.unit_price != old_unit_price:
+        changes["unit_price"] = {
+            "old": str(old_unit_price) if old_unit_price else None,
+            "new": str(data.unit_price)
+        }
 
     if data.notes is not None and data.notes != old_notes:
         changes["notes"] = {"old": old_notes, "new": data.notes}
@@ -529,6 +544,7 @@ async def check_stock_for_posting(
 
         # 查询库存（使用 ozon_sku）
         stock_available = 0
+        unit_price = None
         if ozon_sku:
             inventory_query = select(Inventory).where(
                 and_(
@@ -538,7 +554,9 @@ async def check_stock_for_posting(
             )
             inventory_result = await db.execute(inventory_query)
             inventory = inventory_result.scalar_one_or_none()
-            stock_available = inventory.qty_available if inventory else 0
+            if inventory:
+                stock_available = inventory.qty_available
+                unit_price = inventory.unit_price
 
         stock_info.append(StockCheckResponse(
             sku=ozon_sku or offer_id,  # 优先显示 ozon_sku，否则降级到 offer_id
@@ -546,7 +564,8 @@ async def check_stock_for_posting(
             product_image=product_image,
             stock_available=stock_available,
             order_quantity=order_quantity,
-            is_sufficient=stock_available >= order_quantity
+            is_sufficient=stock_available >= order_quantity,
+            unit_price=unit_price
         ))
 
     return {

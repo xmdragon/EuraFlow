@@ -15,6 +15,7 @@ export interface StockItem {
   product_price?: number;
   qty_available: number;
   threshold: number;
+  unit_price?: number; // 采购单价
   notes?: string;
   updated_at: string;
 }
@@ -26,6 +27,7 @@ export interface AddStockRequest {
   shop_id: number;
   sku: string;
   quantity: number;
+  unit_price?: number; // 采购单价
   notes?: string;
 }
 
@@ -34,6 +36,7 @@ export interface AddStockRequest {
  */
 export interface UpdateStockRequest {
   quantity: number;
+  unit_price?: number; // 采购单价
   notes?: string;
 }
 
@@ -47,4 +50,5 @@ export interface StockCheckItem {
   stock_available: number;
   order_quantity: number;
   is_sufficient: boolean;
+  unit_price?: number; // 采购单价（用于自动填充进货价格）
 }

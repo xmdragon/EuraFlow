@@ -29,6 +29,7 @@ import {
   ClockCircleOutlined,
   ExclamationCircleOutlined,
   SyncOutlined,
+  QuestionCircleOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
@@ -140,7 +141,7 @@ const SourceFormModal: React.FC<{
           <Input placeholder="例如：电子产品类目、XX店铺" />
         </Form.Item>
 
-        <Space size="large">
+        <Space size="large" align="start">
           <Form.Item
             name="target_count"
             label="目标采集数量"
@@ -151,8 +152,14 @@ const SourceFormModal: React.FC<{
 
           <Form.Item
             name="priority"
-            label="优先级"
-            extra="数值越高越优先采集"
+            label={
+              <span>
+                优先级{' '}
+                <Tooltip title="数值越高越优先采集">
+                  <QuestionCircleOutlined style={{ color: '#999' }} />
+                </Tooltip>
+              </span>
+            }
           >
             <InputNumber min={0} max={100} style={{ width: 100 }} />
           </Form.Item>

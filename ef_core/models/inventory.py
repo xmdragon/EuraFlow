@@ -44,6 +44,13 @@ class Inventory(Base):
         comment="安全库存阈值"
     )
 
+    # 采购单价（每件商品的采购价格）
+    unit_price: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(18, 4),
+        nullable=True,
+        comment="采购单价（每件商品采购价格）"
+    )
+
     # 备注信息
     notes: Mapped[Optional[str]] = mapped_column(
         String(500),
