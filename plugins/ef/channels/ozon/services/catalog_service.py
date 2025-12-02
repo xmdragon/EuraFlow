@@ -756,18 +756,22 @@ class CatalogService:
         sync_all_leaf: bool = False,
         sync_dictionary_values: bool = True,
         language: str = "ZH_HANS",
-        max_concurrent: int = 5,
+        max_concurrent: int = 1,  # 已废弃，保留参数兼容性，实际始终串行执行
         progress_callback: Optional[callable] = None
     ) -> Dict[str, Any]:
         """
-        批量同步类目特征（支持进度跟踪）
+        批量同步类目特征（串行执行，支持进度跟踪）
+
+        注意：此方法强制串行执行，避免并发导致的数据库锁竞争问题。
+        max_concurrent 参数已废弃，保留仅为兼容性。
 
         Args:
             category_ids: 类目ID列表（如果为None且sync_all_leaf=True，则同步所有叶子类目）
             sync_all_leaf: 是否同步所有叶子类目
             sync_dictionary_values: 是否同步特征值指南
             language: 语言（ZH_HANS/DEFAULT/RU/EN/TR）
-            max_concurrent: 最大并发数
+            max_concurrent: 已废弃，始终串行执行
+            progress_callback: 进度回调函数
 
         Returns:
             同步结果
@@ -813,96 +817,89 @@ class CatalogService:
             synced_values = 0
             errors = []
 
-            # 使用锁确保串行访问数据库（避免 session 并发问题）
-            # 注意：虽然限制了并发，但由于共享同一个 session，必须串行访问
-            lock = asyncio.Lock()
+            # 串行同步类目（避免并发导致的锁竞争问题）
+            # 原因：多个类目可能共享同一个 dictionary_id，并发更新会导致严重的锁等待（20-60秒）
+            # 改为串行执行，虽然总时间更长，但避免了锁竞争导致的超长等待
+            for category_id in category_ids:
+                try:
+                    # 1. 同步类目特征
+                    attr_result = await self.sync_category_attributes(
+                        category_id=category_id,
+                        force_refresh=False,
+                        language=language
+                    )
 
-            async def sync_one_category(category_id: int):
-                nonlocal synced_categories, synced_attributes, synced_values
-                async with lock:
-                    try:
-                        # 1. 同步类目特征
-                        attr_result = await self.sync_category_attributes(
-                            category_id=category_id,
-                            force_refresh=False,
-                            language=language
-                        )
-
-                        if not attr_result.get("success"):
-                            errors.append({
-                                "category_id": category_id,
-                                "step": "attributes",
-                                "error": attr_result.get("error")
-                            })
-                            return
-
-                        synced_attributes += attr_result.get("synced_count", 0)
-
-                        # 2. 如果需要，同步特征值指南（无论属性是否来自缓存）
-                        if sync_dictionary_values:
-                            # 获取该类目的所有属性
-                            attrs = await self.get_category_attributes(category_id, required_only=False)
-
-                            # 提前提取所有需要的属性值，避免循环中的惰性加载
-                            attrs_to_sync = [
-                                (attr.attribute_id, attr.dictionary_id)
-                                for attr in attrs
-                                if attr.dictionary_id
-                            ]
-
-                            for attribute_id, dictionary_id in attrs_to_sync:
-                                value_result = await self.sync_attribute_values(
-                                    attribute_id=attribute_id,
-                                    category_id=category_id,
-                                    force_refresh=False,
-                                    language=language
-                                )
-
-                                if value_result.get("success"):
-                                    synced_values += value_result.get("synced_count", 0)
-                                else:
-                                    errors.append({
-                                        "category_id": category_id,
-                                        "attribute_id": attribute_id,
-                                        "step": "values",
-                                        "error": value_result.get("error")
-                                    })
-
-                        # 更新类目的特征同步时间戳
-                        await self.db.execute(
-                            update(OzonCategory)
-                            .where(OzonCategory.category_id == category_id)
-                            .values(attributes_synced_at=datetime.now(timezone.utc))
-                        )
-
-                        synced_categories += 1
-                        logger.info(f"Progress: {synced_categories}/{total_categories} categories synced")
-
-                        # 立即提交事务，确保数据实时保存到数据库
-                        await self.db.commit()
-
-                        # 调用进度回调（用于实时更新前端显示）
-                        if progress_callback:
-                            progress_callback(
-                                current=synced_categories,
-                                total=total_categories,
-                                category_id=category_id,
-                                category_name=category_names.get(category_id, f"类目 {category_id}"),
-                                synced_attributes=synced_attributes,
-                                synced_values=synced_values
-                            )
-
-                    except Exception as e:
-                        logger.error(f"Failed to sync category {category_id}: {e}", exc_info=True)
+                    if not attr_result.get("success"):
                         errors.append({
                             "category_id": category_id,
-                            "step": "sync",
-                            "error": str(e)
+                            "step": "attributes",
+                            "error": attr_result.get("error")
                         })
+                        continue
 
-            # 并发同步所有类目
-            tasks = [sync_one_category(cat_id) for cat_id in category_ids]
-            await asyncio.gather(*tasks, return_exceptions=True)
+                    synced_attributes += attr_result.get("synced_count", 0)
+
+                    # 2. 如果需要，同步特征值指南（无论属性是否来自缓存）
+                    if sync_dictionary_values:
+                        # 获取该类目的所有属性
+                        attrs = await self.get_category_attributes(category_id, required_only=False)
+
+                        # 提前提取所有需要的属性值，避免循环中的惰性加载
+                        attrs_to_sync = [
+                            (attr.attribute_id, attr.dictionary_id)
+                            for attr in attrs
+                            if attr.dictionary_id
+                        ]
+
+                        for attribute_id, dictionary_id in attrs_to_sync:
+                            value_result = await self.sync_attribute_values(
+                                attribute_id=attribute_id,
+                                category_id=category_id,
+                                force_refresh=False,
+                                language=language
+                            )
+
+                            if value_result.get("success"):
+                                synced_values += value_result.get("synced_count", 0)
+                            else:
+                                errors.append({
+                                    "category_id": category_id,
+                                    "attribute_id": attribute_id,
+                                    "step": "values",
+                                    "error": value_result.get("error")
+                                })
+
+                    # 更新类目的特征同步时间戳
+                    await self.db.execute(
+                        update(OzonCategory)
+                        .where(OzonCategory.category_id == category_id)
+                        .values(attributes_synced_at=datetime.now(timezone.utc))
+                    )
+
+                    synced_categories += 1
+                    logger.info(f"Progress: {synced_categories}/{total_categories} categories synced")
+
+                    # 立即提交事务，确保数据实时保存到数据库
+                    await self.db.commit()
+
+                    # 调用进度回调（用于实时更新前端显示）
+                    if progress_callback:
+                        progress_callback(
+                            current=synced_categories,
+                            total=total_categories,
+                            category_id=category_id,
+                            category_name=category_names.get(category_id, f"类目 {category_id}"),
+                            synced_attributes=synced_attributes,
+                            synced_values=synced_values
+                        )
+
+                except Exception as e:
+                    logger.error(f"Failed to sync category {category_id}: {e}", exc_info=True)
+                    errors.append({
+                        "category_id": category_id,
+                        "step": "sync",
+                        "error": str(e)
+                    })
 
             # 注意：每个类目已经单独commit了，这里不需要再commit
             # await self.db.commit()

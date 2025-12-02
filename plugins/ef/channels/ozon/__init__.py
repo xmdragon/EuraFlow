@@ -139,12 +139,12 @@ async def attributes_sync_task(**kwargs):
             catalog_service = CatalogService(client, db)
 
             # 同步所有叶子类目的特征（包括字典值）
+            # 注意：强制串行执行，避免并发导致的数据库锁竞争问题
             sync_result = await catalog_service.batch_sync_category_attributes(
                 category_ids=None,
                 sync_all_leaf=True,
                 sync_dictionary_values=True,
-                language="ZH_HANS",
-                max_concurrent=5
+                language="ZH_HANS"
             )
 
             # 关闭客户端
