@@ -550,7 +550,7 @@ function createFollowerPopover(sellerList: any[] | null): HTMLElement {
   popover.style.cssText = `
     position: absolute;
     bottom: 100%;
-    left: 0;
+    left: -200px;
     min-width: 500px;
     max-width: 600px;
     max-height: 400px;
