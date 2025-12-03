@@ -326,26 +326,26 @@ function initializeVariants(pageRealPrice: number | null = null, minFollowPrice:
 
   const product = productData;
 
-  // 获取缓存的降价百分比（默认1%）
-  const discountPercent = getCachedDiscountPercent();
-  const discountMultiplier = 1 - discountPercent / 100;
-
   // 情况1: 商品有变体
   if (product.has_variants && product.variants && product.variants.length > 0) {
     product.variants.forEach((variant: any, index: number) => {
-      // ✅ 直接读取 variant.price（人民币价格）
-      const rawPrice: any = variant.price;
-      let price: number = 0;
+      // 解析价格（可能是字符串）
+      const parsePrice = (raw: any): number => {
+        if (typeof raw === 'string') {
+          return parseFloat(raw.replace(/\s/g, '').replace(',', '.')) || 0;
+        } else if (typeof raw === 'number') {
+          return raw;
+        }
+        return 0;
+      };
 
-      // ✅ 价格可能是字符串，需要解析
-      if (typeof rawPrice === 'string') {
-        price = parseFloat((rawPrice as string).replace(/\s/g, '').replace(',', '.')) || 0;
-      } else if (typeof rawPrice === 'number') {
-        price = rawPrice as number;
-      }
+      // OZON 变体数据：price = 绿色价格，original_price = 划线价
+      // 变体没有黑色价格，无法用公式计算真实售价，直接使用绿色价格
+      const variantPrice = parsePrice(variant.price);
+      const variantOldPrice = parsePrice(variant.original_price);
 
-      // 应用降价策略
-      const customPrice = Math.max(0.01, price * discountMultiplier);
+      // 初始化使用绿色价格，用户可通过"批量定价"手动调整
+      const customPrice = variantPrice;
 
       // 提取变体图片URL（可能是对象或字符串）
       let variantImageUrl = '';
@@ -363,11 +363,11 @@ function initializeVariants(pageRealPrice: number | null = null, minFollowPrice:
         specifications: variant.specifications || `变体 ${index + 1}`,
         spec_details: variant.spec_details,
         image_url: variantImageUrl,
-        original_price: price, // 原价格
-        original_old_price: price, // 原划线价（与原价格相同）
+        original_price: variantPrice, // 绿色价格（变体无法计算真实售价）
+        original_old_price: variantOldPrice, // 原划线价
         min_follow_price: minFollowPrice || undefined, // 最低跟卖价
-        custom_price: customPrice, // 改后售价应用降价策略
-        custom_old_price: customPrice * 1.6, // 划线价 = 改后售价 × 1.6（比例 0.625:1）
+        custom_price: customPrice, // 自定义价格（初始为真实售价）
+        custom_old_price: customPrice * 1.6, // 划线价 = 自定义价格 × 1.6
         offer_id: generateOfferId(), // 使用生成函数
         stock: 9, // 默认库存改为9
         enabled: variant.available, // 默认勾选可用的变体
@@ -377,22 +377,25 @@ function initializeVariants(pageRealPrice: number | null = null, minFollowPrice:
   }
   // 情况2: 单品（无变体）
   else {
-    let realPrice: number;
-    let greenPrice: number;
-    let blackPrice: number;
+    // product.cardPrice = 绿色价格（Ozon卡价）
+    // product.price = 黑色价格（普通价格）
+    // product.realPrice = 真实售价（由 display.ts 传入，优先使用）
+    // product.original_price = 划线价（不参与真实售价计算）
+    const greenPrice = product.cardPrice || 0;
+    const blackPrice = product.price || 0;
 
-    if (pageRealPrice !== null) {
+    // 优先级：pageRealPrice > product.realPrice > 公式计算
+    let realPrice: number;
+    if (pageRealPrice !== null && pageRealPrice > 0) {
       realPrice = pageRealPrice;
-      greenPrice = product.price || 0;
-      blackPrice = product.original_price || greenPrice;
+    } else if (product.realPrice !== null && product.realPrice !== undefined && product.realPrice > 0) {
+      realPrice = product.realPrice;
     } else {
-      greenPrice = product.price || 0;
-      blackPrice = product.original_price || greenPrice;
       realPrice = calculateRealPriceCore(greenPrice, blackPrice);
     }
 
-    // 应用降价策略
-    const customPrice = Math.max(0.01, realPrice * discountMultiplier);
+    // 初始化使用原价，用户可通过"批量定价"手动调整
+    const customPrice = realPrice;
 
     // 提取单品图片URL（可能是对象或字符串）
     let singleImageUrl = '';
@@ -512,7 +515,7 @@ function renderMainModal(): void {
               货号
               <button id="batch-generate-offerid-btn" class="ef-operations-bar__button ef-operations-bar__button--small">批量生成</button>
             </th>
-            <th class="ef-variants-table__th ef-variants-table__th--right ef-variants-table__th--price">原价格</th>
+            <th class="ef-variants-table__th ef-variants-table__th--right ef-variants-table__th--price">价格</th>
             <th class="ef-variants-table__th ef-variants-table__th--right ef-variants-table__th--custom-price">自定义价格</th>
             <th class="ef-variants-table__th ef-variants-table__th--right ef-variants-table__th--old-price">划线价</th>
             <th class="ef-variants-table__th ef-variants-table__th--right ef-variants-table__th--stock">库存</th>
@@ -1214,22 +1217,8 @@ async function handleFollowPdp(): Promise<void> {
       purchase_url: purchaseUrl || undefined,
       purchase_price: purchasePrice !== null ? yuanToCents(purchasePrice) : undefined,
       purchase_note: purchaseNote || undefined,
-      product_data: {
-        title: productData.title,
-        images: productData.images,
-        price: productData.price,
-        original_price: productData.original_price,
-        ozon_product_id: productData.ozon_product_id,
-        has_variants: productData.has_variants,
-        variants: productData.variants,
-        description: productData.description,
-        category_id: productData.category_id,
-        brand: productData.brand,
-        barcode: productData.barcode,
-        dimensions: productData.dimensions,
-        attributes: productData.attributes,
-        videos: productData.videos,
-      },
+      // 商品标题（用于后端构造展示数据）
+      title: productData.title,
     };
 
     // 通过 Service Worker 调用跟卖接口（避免 CORS）

@@ -92,6 +92,7 @@ export interface ProductDetailData {
   cardPrice: number;    // 绿色价格（Ozon卡价格）
   price: number;        // 黑色价格（普通价格）
   original_price?: number;  // 划线价
+  realPrice?: number;   // 真实售价（由 display.ts 计算后传入）
   brand?: string;
   barcode?: string;
   images: { url: string; is_primary?: boolean }[];
@@ -1127,6 +1128,7 @@ export async function extractProductData(): Promise<ProductDetailData> {
         category_level_1: finalData.category_level_1,
         category_level_2: finalData.category_level_2,
         category_level_3: finalData.category_level_3,
+        cardPrice: finalData.cardPrice,
         price: finalData.price,
         original_price: finalData.original_price,
         brand: finalData.brand,

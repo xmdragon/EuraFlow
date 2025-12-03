@@ -560,6 +560,55 @@ async def get_next_collection_source(
     }
 
 
+@router.post("/{source_id}/reset")
+async def reset_source_status(
+    source_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
+):
+    """重置采集地址状态
+
+    将状态重置为 pending，清除上次采集时间和错误信息
+    用于解决采集任务卡在 collecting 状态的问题
+    """
+    result = await db.execute(
+        select(OzonCollectionSource).where(
+            OzonCollectionSource.id == source_id,
+            OzonCollectionSource.user_id == current_user.id
+        )
+    )
+    source = result.scalar_one_or_none()
+
+    if not source:
+        problem(
+            status=404,
+            code="SOURCE_NOT_FOUND",
+            title="Source Not Found",
+            detail=f"采集地址不存在: {source_id}"
+        )
+
+    # 重置状态
+    source.status = 'pending'
+    source.last_collected_at = None
+    source.last_product_count = 0
+    source.last_error = None
+    source.error_count = 0
+
+    await db.commit()
+    await db.refresh(source)
+
+    logger.info(f"Reset collection source status: {source.id} ({source.source_path})")
+
+    return {
+        "ok": True,
+        "data": {
+            "id": source.id,
+            "status": source.status,
+            "message": "采集地址状态已重置"
+        }
+    }
+
+
 @router.put("/{source_id}/status")
 async def update_source_status(
     source_id: int,

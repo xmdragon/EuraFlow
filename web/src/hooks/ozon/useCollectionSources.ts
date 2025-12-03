@@ -81,6 +81,10 @@ const batchDeleteSources = async (ids: number[]): Promise<{ deleted_count: numbe
   return response.data.data;
 };
 
+const resetSource = async (id: number): Promise<void> => {
+  await axios.post(`${API_BASE}/ozon/collection-sources/${id}/reset`);
+};
+
 /**
  * 采集地址管理 Hook
  */
@@ -167,6 +171,18 @@ export function useCollectionSources(params?: {
     },
   });
 
+  // 重置状态
+  const resetMutation = useMutation({
+    mutationFn: resetSource,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['collection-sources'] });
+      notifySuccess('状态已重置');
+    },
+    onError: (error: any) => {
+      notifyError('重置失败: ' + (error.response?.data?.detail?.detail || error.message));
+    },
+  });
+
   // 切换启用状态
   const toggleEnabled = async (id: number, isEnabled: boolean) => {
     await updateMutation.mutateAsync({ id, data: { is_enabled: isEnabled } });
@@ -187,11 +203,13 @@ export function useCollectionSources(params?: {
     update: updateMutation.mutateAsync,
     remove: deleteMutation.mutateAsync,
     batchRemove: batchDeleteMutation.mutateAsync,
+    reset: resetMutation.mutateAsync,
     toggleEnabled,
 
     // 加载状态
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending || batchDeleteMutation.isPending,
+    isResetting: resetMutation.isPending,
   };
 }

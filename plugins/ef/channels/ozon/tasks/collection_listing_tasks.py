@@ -92,7 +92,6 @@ def process_follow_pdp_listing(record_id: int) -> dict:
 
         try:
             # 2. 获取上架参数
-            product_data = record.product_data or {}
             listing_payload = record.listing_request_payload or {}
             shop_id = record.shop_id
             user_id = record.user_id
@@ -169,7 +168,7 @@ def process_follow_pdp_listing(record_id: int) -> dict:
                         logger.warning(f"[CollectionListing] 翻译服务初始化失败: {e}")
 
                     # 翻译描述
-                    description = listing_payload.get("description", "") or product_data.get("description", "")
+                    description = listing_payload.get("description", "")
                     russian_description = description
                     if translation_service and description:
                         try:
@@ -183,7 +182,7 @@ def process_follow_pdp_listing(record_id: int) -> dict:
                     task_ids = []
                     for idx, variant in enumerate(variants):
                         # 获取变体名称
-                        variant_name = variant.get("name", "") or product_data.get("name", "") or product_data.get("title", "")
+                        variant_name = variant.get("name", "") or listing_payload.get("title", "")
                         russian_name = variant_name
 
                         # 翻译变体名称
@@ -196,7 +195,7 @@ def process_follow_pdp_listing(record_id: int) -> dict:
                                 logger.warning(f"[CollectionListing] 变体名称翻译失败: {e}")
 
                         # 获取图片列表
-                        images = listing_payload.get("images", []) or product_data.get("images", [])
+                        images = listing_payload.get("images", [])
                         # 转换图片格式（如果是对象数组，提取 URL）
                         image_urls = []
                         for img in images:
@@ -230,11 +229,11 @@ def process_follow_pdp_listing(record_id: int) -> dict:
                             # 共享字段
                             "description": russian_description,
                             "category_id": valid_category_id,  # 使用验证后的类目ID
-                            "brand": listing_payload.get("brand") or product_data.get("brand", ""),
-                            "barcode": listing_payload.get("barcode") or product_data.get("barcode", ""),
+                            "brand": listing_payload.get("brand", ""),
+                            "barcode": listing_payload.get("barcode", ""),
 
                             # 尺寸
-                            "dimensions": listing_payload.get("dimensions") or product_data.get("dimensions"),
+                            "dimensions": listing_payload.get("dimensions"),
 
                             # 图片和视频
                             "images": image_urls,

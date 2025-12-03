@@ -45,7 +45,6 @@ class FollowPdpRequest(BaseModel):
     """跟卖上架请求"""
     shop_id: int = Field(..., description="店铺ID")
     source_url: str = Field(..., description="商品来源URL")
-    product_data: dict[str, Any] = Field(..., description="完整商品数据")
     variants: list[dict[str, Any]] = Field(..., description="变体列表")
     warehouse_id: int = Field(..., description="仓库ID")
     watermark_config_id: Optional[int] = Field(None, description="水印配置ID")
@@ -57,6 +56,7 @@ class FollowPdpRequest(BaseModel):
     barcode: Optional[str] = Field(None, description="条形码")
     dimensions: Optional[dict[str, Any]] = Field(None, description="尺寸信息")
     attributes: Optional[list[dict[str, Any]]] = Field(None, description="类目特征")
+    title: Optional[str] = Field(None, description="商品标题")
     # 采购信息（仅保存到本地，不提交OZON）
     purchase_url: Optional[str] = Field(None, description="采购地址")
     purchase_price: Optional[int] = Field(None, description="采购价（分）")
@@ -156,15 +156,35 @@ async def follow_pdp_listing(
     3. 立即返回（不等待上架结果）
     4. 后台异步任务完成后更新状态
     """
+    # 从 variants 和其他字段构造 product_data（供前端展示用）
+    first_variant = request.variants[0] if request.variants else {}
+    # 价格：从 variants[].price 获取（分→元）
+    price_fen = first_variant.get("price", 0) or 0
+    price_yuan = price_fen / 100 if price_fen else None
+    old_price_fen = first_variant.get("old_price")
+    old_price_yuan = old_price_fen / 100 if old_price_fen else None
+
+    product_data_for_display = {
+        "title": request.title or first_variant.get("name", ""),
+        "images": request.images,
+        "price": price_yuan,  # 用户设置的价格（元）
+        "old_price": old_price_yuan,
+        "description": request.description,
+        "dimensions": request.dimensions,
+        "brand": request.brand,
+        "barcode": request.barcode,
+        "variants": request.variants,  # 保存完整变体信息
+    }
+
     # 创建采集记录
     record = await CollectionRecordService.create_collection_record(
         db=db,
         user_id=current_user.id,
         collection_type="follow_pdp",
         source_url=request.source_url,
-        product_data=request.product_data,
+        product_data=product_data_for_display,
         shop_id=request.shop_id,
-        source_product_id=request.product_data.get("product_id")
+        source_product_id=None
     )
 
     # 保存上架请求参数（用于异步任务）
@@ -184,6 +204,7 @@ async def follow_pdp_listing(
             "barcode": request.barcode,
             "dimensions": request.dimensions,
             "attributes": request.attributes,
+            "title": request.title,  # 商品标题（用于翻译）
             # 采购信息（仅保存到本地，不提交OZON）
             "purchase_url": request.purchase_url,
             "purchase_price": request.purchase_price,

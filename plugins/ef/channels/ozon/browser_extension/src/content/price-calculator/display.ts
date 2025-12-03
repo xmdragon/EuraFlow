@@ -885,7 +885,7 @@ function createFollowButton(
       const productData = {
         ...ozonProduct,
         dimensions: finalDimensions,  // 确保包含尺寸数据
-        price: realPrice,  // 使用真实售价
+        realPrice: realPrice,  // 真实售价（新字段，不覆盖原有价格）
         primary_image: primaryImage
       };
       showPublishModal(productData, realPrice, minFollowPrice);
