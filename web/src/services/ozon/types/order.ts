@@ -67,6 +67,8 @@ export interface Posting {
   // 打印追踪字段
   label_printed_at?: string; // 标签首次打印时间
   label_print_count?: number; // 标签打印次数
+  // 时间字段
+  in_process_at?: string; // 开始处理时间
 }
 
 /**
@@ -150,6 +152,7 @@ export interface PostingWithOrder extends Posting {
   items?: OrderItem[]; // 商品列表（从 order.items 或 posting.products 提取）
   tracking_number?: string; // 追踪号（从 packages 提取或直接返回）
   ordered_at?: string; // 下单时间（从 order.ordered_at）
+  in_process_at?: string; // 开始处理时间（从 order.in_process_at）
   delivery_method?: string; // 配送方式（从 order.delivery_method）
 }
 

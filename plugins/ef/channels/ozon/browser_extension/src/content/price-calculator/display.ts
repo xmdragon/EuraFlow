@@ -6,6 +6,7 @@
 
 import { showPublishModal } from '../components/PublishModal';
 import { injectEuraflowStyles } from '../styles/injector';
+import './display.scss';
 
 // ========== 配置常量 ==========
 const DISPLAY_CONFIG = {
@@ -547,42 +548,26 @@ function createFollowerRow(_count: number, countStr: string, minPriceStr: string
 function createFollowerPopover(sellerList: any[] | null): HTMLElement {
   const popover = document.createElement('div');
   popover.className = 'ef-follower-popover';
-  popover.style.cssText = `
-    position: absolute;
-    bottom: 100%;
-    left: -270px;
-    min-width: 570px;
-    max-width: 700px;
-    max-height: 400px;
-    overflow-y: auto;
-    background: #fff;
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-    z-index: 10000;
-    margin-bottom: 8px;
-    font-size: 12px;
-  `;
 
   if (!sellerList || sellerList.length === 0) {
-    popover.innerHTML = '<div style="padding: 16px; text-align: center; color: #999;">暂无跟卖数据</div>';
+    popover.innerHTML = '<div class="ef-follower-popover__empty">暂无跟卖数据</div>';
     return popover;
   }
 
   // 创建表格
   const table = document.createElement('table');
-  table.style.cssText = 'width: 100%; border-collapse: collapse;';
+  table.className = 'ef-follower-popover__table';
 
   // 表头
   const thead = document.createElement('thead');
   thead.innerHTML = `
-    <tr style="background: #f5f5f5; border-bottom: 1px solid #e0e0e0;">
-      <th style="padding: 10px 8px; text-align: left; font-weight: 500; color: #666; width: 50px;">头像</th>
-      <th style="padding: 10px 8px; text-align: left; font-weight: 500; color: #666; min-width: 120px;">卖家名称</th>
-      <th style="padding: 10px 8px; text-align: center; font-weight: 500; color: #666; width: 70px;">评分</th>
-      <th style="padding: 10px 8px; text-align: center; font-weight: 500; color: #666; width: 60px;">地区</th>
-      <th style="padding: 10px 8px; text-align: center; font-weight: 500; color: #666; width: 100px;">商品SKU</th>
-      <th style="padding: 10px 8px; text-align: right; font-weight: 500; color: #666; width: 80px;">售价</th>
+    <tr class="ef-follower-popover__thead-row">
+      <th class="ef-follower-popover__th ef-follower-popover__th--avatar">头像</th>
+      <th class="ef-follower-popover__th ef-follower-popover__th--name">卖家名称</th>
+      <th class="ef-follower-popover__th ef-follower-popover__th--rating">评分</th>
+      <th class="ef-follower-popover__th ef-follower-popover__th--region">地区</th>
+      <th class="ef-follower-popover__th ef-follower-popover__th--sku">商品SKU</th>
+      <th class="ef-follower-popover__th ef-follower-popover__th--price">售价</th>
     </tr>
   `;
   table.appendChild(thead);
@@ -592,27 +577,27 @@ function createFollowerPopover(sellerList: any[] | null): HTMLElement {
 
   sellerList.forEach((seller, index) => {
     const tr = document.createElement('tr');
-    tr.style.cssText = `border-bottom: 1px solid #f0f0f0;${index % 2 === 1 ? ' background: #fafafa;' : ''}`;
+    tr.className = `ef-follower-popover__row${index % 2 === 1 ? ' ef-follower-popover__row--odd' : ''}`;
 
     // 头像
     const logoUrl = seller.logoImageUrl || '';
     const logoHtml = logoUrl
-      ? `<img src="${logoUrl}" style="width: 32px; height: 32px; border-radius: 4px; object-fit: cover;" onerror="this.style.display='none'">`
-      : '<div style="width: 32px; height: 32px; background: #e0e0e0; border-radius: 4px;"></div>';
+      ? `<img src="${logoUrl}" class="ef-follower-popover__avatar" onerror="this.style.display='none'">`
+      : '<div class="ef-follower-popover__avatar-placeholder"></div>';
 
     // 卖家名称（可点击跳转）
     const sellerLink = seller.link || '#';
     const sellerName = seller.name || '未知卖家';
 
     // 评分（从 rating 提取）
-    let ratingHtml = '<span style="color: #999;">---</span>';
+    let ratingHtml = '<span class="ef-follower-popover__rating--empty">---</span>';
     if (seller.rating) {
       const score = seller.rating.totalScore ?? seller.rating.score ?? null;
       const reviews = seller.rating.reviewsCount ?? seller.rating.count ?? 0;
       if (score !== null) {
         // 星星颜色：5分金色，4-4.9橙色，其他灰色
-        const starColor = score >= 5 ? '#FFB800' : score >= 4 ? '#FF9800' : '#9E9E9E';
-        ratingHtml = `<span style="color: ${starColor}; font-weight: 500;">★${score}</span><span style="color: #999; font-size: 11px; margin-left: 2px;">(${reviews})</span>`;
+        const ratingClass = score >= 5 ? 'gold' : score >= 4 ? 'orange' : 'gray';
+        ratingHtml = `<span class="ef-follower-popover__rating--${ratingClass}">★${score}</span><span class="ef-follower-popover__rating-count">(${reviews})</span>`;
       }
     }
 
@@ -640,12 +625,12 @@ function createFollowerPopover(sellerList: any[] | null): HTMLElement {
     }
 
     tr.innerHTML = `
-      <td style="padding: 8px;">${logoHtml}</td>
-      <td style="padding: 8px;"><a href="${sellerLink}" target="_blank" style="color: #005bff; text-decoration: none; word-break: break-word;">${sellerName}</a></td>
-      <td style="padding: 8px; text-align: center;">${ratingHtml}</td>
-      <td style="padding: 8px; text-align: center;">${region}</td>
-      <td style="padding: 8px; text-align: center;"><a href="${productLink}" target="_blank" style="color: #005bff; text-decoration: none;">${sku}</a></td>
-      <td style="padding: 8px; text-align: right; font-weight: 500; color: #ff5722;">${priceStr}</td>
+      <td class="ef-follower-popover__td">${logoHtml}</td>
+      <td class="ef-follower-popover__td"><a href="${sellerLink}" target="_blank" class="ef-follower-popover__link ef-follower-popover__link--name">${sellerName}</a></td>
+      <td class="ef-follower-popover__td ef-follower-popover__td--center">${ratingHtml}</td>
+      <td class="ef-follower-popover__td ef-follower-popover__td--center">${region}</td>
+      <td class="ef-follower-popover__td ef-follower-popover__td--center"><a href="${productLink}" target="_blank" class="ef-follower-popover__link">${sku}</a></td>
+      <td class="ef-follower-popover__td ef-follower-popover__td--right ef-follower-popover__price">${priceStr}</td>
     `;
 
     tbody.appendChild(tr);

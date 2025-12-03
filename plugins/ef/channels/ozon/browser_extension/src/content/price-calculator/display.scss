@@ -1,0 +1,157 @@
+/**
+ * 跟卖者浮动窗样式
+ */
+
+.ef-follower-popover {
+  position: absolute;
+  bottom: 100%;
+  left: -270px;
+  min-width: 570px;
+  max-width: 700px;
+  max-height: 400px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  z-index: 10000;
+  margin-bottom: 8px;
+  font-size: 12px;
+
+  // 无数据提示
+  &__empty {
+    padding: 16px;
+    text-align: center;
+    color: #999;
+  }
+
+  // 表格
+  &__table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  // 表头行
+  &__thead-row {
+    background: #f5f5f5;
+    border-bottom: 1px solid #e0e0e0;
+  }
+
+  // 表头单元格
+  &__th {
+    padding: 10px 8px;
+    font-weight: 500;
+    color: #666;
+
+    &--avatar {
+      text-align: left;
+      width: 50px;
+    }
+
+    &--name {
+      text-align: left;
+      min-width: 120px;
+    }
+
+    &--rating {
+      text-align: center;
+      width: 70px;
+    }
+
+    &--region {
+      text-align: center;
+      width: 60px;
+    }
+
+    &--sku {
+      text-align: center;
+      width: 100px;
+    }
+
+    &--price {
+      text-align: right;
+      width: 80px;
+    }
+  }
+
+  // 表体行
+  &__row {
+    border-bottom: 1px solid #f0f0f0;
+
+    &--odd {
+      background: #fafafa;
+    }
+  }
+
+  // 表体单元格
+  &__td {
+    padding: 8px;
+
+    &--center {
+      text-align: center;
+    }
+
+    &--right {
+      text-align: right;
+    }
+  }
+
+  // 头像
+  &__avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    object-fit: cover;
+  }
+
+  &__avatar-placeholder {
+    width: 32px;
+    height: 32px;
+    background: #e0e0e0;
+    border-radius: 4px;
+  }
+
+  // 链接
+  &__link {
+    color: #005bff;
+    text-decoration: none;
+
+    &--name {
+      word-break: break-word;
+    }
+  }
+
+  // 评分
+  &__rating {
+    &--empty {
+      color: #999;
+    }
+
+    &--gold {
+      color: #FFB800;
+      font-weight: 500;
+    }
+
+    &--orange {
+      color: #FF9800;
+      font-weight: 500;
+    }
+
+    &--gray {
+      color: #9E9E9E;
+      font-weight: 500;
+    }
+  }
+
+  &__rating-count {
+    color: #999;
+    font-size: 11px;
+    margin-left: 2px;
+  }
+
+  // 价格
+  &__price {
+    font-weight: 500;
+    color: #ff5722;
+  }
+}
