@@ -157,23 +157,30 @@ async def follow_pdp_listing(
     4. 后台异步任务完成后更新状态
     """
     # 从 variants 和其他字段构造 product_data（供前端展示用）
-    first_variant = request.variants[0] if request.variants else {}
-    # 价格：从 variants[].price 获取（分→元）
-    price_fen = first_variant.get("price", 0) or 0
-    price_yuan = price_fen / 100 if price_fen else None
-    old_price_fen = first_variant.get("old_price")
-    old_price_yuan = old_price_fen / 100 if old_price_fen else None
+    # 转换 variants 数据：分→元，primary_image→image_url
+    variants_for_display = []
+    for v in request.variants:
+        price_fen = v.get("price", 0) or 0
+        old_price_fen = v.get("old_price")
+        variants_for_display.append({
+            **v,
+            "price": price_fen / 100 if price_fen else None,  # 分→元
+            "old_price": old_price_fen / 100 if old_price_fen else None,
+            "image_url": v.get("primary_image"),  # 前端需要 image_url 字段
+        })
+
+    first_variant = variants_for_display[0] if variants_for_display else {}
 
     product_data_for_display = {
         "title": request.title or first_variant.get("name", ""),
         "images": request.images,
-        "price": price_yuan,  # 用户设置的价格（元）
-        "old_price": old_price_yuan,
+        "price": first_variant.get("price"),  # 用户设置的价格（元）
+        "old_price": first_variant.get("old_price"),
         "description": request.description,
         "dimensions": request.dimensions,
         "brand": request.brand,
         "barcode": request.barcode,
-        "variants": request.variants,  # 保存完整变体信息
+        "variants": variants_for_display,  # 保存转换后的变体信息
     }
 
     # 创建采集记录
