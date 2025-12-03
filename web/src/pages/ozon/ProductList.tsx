@@ -63,13 +63,9 @@ const ProductList: React.FC = () => {
   const { selectedShop, handleShopChange } = useShopSelection();
   const [filterForm] = Form.useForm();
   const [filterValues, setFilterValues] = useState<ozonApi.ProductFilter>(() => {
-    // 默认为"新增商品"：销售中且14天内创建的商品，按创建时间倒序
-    const fourteenDaysAgo = dayjs().subtract(14, 'days').format('YYYY-MM-DD');
+    // 默认为"销售中"商品
     return {
-      status: 'new_products',
-      created_from: fourteenDaysAgo,
-      sort_by: 'created_at',
-      sort_order: 'desc',
+      status: 'on_sale',
     };
   });
   const [errorModalVisible, setErrorModalVisible] = useState(false);
