@@ -298,24 +298,21 @@ export const CollectionSourcesTab: React.FC = () => {
       width: 120,
       render: (_, record) => (
         <Space size="small">
-          {/* 重置按钮：只对 collecting 或 failed 状态显示 */}
-          {(record.status === 'collecting' || record.status === 'failed') && (
-            <Popconfirm
-              title="确定重置此采集地址状态吗？"
-              description="状态将重置为「待采集」，上次采集时间将清空"
-              onConfirm={() => reset(record.id)}
-              okText="重置"
-              cancelText="取消"
-            >
-              <Tooltip title="重置状态">
-                <Button
-                  type="text"
-                  icon={<UndoOutlined />}
-                  size="small"
-                />
-              </Tooltip>
-            </Popconfirm>
-          )}
+          <Popconfirm
+            title="确定重置此采集地址状态吗？"
+            description="状态将重置为「待采集」，上次采集时间将清空"
+            onConfirm={() => reset(record.id)}
+            okText="重置"
+            cancelText="取消"
+          >
+            <Tooltip title="重置状态">
+              <Button
+                type="text"
+                icon={<UndoOutlined />}
+                size="small"
+              />
+            </Tooltip>
+          </Popconfirm>
           <Tooltip title="编辑">
             <Button
               type="text"
