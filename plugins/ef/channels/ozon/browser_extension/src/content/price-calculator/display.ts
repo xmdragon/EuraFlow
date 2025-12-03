@@ -139,6 +139,66 @@ export function updateFollowSellerData(spbSales: any): void {
 }
 
 /**
+ * 更新类目数据（异步加载完成后调用）
+ */
+export function updateCategoryData(spbSales: any): void {
+  const existingRow = document.getElementById('ef-category-row');
+  if (!existingRow) return;
+
+  const categoryValue = spbSales?.category || '---';
+
+  // 更新类目值
+  const valueSpan = existingRow.querySelector('.ef-value');
+  if (valueSpan) {
+    valueSpan.textContent = categoryValue;
+  }
+}
+
+/**
+ * 更新按钮区域（配置和 OZON 数据加载完成后调用）
+ */
+export function updateButtonsWithConfig(
+  euraflowConfig: any,
+  ozonProduct: any,
+  spbSales: any
+): void {
+  const buttonRow = document.getElementById('euraflow-button-row');
+  if (!buttonRow) return;
+
+  // 获取尺寸数据
+  const dimensions = ozonProduct?.dimensions || null;
+  const hasDimensions = dimensions &&
+    dimensions.weight !== null && dimensions.weight !== undefined;
+  const hasSpbDimensions = spbSales &&
+    spbSales.weight !== null && spbSales.weight !== undefined;
+  const hasAnyDimensions = hasDimensions || hasSpbDimensions;
+
+  // 获取价格（从已注入的组件中提取）
+  const priceElement = document.querySelector('#euraflow-widget-price .ef-price-value');
+  const priceText = priceElement?.textContent?.replace(/[^\d.]/g, '') || '0';
+  const price = parseFloat(priceText) || null;
+
+  // 检查是否已有跟卖按钮
+  const existingFollowButton = buttonRow.querySelector('#euraflow-follow');
+  if (!existingFollowButton && ozonProduct && hasAnyDimensions) {
+    const followButton = createFollowButton(price, ozonProduct, spbSales, dimensions);
+    buttonRow.appendChild(followButton);
+  }
+
+  // 检查是否已有采集按钮
+  const existingCollectButton = buttonRow.querySelector('#euraflow-collect');
+  if (!existingCollectButton && ozonProduct && euraflowConfig) {
+    const collectButton = createCollectButton(price, ozonProduct, spbSales, dimensions, euraflowConfig);
+    buttonRow.appendChild(collectButton);
+  }
+
+  // 如果有任何按钮，显示按钮行
+  if (buttonRow.children.length > 0) {
+    buttonRow.style.display = '';
+  }
+}
+
+/**
  * 分阶段注入显示组件
  * 阶段1：显示主体（价格+数据区），按钮区域显示加载占位
  * 阶段2：跟卖数据就绪后显示跟卖按钮
@@ -350,8 +410,10 @@ async function createDataSection(spbSales: any | null, dimensions: any | null): 
 function buildDataRows(spbSales: any | null, dimensions: any | null): HTMLElement[] {
   const rows: HTMLElement[] = [];
 
-  // 类目行（单列）
-  rows.push(createSingleRow('类目', spbSales?.category || '---'));
+  // 类目行（单列）- 带 ID 以便后续异步更新
+  const categoryRow = createSingleRow('类目', spbSales?.category || '加载中...');
+  categoryRow.id = 'ef-category-row';
+  rows.push(categoryRow);
 
   // 品牌行（单列）
   rows.push(createSingleRow('品牌', spbSales?.brand || '---'));
@@ -420,9 +482,8 @@ function buildDataRows(spbSales: any | null, dimensions: any | null): HTMLElemen
 
   // 跟卖 + 最低价（两列）- 支持异步加载
   const follower = spbSales?.competitorCount;
-  // 判断跟卖数据是否正在加载中（competitorCount 为 undefined 且没有 followSellerList）
-  const isFollowerLoading = follower === undefined && !spbSales?.followSellerList;
-  const followerStr = isFollowerLoading ? '加载中...' : (follower != null && follower > 0 ? `${follower}家` : '无跟卖');
+  // 初始显示 ---，等 API 查询完成后由 updateFollowSellerData 更新为实际值或"无跟卖"
+  const followerStr = follower != null && follower > 0 ? `${follower}家` : '---';
 
   // 最低跟卖价：优先用 competitorMinPrice，其次从 followSellerPrices 取最小值
   let minPrice = spbSales?.competitorMinPrice;

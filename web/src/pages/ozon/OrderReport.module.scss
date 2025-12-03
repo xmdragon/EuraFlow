@@ -299,3 +299,115 @@
     }
   }
 }
+
+// ===== 日期列样式 =====
+.date {
+  font-size: 12px;
+  color: #8c8c8c;
+}
+
+// ===== 店铺名称样式 =====
+.shopName {
+  font-weight: 500;
+  color: #262626;
+}
+
+// ===== 加载提示样式 =====
+.loadingHint {
+  text-align: center;
+  padding: 12px;
+  color: #666;
+}
+
+.loadedAllHint {
+  text-align: center;
+  padding: 12px;
+  color: #999;
+}
+
+// ===== 进度通知样式 =====
+.progressWrapper {
+  margin-bottom: 8px;
+}
+
+// ===== 图表Tooltip样式 =====
+.chartTooltip {
+  background-color: rgba(255, 255, 255, 0.95);
+  border: 1px solid #ccc;
+  padding: 10px;
+  border-radius: 4px;
+}
+
+.chartTooltipTitle {
+  margin: 0 0 5px 0;
+  font-weight: 500;
+}
+
+.chartTooltipSales {
+  margin: 3px 0;
+  color: #1890ff;
+}
+
+.chartTooltipProfit {
+  margin: 3px 0;
+  color: #52c41a;
+}
+
+.chartTooltipProfitRate {
+  margin: 3px 0;
+}
+
+.chartTooltipProfitRatePositive {
+  color: #52c41a;
+}
+
+.chartTooltipProfitRateNegative {
+  color: #ff4d4f;
+}
+
+// ===== 商品信息列容器 =====
+.productInfoColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+// ===== 商品名称加粗 =====
+.productNameBold {
+  font-weight: 500;
+}
+
+// ===== 利润颜色 =====
+.profitPositive {
+  color: #52c41a;
+}
+
+.profitNegative {
+  color: #ff4d4f;
+}
+
+// ===== Modal 行间距 =====
+.modalRow {
+  margin-bottom: 16px;
+}
+
+// ===== Modal 状态文本 =====
+.modalStatusPositive {
+  color: #52c41a;
+}
+
+.modalStatusNegative {
+  color: #ff4d4f;
+}
+
+// ===== 顶层复制图标（不在嵌套中） =====
+.copyIcon {
+  color: #8c8c8c;
+  cursor: pointer;
+  font-size: 12px;
+  transition: color 0.3s;
+
+  &:hover {
+    color: #1890ff;
+  }
+}

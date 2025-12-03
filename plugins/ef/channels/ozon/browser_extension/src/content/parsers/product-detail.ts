@@ -1115,7 +1115,7 @@ export async function extractProductData(): Promise<ProductDetailData> {
 
     // 输出合并后的完整商品数据
     if (__DEBUG__) {
-      console.log('[商品数据] 合并后完整数据:', JSON.stringify({
+      console.log('[商品数据] 合并后完整数据:', {
         ozon_product_id: finalData.ozon_product_id,
         sku: finalData.sku,
         title: finalData.title,
@@ -1138,7 +1138,7 @@ export async function extractProductData(): Promise<ProductDetailData> {
         typeNameRu: finalData.typeNameRu,
         has_variants: finalData.has_variants,
         variants_count: finalData.variants?.length || 0
-      }, null, 2));
+      });
     }
 
     return finalData;

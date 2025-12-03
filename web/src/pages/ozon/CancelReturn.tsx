@@ -274,7 +274,7 @@ const CancelReturn: React.FC = () => {
         <div>
           <span className={styles.postingNumber}>{text}</span>
           <CopyOutlined
-            style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
+            className={styles.copyIcon}
             onClick={() => copyToClipboard(text, '货件编号')}
           />
         </div>
@@ -368,7 +368,7 @@ const CancelReturn: React.FC = () => {
         const displayNumber = text || String(record.return_id);
         return (
           <span
-            style={{ cursor: 'pointer', color: '#1890ff' }}
+            className={styles.returnNumberLink}
             onClick={() => handleOpenDetail(record.return_id)}
           >
             {displayNumber}
@@ -385,7 +385,7 @@ const CancelReturn: React.FC = () => {
         <div>
           <span>{text}</span>
           <CopyOutlined
-            style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
+            className={styles.copyIcon}
             onClick={() => copyToClipboard(text, '货件编号')}
           />
         </div>
@@ -423,7 +423,7 @@ const CancelReturn: React.FC = () => {
             <>
               <span>{text}</span>
               <CopyOutlined
-                style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
+                className={styles.copyIcon}
                 onClick={() => copyToClipboard(text, 'Offer ID')}
               />
             </>
@@ -543,7 +543,7 @@ const CancelReturn: React.FC = () => {
 
       {/* 筛选器 */}
       <Card className={styles.filterCard}>
-        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+        <Space direction="vertical" className={styles.fullWidth} size="middle">
           <Row gutter={16} align="middle">
             <Col>
               <Space>
@@ -576,7 +576,7 @@ const CancelReturn: React.FC = () => {
             <Row gutter={16}>
               <Col>
                 <Select
-                  style={{ width: 120 }}
+                  className={styles.stateSelect}
                   placeholder="状态"
                   allowClear
                   value={cancellationFilters.state}
@@ -591,7 +591,7 @@ const CancelReturn: React.FC = () => {
               </Col>
               <Col>
                 <Select
-                  style={{ width: 120 }}
+                  className={styles.stateSelect}
                   placeholder="发起人"
                   allowClear
                   value={cancellationFilters.initiator}
@@ -619,7 +619,7 @@ const CancelReturn: React.FC = () => {
                 <Input
                   placeholder="搜索货件编号"
                   prefix={<SearchOutlined />}
-                  style={{ width: 200 }}
+                  className={styles.searchInputShort}
                   allowClear
                   value={cancellationFilters.posting_number}
                   onChange={(e) =>
@@ -638,7 +638,7 @@ const CancelReturn: React.FC = () => {
             <Row gutter={16}>
               <Col>
                 <Select
-                  style={{ width: 120 }}
+                  className={styles.stateSelect}
                   placeholder="状态组"
                   allowClear
                   value={returnFilters.group_state}
@@ -666,7 +666,7 @@ const CancelReturn: React.FC = () => {
                 <Input
                   placeholder="搜索货件编号或SKU"
                   prefix={<SearchOutlined />}
-                  style={{ width: 250 }}
+                  className={styles.searchInputLong}
                   allowClear
                   value={returnFilters.posting_number}
                   onChange={(e) =>
@@ -762,14 +762,14 @@ const CancelReturn: React.FC = () => {
         width={800}
       >
         {loadingDetail ? (
-          <div style={{ textAlign: 'center', padding: '40px 0' }}>
+          <div className={styles.modalLoading}>
             <Spin />
           </div>
         ) : returnDetail ? (
           <>
             {/* 商品图片 */}
             {returnDetail.image_url && (
-              <div style={{ textAlign: 'center', marginBottom: 20 }}>
+              <div className={styles.modalImageWrapper}>
                 <ProductImage
                   imageUrl={returnDetail.image_url}
                   size="medium"
@@ -821,7 +821,7 @@ const CancelReturn: React.FC = () => {
                 {returnDetail.money_return_state_name || '-'}
               </Descriptions.Item>
               <Descriptions.Item label="退货原因" span={2}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div className={styles.translateWrapper}>
                   <span>{returnDetail.return_reason_name || '-'}</span>
                   {returnDetail.return_reason_name && (
                     <Button
@@ -839,7 +839,7 @@ const CancelReturn: React.FC = () => {
                                 <div>
                                   <p><strong>原文（俄语）：</strong></p>
                                   <p>{russianText}</p>
-                                  <p style={{ marginTop: 16 }}><strong>译文（中文）：</strong></p>
+                                  <p className={styles.translateResult}><strong>译文（中文）：</strong></p>
                                   <p>{translation}</p>
                                 </div>
                               ),
@@ -850,7 +850,7 @@ const CancelReturn: React.FC = () => {
                           }
                         }
                       }}
-                      style={{ padding: 0 }}
+                      className={styles.translateButton}
                     >
                       翻译
                     </Button>
@@ -858,7 +858,7 @@ const CancelReturn: React.FC = () => {
                 </div>
               </Descriptions.Item>
               <Descriptions.Item label="拒绝原因" span={2}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div className={styles.translateWrapper}>
                   <span>{returnDetail.rejection_reason_name || '-'}</span>
                   {returnDetail.rejection_reason_name && (
                     <Button
@@ -876,7 +876,7 @@ const CancelReturn: React.FC = () => {
                                 <div>
                                   <p><strong>原文（俄语）：</strong></p>
                                   <p>{russianText}</p>
-                                  <p style={{ marginTop: 16 }}><strong>译文（中文）：</strong></p>
+                                  <p className={styles.translateResult}><strong>译文（中文）：</strong></p>
                                   <p>{translation}</p>
                                 </div>
                               ),
@@ -887,7 +887,7 @@ const CancelReturn: React.FC = () => {
                           }
                         }
                       }}
-                      style={{ padding: 0 }}
+                      className={styles.translateButton}
                     >
                       翻译
                     </Button>
@@ -903,7 +903,7 @@ const CancelReturn: React.FC = () => {
             </Descriptions>
           </>
         ) : (
-          <div style={{ textAlign: 'center', padding: '40px 0' }}>
+          <div className={styles.modalEmpty}>
             <Text type="secondary">未找到详情数据</Text>
           </div>
         )}

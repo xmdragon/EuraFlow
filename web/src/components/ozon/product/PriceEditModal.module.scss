@@ -1,0 +1,155 @@
+@use '@/styles/variables' as *;
+
+// ===== Modal =====
+.modal {
+  top: 20px;
+}
+
+.fullWidth {
+  width: 100%;
+}
+
+// ===== 批量调价区域 =====
+.batchPriceHeader {
+  font-weight: 500;
+}
+
+.percentInput {
+  width: 200px;
+}
+
+.batchPriceHint {
+  color: #666;
+  font-size: 12px;
+}
+
+// ===== 统计信息 =====
+.statsContainer {
+  font-size: 12px;
+  color: #666;
+}
+
+.statsIncrease {
+  color: #f5222d;
+}
+
+.statsDecrease {
+  color: #52c41a;
+}
+
+// ===== 商品列表 =====
+.productList {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.listItem {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.listItemSpace {
+  width: 100%;
+  justify-content: space-between;
+}
+
+// ===== 商品图片 =====
+.productAvatar {
+  border: 1px solid #f0f0f0;
+  cursor: pointer;
+}
+
+.tooltipImage {
+  width: 160px;
+  height: 160px;
+  display: block;
+}
+
+// ===== SKU 信息 =====
+.skuText {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.copyIcon {
+  color: #1890ff;
+  cursor: pointer;
+}
+
+// ===== 价格区域 =====
+.priceSection {
+  text-align: center;
+}
+
+.priceLabel {
+  font-size: 12px;
+  color: #999;
+  margin-bottom: 4px;
+}
+
+.currentPriceValue {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.priceArrow {
+  font-size: 20px;
+  color: #999;
+}
+
+.priceInput {
+  width: 80px;
+}
+
+.priceChangeSection {
+  text-align: center;
+  min-width: 80px;
+}
+
+.priceChangeValue {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.priceChangePositive {
+  color: #f5222d;
+}
+
+.priceChangeNegative {
+  color: #52c41a;
+}
+
+.priceChangeNeutral {
+  color: #999;
+}
+
+.priceChangePercent {
+  font-size: 12px;
+}
+
+// ===== 调价原因 =====
+.reasonFormItem {
+  margin-bottom: 0;
+}
+
+.reasonInputWrapper {
+  width: 100%;
+}
+
+.reasonInput {
+  flex: 1;
+}
+
+.quickSelectWrapper {
+  margin-top: 8px;
+}
+
+.quickSelectLabel {
+  font-size: 12px;
+  color: #999;
+}
+
+// ===== 底部按钮 =====
+.footerButtons {
+  text-align: right;
+}

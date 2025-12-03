@@ -199,7 +199,7 @@ const OrderReport: React.FC = () => {
     "delivered",
   );
   const [postingNumber, setPostingNumber] = useState<string>(""); // posting_number筛选
-  const [activeTab, setActiveTab] = useState<string>("details");
+  const [activeTab, setActiveTab] = useState<string>("summary");
 
   // 分页状态（用于无限滚动）
   const [page, setPage] = useState(1);
@@ -750,26 +750,10 @@ const OrderReport: React.FC = () => {
                 />
                 {/* 加载更多提示 */}
                 {isFetching && (
-                  <div
-                    style={{
-                      textAlign: "center",
-                      padding: "12px",
-                      color: "#666",
-                    }}
-                  >
-                    加载中...
-                  </div>
+                  <div className={styles.loadingHint}>加载中...</div>
                 )}
                 {!hasMore && allLoadedData.length > 0 && (
-                  <div
-                    style={{
-                      textAlign: "center",
-                      padding: "12px",
-                      color: "#999",
-                    }}
-                  >
-                    已加载全部数据
-                  </div>
+                  <div className={styles.loadedAllHint}>已加载全部数据</div>
                 )}
               </Spin>
             </Tabs.TabPane>
@@ -1208,14 +1192,8 @@ const OrderReport: React.FC = () => {
                           {
                             title: "商品信息",
                             render: (_, record) => (
-                              <div
-                                style={{
-                                  display: "flex",
-                                  flexDirection: "column",
-                                  gap: "4px",
-                                }}
-                              >
-                                <div style={{ fontWeight: 500 }}>
+                              <div className={styles.productInfoColumn}>
+                                <div className={styles.productNameBold}>
                                   {record.name}
                                 </div>
                                 <div className={styles.skuContainer}>
@@ -1259,9 +1237,7 @@ const OrderReport: React.FC = () => {
                               const profit = parseFloat(value);
                               return (
                                 <span
-                                  style={{
-                                    color: profit >= 0 ? "#52c41a" : "#ff4d4f",
-                                  }}
+                                  className={profit >= 0 ? styles.profitPositive : styles.profitNegative}
                                 >
                                   ¥{profit.toFixed(2)}
                                 </span>
@@ -1294,14 +1270,8 @@ const OrderReport: React.FC = () => {
                           {
                             title: "商品信息",
                             render: (_, record) => (
-                              <div
-                                style={{
-                                  display: "flex",
-                                  flexDirection: "column",
-                                  gap: "4px",
-                                }}
-                              >
-                                <div style={{ fontWeight: 500 }}>
+                              <div className={styles.productInfoColumn}>
+                                <div className={styles.productNameBold}>
                                   {record.name}
                                 </div>
                                 <div className={styles.skuContainer}>
@@ -1345,9 +1315,7 @@ const OrderReport: React.FC = () => {
                               const profit = parseFloat(value);
                               return (
                                 <span
-                                  style={{
-                                    color: profit >= 0 ? "#52c41a" : "#ff4d4f",
-                                  }}
+                                  className={profit >= 0 ? styles.profitPositive : styles.profitNegative}
                                 >
                                   ¥{profit.toFixed(2)}
                                 </span>
@@ -1385,14 +1353,14 @@ const OrderReport: React.FC = () => {
         {selectedPostingDetail && (
           <div>
             {/* 基本信息 */}
-            <Row gutter={16} style={{ marginBottom: 16 }}>
+            <Row gutter={16} className={styles.modalRow}>
               <Col span={8}>
                 <Text type="secondary">店铺：</Text>
                 <Text strong>{selectedPostingDetail.shop_name}</Text>
               </Col>
               <Col span={8}>
                 <Text type="secondary">状态：</Text>
-                <Text strong style={{ color: selectedPostingDetail.is_cancelled ? '#ff4d4f' : '#52c41a' }}>
+                <Text strong className={selectedPostingDetail.is_cancelled ? styles.modalStatusNegative : styles.modalStatusPositive}>
                   {statusConfig[selectedPostingDetail.status]?.text || selectedPostingDetail.status}
                 </Text>
               </Col>
@@ -1426,7 +1394,7 @@ const OrderReport: React.FC = () => {
                   title: "商品信息",
                   render: (_, product) => (
                     <div>
-                      <div style={{ fontWeight: 500 }}>{product.name}</div>
+                      <div className={styles.productNameBold}>{product.name}</div>
                       <div className={styles.skuContainer}>
                         <span
                           className={styles.skuLink}
@@ -1489,13 +1457,13 @@ const OrderReport: React.FC = () => {
               </Col>
               <Col span={8}>
                 <Text type="secondary">利润：</Text>
-                <Text strong style={{ color: parseFloat(selectedPostingDetail.profit) >= 0 ? '#52c41a' : '#ff4d4f' }}>
+                <Text strong className={parseFloat(selectedPostingDetail.profit) >= 0 ? styles.profitPositive : styles.profitNegative}>
                   {selectedPostingDetail.profit}
                 </Text>
               </Col>
               <Col span={8}>
                 <Text type="secondary">利润率：</Text>
-                <Text strong style={{ color: selectedPostingDetail.profit_rate >= 0 ? '#52c41a' : '#ff4d4f' }}>
+                <Text strong className={selectedPostingDetail.profit_rate >= 0 ? styles.profitPositive : styles.profitNegative}>
                   {selectedPostingDetail.profit_rate.toFixed(2)}%
                 </Text>
               </Col>

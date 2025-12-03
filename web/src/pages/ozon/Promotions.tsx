@@ -336,7 +336,7 @@ const Promotions: React.FC = () => {
             setViewMode('detail');
             setActiveTab('candidates');
           }}
-          style={{ padding: 0, height: 'auto' }}
+          className={styles.titleLinkButton}
         >
           {title}
         </Button>
@@ -488,31 +488,30 @@ const Promotions: React.FC = () => {
       key: 'title',
       width: 400,
       render: (title: string, record: promotionApi.PromotionProduct) => (
-        <div style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}>
-          <div style={{ marginBottom: 4 }}>
+        <div className={styles.productInfoCell}>
+          <div className={styles.productTitleRow}>
             {record.ozon_product_id ? (
               <a
                 href={getOzonProductUrl(record.ozon_product_id)}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ fontWeight: 500, color: '#1890ff' }}
+                className={styles.productTitleLink}
               >
                 {title || '未知商品'}
               </a>
             ) : (
-              <span style={{ fontWeight: 500 }}>{title || '未知商品'}</span>
+              <span className={styles.productTitleText}>{title || '未知商品'}</span>
             )}
           </div>
-          <div style={{ fontSize: 12, color: '#888' }}>
+          <div className={styles.skuRow}>
             <Space size={4}>
               <span>SKU: {record.ozon_sku || '-'}</span>
               {record.ozon_sku && (
-                <Tooltip title="复制SKU">
-                  <CopyOutlined
-                    style={{ cursor: 'pointer', color: '#1890ff' }}
-                    onClick={() => copyToClipboard(String(record.ozon_sku), 'SKU')}
-                  />
-                </Tooltip>
+                <CopyOutlined
+                  className={styles.copyIcon}
+                  title="复制SKU"
+                  onClick={() => copyToClipboard(String(record.ozon_sku), 'SKU')}
+                />
               )}
             </Space>
           </div>
@@ -534,24 +533,24 @@ const Promotions: React.FC = () => {
         // 如果有仓库库存详情，按仓库显示
         if ((record as any).warehouse_stocks && (record as any).warehouse_stocks.length > 0) {
           return (
-            <Space direction="vertical" size={2} style={{ width: '100%' }}>
+            <div className={styles.fullWidth}>
               {(record as any).warehouse_stocks.map((ws: any, index: number) => {
                 const warehouseAbbr = ws.warehouse_name?.substring(0, 4) || `W${ws.warehouse_id}`;
                 const totalStock = ws.present + ws.reserved;
                 return (
-                  <span key={index} style={{ fontSize: 12 }}>
+                  <div key={index} className={styles.stockText}>
                     {warehouseAbbr}:
-                    <span style={{ fontWeight: 600, marginLeft: '4px' }}>{totalStock}</span>
-                  </span>
+                    <span className={styles.stockValue}>{totalStock}</span>
+                  </div>
                 );
               })}
-            </Space>
+            </div>
           );
         }
         // 降级：显示总库存
         return (
-          <span style={{ fontSize: 12 }}>
-            总计: <span style={{ fontWeight: 600, marginLeft: '4px' }}>{record.stock || 0}</span>
+          <span className={styles.stockText}>
+            总计: <span className={styles.stockValue}>{record.stock || 0}</span>
           </span>
         );
       },
@@ -580,31 +579,30 @@ const Promotions: React.FC = () => {
       key: 'title',
       width: 400,
       render: (title: string, record: promotionApi.PromotionProduct) => (
-        <div style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}>
-          <div style={{ marginBottom: 4 }}>
+        <div className={styles.productInfoCell}>
+          <div className={styles.productTitleRow}>
             {record.ozon_product_id ? (
               <a
                 href={getOzonProductUrl(record.ozon_product_id)}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ fontWeight: 500, color: '#1890ff' }}
+                className={styles.productTitleLink}
               >
                 {title || '未知商品'}
               </a>
             ) : (
-              <span style={{ fontWeight: 500 }}>{title || '未知商品'}</span>
+              <span className={styles.productTitleText}>{title || '未知商品'}</span>
             )}
           </div>
-          <div style={{ fontSize: 12, color: '#888' }}>
+          <div className={styles.skuRow}>
             <Space size={4}>
               <span>SKU: {record.ozon_sku || '-'}</span>
               {record.ozon_sku && (
-                <Tooltip title="复制SKU">
-                  <CopyOutlined
-                    style={{ cursor: 'pointer', color: '#1890ff' }}
-                    onClick={() => copyToClipboard(String(record.ozon_sku), 'SKU')}
-                  />
-                </Tooltip>
+                <CopyOutlined
+                  className={styles.copyIcon}
+                  title="复制SKU"
+                  onClick={() => copyToClipboard(String(record.ozon_sku), 'SKU')}
+                />
               )}
             </Space>
           </div>
@@ -622,14 +620,10 @@ const Promotions: React.FC = () => {
           originalPrice > 0 ? (((originalPrice - promoPrice) / originalPrice) * 100).toFixed(1) : 0;
         return (
           <div>
-            <div style={{ fontSize: 12, color: '#888', textDecoration: 'line-through' }}>
-              原价: {formatPrice(originalPrice)}
-            </div>
-            <div style={{ fontWeight: 500, color: '#ff4d4f', fontSize: 14 }}>
-              促销: {formatPrice(promoPrice)}
-            </div>
+            <div className={styles.originalPrice}>原价: {formatPrice(originalPrice)}</div>
+            <div className={styles.promoPrice}>促销: {formatPrice(promoPrice)}</div>
             {Number(discount) > 0 && (
-              <Tag color="red" style={{ marginTop: 4 }}>
+              <Tag color="red" className={styles.discountTag}>
                 -{discount}%
               </Tag>
             )}
@@ -646,30 +640,26 @@ const Promotions: React.FC = () => {
         if ((record as any).warehouse_stocks && (record as any).warehouse_stocks.length > 0) {
           return (
             <div>
-              <Space direction="vertical" size={2} style={{ width: '100%' }}>
+              <div className={styles.fullWidth}>
                 {(record as any).warehouse_stocks.map((ws: any, index: number) => {
                   const warehouseAbbr = ws.warehouse_name?.substring(0, 4) || `W${ws.warehouse_id}`;
                   const totalStock = ws.present + ws.reserved;
                   return (
-                    <span key={index} style={{ fontSize: 12, color: '#888' }}>
+                    <div key={index} className={styles.stockSecondary}>
                       {warehouseAbbr}: {totalStock}
-                    </span>
+                    </div>
                   );
                 })}
-              </Space>
-              <div style={{ fontWeight: 500, color: '#1890ff', marginTop: 4 }}>
-                促销: {record.promotion_stock || 0}
               </div>
+              <div className={styles.promotionStock}>促销: {record.promotion_stock || 0}</div>
             </div>
           );
         }
         // 降级：显示总库存
         return (
           <div>
-            <div style={{ fontSize: 12, color: '#888' }}>总库存: {record.stock || 0}</div>
-            <div style={{ fontWeight: 500, color: '#1890ff' }}>
-              促销: {record.promotion_stock || 0}
-            </div>
+            <div className={styles.stockSecondary}>总库存: {record.stock || 0}</div>
+            <div className={styles.promotionStock}>促销: {record.promotion_stock || 0}</div>
           </div>
         );
       },
@@ -739,15 +729,15 @@ const Promotions: React.FC = () => {
   // 渲染活动列表视图
   const renderListView = () => (
     <Card>
-      <Space direction="vertical" style={{ width: '100%', gap: 0 }}>
+      <Space direction="vertical" className={`${styles.fullWidth} ${styles.zeroGapSpace}`}>
         {/* 工具栏 */}
-        <div style={{ marginBottom: 16 }}>
+        <div className={styles.toolbar}>
           <Space>
             <ShopSelector
               value={selectedShop}
               onChange={handleShopChange}
               showAllOption={false}
-              style={{ width: 200 }}
+              className={styles.shopSelector}
             />
             <Button
               type="primary"
@@ -785,7 +775,7 @@ const Promotions: React.FC = () => {
 
     return (
       <Card>
-        <Space direction="vertical" style={{ width: '100%' }} size="large">
+        <Space direction="vertical" className={styles.fullWidth} size="large">
           {/* 返回按钮和活动信息 */}
           <Space>
             <Button
@@ -799,7 +789,7 @@ const Promotions: React.FC = () => {
             >
               返回列表
             </Button>
-            <span style={{ fontSize: 16, fontWeight: 'bold' }}>{selectedAction.title}</span>
+            <span className={styles.actionTitle}>{selectedAction.title}</span>
             <Tag color={selectedAction.action_status === 'RUNNING' ? 'green' : 'default'}>
               {selectedAction.action_status}
             </Tag>
@@ -807,22 +797,10 @@ const Promotions: React.FC = () => {
 
           {/* 活动描述 */}
           {selectedAction.description && (
-            <Card
-              size="small"
-              style={{
-                backgroundColor: '#f5f5f5',
-                border: '1px solid #d9d9d9',
-              }}
-            >
+            <Card size="small" className={styles.descriptionCard}>
               <div
                 dangerouslySetInnerHTML={{ __html: formatDescription(selectedAction.description) }}
-                style={{
-                  lineHeight: '1.8',
-                  whiteSpace: 'normal',
-                  wordBreak: 'break-word',
-                  overflowWrap: 'break-word',
-                }}
-                className="promotion-description"
+                className={`${styles.descriptionContent} promotion-description`}
               />
             </Card>
           )}
@@ -836,7 +814,7 @@ const Promotions: React.FC = () => {
                 key: 'candidates',
                 label: `可用促销商品 (${selectedAction.candidate_count || 0})`,
                 children: (
-                  <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                  <Space direction="vertical" className={styles.fullWidth} size="middle">
                     {/* 操作按钮 */}
                     <Space>
                       <Button
@@ -869,7 +847,7 @@ const Promotions: React.FC = () => {
                 key: 'active',
                 label: `参与活动商品 (${selectedAction.active_count || 0})`,
                 children: (
-                  <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                  <Space direction="vertical" className={styles.fullWidth} size="middle">
                     {/* 操作按钮 */}
                     <Space>
                       <Button
@@ -924,8 +902,8 @@ const Promotions: React.FC = () => {
       >
         <Form form={activateForm} layout="vertical">
           {selectedCandidateRows.map((row) => (
-            <Card key={row.id} size="small" style={{ marginBottom: 16 }}>
-              <Space direction="vertical" style={{ width: '100%' }}>
+            <Card key={row.id} size="small" className={styles.modalProductCard}>
+              <Space direction="vertical" className={styles.fullWidth}>
                 <Space>
                   {row.images?.primary && (
                     <Image
@@ -933,14 +911,14 @@ const Promotions: React.FC = () => {
                       alt={row.title}
                       width={60}
                       height={60}
-                      style={{ objectFit: 'cover', borderRadius: 4 }}
+                      className={styles.modalProductImage}
                     />
                   )}
                   <div>
                     <div>
                       <strong>{row.title || '未知商品'}</strong>
                     </div>
-                    <div style={{ color: '#888', fontSize: 12 }}>
+                    <div className={styles.modalProductMeta}>
                       SKU: {row.sku || '-'} | 当前价格: {formatPrice(row.price || 0)}
                     </div>
                   </div>
@@ -950,13 +928,13 @@ const Promotions: React.FC = () => {
                     name={`price_${row.product_id}`}
                     label="促销价格"
                     rules={[{ required: true, message: '请输入促销价格' }]}
-                    style={{ marginBottom: 0 }}
+                    className={styles.formItemNoMargin}
                   >
                     <InputNumber
                       min={0}
                       precision={2}
                       addonBefore={currencySymbol}
-                      style={{ width: 200 }}
+                      className={styles.priceInput}
                       placeholder={`当前: ${(row.price || 0).toFixed(2)}`}
                     />
                   </Form.Item>
@@ -964,11 +942,11 @@ const Promotions: React.FC = () => {
                     name={`stock_${row.product_id}`}
                     label="促销库存"
                     rules={[{ required: true, message: '请输入促销库存' }]}
-                    style={{ marginBottom: 0 }}
+                    className={styles.formItemNoMargin}
                   >
                     <InputNumber
                       min={0}
-                      style={{ width: 150 }}
+                      className={styles.stockInput}
                       placeholder={`当前: ${row.stock || 0}`}
                     />
                   </Form.Item>

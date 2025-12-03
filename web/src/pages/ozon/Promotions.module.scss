@@ -1,4 +1,5 @@
 @use '@/styles/variables' as *;
+@use '@/styles/mixins' as *;
 
 // 促销活动页面样式
 // 遵守 CLAUDE.md §8 规范：禁止 inline style
@@ -15,4 +16,139 @@
       padding: $spacing-xs !important;
     }
   }
+}
+
+// ===== 列表视图 =====
+.fullWidth {
+  width: 100%;
+}
+
+.toolbar {
+  margin-bottom: 16px;
+}
+
+.zeroGapSpace {
+  gap: 0 !important;
+}
+
+// ===== 活动列表 =====
+.titleLinkButton {
+  padding: 0;
+  height: auto;
+}
+
+// ===== 商品信息单元格 =====
+.productInfoCell {
+  word-wrap: break-word;
+  white-space: normal;
+}
+
+.productTitleRow {
+  margin-bottom: 4px;
+}
+
+.productTitleLink {
+  font-weight: 500;
+  color: #1890ff;
+}
+
+.productTitleText {
+  font-weight: 500;
+}
+
+.skuRow {
+  font-size: 12px;
+  color: #888;
+}
+
+.copyIcon {
+  cursor: pointer;
+  color: #1890ff;
+}
+
+// ===== 库存列 =====
+.stockText {
+  font-size: 12px;
+}
+
+.stockValue {
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+.stockSecondary {
+  font-size: 12px;
+  color: #888;
+}
+
+// ===== 价格对比 =====
+.originalPrice {
+  font-size: 12px;
+  color: #888;
+  text-decoration: line-through;
+}
+
+.promoPrice {
+  font-weight: 500;
+  color: #ff4d4f;
+  font-size: 14px;
+}
+
+.discountTag {
+  margin-top: 4px;
+}
+
+.promotionStock {
+  font-weight: 500;
+  color: #1890ff;
+  margin-top: 4px;
+}
+
+// ===== 详情视图 =====
+.actionTitle {
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.descriptionCard {
+  background-color: #f5f5f5;
+  border: 1px solid #d9d9d9;
+}
+
+.descriptionContent {
+  line-height: 1.8;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+// ===== 弹窗 =====
+.modalProductCard {
+  margin-bottom: 16px;
+}
+
+.modalProductImage {
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.modalProductMeta {
+  color: #888;
+  font-size: 12px;
+}
+
+.formItemNoMargin {
+  margin-bottom: 0;
+}
+
+.priceInput {
+  width: 200px;
+}
+
+.stockInput {
+  width: 150px;
+}
+
+.shopSelector {
+  width: 200px;
 }

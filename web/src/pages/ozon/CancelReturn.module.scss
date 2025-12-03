@@ -60,3 +60,81 @@
   text-align: center;
   color: #999;
 }
+
+// ===== 复制图标样式 =====
+.copyIcon {
+  margin-left: 8px;
+  cursor: pointer;
+  color: #1890ff;
+  transition: color 0.3s;
+
+  &:hover {
+    color: #40a9ff;
+  }
+}
+
+// ===== 申请号链接样式 =====
+.returnNumberLink {
+  cursor: pointer;
+  color: #1890ff;
+  transition: color 0.3s;
+
+  &:hover {
+    color: #40a9ff;
+    text-decoration: underline;
+  }
+}
+
+// ===== 筛选器全宽 =====
+.fullWidth {
+  width: 100%;
+}
+
+// ===== 状态选择器宽度 =====
+.stateSelect {
+  width: 120px;
+}
+
+// ===== 搜索框宽度 =====
+.searchInputShort {
+  width: 200px;
+}
+
+.searchInputLong {
+  width: 250px;
+}
+
+// ===== Modal 加载状态 =====
+.modalLoading {
+  text-align: center;
+  padding: 40px 0;
+}
+
+// ===== Modal 商品图片居中 =====
+.modalImageWrapper {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+// ===== Modal 空状态 =====
+.modalEmpty {
+  text-align: center;
+  padding: 40px 0;
+}
+
+// ===== 翻译按钮区域 =====
+.translateWrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+// ===== 翻译按钮样式 =====
+.translateButton {
+  padding: 0;
+}
+
+// ===== 翻译结果 =====
+.translateResult {
+  margin-top: 16px;
+}

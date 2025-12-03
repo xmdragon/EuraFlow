@@ -57,7 +57,7 @@ export {
   getSpbangApi,
   spbangApiProxy
 } from './spbang-api';
-export type { SpbSalesData, SpbSalesDataRaw, CommissionData } from './spbang-api';
+export type { SpbSalesData, SpbSalesDataRaw } from './spbang-api';
 
 // EuraFlow API
 export {

@@ -12,6 +12,8 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 
+import styles from './PriceEditModal.module.scss';
+
 export interface Product {
   offer_id: string;
   ozon_sku?: number;
@@ -152,18 +154,18 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
       onCancel={onCancel}
       footer={null}
       width={900}
-      style={{ top: 20 }}
+      className={styles.modal}
     >
-      <Space direction="vertical" style={{ width: '100%' }} size="middle">
+      <Space direction="vertical" className={styles.fullWidth} size="middle">
         {/* 批量百分比调价 */}
         {products.length > 1 && (
           <Alert
             message={
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <div style={{ fontWeight: 500 }}>批量百分比调价</div>
+              <Space direction="vertical" className={styles.fullWidth}>
+                <div className={styles.batchPriceHeader}>批量百分比调价</div>
                 <Space>
                   <InputNumber
-                    style={{ width: 200 }}
+                    className={styles.percentInput}
                     placeholder="输入百分比 (正数加价，负数降价)"
                     value={percentageChange}
                     onChange={(value) => setPercentageChange(typeof value === 'number' ? value : 0)}
@@ -178,7 +180,7 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
                   >
                     应用
                   </Button>
-                  <span style={{ color: '#666', fontSize: 12 }}>
+                  <span className={styles.batchPriceHint}>
                     例如：输入 10 表示加价10%，输入 -10 表示降价10%
                   </span>
                 </Space>
@@ -190,15 +192,15 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
 
         {/* 价格变化统计 */}
         {products.length > 1 && (
-          <div style={{ fontSize: 12, color: '#666' }}>
-            涨价: <span style={{ color: '#f5222d' }}>{stats.increased}</span> 个 | 降价:{' '}
-            <span style={{ color: '#52c41a' }}>{stats.decreased}</span> 个 | 不变: {stats.unchanged}{' '}
+          <div className={styles.statsContainer}>
+            涨价: <span className={styles.statsIncrease}>{stats.increased}</span> 个 | 降价:{' '}
+            <span className={styles.statsDecrease}>{stats.decreased}</span> 个 | 不变: {stats.unchanged}{' '}
             个
           </div>
         )}
 
         {/* 商品列表 */}
-        <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+        <div className={styles.productList}>
           <List
             dataSource={products}
             renderItem={(product) => {
@@ -219,8 +221,8 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
                   : '0.0';
 
               return (
-                <List.Item key={product.offer_id}>
-                  <Space style={{ width: '100%', justifyContent: 'space-between' }} align="start">
+                <List.Item key={product.offer_id} className={styles.listItem}>
+                  <Space className={styles.listItemSpace} align="start">
                     {/* 左侧：图片和SKU */}
                     <Space>
                       <Tooltip
@@ -228,11 +230,7 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
                           <img
                             src={largeImageUrl}
                             alt="商品大图"
-                            style={{
-                              width: 160,
-                              height: 160,
-                              display: 'block',
-                            }}
+                            className={styles.tooltipImage}
                           />
                         }
                         placement="right"
@@ -245,19 +243,16 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
                           src={imageUrl}
                           size={80}
                           shape="square"
-                          style={{
-                            border: '1px solid #f0f0f0',
-                            cursor: 'pointer',
-                          }}
+                          className={styles.productAvatar}
                         />
                       </Tooltip>
                       <div>
                         <Space>
-                          <span style={{ fontSize: 14, fontWeight: 500 }}>
+                          <span className={styles.skuText}>
                             SKU: {product.ozon_sku}
                           </span>
                           <CopyOutlined
-                            style={{ color: '#1890ff', cursor: 'pointer' }}
+                            className={styles.copyIcon}
                             onClick={() =>
                               product.ozon_sku && copyToClipboard(product.ozon_sku, 'SKU')
                             }
@@ -269,38 +264,22 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
                     {/* 右侧：价格信息 */}
                     <Space size="large" align="center">
                       {/* 当前价格 */}
-                      <div style={{ textAlign: 'center' }}>
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: '#999',
-                            marginBottom: 4,
-                          }}
-                        >
-                          当前价格
-                        </div>
-                        <div style={{ fontSize: 16, fontWeight: 500 }}>
+                      <div className={styles.priceSection}>
+                        <div className={styles.priceLabel}>当前价格</div>
+                        <div className={styles.currentPriceValue}>
                           {currencySymbol}
                           {priceData.currentPrice.toFixed(2)}
                         </div>
                       </div>
 
                       {/* 箭头 */}
-                      <div style={{ fontSize: 20, color: '#999' }}>→</div>
+                      <div className={styles.priceArrow}>→</div>
 
                       {/* 新价格 */}
-                      <div style={{ textAlign: 'center' }}>
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: '#999',
-                            marginBottom: 4,
-                          }}
-                        >
-                          新价格
-                        </div>
+                      <div className={styles.priceSection}>
+                        <div className={styles.priceLabel}>新价格</div>
                         <InputNumber
-                          style={{ width: 80 }}
+                          className={styles.priceInput}
                           value={priceData.newPrice}
                           onChange={(value) =>
                             updateProductPrice(
@@ -316,18 +295,10 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
                       </div>
 
                       {/* 旧价格（划线价） */}
-                      <div style={{ textAlign: 'center' }}>
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: '#999',
-                            marginBottom: 4,
-                          }}
-                        >
-                          旧价格（划线价）
-                        </div>
+                      <div className={styles.priceSection}>
+                        <div className={styles.priceLabel}>旧价格（划线价）</div>
                         <InputNumber
-                          style={{ width: 80 }}
+                          className={styles.priceInput}
                           value={priceData.oldPrice}
                           onChange={(value) =>
                             updateProductOldPrice(
@@ -344,28 +315,21 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
                       </div>
 
                       {/* 价格变化 */}
-                      <div style={{ textAlign: 'center', minWidth: 80 }}>
+                      <div className={styles.priceChangeSection}>
+                        <div className={styles.priceLabel}>变化</div>
                         <div
-                          style={{
-                            fontSize: 12,
-                            color: '#999',
-                            marginBottom: 4,
-                          }}
-                        >
-                          变化
-                        </div>
-                        <div
-                          style={{
-                            fontSize: 14,
-                            fontWeight: 500,
-                            color:
-                              priceChange > 0 ? '#f5222d' : priceChange < 0 ? '#52c41a' : '#999',
-                          }}
+                          className={`${styles.priceChangeValue} ${
+                            priceChange > 0
+                              ? styles.priceChangePositive
+                              : priceChange < 0
+                                ? styles.priceChangeNegative
+                                : styles.priceChangeNeutral
+                          }`}
                         >
                           {priceChange > 0 ? '+' : ''}
                           {priceChange.toFixed(2)}
                           <br />
-                          <span style={{ fontSize: 12 }}>
+                          <span className={styles.priceChangePercent}>
                             ({priceChange > 0 ? '+' : ''}
                             {priceChangePercent}%)
                           </span>
@@ -380,19 +344,19 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
         </div>
 
         {/* 调价原因（可选） */}
-        <Form.Item label="调价原因（可选）" style={{ marginBottom: 0 }}>
-          <Space.Compact style={{ width: '100%' }}>
+        <Form.Item label="调价原因（可选）" className={styles.reasonFormItem}>
+          <Space.Compact className={styles.reasonInputWrapper}>
             <Input
               placeholder="输入调价原因（可选）"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               allowClear
-              style={{ flex: 1 }}
+              className={styles.reasonInput}
             />
           </Space.Compact>
-          <div style={{ marginTop: 8 }}>
+          <div className={styles.quickSelectWrapper}>
             <Space wrap size="small">
-              <span style={{ fontSize: 12, color: '#999' }}>快捷选择：</span>
+              <span className={styles.quickSelectLabel}>快捷选择：</span>
               {['促销活动', '成本调整', '市场竞争', '库存清理', '季节调价', '汇率变化'].map(
                 (text) => (
                   <Button
@@ -410,7 +374,7 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
         </Form.Item>
 
         {/* 底部按钮 */}
-        <div style={{ textAlign: 'right' }}>
+        <div className={styles.footerButtons}>
           <Space>
             <Button onClick={onCancel}>取消</Button>
             <Button type="primary" onClick={handleSubmit} loading={loading}>

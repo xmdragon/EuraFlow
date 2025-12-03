@@ -5,7 +5,7 @@
  */
 
 import { calculateRealPrice } from './calculator';
-import { injectCompleteDisplay, updateFollowSellerData } from './display';
+import { injectCompleteDisplay, updateFollowSellerData, updateCategoryData, updateButtonsWithConfig } from './display';
 import { extractProductData, fetchFollowSellerData } from '../parsers/product-detail';
 
 /**
@@ -154,125 +154,117 @@ export class RealPriceCalculator {
 
   /**
    * 初始化计算器
-   * @param prefetchedData 预加载的数据（document_start 时已开始请求，不需要 Cookie）
+   * @param prefetchedData 预加载的数据（document_start 时已开始请求）
    */
   public async init(prefetchedData?: PrefetchedData | null): Promise<void> {
     try {
-      // 1. 提取商品ID（使用预加载的或重新提取）
+      // 1. 提取商品ID
       const productId = prefetchedData?.productId || extractProductId();
       if (!productId) {
         console.error('[EuraFlow] 无法提取商品ID');
         return;
       }
 
-      // 2. 使用预加载的 Promise 或新建
+      // 2. 获取预加载的 Promise
       const spbSalesPromise = prefetchedData?.spbDataPromise || chrome.runtime.sendMessage({
         type: 'GET_SPB_SALES_DATA',
         data: { productSku: productId }
-      }).catch(err => {
-        console.warn('[EuraFlow] 上品帮销售数据获取失败:', err.message);
-        return { success: false, data: null };
-      });
+      }).catch(() => ({ success: false, data: null }));
 
       const configPromise = prefetchedData?.configPromise || chrome.runtime.sendMessage({
         type: 'GET_CONFIG_PREFETCH'
-      }).catch(err => {
-        console.warn('[EuraFlow] 配置预加载失败:', err.message);
-        return { success: false, data: null };
-      });
+      }).catch(() => ({ success: false, data: null }));
 
-      // 3. 【需要 Cookie/DOM】调用 OZON API 获取商品数据（包含价格）
-      let productDetail = null;
-      try {
-        productDetail = await extractProductData();
-      } catch (error: any) {
-        console.error('[EuraFlow] 商品详情提取失败:', error);
-        return;
-      }
+      // 3. 只等待 SPB 数据 + DOM 稳定，立即注入
+      const [spbSalesResponse, _domReady] = await Promise.all([
+        spbSalesPromise,
+        this.waitForContainerReady()
+      ]);
 
-      // 4. 从 OZON API 数据提取价格（不使用 DOM fallback）
-      if (!productDetail || (productDetail.price <= 0 && !productDetail.original_price)) {
-        console.error('[EuraFlow] OZON API 未返回价格数据');
-        return;
-      }
-
-      // price = 绿色价格(cardPrice)，original_price = 黑色价格(price)
-      const greenPrice = productDetail.price > 0 ? productDetail.price : null;
-      const blackPrice = productDetail.original_price || null;
-
-      if (blackPrice === null && greenPrice === null) {
-        console.error('[EuraFlow] 未找到价格');
-        return;
-      }
-
-      const { message, price } = calculateRealPrice(greenPrice, blackPrice, '¥');
-      if (!message) {
-        console.warn('[EuraFlow] 无法计算真实售价');
-        return;
-      }
-
-      // 5. 等待预加载的 Promise 完成（上品帮数据 + 配置）
-      const [spbSalesResponse, configResponse] = await Promise.all([spbSalesPromise, configPromise]);
       const spbSalesData = spbSalesResponse?.success ? spbSalesResponse.data : null;
-      const euraflowConfig = configResponse?.success ? configResponse.data : null;
 
-      // 6. 发送数据到 background 进行后续处理（类目查询等）- 不等跟卖数据
-      const ratingData = extractRatingFromJsonLd();
+      // 4. 从 SPB 数据计算真实售价
+      const greenPrice = spbSalesData?.price > 0 ? spbSalesData.price : null;
+      const blackPrice = spbSalesData?.originalPrice || null;
+      const { message, price } = calculateRealPrice(greenPrice, blackPrice, '¥');
 
-      const response = await chrome.runtime.sendMessage({
-        type: 'FETCH_ALL_PRODUCT_DATA',
-        data: {
-          url: window.location.href,
-          productSku: productId,
-          productDetail: productDetail,
-          ratingData: ratingData,
-          spbSalesData: spbSalesData,
-          followSellerData: null  // 跟卖数据稍后异步加载
-        }
-      });
-
-      if (!response.success) {
-        console.error('[EuraFlow] 数据获取失败:', response.error);
-        return;
-      }
-
-      // 7. 等待 DOM 稳定后立即注入 UI（跟卖数显示"加载中..."）
-      await this.waitForContainerReady();
-
-      const { ozonProduct, spbSales } = response.data;
-
-      // 8. 先注入组件（跟卖数据待加载）
+      // 5. 立即注入组件（缺失数据显示"加载中..."）
       await injectCompleteDisplay({
-        message,
+        message: message || '---',
         price,
-        ozonProduct,
-        spbSales,
-        euraflowConfig
+        ozonProduct: null,  // 稍后异步加载
+        spbSales: spbSalesData,
+        euraflowConfig: null  // 稍后异步加载
       });
 
-      // 9. 异步加载跟卖数据，完成后更新组件
-      if (!spbSalesData?.competitorCount && spbSalesData?.competitorCount !== 0) {
-        fetchFollowSellerData(productId).then(followSellerData => {
-          if (followSellerData) {
-            // 更新 spbSales 中的跟卖数据
-            const updatedSpbSales = {
-              ...spbSales,
-              competitorCount: followSellerData.count,
-              followSellerPrices: followSellerData.prices,
-              followSellerList: followSellerData.sellers,
-              competitorMinPrice: followSellerData.prices?.length > 0
-                ? Math.min(...followSellerData.prices.filter(p => p > 0))
-                : null
-            };
-            // 更新已注入的组件
-            updateFollowSellerData(updatedSpbSales);
-          }
-        }).catch(err => {
-          console.warn('[EuraFlow] 跟卖数据获取失败:', err);
-        });
-      }
+      // 6. 异步加载所有其他数据并更新组件
+      this.loadAsyncData(productId, spbSalesData, configPromise);
+
     } catch (error) {
       console.error('[EuraFlow] 初始化失败:', error);
+    }
+  }
+
+  /**
+   * 异步加载数据并更新组件
+   */
+  private loadAsyncData(
+    productId: string,
+    spbSalesData: any,
+    configPromise: Promise<any>
+  ): void {
+    // 异步加载 OZON 商品数据
+    const ozonDataPromise = extractProductData().catch(err => {
+      console.warn('[EuraFlow] OZON 商品数据获取失败:', err);
+      return null;
+    });
+
+    // 配置加载完成后更新按钮
+    Promise.all([configPromise, ozonDataPromise]).then(([configResponse, ozonProduct]) => {
+      const euraflowConfig = configResponse?.success ? configResponse.data : null;
+      if (euraflowConfig || ozonProduct) {
+        updateButtonsWithConfig(euraflowConfig, ozonProduct, spbSalesData);
+      }
+    }).catch(() => {});
+
+    // 类目数据（需要 OZON 数据中的 typeNameRu）
+    ozonDataPromise.then(ozonProduct => {
+      if (ozonProduct) {
+        chrome.runtime.sendMessage({
+          type: 'FETCH_ALL_PRODUCT_DATA',
+          data: {
+            url: window.location.href,
+            productSku: productId,
+            productDetail: ozonProduct,
+            ratingData: extractRatingFromJsonLd(),
+            spbSalesData: spbSalesData,
+            followSellerData: null
+          }
+        }).then(response => {
+          if (response?.success && response.data?.spbSales) {
+            updateCategoryData(response.data.spbSales);
+          }
+        }).catch(() => {});
+      }
+    });
+
+    // 跟卖数据
+    if (!spbSalesData?.competitorCount && spbSalesData?.competitorCount !== 0) {
+      fetchFollowSellerData(productId).then(followSellerData => {
+        // 无论是否有跟卖数据，都更新组件（没有跟卖时显示"无跟卖"）
+        const prices = followSellerData?.prices ?? [];
+        updateFollowSellerData({
+          ...spbSalesData,
+          competitorCount: followSellerData?.count ?? 0,
+          followSellerPrices: prices,
+          followSellerList: followSellerData?.sellers ?? [],
+          competitorMinPrice: prices.length > 0
+            ? Math.min(...prices.filter((p: number) => p > 0))
+            : null
+        });
+      }).catch(() => {
+        // API 失败时保持 ---，不更新（让用户知道是加载失败而非真的无跟卖）
+      });
     }
   }
 

@@ -264,7 +264,7 @@ export class OzonBuyerApi extends BaseApiClient {
       const data = await response.json();
 
       if (__DEBUG__) {
-        console.log('[API] OzonBuyerApi.getFollowSellerDataSingle 返回:', JSON.stringify(data, null, 2).slice(0, 2000));
+        console.log('[API] OzonBuyerApi.getFollowSellerDataSingle 返回:', data);
       }
 
       const result = this.parseFollowSellerResponse(data);

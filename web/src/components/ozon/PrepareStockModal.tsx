@@ -229,14 +229,19 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
           }
 
           try {
+            // 计算采购单价：进货价格 / 数量
+            const unitPrice = item.purchasePrice && item.addStockQuantity
+              ? item.purchasePrice / item.addStockQuantity
+              : undefined;
+
             await ozonApi.addStock({
               shop_id: item.shopId,
               sku: item.sku,
               quantity: item.addStockQuantity!,
-              unit_price: item.unitPrice, // 采购单价
+              unit_price: unitPrice, // 采购单价 = 进货价格 / 数量
               notes: `备货时添加库存 - ${postingNumber}`,
             });
-            loggers.stock.info('添加库存成功', { sku: item.sku, quantity: item.addStockQuantity, unitPrice: item.unitPrice });
+            loggers.stock.info('添加库存成功', { sku: item.sku, quantity: item.addStockQuantity, unitPrice, purchasePrice: item.purchasePrice });
           } catch (error) {
             const errorMsg = axios.isAxiosError(error)
               ? error.response?.data?.detail || error.message || '添加库存失败'
@@ -337,49 +342,27 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
       key: 'useStock',
       width: 200,
       render: (_: unknown, record: ItemPrepareData) => {
-        // 库存为0时，显示"增加库存"输入框和"采购单价"输入框
+        // 库存为0时，显示"增加库存"输入框（采购单价通过进货价格列输入）
         if (record.stockAvailable === 0) {
           return (
-            <Space direction="vertical" size={4} style={{ width: '100%' }}>
-              <InputNumber
-                value={record.addStockQuantity}
-                onChange={(value) => {
-                  updateItemData(record.sku, 'addStockQuantity', value ?? undefined);
-                  // 设置增加库存时，自动设置平台为"库存"
-                  if (value && value > 0) {
-                    const newPlatforms = record.sourcePlatform.includes('库存')
-                      ? record.sourcePlatform
-                      : [...record.sourcePlatform, '库存'];
-                    updateItemData(record.sku, 'sourcePlatform', newPlatforms);
-                  }
-                  // 自动计算进货价格 = 单价 × 数量
-                  if (value && value > 0 && record.unitPrice) {
-                    updateItemData(record.sku, 'purchasePrice', record.unitPrice * value);
-                  }
-                }}
-                min={1}
-                max={9999}
-                style={{ width: '100%' }}
-                placeholder="新增库存数量"
-                size="small"
-              />
-              <InputNumber
-                value={record.unitPrice}
-                onChange={(value) => {
-                  updateItemData(record.sku, 'unitPrice', value ?? undefined);
-                  // 自动计算进货价格 = 单价 × 数量
-                  if (value && record.addStockQuantity) {
-                    updateItemData(record.sku, 'purchasePrice', value * record.addStockQuantity);
-                  }
-                }}
-                min={0}
-                precision={2}
-                style={{ width: '100%' }}
-                placeholder="采购单价"
-                size="small"
-                addonBefore={currencySymbol}
-              />
-            </Space>
+            <InputNumber
+              value={record.addStockQuantity}
+              onChange={(value) => {
+                updateItemData(record.sku, 'addStockQuantity', value ?? undefined);
+                // 设置增加库存时，自动设置平台为"库存"
+                if (value && value > 0) {
+                  const newPlatforms = record.sourcePlatform.includes('库存')
+                    ? record.sourcePlatform
+                    : [...record.sourcePlatform, '库存'];
+                  updateItemData(record.sku, 'sourcePlatform', newPlatforms);
+                }
+              }}
+              min={1}
+              max={9999}
+              style={{ width: '100%' }}
+              placeholder="新增库存数量"
+              size="small"
+            />
           );
         }
         // 有库存时，显示"使用库存"复选框

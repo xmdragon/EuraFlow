@@ -139,19 +139,6 @@ export interface SpbSalesData {
 }
 
 /**
- * 佣金数据
- */
-export interface CommissionData {
-  goods_id: string;
-  rfbs_small?: number;
-  rfbs?: number;
-  rfbs_large?: number;
-  fbp_small?: number;
-  fbp?: number;
-  fbp_large?: number;
-}
-
-/**
  * 上品帮登录凭据
  */
 interface SpbCredentials {
@@ -382,95 +369,6 @@ export class SpbangApi extends BaseApiClient {
   }
 
   /**
-   * 批量获取佣金数据
-   *
-   * @param goods - 商品数组 [{ goods_id, category_name }]
-   */
-  async getCommissionsBatch(
-    goods: Array<{ goods_id: string; category_name: string }>
-  ): Promise<Map<string, CommissionData>> {
-    const results = new Map<string, CommissionData>();
-
-    if (!goods || goods.length === 0) {
-      return results;
-    }
-
-    const credentials = await this.getCredentials();
-    if (!credentials) {
-      return results;
-    }
-
-    // 确保有 Token
-    if (!credentials.token) {
-      try {
-        credentials.token = await this.login(credentials.phone, credentials.password);
-      } catch {
-        return results;
-      }
-    }
-
-    const apiUrl = 'https://api.shopbang.cn/ozonMallSale/';
-    const requestBody = {
-      token: credentials.token,
-      apiType: 'getGoodsCommissions',
-      goods: goods
-    };
-
-    if (__DEBUG__) {
-      console.log('[API] SpbangApi.getCommissionsBatch 请求:', {
-        url: apiUrl,
-        params: { goods, apiType: 'getGoodsCommissions' }
-      });
-    }
-
-    try {
-      // 注意：佣金 API 使用不同的域名
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestBody)
-      });
-
-      if (!response.ok) {
-        console.error('[SpbangApi] 佣金 API HTTP 错误:', response.status);
-        return results;
-      }
-
-      const result = await response.json();
-
-      if (__DEBUG__) {
-        console.log('[API] SpbangApi.getCommissionsBatch 返回:', JSON.stringify(result, null, 2));
-      }
-
-      // 检测 Token 过期
-      if (this.isTokenExpired(result)) {
-        try {
-          credentials.token = await this.login(credentials.phone, credentials.password);
-          return this.getCommissionsBatch(goods);
-        } catch {
-          return results;
-        }
-      }
-
-      // 解析响应
-      if (result.code === 0 && result.data && Array.isArray(result.data)) {
-        result.data.forEach((item: CommissionData) => {
-          if (item.goods_id) {
-            results.set(item.goods_id, item);
-          }
-        });
-      }
-
-      return results;
-    } catch (error: any) {
-      console.error('[SpbangApi] 批量获取佣金数据失败:', error.message);
-      return results;
-    }
-  }
-
-  /**
    * 安全解析数字（处理字符串和数字类型）
    */
   private parseNumber(value: any): number | null {
@@ -681,43 +579,6 @@ export class SpbangApiProxy {
     }
 
     return allData;
-  }
-
-  /**
-   * 批量获取佣金数据
-   */
-  async getCommissionsBatch(
-    goods: Array<{ goods_id: string; category_name: string }>
-  ): Promise<Map<string, CommissionData>> {
-    if (goods.length === 0) {
-      return new Map();
-    }
-
-    try {
-      const response = await chrome.runtime.sendMessage({
-        type: 'GET_GOODS_COMMISSIONS_BATCH',
-        data: { goods }
-      });
-
-      if (!response.success) {
-        throw new Error(response.error || '获取佣金数据失败');
-      }
-
-      const dataMap = new Map<string, CommissionData>();
-
-      if (Array.isArray(response.data)) {
-        response.data.forEach((item: CommissionData) => {
-          if (item.goods_id) {
-            dataMap.set(item.goods_id, item);
-          }
-        });
-      }
-
-      return dataMap;
-    } catch (error: any) {
-      console.error('[SpbangApiProxy] 获取佣金数据失败:', error);
-      return new Map();
-    }
   }
 }
 

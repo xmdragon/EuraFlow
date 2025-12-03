@@ -205,28 +205,19 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
             const amount = price * quantity;
 
             return (
-              <div
-                style={{ display: "flex", flexDirection: "column", gap: "4px" }}
-              >
+              <div className={styles.columnContainer}>
                 <div>
                   <Text type="secondary">SKU: </Text>
                   {onOpenPriceHistory && item.sku ? (
                     <>
                       <a
                         onClick={() => onOpenPriceHistory(item.sku, item.name || item.sku)}
-                        style={{
-                          color: "#1890ff",
-                          cursor: "pointer",
-                        }}
+                        className={styles.link}
                       >
                         {item.sku}
                       </a>
                       <CopyOutlined
-                        style={{
-                          marginLeft: 8,
-                          cursor: "pointer",
-                          color: "#1890ff",
-                        }}
+                        className={styles.copyIcon}
                         onClick={() => onCopy(item.sku, "SKU")}
                       />
                     </>
@@ -237,16 +228,7 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
                 <div>
                   <Text type="secondary">名称: </Text>
                   <Tooltip title={item.name}>
-                    <span
-                      style={{
-                        maxWidth: "200px",
-                        display: "inline-block",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                        verticalAlign: "bottom",
-                      }}
-                    >
+                    <span className={styles.productNameText}>
                       {item.name || "-"}
                     </span>
                   </Tooltip>
@@ -265,7 +247,7 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
                 </div>
                 <div>
                   <Text type="secondary">金额: </Text>
-                  <span style={{ fontWeight: 500 }}>
+                  <span className={styles.amountText}>
                     {amount > 0 ? amount.toFixed(2) : "-"}
                   </span>
                 </div>
@@ -291,13 +273,7 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
 
             return {
               children: (
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "4px",
-                  }}
-                >
+                <div className={styles.columnContainer}>
                   <div>
                     <Text type="secondary">店铺: </Text>
                     <span>{shopName}</span>
@@ -307,10 +283,7 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
                     {onShowDetail ? (
                       <a
                         onClick={() => onShowDetail(posting.order, posting)}
-                        style={{
-                          color: "#1890ff",
-                          cursor: "pointer",
-                        }}
+                        className={styles.link}
                       >
                         {posting.posting_number}
                       </a>
@@ -318,11 +291,7 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
                       <span>{posting.posting_number}</span>
                     )}
                     <CopyOutlined
-                      style={{
-                        marginLeft: 8,
-                        cursor: "pointer",
-                        color: "#1890ff",
-                      }}
+                      className={styles.copyIcon}
                       onClick={() => onCopy(posting.posting_number, "货件编号")}
                     />
                   </div>
@@ -331,11 +300,7 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
                     <span>{posting.tracking_number || "-"}</span>
                     {posting.tracking_number && (
                       <CopyOutlined
-                        style={{
-                          marginLeft: 8,
-                          cursor: "pointer",
-                          color: "#1890ff",
-                        }}
+                        className={styles.copyIcon}
                         onClick={() =>
                           onCopy(posting.tracking_number, "追踪号码")
                         }
@@ -344,17 +309,11 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
                   </div>
                   {posting.domestic_tracking_numbers &&
                   posting.domestic_tracking_numbers.length > 0 ? (
-                    <div style={{ display: "flex", gap: "4px" }}>
-                      <Text type="secondary" style={{ flexShrink: 0 }}>
+                    <div className={styles.domesticTrackingWrapper}>
+                      <Text type="secondary" className={styles.domesticTrackingLabel}>
                         国内:{" "}
                       </Text>
-                      <div
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: "4px",
-                        }}
-                      >
+                      <div className={styles.domesticTrackingList}>
                         {posting.domestic_tracking_numbers.map(
                           (num: string, idx: number) => (
                             <div key={idx}>
@@ -362,16 +321,12 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
                                 href={`https://t.17track.net/zh-cn#nums=${num}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                style={{ color: "#1890ff" }}
+                                className={styles.link}
                               >
                                 {num}
                               </a>
                               <CopyOutlined
-                                style={{
-                                  marginLeft: 4,
-                                  cursor: "pointer",
-                                  color: "#1890ff",
-                                }}
+                                className={styles.copyIcon}
                                 onClick={() => onCopy(num, "国内单号")}
                               />
                             </div>
@@ -382,11 +337,7 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
                             type="link"
                             size="small"
                             icon={<EditOutlined />}
-                            style={{
-                              padding: 0,
-                              height: "auto",
-                              alignSelf: "flex-start",
-                            }}
+                            className={styles.linkButtonStart}
                             onClick={() => onOpenDomesticTracking(posting)}
                           >
                             编辑
@@ -403,7 +354,7 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
                           type="link"
                           size="small"
                           icon={<EditOutlined />}
-                          style={{ padding: 0, height: "auto", marginLeft: 8 }}
+                          className={styles.linkButtonWithMargin}
                           onClick={() => onOpenDomesticTracking(posting)}
                         >
                           编辑
@@ -444,13 +395,7 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
 
             return {
               children: (
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "4px",
-                  }}
-                >
+                <div className={styles.columnContainer}>
                   <div>
                     <Text type="secondary">配送: </Text>
                     {detailText ? (
@@ -479,7 +424,7 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
                   </div>
                   <div>
                     <Text type="secondary">截止: </Text>
-                    <span style={{ color: "#ff4d4f", fontWeight: "bold" }}>
+                    <span className={styles.deadline}>
                       {posting.shipment_date
                         ? formatDateTime(posting.shipment_date, "MM-DD HH:mm")
                         : "-"}
@@ -510,21 +455,14 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
             const overdue = isOrderOverdue(posting.in_process_at);
             return {
               children: (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div className={styles.columnContainer}>
                   {overdue && (
-                    <Text type="danger" strong style={{ fontSize: '12px' }}>
+                    <Text type="danger" strong className={styles.overdueText}>
                       本订单已逾期！
                     </Text>
                   )}
                   <Tooltip title={posting.order_notes || "暂无备注"}>
-                    <span
-                      style={{
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                        display: "block",
-                      }}
-                    >
+                    <span className={styles.notesText}>
                       {posting.order_notes || "-"}
                     </span>
                   </Tooltip>
@@ -552,20 +490,14 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
 
             return {
               children: (
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "4px",
-                  }}
-                >
+                <div className={styles.columnContainer}>
                   {canOperate && (
                     <>
                       <Button
                         type="link"
                         size="small"
                         icon={<EditOutlined />}
-                        style={{ padding: 0, height: "auto" }}
+                        className={styles.linkButton}
                         onClick={() => onOpenEditNotes(row.posting)}
                       >
                         编辑
@@ -575,7 +507,7 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
                         size="small"
                         icon={<PrinterOutlined />}
                         loading={isPrinting}
-                        style={{ padding: 0, height: "auto" }}
+                        className={styles.linkButton}
                         onClick={() =>
                           onPrintSingle(row.posting.posting_number)
                         }

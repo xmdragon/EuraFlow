@@ -223,20 +223,6 @@ chrome.runtime.onMessage.addListener((message: any, _sender: chrome.runtime.Mess
     return true;
   }
 
-  if (message.type === 'GET_GOODS_COMMISSIONS_BATCH') {
-    handleGetCommissionsBatch(message.data)
-      .then(response => sendResponse({ success: true, data: response }))
-      .catch(error => sendResponse({ success: false, error: error.message }));
-    return true;
-  }
-
-  if (message.type === 'GET_SPB_COMMISSIONS') {
-    handleGetSpbCommissions(message.data)
-      .then(response => sendResponse({ success: true, data: response }))
-      .catch(error => sendResponse({ success: false, error: error.message }));
-    return true;
-  }
-
   // OZON Seller API
   if (message.type === 'GET_OZON_PRODUCT_DETAIL') {
     handleGetOzonProductDetail(message.data)
@@ -404,40 +390,6 @@ async function handleGetSpbSalesDataBatch(data: { productIds: string[] }): Promi
   });
 
   return results;
-}
-
-async function handleGetCommissionsBatch(data: { goods: Array<{ goods_id: string; category_name: string }> }): Promise<any[]> {
-  const { goods } = data;
-
-  if (!goods || goods.length === 0) {
-    return [];
-  }
-
-  const api = getSpbangApi();
-  const resultsMap = await api.getCommissionsBatch(goods);
-
-  // 转换 Map 为数组
-  const results: any[] = [];
-  resultsMap.forEach((data, _sku) => {
-    results.push(data);
-  });
-
-  return results;
-}
-
-async function handleGetSpbCommissions(data: { price: number; categoryId: string }): Promise<any> {
-  const { categoryId } = data;
-
-  const api = getSpbangApi();
-  const resultsMap = await api.getCommissionsBatch([{
-    goods_id: 'temp',
-    category_name: categoryId
-  }]);
-
-  if (resultsMap.size > 0) {
-    return resultsMap.values().next().value;
-  }
-  return null;
 }
 
 // ============================================================================
