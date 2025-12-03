@@ -90,11 +90,21 @@ interface ListingRecord {
 }
 
 // 获取图片URL的辅助函数
-const getImageUrl = (images?: string[] | { url: string }[]): string | undefined => {
-  if (!images || images.length === 0) return undefined;
-  const first = images[0];
-  if (typeof first === 'string') return first;
-  return first?.url;
+const getImageUrl = (
+  images?: string[] | { url: string }[],
+  variants?: { primary_image?: string }[]
+): string | undefined => {
+  // 优先使用顶层 images
+  if (images && images.length > 0) {
+    const first = images[0];
+    if (typeof first === 'string') return first;
+    return first?.url;
+  }
+  // 其次使用第一个变体的 primary_image
+  if (variants && variants.length > 0 && variants[0]?.primary_image) {
+    return variants[0].primary_image;
+  }
+  return undefined;
 };
 
 // 截断标题的辅助函数
@@ -295,7 +305,7 @@ const ListingRecords: React.FC = () => {
       key: 'image',
       width: 80,
       render: (product_data: ListingRecord['product_data']) => {
-        const imageUrl = getImageUrl(product_data?.images);
+        const imageUrl = getImageUrl(product_data?.images, product_data?.variants as { primary_image?: string }[]);
         return (
           <ProductImage
             imageUrl={imageUrl}

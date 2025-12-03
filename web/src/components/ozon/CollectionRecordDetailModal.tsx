@@ -364,6 +364,13 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
       {/* 原始数据（调试用） */}
       <details className={styles.rawData}>
         <summary>查看原始数据</summary>
+        {isListingRecord && record.listing_request_payload && (
+          <>
+            <div style={{ fontWeight: 'bold', marginBottom: 4 }}>上架请求数据 (listing_request_payload):</div>
+            <pre>{JSON.stringify(record.listing_request_payload, null, 2)}</pre>
+            <div style={{ fontWeight: 'bold', marginTop: 16, marginBottom: 4 }}>展示数据 (product_data):</div>
+          </>
+        )}
         <pre>{JSON.stringify(product_data, null, 2)}</pre>
       </details>
     </Modal>
