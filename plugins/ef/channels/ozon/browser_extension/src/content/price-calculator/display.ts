@@ -105,6 +105,40 @@ function formatDate(dateStr: string | null): string {
 }
 
 /**
+ * 更新跟卖数据（异步加载完成后调用）
+ * 替换已注入的跟卖行
+ */
+export function updateFollowSellerData(spbSales: any): void {
+  const existingRow = document.getElementById('ef-follower-row');
+  if (!existingRow) return;
+
+  const follower = spbSales?.competitorCount;
+  const followerStr = follower != null && follower > 0 ? `${follower}家` : '无跟卖';
+
+  // 计算最低跟卖价
+  let minPrice = spbSales?.competitorMinPrice;
+  if (minPrice == null && spbSales?.followSellerPrices?.length > 0) {
+    const prices = spbSales.followSellerPrices.filter((p: number) => p > 0);
+    if (prices.length > 0) {
+      minPrice = Math.min(...prices);
+    }
+  }
+  const minPriceStr = minPrice != null ? `${minPrice.toFixed(2)}¥` : '---';
+
+  // 创建新的跟卖行
+  let newRow: HTMLElement;
+  if (follower != null && follower > 0) {
+    newRow = createFollowerRow(follower, followerStr, minPriceStr, spbSales?.followSellerList);
+  } else {
+    newRow = createSingleRow('跟卖', followerStr);
+    newRow.id = 'ef-follower-row';
+  }
+
+  // 替换旧行
+  existingRow.replaceWith(newRow);
+}
+
+/**
  * 分阶段注入显示组件
  * 阶段1：显示主体（价格+数据区），按钮区域显示加载占位
  * 阶段2：跟卖数据就绪后显示跟卖按钮
@@ -384,9 +418,11 @@ function buildDataRows(spbSales: any | null, dimensions: any | null): HTMLElemen
   const mode = spbSales?.sellerMode || '---';
   rows.push(createTwoColRow('尺寸', dim, '模式', mode));
 
-  // 跟卖 + 最低价（两列）
+  // 跟卖 + 最低价（两列）- 支持异步加载
   const follower = spbSales?.competitorCount;
-  const followerStr = follower != null && follower > 0 ? `${follower}家` : '无跟卖';
+  // 判断跟卖数据是否正在加载中（competitorCount 为 undefined 且没有 followSellerList）
+  const isFollowerLoading = follower === undefined && !spbSales?.followSellerList;
+  const followerStr = isFollowerLoading ? '加载中...' : (follower != null && follower > 0 ? `${follower}家` : '无跟卖');
 
   // 最低跟卖价：优先用 competitorMinPrice，其次从 followSellerPrices 取最小值
   let minPrice = spbSales?.competitorMinPrice;
@@ -398,12 +434,15 @@ function buildDataRows(spbSales: any | null, dimensions: any | null): HTMLElemen
   }
   const minPriceStr = minPrice != null ? `${minPrice.toFixed(2)}¥` : '---';
 
-  // 只有有跟卖时才显示最低价，否则显示单列
+  // 创建跟卖行（带 id 便于后续更新）
   if (follower != null && follower > 0) {
     // 使用带悬浮窗口的跟卖行
     rows.push(createFollowerRow(follower, followerStr, minPriceStr, spbSales?.followSellerList));
   } else {
-    rows.push(createSingleRow('跟卖', followerStr));
+    // 单列显示（加载中或无跟卖）
+    const followerRow = createSingleRow('跟卖', followerStr);
+    followerRow.id = 'ef-follower-row';  // 添加 id 便于后续更新
+    rows.push(followerRow);
   }
 
   // 底部行：评分 + 上架时间（两列）
@@ -482,6 +521,7 @@ function createBottomRow(rating: number | null, reviewCount: number | null, date
 function createFollowerRow(_count: number, countStr: string, minPriceStr: string, sellerList: any[] | null): HTMLElement {
   const row = document.createElement('div');
   row.className = 'ef-row ef-row-two';
+  row.id = 'ef-follower-row';  // 添加 id 便于后续更新
 
   // 左列：跟卖数量（可点击显示悬浮窗口）
   const leftCol = document.createElement('div');
@@ -597,7 +637,8 @@ function createFollowerPopover(sellerList: any[] | null): HTMLElement {
       if (score !== null) {
         // 星星颜色：5分金色，4-4.9橙色，其他灰色
         const ratingClass = score >= 5 ? 'gold' : score >= 4 ? 'orange' : 'gray';
-        ratingHtml = `<span class="ef-follower-popover__rating--${ratingClass}">★${score}</span><span class="ef-follower-popover__rating-count">(${reviews})</span>`;
+        const scoreStr = Number(score).toFixed(1);
+        ratingHtml = `<span class="ef-follower-popover__rating--${ratingClass}">★${scoreStr}</span><span class="ef-follower-popover__rating-count">(${reviews})</span>`;
       }
     }
 

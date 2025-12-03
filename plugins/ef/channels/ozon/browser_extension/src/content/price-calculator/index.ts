@@ -5,7 +5,7 @@
  */
 
 import { calculateRealPrice } from './calculator';
-import { injectCompleteDisplay } from './display';
+import { injectCompleteDisplay, updateFollowSellerData } from './display';
 import { extractProductData, fetchFollowSellerData } from '../parsers/product-detail';
 
 /**
@@ -211,18 +211,12 @@ export class RealPriceCalculator {
         return;
       }
 
-      // 5. 等待预加载的 Promise 完成
+      // 5. 等待预加载的 Promise 完成（上品帮数据 + 配置）
       const [spbSalesResponse, configResponse] = await Promise.all([spbSalesPromise, configPromise]);
       const spbSalesData = spbSalesResponse?.success ? spbSalesResponse.data : null;
       const euraflowConfig = configResponse?.success ? configResponse.data : null;
 
-      // 6. 如果上品帮没有跟卖数据，通过页面上下文获取
-      let followSellerData: { count: number; skus: string[]; prices: number[]; sellers: any[] } | null = null;
-      if (!spbSalesData?.competitorCount && spbSalesData?.competitorCount !== 0) {
-        followSellerData = await fetchFollowSellerData(productId);
-      }
-
-      // 7. 发送数据到 background 进行后续处理（类目查询等）
+      // 6. 发送数据到 background 进行后续处理（类目查询等）- 不等跟卖数据
       const ratingData = extractRatingFromJsonLd();
 
       const response = await chrome.runtime.sendMessage({
@@ -233,7 +227,7 @@ export class RealPriceCalculator {
           productDetail: productDetail,
           ratingData: ratingData,
           spbSalesData: spbSalesData,
-          followSellerData: followSellerData
+          followSellerData: null  // 跟卖数据稍后异步加载
         }
       });
 
@@ -242,12 +236,12 @@ export class RealPriceCalculator {
         return;
       }
 
-      // 8. 等待 DOM 稳定后注入 UI
+      // 7. 等待 DOM 稳定后立即注入 UI（跟卖数显示"加载中..."）
       await this.waitForContainerReady();
 
       const { ozonProduct, spbSales } = response.data;
 
-      // 9. 一次性注入完整组件
+      // 8. 先注入组件（跟卖数据待加载）
       await injectCompleteDisplay({
         message,
         price,
@@ -255,6 +249,28 @@ export class RealPriceCalculator {
         spbSales,
         euraflowConfig
       });
+
+      // 9. 异步加载跟卖数据，完成后更新组件
+      if (!spbSalesData?.competitorCount && spbSalesData?.competitorCount !== 0) {
+        fetchFollowSellerData(productId).then(followSellerData => {
+          if (followSellerData) {
+            // 更新 spbSales 中的跟卖数据
+            const updatedSpbSales = {
+              ...spbSales,
+              competitorCount: followSellerData.count,
+              followSellerPrices: followSellerData.prices,
+              followSellerList: followSellerData.sellers,
+              competitorMinPrice: followSellerData.prices?.length > 0
+                ? Math.min(...followSellerData.prices.filter(p => p > 0))
+                : null
+            };
+            // 更新已注入的组件
+            updateFollowSellerData(updatedSpbSales);
+          }
+        }).catch(err => {
+          console.warn('[EuraFlow] 跟卖数据获取失败:', err);
+        });
+      }
     } catch (error) {
       console.error('[EuraFlow] 初始化失败:', error);
     }
