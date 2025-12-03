@@ -571,16 +571,26 @@ class CatalogService:
 
             dictionary_id = attr.dictionary_id
 
-            # 检查缓存（同时检查是否有俄文翻译缺失的记录）
+            # 检查缓存：使用时间窗口策略，同一字典在 24 小时内只同步一次
+            # 但不同类目的字典值会合并（UPSERT），确保数据完整性
+            skip_chinese_sync = False
             if not force_refresh:
                 from sqlalchemy import func as sql_func
-                cached_count = await self.db.scalar(
+                from datetime import timedelta
+
+                # 检查最近 24 小时内是否已同步过此字典
+                cache_window = datetime.now(timezone.utc) - timedelta(hours=24)
+                recent_sync_count = await self.db.scalar(
                     select(sql_func.count(OzonAttributeDictionaryValue.id)).where(
-                        OzonAttributeDictionaryValue.dictionary_id == dictionary_id
+                        and_(
+                            OzonAttributeDictionaryValue.dictionary_id == dictionary_id,
+                            OzonAttributeDictionaryValue.cached_at >= cache_window
+                        )
                     )
                 )
-                if cached_count and cached_count > 0:
-                    # 检查是否有俄文翻译缺失的记录
+
+                if recent_sync_count and recent_sync_count > 0:
+                    # 24小时内已同步，检查是否有俄文缺失
                     missing_ru_count = await self.db.scalar(
                         select(sql_func.count(OzonAttributeDictionaryValue.id)).where(
                             and_(
@@ -593,19 +603,19 @@ class CatalogService:
                         )
                     )
                     if missing_ru_count and missing_ru_count > 0:
-                        # 有俄文缺失，需要补充同步俄文
-                        logger.info(f"Dictionary {dictionary_id} has {missing_ru_count} entries missing Russian translation, will sync Russian only")
-                        # 跳过中文同步，直接同步俄文
-                        synced_count = cached_count
-                        # 跳转到俄文同步步骤（通过设置标志）
+                        # 有俄文缺失，只同步俄文
+                        logger.info(f"Dictionary {dictionary_id} has {missing_ru_count} entries missing Russian, will sync Russian only")
                         skip_chinese_sync = True
                     else:
-                        logger.info(f"Dictionary {dictionary_id} fully cached ({cached_count}), skipping")
+                        # 完全缓存，跳过
+                        cached_count = await self.db.scalar(
+                            select(sql_func.count(OzonAttributeDictionaryValue.id)).where(
+                                OzonAttributeDictionaryValue.dictionary_id == dictionary_id
+                            )
+                        )
+                        logger.info(f"Dictionary {dictionary_id} recently synced ({cached_count} values), skipping")
                         return {"success": True, "cached": True, "count": cached_count}
-                else:
-                    skip_chinese_sync = False
-            else:
-                skip_chinese_sync = False
+                # 如果超过24小时或从未同步，继续同步（会合并新值）
 
             # 第一步：同步中文字典值（如果需要跳过则直接进入俄文同步）
             if not skip_chinese_sync:
@@ -733,6 +743,8 @@ class CatalogService:
             elif language == "ru":
                 existing.value_ru = value_text
                 existing.info_ru = info_text
+            # 更新缓存时间戳
+            existing.cached_at = datetime.now(timezone.utc)
         else:
             # 创建新字典值（仅在中文同步时创建）
             if language == "zh":
@@ -743,7 +755,8 @@ class CatalogService:
                     value_zh=value_text,
                     info=info_text,  # 主显示字段
                     info_zh=info_text,
-                    picture=picture
+                    picture=picture,
+                    cached_at=datetime.now(timezone.utc)
                 )
                 self.db.add(dict_value)
             else:
