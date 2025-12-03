@@ -280,6 +280,27 @@ class CloudinaryService:
             包含上传结果的字典
         """
         try:
+            import httpx
+            import io
+
+            # 先下载图片（伪造请求头绕过 OZON CDN 限制）
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+                "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
+                "Referer": "https://www.ozon.ru/",
+                "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+                "Sec-Ch-Ua-Mobile": "?0",
+                "Sec-Ch-Ua-Platform": '"Windows"',
+                "Sec-Fetch-Dest": "image",
+                "Sec-Fetch-Mode": "no-cors",
+                "Sec-Fetch-Site": "cross-site",
+            }
+            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                response = await client.get(image_url, headers=headers)
+                response.raise_for_status()
+                image_data = response.content
+
             # 准备上传参数
             # 使用 folder 参数指定文件夹，public_id 只包含文件名
             # 注意：不强制格式转换，保持原始格式（特别是PNG透明度）
@@ -295,9 +316,9 @@ class CloudinaryService:
             if transformations:
                 upload_params["transformation"] = transformations
 
-            # 从URL上传
+            # 上传图片数据（而非 URL）
             result = cloudinary.uploader.upload(
-                image_url,
+                io.BytesIO(image_data),
                 **upload_params
             )
 
