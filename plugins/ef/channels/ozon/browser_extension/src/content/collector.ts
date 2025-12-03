@@ -1550,6 +1550,14 @@ export class ProductCollector {
             product.brand_normalized = spbData.brand.toUpperCase().replace(/\s+/g, '_');
           }
 
+          // 补充图片（如果原来没有，且上品帮返回了 photo）
+          if (!product.image_url && spbData.photo) {
+            product.image_url = spbData.photo;
+            if (collectedProduct) {
+              collectedProduct.image_url = spbData.photo;
+            }
+          }
+
           successCount++;
         }
       });

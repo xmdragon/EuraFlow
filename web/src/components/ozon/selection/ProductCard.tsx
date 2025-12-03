@@ -61,8 +61,9 @@ export interface ProductCardProps {
 
 /**
  * 商品卡片组件
+ * 使用 React.memo 避免不必要的重渲染
  */
-export const ProductCard: React.FC<ProductCardProps> = ({
+export const ProductCard: React.FC<ProductCardProps> = React.memo(({
   product,
   fieldConfig,
   enableCostEstimation,
@@ -500,4 +501,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       </div>
     </Card>
   );
-};
+});
+
+// 设置 displayName 便于 React DevTools 调试
+ProductCard.displayName = 'ProductCard';

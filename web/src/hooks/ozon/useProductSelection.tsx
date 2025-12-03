@@ -4,7 +4,7 @@
  * 集中管理选品页面的所有状态和业务逻辑
  */
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Form, App } from 'antd';
 import type { FormInstance } from 'antd';
@@ -597,7 +597,7 @@ export const useProductSelection = (): UseProductSelectionReturn => {
     setSearchVersion((v) => v + 1);
   };
 
-  const toggleProductSelection = (productId: number) => {
+  const toggleProductSelection = useCallback((productId: number) => {
     setSelectedProductIds((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(productId)) {
@@ -607,7 +607,7 @@ export const useProductSelection = (): UseProductSelectionReturn => {
       }
       return newSet;
     });
-  };
+  }, []);
 
   const handleMarkAsRead = async () => {
     if (selectedProductIds.size === 0) {
@@ -638,12 +638,12 @@ export const useProductSelection = (): UseProductSelectionReturn => {
     }
   };
 
-  const showCompetitorsList = (product: api.ProductSelectionItem) => {
+  const showCompetitorsList = useCallback((product: api.ProductSelectionItem) => {
     setSelectedProductCompetitors(product);
     setCompetitorModalVisible(true);
-  };
+  }, []);
 
-  const showProductImages = async (product: api.ProductSelectionItem) => {
+  const showProductImages = useCallback(async (product: api.ProductSelectionItem) => {
     setSelectedProductImages([]);
     setCurrentImageIndex(0);
     setImageModalVisible(true);
@@ -662,7 +662,7 @@ export const useProductSelection = (): UseProductSelectionReturn => {
       notifyError('获取失败', '获取商品图片失败');
       logger.error('获取商品图片失败:', error);
     }
-  };
+  }, []);
 
   const saveFieldConfig = (config: FieldConfig) => {
     setFieldConfig(config);

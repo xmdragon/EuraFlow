@@ -542,10 +542,13 @@ const PackingShipment: React.FC = () => {
   // offer_id到图片的映射，使用累积的映射
   const offerIdImageMap = accumulatedImageMap;
 
-  // 使用统一的价格格式化函数
-  const formatPrice = (price: string | number): string => {
-    return formatPackingPrice(price, userCurrency);
-  };
+  // 使用统一的价格格式化函数 - 使用 useCallback 稳定引用
+  const formatPrice = React.useCallback(
+    (price: string | number): string => {
+      return formatPackingPrice(price, userCurrency);
+    },
+    [userCurrency]
+  );
 
   // 发货
   const shipOrderMutation = useMutation({

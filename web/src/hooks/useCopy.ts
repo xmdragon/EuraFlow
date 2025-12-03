@@ -2,10 +2,11 @@
  * 复制到剪贴板 Hook
  * 提供统一的复制功能，包含降级方案和提示
  */
+import { useCallback } from 'react';
 import { notifySuccess, notifyError } from '@/utils/notification';
 
 export const useCopy = () => {
-  const copyToClipboard = async (text: string | number, label?: string) => {
+  const copyToClipboard = useCallback(async (text: string | number, label?: string) => {
     const textToCopy = String(text);
 
     try {
@@ -40,7 +41,7 @@ export const useCopy = () => {
         return false;
       }
     }
-  };
+  }, []);
 
   return { copyToClipboard };
 };

@@ -74,6 +74,8 @@ export default defineConfig({
     // 设置chunk大小警告限制
     chunkSizeWarningLimit: 1500,
     rollupOptions: {
+      // 开发专用依赖不打包到生产构建
+      external: ['react-scan', 'stats.js'],
       output: {
         // 让Vite自动处理代码分割，避免手动分割导致的依赖问题
         // Vite会自动分析依赖关系，确保加载顺序正确

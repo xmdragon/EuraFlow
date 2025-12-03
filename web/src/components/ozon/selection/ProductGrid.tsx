@@ -56,8 +56,9 @@ export interface ProductGridProps {
 
 /**
  * 商品网格组件
+ * 使用 React.memo 避免不必要的重渲染
  */
-export const ProductGrid: React.FC<ProductGridProps> = ({
+export const ProductGrid: React.FC<ProductGridProps> = React.memo(({
   products,
   allProductsCount,
   loading,
@@ -139,4 +140,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
       )}
     </>
   );
-};
+});
+
+// 设置 displayName 便于 React DevTools 调试
+ProductGrid.displayName = 'ProductGrid';

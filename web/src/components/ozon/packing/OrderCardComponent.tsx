@@ -536,21 +536,32 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
     );
   },
   (prevProps, nextProps) => {
-    // 自定义比较函数 - 检查所有关键 props 变化
-    // 添加 order.order_notes 的检查以支持 tooltip 更新
+    // 自定义比较函数 - 只检查真正影响渲染的 props
+    const postingNumber = prevProps.card.posting.posting_number;
+
+    // 1. 检查卡片数据本身是否变化
     const cardChanged =
       prevProps.card.key !== nextProps.card.key ||
       prevProps.card.order.order_notes !== nextProps.card.order.order_notes ||
       prevProps.card.posting.source_platform !== nextProps.card.posting.source_platform ||
-      prevProps.card.posting.purchase_price !== nextProps.card.posting.purchase_price;
+      prevProps.card.posting.purchase_price !== nextProps.card.posting.purchase_price ||
+      prevProps.card.posting.domestic_tracking_numbers !== nextProps.card.posting.domestic_tracking_numbers ||
+      prevProps.card.posting.packages !== nextProps.card.posting.packages ||
+      prevProps.card.posting.operation_status !== nextProps.card.posting.operation_status;
 
+    // 2. 检查选中状态是否变化（只比较当前卡片的选中状态）
+    const prevSelected = prevProps.selectedPostingNumbers.includes(postingNumber);
+    const nextSelected = nextProps.selectedPostingNumbers.includes(postingNumber);
+    const selectionChanged = prevSelected !== nextSelected;
+
+    // 3. 检查其他稳定 props（通常不变，但需要检查）
     const otherPropsChanged =
-      prevProps.selectedPostingNumbers !== nextProps.selectedPostingNumbers ||
-      prevProps.offerIdImageMap !== nextProps.offerIdImageMap ||
-      prevProps.shopNameMap !== nextProps.shopNameMap;
+      prevProps.operationStatus !== nextProps.operationStatus ||
+      prevProps.canOperate !== nextProps.canOperate ||
+      prevProps.userCurrency !== nextProps.userCurrency;
 
     // 如果任何相关 props 变化，返回 false 以触发重新渲染
-    return !cardChanged && !otherPropsChanged;
+    return !cardChanged && !selectionChanged && !otherPropsChanged;
   }
 );
 
