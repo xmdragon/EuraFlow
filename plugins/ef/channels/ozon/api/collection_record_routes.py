@@ -157,7 +157,7 @@ async def follow_pdp_listing(
     4. 后台异步任务完成后更新状态
     """
     # 从 variants 和其他字段构造 product_data（供前端展示用）
-    # 转换 variants 数据：分→元，primary_image→image_url
+    # 转换 variants 数据：分→元（字段名保持与插件一致，使用 primary_image）
     variants_for_display = []
     for v in request.variants:
         price_fen = v.get("price", 0) or 0
@@ -166,7 +166,6 @@ async def follow_pdp_listing(
             **v,
             "price": price_fen / 100 if price_fen else None,  # 分→元
             "old_price": old_price_fen / 100 if old_price_fen else None,
-            "image_url": v.get("primary_image"),  # 前端需要 image_url 字段
         })
 
     first_variant = variants_for_display[0] if variants_for_display else {}

@@ -18,14 +18,13 @@ import * as watermarkApi from '@/services/watermarkApi';
 
 interface Variant {
   variant_id: string;
-  specifications: string;
-  spec_details?: Record<string, string>;
-  image_url: string;
-  images?: { url: string; is_primary?: boolean }[];
-  price: number;
-  original_price?: number;
-  available: boolean;
-  link?: string;
+  offer_id?: string;
+  specifications: string;       // 规格描述（如 "白色,M"）
+  name?: string;                // 变体名称
+  primary_image: string;        // 图片URL（与插件字段名一致）
+  price: number;                // 价格（元）
+  old_price?: number;           // 原价（元）
+  stock?: number;               // 库存
 }
 
 interface ProductDimensions {
@@ -141,7 +140,7 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
   // 条件返回必须在所有 hooks 调用之后
   if (!record) return null;
 
-  const mainImage = currentVariant?.image_url || currentImages[0] || '';
+  const mainImage = currentVariant?.primary_image || currentImages[0] || '';
 
   // 获取上架相关信息
   const listingPayload = record.listing_request_payload;
@@ -155,12 +154,8 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
   const watermarkConfig = watermarkConfigs?.find((w: { id: number }) => w.id === listingPayload?.watermark_config_id);
   const watermarkName = watermarkConfig?.name || '未选择';
 
-  // 计算变体库存信息
-  const getVariantStock = (variantId: string): number | undefined => {
-    const variantPayload = listingPayload?.variants?.find(v => v.variant_id === variantId);
-    return variantPayload?.stock;
-  };
-  const currentStock = currentVariant ? getVariantStock(currentVariant.variant_id) : undefined;
+  // 获取当前变体库存（直接从变体数据中取）
+  const currentStock = currentVariant?.stock;
 
   // 获取当前价格
   const currentPrice = currentVariant?.price || product_data?.price || 0;
@@ -262,7 +257,7 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
                 title={variant.specifications}
               >
                 <img
-                  src={variant.image_url}
+                  src={variant.primary_image}
                   alt={variant.specifications}
                   className={styles.variantImage}
                 />
