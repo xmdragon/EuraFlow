@@ -425,15 +425,60 @@ export class OzonBuyerApi extends BaseApiClient {
       reviewCount = parseInt(countStr.replace(/\D/g, ''), 10) || null;
     }
 
+    // 提取标题（多种格式兼容）
+    let title = item.title || item.name || '';
+    if (!title && item.mainState) {
+      for (const state of item.mainState) {
+        // textSmall 类型通常包含标题
+        if (state.type === 'textSmall' && state.text) {
+          title = state.text;
+          break;
+        }
+        // atom.textAtom 格式
+        if (state.atom?.textAtom?.text) {
+          title = state.atom.textAtom.text;
+          break;
+        }
+        // title 类型
+        if (state.type === 'title' && state.title) {
+          title = state.title;
+          break;
+        }
+      }
+    }
+    // tileState 中的标题
+    if (!title && item.tileState?.title) {
+      title = item.tileState.title;
+    }
+
+    // 提取图片（多种格式兼容）
+    let imageUrl = item.image || item.mainImage || item.images?.[0] || null;
+    if (!imageUrl && item.mainState) {
+      for (const state of item.mainState) {
+        if (state.type === 'image' && state.image) {
+          imageUrl = state.image;
+          break;
+        }
+        if (state.atom?.image) {
+          imageUrl = state.atom.image;
+          break;
+        }
+      }
+    }
+    // tileState 中的图片
+    if (!imageUrl && item.tileState?.image) {
+      imageUrl = item.tileState.image;
+    }
+
     return {
       sku,
       link: item.action?.link || item.link || '',
-      title: item.title || item.name || '',
+      title,
       price,
       originalPrice,
       rating,
       reviewCount,
-      imageUrl: item.image || item.mainImage || item.images?.[0] || null
+      imageUrl
     };
   }
 

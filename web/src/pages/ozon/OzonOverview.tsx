@@ -234,42 +234,35 @@ const OzonOverview: React.FC = () => {
     });
   }, [dailyRevenueData, displayMode, selectedShop, dateRangeLabel]);
 
-  // 自定义tooltip内容 - 订单数量
-  const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ value?: number; name?: string; color?: string }>; label?: string }) => {
-    if (active && payload && payload.length) {
-      // 计算总数量
-      const total = payload.reduce((sum: number, item: { value?: number }) => sum + (item.value || 0), 0);
+  // Tooltip 样式常量（避免每次渲染创建新对象）
+  const tooltipStyle = useMemo(() => ({
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    padding: '10px',
+    border: '1px solid #ccc',
+    borderRadius: '4px',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+  }), []);
 
+  // 自定义tooltip内容 - 订单数量（memoized）
+  const CustomTooltip = useCallback(({ active, payload, label }: { active?: boolean; payload?: Array<{ value?: number; name?: string; color?: string }>; label?: string }) => {
+    if (active && payload && payload.length) {
+      const total = payload.reduce((sum: number, item: { value?: number }) => sum + (item.value || 0), 0);
       return (
-        <div style={{
-          backgroundColor: 'rgba(255, 255, 255, 0.95)',
-          padding: '10px',
-          border: '1px solid #ccc',
-          borderRadius: '4px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
-        }}>
+        <div style={tooltipStyle}>
           <p style={{ margin: '0 0 5px 0', fontWeight: 'bold' }}>{label}</p>
           <p style={{ margin: 0, color: '#1890ff' }}>数量: {total}</p>
         </div>
       );
     }
     return null;
-  };
+  }, [tooltipStyle]);
 
-  // 自定义tooltip内容 - 销售额
-  const RevenueTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ value?: number; name?: string; color?: string }>; label?: string }) => {
+  // 自定义tooltip内容 - 销售额（memoized）
+  const RevenueTooltip = useCallback(({ active, payload, label }: { active?: boolean; payload?: Array<{ value?: number; name?: string; color?: string }>; label?: string }) => {
     if (active && payload && payload.length) {
-      // 计算总销售额
       const total = payload.reduce((sum: number, item: { value?: number }) => sum + (item.value || 0), 0);
-
       return (
-        <div style={{
-          backgroundColor: 'rgba(255, 255, 255, 0.95)',
-          padding: '10px',
-          border: '1px solid #ccc',
-          borderRadius: '4px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
-        }}>
+        <div style={tooltipStyle}>
           <p style={{ margin: '0 0 5px 0', fontWeight: 'bold' }}>{label}</p>
           <p style={{ margin: 0, color: '#52c41a' }}>
             销售额: {currencySymbol}{total.toFixed(2)}
@@ -278,10 +271,10 @@ const OzonOverview: React.FC = () => {
       );
     }
     return null;
-  };
+  }, [tooltipStyle, currencySymbol]);
 
-  // 自定义柱状图标签 - 显示销售额（外部显示，带引导线和背景色）
-  const renderBarLabel = (props: { x: number; y: number; width: number; value: number; fill: string }) => {
+  // 自定义柱状图标签 - 显示销售额（外部显示，带引导线和背景色）- memoized
+  const renderBarLabel = useCallback((props: { x: number; y: number; width: number; value: number; fill: string }) => {
     const { x, y, width, value, fill } = props;
 
     // 如果值为0或太小，不显示标签
@@ -338,7 +331,7 @@ const OzonOverview: React.FC = () => {
         </text>
       </g>
     );
-  };
+  }, []);
 
   // 创建带颜色的折线图标签函数（同一X位置不同Y值的标签左右交替）
   // 支持相同值的多个店铺显示不同标签，超过3个点时增加垂直偏移

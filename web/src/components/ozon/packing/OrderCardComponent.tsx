@@ -8,7 +8,6 @@ import React from 'react';
 
 import styles from '../../../pages/ozon/PackingShipment.module.scss';
 
-import { useDateTime } from '@/hooks/useDateTime';
 import * as ozonApi from '@/services/ozon';
 import { getCurrencySymbol } from '@/utils/currency';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
@@ -35,6 +34,7 @@ export interface OrderCardComponentProps {
   operationStatus: string;
   formatPrice: (price: string | number) => string;
   formatDeliveryMethodText: (method: string | undefined) => React.ReactNode;
+  formatDateTime: (utcTime: string | Date | null | undefined, format?: string) => string;
   onCopy: (text: string | undefined, label: string) => void;
   onShowDetail: (order: ozonApi.Order, posting: ozonApi.Posting) => void;
   onOpenImagePreview: (url: string) => void;
@@ -59,6 +59,7 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
     operationStatus,
     formatPrice,
     formatDeliveryMethodText,
+    formatDateTime,
     onCopy,
     onShowDetail,
     onOpenImagePreview,
@@ -70,7 +71,7 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
     onCheckboxChange,
     canOperate,
   }) => {
-    const { formatDateTime } = useDateTime();
+    // 注意：formatDateTime 从 props 传入，避免在列表项中订阅全局查询
     const { posting, product, order } = card;
     const currency = order.currency_code || userCurrency || 'CNY';
     const symbol = getCurrencySymbol(currency);
@@ -539,29 +540,72 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
     // 自定义比较函数 - 只检查真正影响渲染的 props
     const postingNumber = prevProps.card.posting.posting_number;
 
-    // 1. 检查卡片数据本身是否变化
-    const cardChanged =
-      prevProps.card.key !== nextProps.card.key ||
-      prevProps.card.order.order_notes !== nextProps.card.order.order_notes ||
-      prevProps.card.posting.source_platform !== nextProps.card.posting.source_platform ||
-      prevProps.card.posting.purchase_price !== nextProps.card.posting.purchase_price ||
-      prevProps.card.posting.domestic_tracking_numbers !== nextProps.card.posting.domestic_tracking_numbers ||
-      prevProps.card.posting.packages !== nextProps.card.posting.packages ||
-      prevProps.card.posting.operation_status !== nextProps.card.posting.operation_status;
+    // 辅助函数：比较数组（浅比较元素）
+    const arraysEqual = <T,>(a: T[] | undefined | null, b: T[] | undefined | null): boolean => {
+      if (a === b) return true;
+      if (!a || !b) return a === b;
+      if (a.length !== b.length) return false;
+      return a.every((item, index) => item === b[index]);
+    };
 
-    // 2. 检查选中状态是否变化（只比较当前卡片的选中状态）
+    // 辅助函数：比较 packages 数组（只比较 tracking_number）
+    const packagesEqual = (
+      a: Array<{ tracking_number?: string }> | undefined | null,
+      b: Array<{ tracking_number?: string }> | undefined | null
+    ): boolean => {
+      if (a === b) return true;
+      if (!a || !b) return a === b;
+      if (a.length !== b.length) return false;
+      return a.every((pkg, index) => pkg.tracking_number === b[index]?.tracking_number);
+    };
+
+    // 1. 检查卡片数据本身是否变化（posting 相关字段）
+    const postingChanged =
+      prevProps.card.key !== nextProps.card.key ||
+      prevProps.card.posting.posting_number !== nextProps.card.posting.posting_number ||
+      prevProps.card.posting.status !== nextProps.card.posting.status ||
+      prevProps.card.posting.source_platform !== nextProps.card.posting.source_platform ||
+      prevProps.card.posting.operation_status !== nextProps.card.posting.operation_status ||
+      prevProps.card.posting.shipment_date !== nextProps.card.posting.shipment_date ||
+      prevProps.card.posting.delivery_method_name !== nextProps.card.posting.delivery_method_name ||
+      !arraysEqual(prevProps.card.posting.domestic_tracking_numbers, nextProps.card.posting.domestic_tracking_numbers) ||
+      !packagesEqual(prevProps.card.posting.packages, nextProps.card.posting.packages);
+
+    // 2. 检查 order 相关字段
+    const orderChanged =
+      prevProps.card.order.order_notes !== nextProps.card.order.order_notes ||
+      prevProps.card.order.purchase_price !== nextProps.card.order.purchase_price ||
+      prevProps.card.order.ordered_at !== nextProps.card.order.ordered_at ||
+      prevProps.card.order.shop_id !== nextProps.card.order.shop_id ||
+      prevProps.card.order.currency_code !== nextProps.card.order.currency_code;
+
+    // 3. 检查 product 相关字段（商品可能为 null）
+    const prevProduct = prevProps.card.product;
+    const nextProduct = nextProps.card.product;
+    const productChanged =
+      (prevProduct === null) !== (nextProduct === null) ||
+      (prevProduct && nextProduct && (
+        prevProduct.sku !== nextProduct.sku ||
+        prevProduct.name !== nextProduct.name ||
+        prevProduct.price !== nextProduct.price ||
+        prevProduct.quantity !== nextProduct.quantity ||
+        prevProduct.image !== nextProduct.image ||
+        prevProduct.offer_id !== nextProduct.offer_id
+      ));
+
+    // 4. 检查选中状态是否变化（只比较当前卡片的选中状态）
     const prevSelected = prevProps.selectedPostingNumbers.includes(postingNumber);
     const nextSelected = nextProps.selectedPostingNumbers.includes(postingNumber);
     const selectionChanged = prevSelected !== nextSelected;
 
-    // 3. 检查其他稳定 props（通常不变，但需要检查）
+    // 5. 检查其他稳定 props（通常不变，但需要检查）
     const otherPropsChanged =
       prevProps.operationStatus !== nextProps.operationStatus ||
       prevProps.canOperate !== nextProps.canOperate ||
       prevProps.userCurrency !== nextProps.userCurrency;
 
     // 如果任何相关 props 变化，返回 false 以触发重新渲染
-    return !cardChanged && !selectionChanged && !otherPropsChanged;
+    return !postingChanged && !orderChanged && !productChanged && !selectionChanged && !otherPropsChanged;
   }
 );
 

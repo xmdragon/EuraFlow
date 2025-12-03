@@ -201,12 +201,14 @@
 
 .currentPrice {
   font-size: 16px;
+  font-weight: 600;
   color: #ff4d4f;
 }
 
 .originalPrice {
   color: #999;
   font-size: 12px;
+  text-decoration: line-through;
 }
 
 .discountTag {
@@ -221,6 +223,15 @@
   font-size: 11px;
   line-height: 1.2;
   margin-bottom: 1px;
+}
+
+// ===== 通用文本样式（替代 Ant Design Typography 以提升性能） =====
+.labelSecondary {
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.valueStrong {
+  font-weight: 600;
 }
 
 // ===== 统计信息（销量、重量、佣金等） =====

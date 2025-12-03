@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { Card, Row, Col, Space, Tag, Typography, Checkbox, Tooltip } from 'antd';
+import { Card, Row, Col, Space, Tag, Typography, Checkbox } from 'antd';
 import {
   ShoppingOutlined,
   StarOutlined,
@@ -29,6 +29,7 @@ import {
 
 import styles from '@/pages/ozon/ProductSelection.module.scss';
 
+// 只保留需要特殊功能的 Typography 组件（省略+tooltip、复制）
 const { Text, Paragraph } = Typography;
 
 /**
@@ -105,30 +106,28 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({
             src={optimizeOzonImageUrl(product.image_url, 160)}
             className={styles.productImage}
           />
-          {/* OZON链接 - 右上角 */}
-          <Tooltip title="打开OZON链接">
-            <div
-              className={styles.linkIconOverlay}
-              onClick={(e) => {
-                e.stopPropagation();
-                window.open(product.ozon_link, '_blank');
-              }}
-            >
-              <LinkOutlined />
-            </div>
-          </Tooltip>
-          {/* 1688找货源 - 右下角 */}
-          <Tooltip title="在1688找货源">
-            <div
-              className={styles.sourcingIconOverlay}
-              onClick={(e) => {
-                e.stopPropagation();
-                window.open(alibaba1688Url, '_blank');
-              }}
-            >
-              <ShopOutlined />
-            </div>
-          </Tooltip>
+          {/* OZON链接 - 右上角（使用原生 title 提升性能） */}
+          <div
+            className={styles.linkIconOverlay}
+            title="打开OZON链接"
+            onClick={(e) => {
+              e.stopPropagation();
+              window.open(product.ozon_link, '_blank');
+            }}
+          >
+            <LinkOutlined />
+          </div>
+          {/* 1688找货源 - 右下角（使用原生 title 提升性能） */}
+          <div
+            className={styles.sourcingIconOverlay}
+            title="在1688找货源"
+            onClick={(e) => {
+              e.stopPropagation();
+              window.open(alibaba1688Url, '_blank');
+            }}
+          >
+            <ShopOutlined />
+          </div>
         </div>
       );
     } else {
@@ -198,8 +197,8 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({
 
     return (
       <div className={costClassName}>
-        <Text type="secondary">成本上限: </Text>
-        <Text strong>{formatMaxCost(maxCost)}</Text>
+        <span className={styles.labelSecondary}>成本上限: </span>
+        <span className={styles.valueStrong}>{formatMaxCost(maxCost)}</span>
       </div>
     );
   };
@@ -215,12 +214,10 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({
           {product.product_name_cn || product.product_name_ru}
         </Paragraph>
 
-        {/* SKU - 可复制 */}
+        {/* SKU - 可复制（不需要省略） */}
         <div className={styles.skuRow}>
-          <Text type="secondary" className={styles.skuLabel}>
-            SKU:{' '}
-          </Text>
-          <Text copyable={{ text: product.product_id }} className={styles.skuValue} ellipsis>
+          <span className={styles.skuLabel}>SKU: </span>
+          <Text copyable={{ text: product.product_id }} className={styles.skuValue}>
             {product.product_id}
           </Text>
         </div>
@@ -228,15 +225,15 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({
         {/* 价格信息 - 始终显示当前价 */}
         <div className={styles.priceContainer}>
           <div className={styles.priceRow}>
-            <Text strong className={styles.currentPrice}>
+            <span className={styles.currentPrice}>
               {userSymbol}
               {formatPrice(product.current_price)}
-            </Text>
+            </span>
             {fieldConfig.originalPrice && product.original_price && (
-              <Text delete className={styles.originalPrice}>
+              <span className={styles.originalPrice}>
                 {userSymbol}
                 {formatPrice(product.original_price)}
-              </Text>
+              </span>
             )}
           </div>
         </div>
@@ -244,202 +241,201 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({
         {/* 品牌 */}
         {fieldConfig.brand && (
           <div className={styles.brandInfo}>
-            <Text type="secondary">品牌: </Text>
-            <Text>
+            <span className={styles.labelSecondary}>品牌: </span>
+            <span>
               {product.brand === '非热销,无数据'
                 ? '-'
                 : product.brand === 'без бренда'
                   ? '无品牌'
                   : product.brand || '无品牌'}
-            </Text>
+            </span>
           </div>
         )}
 
         {/* 类目 */}
         {fieldConfig.category && product.category_path && (
           <div className={styles.brandInfo}>
-            <Text type="secondary">类目: </Text>
-            <Text>{product.category_path === '非热销,无数据' ? '-' : product.category_path}</Text>
+            <span className={styles.labelSecondary}>类目: </span>
+            <span>{product.category_path === '非热销,无数据' ? '-' : product.category_path}</span>
           </div>
         )}
 
-        {/* rFBS佣金 - 横向三标签 */}
+        {/* rFBS佣金 - 横向三标签（使用原生 title 替代 Tooltip 提升性能） */}
         {fieldConfig.rfbsCommission && (
-          <div className={styles.commissionRow}>
-            <Tooltip title="rFBS佣金率"><Text type="secondary">rFBS: </Text></Tooltip>
+          <div className={styles.commissionRow} title="rFBS佣金率">
+            <span className={styles.labelSecondary}>rFBS: </span>
             <Space size={4}>
-              <Tooltip title="售价 ≤1500₽"><Tag color="success">{product.rfbs_commission_low ?? '-'}</Tag></Tooltip>
-              <Tooltip title="售价 1501~5000₽"><Tag color="warning">{product.rfbs_commission_mid ?? '-'}</Tag></Tooltip>
-              <Tooltip title="售价 >5000₽"><Tag color="error">{product.rfbs_commission_high ?? '-'}</Tag></Tooltip>
+              <Tag color="success" title="售价 ≤1500₽">{product.rfbs_commission_low ?? '-'}</Tag>
+              <Tag color="warning" title="售价 1501~5000₽">{product.rfbs_commission_mid ?? '-'}</Tag>
+              <Tag color="error" title="售价 >5000₽">{product.rfbs_commission_high ?? '-'}</Tag>
             </Space>
           </div>
         )}
 
-        {/* FBP佣金 - 横向三标签 */}
+        {/* FBP佣金 - 横向三标签（使用原生 title 替代 Tooltip 提升性能） */}
         {fieldConfig.fbpCommission && (
-          <div className={styles.commissionRow}>
-            <Tooltip title="FBP佣金率"><Text type="secondary">FBP: </Text></Tooltip>
+          <div className={styles.commissionRow} title="FBP佣金率">
+            <span className={styles.labelSecondary}>FBP: </span>
             <Space size={4}>
-              <Tooltip title="售价 ≤1500₽"><Tag color="success">{product.fbp_commission_low ?? '-'}</Tag></Tooltip>
-              <Tooltip title="售价 1501~5000₽"><Tag color="warning">{product.fbp_commission_mid ?? '-'}</Tag></Tooltip>
-              <Tooltip title="售价 >5000₽"><Tag color="error">{product.fbp_commission_high ?? '-'}</Tag></Tooltip>
+              <Tag color="success" title="售价 ≤1500₽">{product.fbp_commission_low ?? '-'}</Tag>
+              <Tag color="warning" title="售价 1501~5000₽">{product.fbp_commission_mid ?? '-'}</Tag>
+              <Tag color="error" title="售价 >5000₽">{product.fbp_commission_high ?? '-'}</Tag>
             </Space>
           </div>
         )}
 
-        {/* 月销量+月销售额 */}
+        {/* 月销量+月销售额（使用原生 title 提升性能） */}
         {(fieldConfig.monthlySales || fieldConfig.monthlySalesRevenue) && (
-          <div className={styles.statsItem}>
-            <Tooltip title="月销量 & 月销售额"><Text type="secondary">月销: </Text></Tooltip>
-            <Text strong>
+          <div className={styles.statsItem} title="月销量 & 月销售额">
+            <span className={styles.labelSecondary}>月销: </span>
+            <span className={styles.valueStrong}>
               {product.monthly_sales_volume ? `${formatNum(product.monthly_sales_volume)} 件` : ''}{' '}
               {formatSalesRevenue(product.monthly_sales_revenue, exchangeRate)}
-            </Text>
+            </span>
           </div>
         )}
 
-        {/* 日销量+日销售额 */}
+        {/* 日销量+日销售额（使用原生 title 提升性能） */}
         {fieldConfig.dailySales && (
-          <div className={styles.statsItem}>
-            <Tooltip title="日销量 & 日销售额"><Text type="secondary">日销: </Text></Tooltip>
-            <Text strong>
+          <div className={styles.statsItem} title="日销量 & 日销售额">
+            <span className={styles.labelSecondary}>日销: </span>
+            <span className={styles.valueStrong}>
               {product.daily_sales_volume ? `${formatNum(product.daily_sales_volume)} 件` : ''}{' '}
               {formatSalesRevenue(product.daily_sales_revenue, exchangeRate)}
-            </Text>
+            </span>
           </div>
         )}
 
-        {/* 销售动态+点击率 - 两列布局 */}
+        {/* 销售动态+点击率 - 两列布局（使用原生 title 提升性能） */}
         {fieldConfig.salesDynamic && (
           <Row gutter={1} className={styles.statsItem}>
-            <Col span={12}>
-              <Tooltip title="月销售动态"><Text type="secondary">动态: </Text></Tooltip>
-              <Text strong>{formatPercent(product.sales_dynamic_percent)}</Text>
+            <Col span={12} title="月销售动态">
+              <span className={styles.labelSecondary}>动态: </span>
+              <span className={styles.valueStrong}>{formatPercent(product.sales_dynamic_percent)}</span>
             </Col>
-            <Col span={12}>
-              <Tooltip title="点击率"><Text type="secondary">点击: </Text></Tooltip>
-              <Text strong>{formatPercent(product.click_through_rate)}</Text>
+            <Col span={12} title="点击率">
+              <span className={styles.labelSecondary}>点击: </span>
+              <span className={styles.valueStrong}>{formatPercent(product.click_through_rate)}</span>
             </Col>
           </Row>
         )}
 
-        {/* 卡片浏览量+加购率 - 两列布局 */}
+        {/* 卡片浏览量+加购率 - 两列布局（使用原生 title 提升性能） */}
         {fieldConfig.cardMetrics && (
           <Row gutter={1} className={styles.statsItem}>
-            <Col span={12}>
-              <Tooltip title="商品卡片浏览量"><Text type="secondary">卡片: </Text></Tooltip>
-              <Text strong>{formatNum(product.card_views)}</Text>
+            <Col span={12} title="商品卡片浏览量">
+              <span className={styles.labelSecondary}>卡片: </span>
+              <span className={styles.valueStrong}>{formatNum(product.card_views)}</span>
             </Col>
-            <Col span={12}>
-              <Tooltip title="商品卡片加购率"><Text type="secondary">加购: </Text></Tooltip>
-              <Text strong>{formatPercent(product.card_add_to_cart_rate)}</Text>
+            <Col span={12} title="商品卡片加购率">
+              <span className={styles.labelSecondary}>加购: </span>
+              <span className={styles.valueStrong}>{formatPercent(product.card_add_to_cart_rate)}</span>
             </Col>
           </Row>
         )}
 
-        {/* 搜索浏览量+加购率 - 两列布局 */}
+        {/* 搜索浏览量+加购率 - 两列布局（使用原生 title 提升性能） */}
         {fieldConfig.searchMetrics && (
           <Row gutter={1} className={styles.statsItem}>
-            <Col span={12}>
-              <Tooltip title="搜索浏览量"><Text type="secondary">搜索: </Text></Tooltip>
-              <Text strong>{formatNum(product.search_views)}</Text>
+            <Col span={12} title="搜索浏览量">
+              <span className={styles.labelSecondary}>搜索: </span>
+              <span className={styles.valueStrong}>{formatNum(product.search_views)}</span>
             </Col>
-            <Col span={12}>
-              <Tooltip title="搜索加购率"><Text type="secondary">加购: </Text></Tooltip>
-              <Text strong>{formatPercent(product.search_add_to_cart_rate)}</Text>
+            <Col span={12} title="搜索加购率">
+              <span className={styles.labelSecondary}>加购: </span>
+              <span className={styles.valueStrong}>{formatPercent(product.search_add_to_cart_rate)}</span>
             </Col>
           </Row>
         )}
 
-        {/* 促销天数+折扣+转化率 - 单行布局 */}
+        {/* 促销天数+折扣+转化率 - 单行布局（使用原生 title 提升性能） */}
         {fieldConfig.promoMetrics && (
           <Row gutter={1} className={styles.statsItem}>
-            <Col span={24}>
-              <Tooltip title="参与促销天数 & 折扣 & 转化率"><Text type="secondary">促销: </Text></Tooltip>
-              <Text strong>
+            <Col span={24} title="参与促销天数 & 折扣 & 转化率">
+              <span className={styles.labelSecondary}>促销: </span>
+              <span className={styles.valueStrong}>
                 {product.promo_days ? `${product.promo_days}天` : '-'}{' '}
                 {formatPercent(product.promo_discount_percent)}{' '}
                 {formatPercent(product.promo_conversion_rate)}
-              </Text>
+              </span>
             </Col>
           </Row>
         )}
 
-        {/* 付费推广+份额 - 两列布局 */}
+        {/* 付费推广+份额 - 两列布局（使用原生 title 提升性能） */}
         {fieldConfig.paidPromo && (
           <Row gutter={1} className={styles.statsItem}>
-            <Col span={12}>
-              <Tooltip title="付费推广天数"><Text type="secondary">付费: </Text></Tooltip>
-              <Text strong>{product.paid_promo_days ? `${product.paid_promo_days}天` : '-'}</Text>
+            <Col span={12} title="付费推广天数">
+              <span className={styles.labelSecondary}>付费: </span>
+              <span className={styles.valueStrong}>{product.paid_promo_days ? `${product.paid_promo_days}天` : '-'}</span>
             </Col>
-            <Col span={12}>
-              <Tooltip title="广告份额"><Text type="secondary">份额: </Text></Tooltip>
-              <Text strong>{formatPercent(product.ad_cost_share)}</Text>
+            <Col span={12} title="广告份额">
+              <span className={styles.labelSecondary}>份额: </span>
+              <span className={styles.valueStrong}>{formatPercent(product.ad_cost_share)}</span>
             </Col>
           </Row>
         )}
 
-        {/* 成交率+退货率 - 两列布局 */}
+        {/* 成交率+退货率 - 两列布局（使用原生 title 提升性能） */}
         {fieldConfig.conversionMetrics && (
           <Row gutter={1} className={styles.statsItem}>
-            <Col span={12}>
-              <Tooltip title="成交率"><Text type="secondary">成交: </Text></Tooltip>
-              <Text strong>{formatPercent(product.conversion_rate)}</Text>
+            <Col span={12} title="成交率">
+              <span className={styles.labelSecondary}>成交: </span>
+              <span className={styles.valueStrong}>{formatPercent(product.conversion_rate)}</span>
             </Col>
-            <Col span={12}>
-              <Tooltip title="退货取消率"><Text type="secondary">退取: </Text></Tooltip>
-              <Text strong>{formatPercent(product.return_cancel_rate)}</Text>
+            <Col span={12} title="退货取消率">
+              <span className={styles.labelSecondary}>退取: </span>
+              <span className={styles.valueStrong}>{formatPercent(product.return_cancel_rate)}</span>
             </Col>
           </Row>
         )}
 
-        {/* 平均价格+重量 - 两列布局 */}
+        {/* 平均价格+重量 - 两列布局（使用原生 title 提升性能） */}
         {(fieldConfig.avgPrice || fieldConfig.weight) && (
           <Row gutter={1} className={styles.statsItem}>
             {fieldConfig.avgPrice && (
-              <Col span={12}>
-                <Tooltip title="平均价格"><Text type="secondary">均价: </Text></Tooltip>
-                <Text strong>{formatCurrency(product.avg_price, exchangeRate)}</Text>
+              <Col span={12} title="平均价格">
+                <span className={styles.labelSecondary}>均价: </span>
+                <span className={styles.valueStrong}>{formatCurrency(product.avg_price, exchangeRate)}</span>
               </Col>
             )}
             {fieldConfig.weight && (
-              <Col span={12}>
-                <Tooltip title="包装重量"><Text type="secondary">重量: </Text></Tooltip>
-                <Text strong>{formatWeight(product.package_weight)}</Text>
+              <Col span={12} title="包装重量">
+                <span className={styles.labelSecondary}>重量: </span>
+                <span className={styles.valueStrong}>{formatWeight(product.package_weight)}</span>
               </Col>
             )}
           </Row>
         )}
 
-        {/* 包装尺寸 */}
+        {/* 包装尺寸（使用原生 title 提升性能） */}
         {fieldConfig.dimensions && (
-          <div className={styles.statsItem}>
-            <Tooltip title="长×宽×高(mm)"><Text type="secondary">尺寸: </Text></Tooltip>
-            <Text strong>
+          <div className={styles.statsItem} title="长×宽×高(mm)">
+            <span className={styles.labelSecondary}>尺寸: </span>
+            <span className={styles.valueStrong}>
               {product.package_length && product.package_width && product.package_height
                 ? `${product.package_length}×${product.package_width}×${product.package_height}`
                 : '-'}
-            </Text>
+            </span>
           </div>
         )}
 
-        {/* 发货模式 */}
+        {/* 发货模式（使用原生 title 提升性能） */}
         {fieldConfig.sellerMode && (
-          <div className={styles.statsItem}>
-            <Tooltip title="发货模式(FBS:跨境店，FBO:本地店)"><Text type="secondary">模式: </Text></Tooltip>
-            <Text strong>{product.seller_mode || '-'}</Text>
+          <div className={styles.statsItem} title="发货模式(FBS:跨境店，FBO:本地店)">
+            <span className={styles.labelSecondary}>模式: </span>
+            <span className={styles.valueStrong}>{product.seller_mode || '-'}</span>
           </div>
         )}
 
-        {/* 竞争对手数据 */}
+        {/* 竞争对手数据（使用原生 title 提升性能） */}
         {fieldConfig.competitors && (
-          <div className={styles.statsItem}>
-            <Tooltip title="跟卖数量 & 最低跟卖价"><Text type="secondary">跟卖: </Text></Tooltip>
+          <div className={styles.statsItem} title="跟卖数量 & 最低跟卖价">
+            <span className={styles.labelSecondary}>跟卖: </span>
             {product.competitor_count !== null && product.competitor_count !== undefined ? (
               product.competitor_count > 0 ? (
-                <Text
-                  strong
-                  className={styles.competitorCount}
+                <span
+                  className={`${styles.valueStrong} ${styles.competitorCount}`}
                   onClick={() => onShowCompetitors(product)}
                 >
                   {product.competitor_count}
@@ -450,48 +446,44 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({
                         {formatPrice(product.competitor_min_price)}）
                       </>
                     )}
-                </Text>
+                </span>
               ) : (
-                <Text className={styles.placeholderText}>无跟卖</Text>
+                <span className={styles.placeholderText}>无跟卖</span>
               )
             ) : (
-              <Text className={styles.placeholderText}>无数据</Text>
+              <span className={styles.placeholderText}>无数据</span>
             )}
           </div>
         )}
 
-        {/* 评分和上架时间 - 合并为一行 */}
+        {/* 评分和上架时间 - 合并为一行（使用原生 title 提升性能） */}
         {(fieldConfig.rating || fieldConfig.listingDate) && (
           <div className={styles.ratingAndDateRow}>
             {fieldConfig.rating && (
-              <Tooltip title="商品评分 & 评价数量">
-                <div className={styles.ratingSection}>
-                  {product.rating ? (
-                    <>
-                      <StarOutlined />
-                      <Text strong className={styles.ratingValue}>
-                        {product.rating}
-                      </Text>
-                      <Text type="secondary" className={styles.reviewCount}>
-                        ({product.review_count})
-                      </Text>
-                    </>
-                  ) : (
-                    <Text type="secondary" style={{ fontSize: '11px' }}>
-                      -
-                    </Text>
-                  )}
-                </div>
-              </Tooltip>
+              <div className={styles.ratingSection} title="商品评分 & 评价数量">
+                {product.rating ? (
+                  <>
+                    <StarOutlined />
+                    <span className={`${styles.valueStrong} ${styles.ratingValue}`}>
+                      {product.rating}
+                    </span>
+                    <span className={`${styles.labelSecondary} ${styles.reviewCount}`}>
+                      ({product.review_count})
+                    </span>
+                  </>
+                ) : (
+                  <span className={styles.labelSecondary} style={{ fontSize: '11px' }}>
+                    -
+                  </span>
+                )}
+              </div>
             )}
             {fieldConfig.listingDate && (
-              <Tooltip title="上架时间">
-                <div className={styles.listingDate}>
-                  <Text type="secondary" style={{ fontSize: '11px' }}>
-                    {product.listing_date ? formatDate(product.listing_date) : '-'}
-                  </Text>
-                </div>
-              </Tooltip>
+              <div className={styles.listingDate} title="上架时间">
+                <span className={styles.labelSecondary} style={{ fontSize: '11px' }}>
+                  {product.listing_date ? formatDate(product.listing_date) : '-'}
+                </span>
+              </div>
             )}
           </div>
         )}

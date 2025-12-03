@@ -59,6 +59,7 @@ import ShipOrderModal from '@/components/ozon/packing/ShipOrderModal';
 import ScanResultTable from '@/components/ozon/packing/ScanResultTable';
 import PageTitle from '@/components/PageTitle';
 import { useCopy } from '@/hooks/useCopy';
+import { useDateTime } from '@/hooks/useDateTime';
 import { usePermission } from '@/hooks/usePermission';
 import { useQuickMenu } from '@/hooks/useQuickMenu';
 import { useBatchPrint } from '@/hooks/useBatchPrint';
@@ -96,6 +97,7 @@ const PackingShipment: React.FC = () => {
   const { modal } = App.useApp();
   const { currency: userCurrency } = useCurrency();
   const { copyToClipboard } = useCopy();
+  const { formatDateTime } = useDateTime();
   const { canOperate, canSync } = usePermission();
   const [urlSearchParams] = useSearchParams();
   const { addQuickMenu, isInQuickMenu } = useQuickMenu();
@@ -503,9 +505,13 @@ const PackingShipment: React.FC = () => {
     printed: statsData?.data?.printed || 0,
   };
 
+  // 缓存已创建的 OrderCard 对象，避免重复创建导致 memo 失效
+  const orderCardsCache = React.useRef<Map<string, OrderCard>>(new Map());
+
   // 将 PostingWithOrder 数组转换为 OrderCard 数组（每个商品一张卡片）
   const orderCards = React.useMemo<OrderCard[]>(() => {
     const cards: OrderCard[] = [];
+    const newCache = new Map<string, OrderCard>();
 
     postingsData.forEach((posting) => {
       // 优先使用 posting.products（从 raw_payload 提取的该 posting 的商品）
@@ -517,24 +523,49 @@ const PackingShipment: React.FC = () => {
 
       if (products.length === 0) {
         // 如果没有商品，创建一张空卡片
-        cards.push({
-          key: `${posting.posting_number}_0`,
-          posting: posting,
-          product: null,
-          order: posting.order,
-        });
+        const key = `${posting.posting_number}_0`;
+        const existingCard = orderCardsCache.current.get(key);
+
+        // 检查是否可以复用缓存的 card（posting 引用相同）
+        if (existingCard && existingCard.posting === posting) {
+          cards.push(existingCard);
+          newCache.set(key, existingCard);
+        } else {
+          const newCard: OrderCard = {
+            key,
+            posting: posting,
+            product: null,
+            order: posting.order,
+          };
+          cards.push(newCard);
+          newCache.set(key, newCard);
+        }
       } else {
         // 为每个商品创建一张卡片
         products.forEach((product, index) => {
-          cards.push({
-            key: `${posting.posting_number}_${index}`,
-            posting: posting,
-            product: product,
-            order: posting.order,
-          });
+          const key = `${posting.posting_number}_${index}`;
+          const existingCard = orderCardsCache.current.get(key);
+
+          // 检查是否可以复用缓存的 card（posting 和 product 引用相同）
+          if (existingCard && existingCard.posting === posting && existingCard.product === product) {
+            cards.push(existingCard);
+            newCache.set(key, existingCard);
+          } else {
+            const newCard: OrderCard = {
+              key,
+              posting: posting,
+              product: product,
+              order: posting.order,
+            };
+            cards.push(newCard);
+            newCache.set(key, newCard);
+          }
         });
       }
     });
+
+    // 更新缓存
+    orderCardsCache.current = newCache;
 
     return cards;
   }, [postingsData]);
@@ -1493,6 +1524,7 @@ const PackingShipment: React.FC = () => {
                       operationStatus={operationStatus}
                       formatPrice={formatPrice}
                       formatDeliveryMethodText={formatDeliveryMethodText}
+                      formatDateTime={formatDateTime}
                       onCopy={copyToClipboard}
                       onShowDetail={handleShowDetailCallback}
                       onOpenImagePreview={handleOpenImagePreviewCallback}
