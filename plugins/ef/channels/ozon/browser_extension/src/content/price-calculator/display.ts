@@ -105,6 +105,17 @@ function formatDate(dateStr: string | null): string {
 }
 
 /**
+ * 更新真实售价（异步加载完成后调用）
+ */
+export function updateRealPrice(message: string): void {
+  const priceElement = document.getElementById('euraflow-real-price');
+  if (!priceElement) return;
+
+  // 更新价格文本（去掉"真实售价："前缀）
+  priceElement.textContent = message.replace('真实售价：', '');
+}
+
+/**
  * 更新跟卖数据（异步加载完成后调用）
  * 替换已注入的跟卖行
  */

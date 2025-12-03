@@ -89,8 +89,9 @@ export interface ProductDetailData {
   category_level_1?: string;        // 一级类目名称
   category_level_2?: string;        // 二级类目名称
   category_level_3?: string;        // 三级类目名称
-  price: number;
-  original_price?: number;
+  cardPrice: number;    // 绿色价格（Ozon卡价格）
+  price: number;        // 黑色价格（普通价格）
+  original_price?: number;  // 划线价
   brand?: string;
   barcode?: string;
   images: { url: string; is_primary?: boolean }[];
@@ -565,20 +566,20 @@ function parseFromWidgetStates(apiResponse: any): Omit<ProductDetailData, 'varia
     const title = headingData?.title || '';
 
     // 2. 提取价格（webPrice 中的价格已经是人民币元，不需要转换）
-    // cardPrice = 绿色价格（Ozon卡价格）
-    // price = 黑色价格（普通价格）
-    // originalPrice = 划线价（原价）
+    // priceData.cardPrice = 绿色价格（Ozon卡价格）
+    // priceData.price = 黑色价格（普通价格）
+    // priceData.originalPrice = 划线价（原价）
     // 注意：必须精确匹配 webPrice-，排除 webPriceDecreasedCompact 等其他 widget
     const priceKey = keys.find(k => /^webPrice-\d+-/.test(k));
     const priceData = priceKey ? JSON.parse(widgetStates[priceKey]) : null;
     // 移除空格、逗号（欧洲格式），替换为点
     const cleanPrice = (str: string) => str.replace(/\s/g, '').replace(/,/g, '.');
-    // 绿色价格优先取 cardPrice，fallback 到 price
-    const price = parseFloat(cleanPrice(priceData?.cardPrice || priceData?.price || '0'));
-    // 黑色价格取 price（当存在 cardPrice 时）
-    const original_price = priceData?.cardPrice
-      ? parseFloat(cleanPrice(priceData?.price || '0'))
-      : parseFloat(cleanPrice(priceData?.originalPrice || '0'));
+    // 绿色价格 = cardPrice
+    const cardPrice = priceData?.cardPrice ? parseFloat(cleanPrice(priceData.cardPrice)) : 0;
+    // 黑色价格 = price
+    const price = priceData?.price ? parseFloat(cleanPrice(priceData.price)) : 0;
+    // 划线价 = originalPrice
+    const original_price = priceData?.originalPrice ? parseFloat(cleanPrice(priceData.originalPrice)) : 0;
 
 
     // 3. 提取图片和视频
@@ -690,8 +691,9 @@ function parseFromWidgetStates(apiResponse: any): Omit<ProductDetailData, 'varia
     return {
       ozon_product_id,
       title,
-      price,
-      original_price: original_price > price ? original_price : undefined,
+      cardPrice,  // 绿色价格
+      price,      // 黑色价格
+      original_price: original_price > 0 ? original_price : undefined,  // 划线价
       images,
       videos: videos.length > 0 ? videos : undefined,
       category_id,
@@ -1158,6 +1160,7 @@ export async function extractProductData(): Promise<ProductDetailData> {
     // 完全失败时才返回最小有效数据
     return {
       title: '',
+      cardPrice: 0,
       price: 0,
       images: [],
       has_variants: false,

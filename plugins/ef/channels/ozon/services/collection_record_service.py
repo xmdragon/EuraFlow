@@ -117,7 +117,8 @@ class CollectionRecordService:
         collection_type: str,
         shop_id: Optional[int] = None,
         page: int = 1,
-        page_size: int = 20
+        page_size: int = 20,
+        is_admin: bool = False
     ) -> tuple[List[OzonProductCollectionRecord], int]:
         """查询采集记录列表
 
@@ -128,16 +129,19 @@ class CollectionRecordService:
             shop_id: 店铺ID（可选）
             page: 页码
             page_size: 每页数量
+            is_admin: 是否为管理员（管理员可查看所有用户的记录）
 
         Returns:
             (记录列表, 总数)
         """
         # 构建查询条件
         conditions = [
-            OzonProductCollectionRecord.user_id == user_id,
             OzonProductCollectionRecord.collection_type == collection_type,
             OzonProductCollectionRecord.is_deleted == False  # noqa: E712
         ]
+        # 非管理员只能查看自己的记录
+        if not is_admin:
+            conditions.append(OzonProductCollectionRecord.user_id == user_id)
         if shop_id:
             conditions.append(OzonProductCollectionRecord.shop_id == shop_id)
 

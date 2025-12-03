@@ -5,7 +5,7 @@
  */
 
 import { calculateRealPrice } from './calculator';
-import { injectCompleteDisplay, updateFollowSellerData, updateCategoryData, updateButtonsWithConfig } from './display';
+import { injectCompleteDisplay, updateRealPrice, updateFollowSellerData, updateCategoryData, updateButtonsWithConfig } from './display';
 import { extractProductData, fetchFollowSellerData } from '../parsers/product-detail';
 
 /**
@@ -183,18 +183,13 @@ export class RealPriceCalculator {
 
       const spbSalesData = spbSalesResponse?.success ? spbSalesResponse.data : null;
 
-      // 4. 从 SPB 数据计算真实售价
-      const greenPrice = spbSalesData?.price > 0 ? spbSalesData.price : null;
-      const blackPrice = spbSalesData?.originalPrice || null;
-      const { message, price } = calculateRealPrice(greenPrice, blackPrice, '¥');
-
-      // 5. 立即注入组件（缺失数据显示"加载中..."）
+      // 4. 立即注入组件，真实售价显示 ---，等异步数据完整后再更新
       await injectCompleteDisplay({
-        message: message || '---',
-        price,
-        ozonProduct: null,  // 稍后异步加载
+        message: '---',
+        price: null,
+        ozonProduct: null,
         spbSales: spbSalesData,
-        euraflowConfig: null  // 稍后异步加载
+        euraflowConfig: null
       });
 
       // 6. 异步加载所有其他数据并更新组件
@@ -227,9 +222,22 @@ export class RealPriceCalculator {
       }
     }).catch(() => {});
 
-    // 类目数据（需要 OZON 数据中的 typeNameRu）
+    // OZON 数据加载完成后：更新真实售价 + 获取类目数据
     ozonDataPromise.then(ozonProduct => {
       if (ozonProduct) {
+        // 从 OZON API 数据计算真实售价
+        // ozonProduct.cardPrice = 绿色价格（Ozon卡价格）
+        // ozonProduct.price = 黑色价格（普通价格）
+        const greenPrice = (ozonProduct.cardPrice ?? 0) > 0 ? ozonProduct.cardPrice : null;
+        const blackPrice = (ozonProduct.price ?? 0) > 0 ? ozonProduct.price : null;
+        if (blackPrice !== null) {
+          const { message } = calculateRealPrice(greenPrice, blackPrice, '¥');
+          if (message) {
+            updateRealPrice(message);
+          }
+        }
+
+        // 获取类目数据
         chrome.runtime.sendMessage({
           type: 'FETCH_ALL_PRODUCT_DATA',
           data: {

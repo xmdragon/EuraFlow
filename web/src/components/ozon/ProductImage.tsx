@@ -174,8 +174,9 @@ const ProductImage: React.FC<ProductImageProps> = ({
     </div>
   );
 
-  // 准备图片数组（用于高级预览组件）
-  const previewImages = optimizedImageUrl ? [imageUrl || ''] : [];
+  // 准备图片数组（用于高级预览组件，使用wc800优化大图加载）
+  const previewImageUrl = optimizeOzonImageUrl(imageUrl, 800);
+  const previewImages = previewImageUrl ? [previewImageUrl] : [];
 
   // 根据悬浮行为包装容器
   if (hoverBehavior === 'medium' && mediumImageUrl) {

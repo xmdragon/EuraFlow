@@ -229,14 +229,21 @@ async def get_records(
         shop_id: 店铺ID（可选）
         page: 页码
         page_size: 每页数量
+
+    Note:
+        管理员用户（role='admin' 或拥有 '*' 权限）可查看所有用户的记录
     """
+    # 判断是否为管理员
+    is_admin = current_user.role == "admin" or "*" in (current_user.permissions or [])
+
     records, total = await CollectionRecordService.get_records(
         db=db,
         user_id=current_user.id,
         collection_type=collection_type,
         shop_id=shop_id,
         page=page,
-        page_size=page_size
+        page_size=page_size,
+        is_admin=is_admin
     )
 
     # 转换为响应格式

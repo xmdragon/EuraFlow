@@ -19,6 +19,7 @@ import React from 'react';
 import ProductImage from '@/components/ozon/ProductImage';
 import type * as ozonApi from '@/services/ozon';
 import { formatPriceWithCurrency } from '@/utils/currency';
+import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 
 import styles from './productTableColumns.module.scss';
 
@@ -84,12 +85,13 @@ export const getProductTableColumns = (
       key: 'image',
       width: 80,
       render: (_, record) => {
+        // 收集所有图片并优化为 wc800 格式用于预览
         const allImages: string[] = [];
         if (record.images?.primary) {
-          allImages.push(record.images.primary);
+          allImages.push(optimizeOzonImageUrl(record.images.primary, 800));
         }
         if (record.images?.additional && Array.isArray(record.images.additional)) {
-          allImages.push(...record.images.additional);
+          allImages.push(...record.images.additional.map(url => optimizeOzonImageUrl(url, 800)));
         }
 
         return (
