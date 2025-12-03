@@ -61,16 +61,19 @@
     &--region {
       text-align: center;
       width: 60px;
+      white-space: nowrap;
     }
 
     &--sku {
       text-align: center;
       width: 100px;
+      white-space: nowrap;
     }
 
     &--price {
       text-align: right;
       width: 80px;
+      white-space: nowrap;
     }
   }
 
@@ -89,10 +92,12 @@
 
     &--center {
       text-align: center;
+      white-space: nowrap;
     }
 
     &--right {
       text-align: right;
+      white-space: nowrap;
     }
   }
 

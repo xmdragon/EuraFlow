@@ -20,6 +20,8 @@ import ProductImage from '@/components/ozon/ProductImage';
 import type * as ozonApi from '@/services/ozon';
 import { formatPriceWithCurrency } from '@/utils/currency';
 
+import styles from './productTableColumns.module.scss';
+
 // 列配置工厂函数的参数接口
  
 export interface ProductTableColumnsParams {
@@ -112,90 +114,36 @@ export const getProductTableColumns = (
       width: 100,
       render: (_, record) => {
         const copyIcon = (
-          <div style={{ position: 'relative', width: '12px', height: '12px' }}>
-            <div
-              style={{
-                position: 'absolute',
-                top: '2px',
-                left: '2px',
-                width: '8px',
-                height: '8px',
-                border: '1px solid #666',
-                backgroundColor: 'white',
-              }}
-            />
-            <div
-              style={{
-                position: 'absolute',
-                top: '0px',
-                left: '0px',
-                width: '8px',
-                height: '8px',
-                border: '1px solid #666',
-                backgroundColor: 'white',
-              }}
-            />
+          <div className={styles.copyIconContainer}>
+            <div className={styles.copyIconBack} />
+            <div className={styles.copyIconFront} />
           </div>
         );
 
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
+          <div className={styles.columnContainer}>
             {/* 商品货号 */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                width: '100%',
-              }}
-            >
-              <span
-                style={{
-                  fontSize: 12,
-                  flex: 1,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {record.offer_id}
-              </span>
+            <div className={styles.skuRow}>
+              <span className={styles.skuText}>{record.offer_id}</span>
               <Button
                 type="text"
                 size="small"
                 icon={copyIcon}
                 onClick={() => copyToClipboard(record.offer_id, '商品货号')}
-                style={{ padding: '0 4px', height: '18px', minWidth: '18px' }}
+                className={styles.copyButton}
                 title="复制商品货号"
               />
             </div>
             {/* SKU */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                width: '100%',
-              }}
-            >
-              <span
-                style={{
-                  fontSize: 12,
-                  flex: 1,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {record.ozon_sku || '-'}
-              </span>
+            <div className={styles.skuRow}>
+              <span className={styles.skuText}>{record.ozon_sku || '-'}</span>
               {record.ozon_sku && (
                 <Button
                   type="text"
                   size="small"
                   icon={copyIcon}
                   onClick={() => copyToClipboard(String(record.ozon_sku), 'SKU')}
-                  style={{ padding: '0 4px', height: '18px', minWidth: '18px' }}
+                  className={styles.copyButton}
                   title="复制SKU"
                 />
               )}
@@ -230,20 +178,14 @@ export const getProductTableColumns = (
         const oldPrice = record.old_price ? parseFloat(record.old_price) : null;
 
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%' }}>
+          <div className={styles.columnContainerSmallGap}>
             {/* 当前价格（绿色加粗） */}
-            <span style={{ fontWeight: 'bold', color: '#52c41a', fontSize: 13 }}>
+            <span className={styles.currentPrice}>
               {formatPriceWithCurrency(price, record.currency_code)}
             </span>
             {/* 划线价（如果有old_price且大于当前价格） */}
             {oldPrice && oldPrice > price && (
-              <span
-                style={{
-                  textDecoration: 'line-through',
-                  color: '#999',
-                  fontSize: 11,
-                }}
-              >
+              <span className={styles.oldPrice}>
                 {formatPriceWithCurrency(oldPrice, record.currency_code)}
               </span>
             )}
@@ -261,16 +203,16 @@ export const getProductTableColumns = (
         // 如果有仓库库存详情，按仓库显示
         if (record.warehouse_stocks && record.warehouse_stocks.length > 0) {
           return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%' }}>
+            <div className={styles.columnContainerSmallGap}>
               {record.warehouse_stocks.map((ws, index) => {
                 // 提取仓库名称缩写（取前4个字符）
                 const warehouseAbbr = ws.warehouse_name?.substring(0, 4) || `W${ws.warehouse_id}`;
                 const totalStock = ws.present + ws.reserved;
 
                 return (
-                  <span key={index} style={{ fontSize: 12 }}>
+                  <span key={index} className={styles.stockText}>
                     {warehouseAbbr}:
-                    <span style={{ fontWeight: 600, marginLeft: '4px' }}>{totalStock}</span>
+                    <span className={styles.stockValue}>{totalStock}</span>
                   </span>
                 );
               })}
@@ -280,15 +222,15 @@ export const getProductTableColumns = (
 
         // 降级：如果没有仓库库存详情，显示总计
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%' }}>
-            <span style={{ fontSize: 12 }}>
-              可售: <span style={{ fontWeight: 600, marginLeft: '4px' }}>{record.available}</span>
+          <div className={styles.columnContainerSmallGap}>
+            <span className={styles.stockText}>
+              可售: <span className={styles.stockValue}>{record.available}</span>
             </span>
-            <span style={{ fontSize: 12, color: '#999' }}>
-              库存: <span style={{ marginLeft: '4px' }}>{record.stock}</span>
+            <span className={styles.stockSecondary}>
+              库存: <span className={styles.stockSecondaryValue}>{record.stock}</span>
             </span>
-            <span style={{ fontSize: 12, color: '#999' }}>
-              预留: <span style={{ marginLeft: '4px' }}>{record.reserved}</span>
+            <span className={styles.stockSecondary}>
+              预留: <span className={styles.stockSecondaryValue}>{record.reserved}</span>
             </span>
           </div>
         );
@@ -315,20 +257,14 @@ export const getProductTableColumns = (
         };
 
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%' }}>
+          <div className={styles.columnContainerSmallGap}>
             {/* 销量 */}
-            <span
-              style={{
-                fontWeight: salesCount > 0 ? 'bold' : 'normal',
-                color: salesCount > 0 ? '#ff4d4f' : undefined,
-                fontSize: 13,
-              }}
-            >
+            <span className={salesCount > 0 ? styles.salesCountActive : styles.salesCount}>
               {salesCount > 0 ? salesCount : '-'}
             </span>
             {/* 最后销售时间 */}
             {lastSaleAt && (
-              <span style={{ fontSize: 11, color: '#999' }}>
+              <span className={styles.lastSaleDate}>
                 {formatSaleDate(lastSaleAt)}
               </span>
             )}
@@ -364,16 +300,16 @@ export const getProductTableColumns = (
         };
 
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%' }}>
+          <div className={styles.columnContainerSmallGap}>
             <Tag
               color={statusMap[status]?.color}
-              style={{ cursor: isError ? 'pointer' : 'default' }}
+              className={isError ? styles.statusTagClickable : undefined}
               onClick={handleErrorClick}
             >
               {statusMap[status]?.text || status}
             </Tag>
             {record.ozon_has_fbs_stocks && (
-              <div style={{ fontSize: 11, color: '#999' }}>FBS</div>
+              <div className={styles.statusFbs}>FBS</div>
             )}
           </div>
         );
@@ -409,7 +345,7 @@ export const getProductTableColumns = (
         };
 
         return (
-          <span style={{ fontSize: 12 }} title={formatDate(createDate)}>
+          <span className={styles.dateText} title={formatDate(createDate)}>
             {createDate.toLocaleDateString('zh-CN')}
           </span>
         );
