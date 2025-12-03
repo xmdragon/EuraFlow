@@ -340,7 +340,7 @@ export class SpbangApi extends BaseApiClient {
       const result = await response.json();
 
       if (__DEBUG__) {
-        console.log('[API] SpbangApi.getSalesDataBatch 返回:', JSON.stringify(result, null, 2));
+        console.log('[API] SpbangApi.getSalesDataBatch 返回:', result);
       }
 
       // 检测 Token 过期
