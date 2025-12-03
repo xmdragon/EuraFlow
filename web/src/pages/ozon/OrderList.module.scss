@@ -130,6 +130,11 @@
   gap: 8px;
 }
 
+// ===== 通用文本样式（替代 Ant Design Typography 提升性能） =====
+.labelSecondary {
+  color: rgba(0, 0, 0, 0.45);
+}
+
 .productPreviewImage {
   width: 200px;
   height: 200px;

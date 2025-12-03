@@ -12,7 +12,7 @@ import {
   ReloadOutlined,
   FileImageOutlined,
 } from '@ant-design/icons';
-import { Button, Tag, Dropdown, Tooltip, Space, Switch } from 'antd';
+import { Button, Tag, Dropdown, Switch } from 'antd';
 import { ColumnsType } from 'antd/es/table';
 import React from 'react';
 
@@ -105,6 +105,7 @@ export const getProductTableColumns = (
       },
     },
     // 第二列：SKU信息（100px）
+    // 使用原生 div 替代 Space 提升性能
     {
       title: 'SKU',
       key: 'sku',
@@ -138,7 +139,7 @@ export const getProductTableColumns = (
         );
 
         return (
-          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
             {/* 商品货号 */}
             <div
               style={{
@@ -199,27 +200,27 @@ export const getProductTableColumns = (
                 />
               )}
             </div>
-          </Space>
+          </div>
         );
       },
     },
     // 第三列：标题（自适应宽度）
+    // 使用原生 title 替代 Tooltip 提升性能
     {
       title: <SortableColumnTitle title="商品名称" field="title" />,
       dataIndex: 'title',
       key: 'title',
       render: (text) => {
         const displayText = text && text.length > 80 ? text.substring(0, 80) + '...' : text;
-        return text && text.length > 80 ? (
-          <Tooltip title={text}>
-            <span>{displayText}</span>
-          </Tooltip>
-        ) : (
-          <span>{displayText || '-'}</span>
+        return (
+          <span title={text && text.length > 80 ? text : undefined}>
+            {displayText || '-'}
+          </span>
         );
       },
     },
     // 第四列：价格（80px）
+    // 使用原生 div 替代 Space 提升性能
     {
       title: <SortableColumnTitle title="价格" field="price" />,
       key: 'price',
@@ -229,7 +230,7 @@ export const getProductTableColumns = (
         const oldPrice = record.old_price ? parseFloat(record.old_price) : null;
 
         return (
-          <Space direction="vertical" size={2} style={{ width: '100%' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%' }}>
             {/* 当前价格（绿色加粗） */}
             <span style={{ fontWeight: 'bold', color: '#52c41a', fontSize: 13 }}>
               {formatPriceWithCurrency(price, record.currency_code)}
@@ -246,11 +247,12 @@ export const getProductTableColumns = (
                 {formatPriceWithCurrency(oldPrice, record.currency_code)}
               </span>
             )}
-          </Space>
+          </div>
         );
       },
     },
     // 第五列：库存（80px）
+    // 使用原生 div 替代 Space 提升性能
     {
       title: <SortableColumnTitle title="库存" field="stock" />,
       key: 'stock',
@@ -259,7 +261,7 @@ export const getProductTableColumns = (
         // 如果有仓库库存详情，按仓库显示
         if (record.warehouse_stocks && record.warehouse_stocks.length > 0) {
           return (
-            <Space direction="vertical" size={2} style={{ width: '100%' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%' }}>
               {record.warehouse_stocks.map((ws, index) => {
                 // 提取仓库名称缩写（取前4个字符）
                 const warehouseAbbr = ws.warehouse_name?.substring(0, 4) || `W${ws.warehouse_id}`;
@@ -272,13 +274,13 @@ export const getProductTableColumns = (
                   </span>
                 );
               })}
-            </Space>
+            </div>
           );
         }
 
         // 降级：如果没有仓库库存详情，显示总计
         return (
-          <Space direction="vertical" size={2} style={{ width: '100%' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%' }}>
             <span style={{ fontSize: 12 }}>
               可售: <span style={{ fontWeight: 600, marginLeft: '4px' }}>{record.available}</span>
             </span>
@@ -288,11 +290,12 @@ export const getProductTableColumns = (
             <span style={{ fontSize: 12, color: '#999' }}>
               预留: <span style={{ marginLeft: '4px' }}>{record.reserved}</span>
             </span>
-          </Space>
+          </div>
         );
       },
     },
     // 第六列：销量（100px）
+    // 使用原生 div 替代 Space 提升性能
     {
       title: <SortableColumnTitle title="销量" field="sales_count" />,
       key: 'sales_count',
@@ -312,7 +315,7 @@ export const getProductTableColumns = (
         };
 
         return (
-          <Space direction="vertical" size={2} style={{ width: '100%' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%' }}>
             {/* 销量 */}
             <span
               style={{
@@ -329,11 +332,12 @@ export const getProductTableColumns = (
                 {formatSaleDate(lastSaleAt)}
               </span>
             )}
-          </Space>
+          </div>
         );
       },
     },
     // 第七列：状态（80px）
+    // 使用原生 div 替代 Space 提升性能
     {
       title: '状态',
       dataIndex: 'status',
@@ -360,7 +364,7 @@ export const getProductTableColumns = (
         };
 
         return (
-          <Space direction="vertical" size={2} style={{ width: '100%' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%' }}>
             <Tag
               color={statusMap[status]?.color}
               style={{ cursor: isError ? 'pointer' : 'default' }}
@@ -368,10 +372,10 @@ export const getProductTableColumns = (
             >
               {statusMap[status]?.text || status}
             </Tag>
-            <div style={{ fontSize: 11, color: '#999' }}>
-              {record.ozon_has_fbs_stocks && <div>FBS</div>}
-            </div>
-          </Space>
+            {record.ozon_has_fbs_stocks && (
+              <div style={{ fontSize: 11, color: '#999' }}>FBS</div>
+            )}
+          </div>
         );
       },
     },
@@ -384,6 +388,7 @@ export const getProductTableColumns = (
       render: (visible) => <Switch checked={visible} disabled size="small" />,
     },
     // 第八列：创建时间（110px）
+    // 使用原生 title 替代 Tooltip 提升性能
     {
       title: <SortableColumnTitle title="创建时间" field="created_at" />,
       dataIndex: 'ozon_created_at',
@@ -394,7 +399,7 @@ export const getProductTableColumns = (
         if (!displayDate) return '-';
         const createDate = new Date(displayDate);
 
-        const formatDate = (d) => {
+        const formatDate = (d: Date) => {
           const year = d.getFullYear();
           const month = d.getMonth() + 1;
           const day = d.getDate();
@@ -404,9 +409,9 @@ export const getProductTableColumns = (
         };
 
         return (
-          <Tooltip title={formatDate(createDate)}>
-            <span style={{ fontSize: 12 }}>{createDate.toLocaleDateString('zh-CN')}</span>
-          </Tooltip>
+          <span style={{ fontSize: 12 }} title={formatDate(createDate)}>
+            {createDate.toLocaleDateString('zh-CN')}
+          </span>
         );
       },
     },

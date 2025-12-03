@@ -47,6 +47,7 @@ import { loggers } from '@/utils/logger';
 import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
 
 const { RangePicker } = DatePicker;
+// 仅在 Modal 内使用 Text，表格列中使用原生 span 提升性能
 const { Text } = Typography;
 
 // 订单商品行数据结构（用于表格展示）
@@ -530,6 +531,7 @@ const OrderList: React.FC = () => {
       },
     },
     // 第二列：商品信息（店铺、SKU、数量、单价）
+    // 使用原生 span 和 title 替代 Typography/Tooltip 提升性能
     {
       title: '商品信息',
       key: 'product_info',
@@ -546,24 +548,23 @@ const OrderList: React.FC = () => {
         return (
           <div className={styles.infoColumn}>
             <div>
-              <Text type="secondary">店铺: </Text>
-              <Tooltip title={shopName}>
-                <strong
-                  style={{
-                    display: 'inline-block',
-                    maxWidth: '180px',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    verticalAlign: 'bottom',
-                  }}
-                >
-                  {shopName}
-                </strong>
-              </Tooltip>
+              <span className={styles.labelSecondary}>店铺: </span>
+              <strong
+                title={shopName}
+                style={{
+                  display: 'inline-block',
+                  maxWidth: '180px',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  verticalAlign: 'bottom',
+                }}
+              >
+                {shopName}
+              </strong>
             </div>
             <div>
-              <Text type="secondary">SKU: </Text>
+              <span className={styles.labelSecondary}>SKU: </span>
               {item.sku ? (
                 <>
                   <a
@@ -590,16 +591,16 @@ const OrderList: React.FC = () => {
               )}
             </div>
             <div>
-              <Text type="secondary">数量: </Text>X {item.quantity || 1}
+              <span className={styles.labelSecondary}>数量: </span>X {item.quantity || 1}
             </div>
             <div>
-              <Text type="secondary">单价: </Text>
+              <span className={styles.labelSecondary}>单价: </span>
               <span className={styles.price}>
                 {symbol} {formatPrice(item.price || 0)}
               </span>
             </div>
             <div>
-              <Text type="secondary">金额: </Text>
+              <span className={styles.labelSecondary}>金额: </span>
               <span className={styles.price}>
                 {symbol} {formatPrice((Number(item.price) || 0) * (item.quantity || 1))}
               </span>
@@ -609,6 +610,7 @@ const OrderList: React.FC = () => {
       },
     },
     // 第三列：物流信息（货件编号、追踪号码、国内单号，带复制图标）
+    // 使用原生 span 替代 Typography 提升性能
     {
       title: '物流信息',
       key: 'logistics_info',
@@ -627,7 +629,7 @@ const OrderList: React.FC = () => {
           children: (
             <div className={styles.infoColumn}>
               <div>
-                <Text type="secondary">货件: </Text>
+                <span className={styles.labelSecondary}>货件: </span>
                 <a
                   onClick={() => showOrderDetail(row.order, posting)}
                   className={styles.link}
@@ -641,7 +643,7 @@ const OrderList: React.FC = () => {
                 />
               </div>
               <div>
-                <Text type="secondary">追踪: </Text>
+                <span className={styles.labelSecondary}>追踪: </span>
                 <span>{trackingNumber || '-'}</span>
                 {trackingNumber && (
                   <CopyOutlined
@@ -655,7 +657,7 @@ const OrderList: React.FC = () => {
                 )}
               </div>
               <div>
-                <Text type="secondary">国内: </Text>
+                <span className={styles.labelSecondary}>国内: </span>
                 {domesticTrackingNumbers && domesticTrackingNumbers.length > 0 ? (
                   <div style={{ display: 'inline-block', verticalAlign: 'top' }}>
                     {domesticTrackingNumbers.map((number, index) => (
@@ -704,6 +706,7 @@ const OrderList: React.FC = () => {
       },
     },
     // 第四列：订单信息（配送方式、订单状态、订单时间、发货截止）
+    // 使用原生 span 和 title 替代 Typography/Tooltip 提升性能
     {
       title: '订单信息',
       key: 'order_info',
@@ -722,34 +725,33 @@ const OrderList: React.FC = () => {
           children: (
             <div className={styles.infoColumn}>
               <div>
-                <Text type="secondary">配送: </Text>
-                <Tooltip title={formatDeliveryMethodText(fullText)}>
-                  <span
-                    style={{
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      display: 'inline-block',
-                      maxWidth: '150px',
-                      verticalAlign: 'bottom',
-                    }}
-                  >
-                    {shortText}
-                  </span>
-                </Tooltip>
+                <span className={styles.labelSecondary}>配送: </span>
+                <span
+                  title={fullText}
+                  style={{
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    display: 'inline-block',
+                    maxWidth: '150px',
+                    verticalAlign: 'bottom',
+                  }}
+                >
+                  {shortText}
+                </span>
               </div>
               <div>
-                <Text type="secondary">状态: </Text>
+                <span className={styles.labelSecondary}>状态: </span>
                 <Tag color={status.color} className={styles.tag}>
                   {status.text}
                 </Tag>
               </div>
               <div>
-                <Text type="secondary">下单: </Text>
+                <span className={styles.labelSecondary}>下单: </span>
                 {formatDateTime(order.ordered_at)}
               </div>
               <div>
-                <Text type="secondary">截止: </Text>
+                <span className={styles.labelSecondary}>截止: </span>
                 <span style={{ color: '#ff4d4f', fontWeight: 'bold' }}>
                   {formatDateTime(posting.shipment_date)}
                 </span>

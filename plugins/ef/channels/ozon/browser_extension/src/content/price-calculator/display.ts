@@ -550,9 +550,9 @@ function createFollowerPopover(sellerList: any[] | null): HTMLElement {
   popover.style.cssText = `
     position: absolute;
     bottom: 100%;
-    left: -200px;
-    min-width: 500px;
-    max-width: 600px;
+    left: -270px;
+    min-width: 570px;
+    max-width: 700px;
     max-height: 400px;
     overflow-y: auto;
     background: #fff;
@@ -579,6 +579,7 @@ function createFollowerPopover(sellerList: any[] | null): HTMLElement {
     <tr style="background: #f5f5f5; border-bottom: 1px solid #e0e0e0;">
       <th style="padding: 10px 8px; text-align: left; font-weight: 500; color: #666; width: 50px;">头像</th>
       <th style="padding: 10px 8px; text-align: left; font-weight: 500; color: #666; min-width: 120px;">卖家名称</th>
+      <th style="padding: 10px 8px; text-align: center; font-weight: 500; color: #666; width: 70px;">评分</th>
       <th style="padding: 10px 8px; text-align: center; font-weight: 500; color: #666; width: 60px;">地区</th>
       <th style="padding: 10px 8px; text-align: center; font-weight: 500; color: #666; width: 100px;">商品SKU</th>
       <th style="padding: 10px 8px; text-align: right; font-weight: 500; color: #666; width: 80px;">售价</th>
@@ -602,6 +603,18 @@ function createFollowerPopover(sellerList: any[] | null): HTMLElement {
     // 卖家名称（可点击跳转）
     const sellerLink = seller.link || '#';
     const sellerName = seller.name || '未知卖家';
+
+    // 评分（从 rating 提取）
+    let ratingHtml = '<span style="color: #999;">---</span>';
+    if (seller.rating) {
+      const score = seller.rating.totalScore ?? seller.rating.score ?? null;
+      const reviews = seller.rating.reviewsCount ?? seller.rating.count ?? 0;
+      if (score !== null) {
+        // 星星颜色：5分金色，4-4.9橙色，其他灰色
+        const starColor = score >= 5 ? '#FFB800' : score >= 4 ? '#FF9800' : '#9E9E9E';
+        ratingHtml = `<span style="color: ${starColor}; font-weight: 500;">★${score}</span><span style="color: #999; font-size: 11px; margin-left: 2px;">(${reviews})</span>`;
+      }
+    }
 
     // 地区（从 credentials 提取，找包含 CN 的行）
     let region = '未知';
@@ -629,6 +642,7 @@ function createFollowerPopover(sellerList: any[] | null): HTMLElement {
     tr.innerHTML = `
       <td style="padding: 8px;">${logoHtml}</td>
       <td style="padding: 8px;"><a href="${sellerLink}" target="_blank" style="color: #005bff; text-decoration: none; word-break: break-word;">${sellerName}</a></td>
+      <td style="padding: 8px; text-align: center;">${ratingHtml}</td>
       <td style="padding: 8px; text-align: center;">${region}</td>
       <td style="padding: 8px; text-align: center;"><a href="${productLink}" target="_blank" style="color: #005bff; text-decoration: none;">${sku}</a></td>
       <td style="padding: 8px; text-align: right; font-weight: 500; color: #ff5722;">${priceStr}</td>
