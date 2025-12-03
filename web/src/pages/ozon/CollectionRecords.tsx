@@ -13,7 +13,6 @@ import {
   Form,
   Tooltip,
 } from 'antd';
-import dayjs from 'dayjs';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -23,6 +22,7 @@ import ShopSelector from '@/components/ozon/ShopSelector';
 import PageTitle from '@/components/PageTitle';
 import { useShopSelection } from '@/hooks/ozon/useShopSelection';
 import { usePermission } from '@/hooks/usePermission';
+import { useDateTime } from '@/hooks/useDateTime';
 import { useCurrency } from '@/hooks/useCurrency';
 import { loggers } from '@/utils/logger';
 import { notifySuccess, notifyError } from '@/utils/notification';
@@ -58,6 +58,7 @@ const CollectionRecords: React.FC = () => {
   const _queryClient = useQueryClient();
   const { canOperate, canDelete } = usePermission();
   const { formatPrice } = useCurrency();
+  const { formatDateTime } = useDateTime();
 
   // 状态管理
   const [currentPage, setCurrentPage] = useState(1);
@@ -282,7 +283,7 @@ const CollectionRecords: React.FC = () => {
       key: 'created_at',
       minWidth: 100,
       width: 100,
-      render: (time: string) => dayjs(time).format('MM-DD HH:mm'),
+      render: (time: string) => formatDateTime(time),
     },
     {
       title: '操作',

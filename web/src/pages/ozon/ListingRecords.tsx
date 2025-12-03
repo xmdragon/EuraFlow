@@ -48,6 +48,7 @@ import PageTitle from '@/components/PageTitle';
 import { useShopSelection } from '@/hooks/ozon/useShopSelection';
 import { useCurrency } from '@/hooks/useCurrency';
 import { usePermission } from '@/hooks/usePermission';
+import { useDateTime } from '@/hooks/useDateTime';
 import * as ozonApi from '@/services/ozon';
 import { loggers } from '@/utils/logger';
 import { notifySuccess, notifyError } from '@/utils/notification';
@@ -108,6 +109,7 @@ const ListingRecords: React.FC = () => {
   const queryClient = useQueryClient();
   const { canOperate, canDelete } = usePermission();
   const { formatPrice } = useCurrency();
+  const { formatDateTime } = useDateTime();
   const navigate = useNavigate();
 
   // 状态管理
@@ -373,7 +375,7 @@ const ListingRecords: React.FC = () => {
       dataIndex: 'created_at',
       key: 'created_at',
       width: 100,
-      render: (time: string) => dayjs(time).format('MM-DD HH:mm'),
+      render: (time: string) => formatDateTime(time),
     },
     {
       title: '操作',

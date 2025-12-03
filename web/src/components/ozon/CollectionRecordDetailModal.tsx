@@ -5,7 +5,6 @@
  */
 import { LinkOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import { Modal, Descriptions, Image, Tag } from 'antd';
-import dayjs from 'dayjs';
 import React, { useState, useMemo } from 'react';
 
 import styles from './CollectionRecordDetailModal.module.scss';
@@ -13,6 +12,7 @@ import styles from './CollectionRecordDetailModal.module.scss';
 import { useQuery } from '@tanstack/react-query';
 
 import { useCurrency } from '@/hooks/useCurrency';
+import { useDateTime } from '@/hooks/useDateTime';
 import * as ozonApi from '@/services/ozon';
 import * as watermarkApi from '@/services/watermarkApi';
 
@@ -22,9 +22,12 @@ interface Variant {
   specifications: string;       // 规格描述（如 "白色,M"）
   name?: string;                // 变体名称
   primary_image: string;        // 图片URL（与插件字段名一致）
+  images?: { url: string }[];   // 变体图片数组（可选）
   price: number;                // 价格（元）
   old_price?: number;           // 原价（元）
+  original_price?: number;      // 原价（兼容旧字段名）
   stock?: number;               // 库存
+  link?: string;                // 变体链接（可选）
 }
 
 interface ProductDimensions {
@@ -86,6 +89,7 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
   isListingRecord = false,
 }) => {
   const { formatPrice } = useCurrency();
+  const { formatDateTime } = useDateTime();
   const [selectedVariantIndex, setSelectedVariantIndex] = useState(0);
 
   // 获取店铺数据
@@ -233,7 +237,7 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
             </div>
           )}
           <div className={styles.metadata}>
-            <span>{isListingRecord ? '上架时间' : '采集时间'}：{dayjs(record.created_at).format('YYYY-MM-DD HH:mm:ss')}</span>
+            <span>{isListingRecord ? '上架时间' : '采集时间'}：{formatDateTime(record.created_at, 'YYYY-MM-DD HH:mm:ss')}</span>
             {currentImages.length > 1 && (
               <span>{currentImages.length} 张图片</span>
             )}
