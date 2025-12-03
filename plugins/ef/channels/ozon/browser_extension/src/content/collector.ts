@@ -208,17 +208,27 @@ function parseProductItem(item: any): ProductBasicInfo {
   let title = item.title || item.name || '';
   if (!title && item.mainState) {
     for (const state of item.mainState) {
-      // textSmall 类型通常包含标题
+      // 1. textAtom 类型且 id="name"（最常见格式）
+      if (state.type === 'textAtom' && state.id === 'name' && state.textAtom?.text) {
+        title = state.textAtom.text;
+        break;
+      }
+      // 2. textAtom 类型（无 id）
+      if (state.type === 'textAtom' && state.textAtom?.text && !title) {
+        title = state.textAtom.text;
+        // 不 break，继续找更精确的匹配
+      }
+      // 3. textSmall 类型
       if (state.type === 'textSmall' && state.text) {
         title = state.text;
         break;
       }
-      // atom.textAtom 格式
+      // 4. atom.textAtom 格式
       if (state.atom?.textAtom?.text) {
         title = state.atom.textAtom.text;
         break;
       }
-      // title 类型
+      // 5. title 类型
       if (state.type === 'title' && state.title) {
         title = state.title;
         break;
@@ -232,6 +242,14 @@ function parseProductItem(item: any): ProductBasicInfo {
 
   // 提取图片（多种格式兼容）
   let imageUrl = item.image || item.mainImage || item.images?.[0] || null;
+  // 1. tileImage.items 格式（最常见）
+  if (!imageUrl && item.tileImage?.items?.length > 0) {
+    const firstImage = item.tileImage.items[0];
+    if (firstImage?.type === 'image' && firstImage?.image?.link) {
+      imageUrl = firstImage.image.link;
+    }
+  }
+  // 2. mainState 中的图片
   if (!imageUrl && item.mainState) {
     for (const state of item.mainState) {
       if (state.type === 'image' && state.image) {
@@ -244,7 +262,7 @@ function parseProductItem(item: any): ProductBasicInfo {
       }
     }
   }
-  // tileState 中的图片
+  // 3. tileState 中的图片
   if (!imageUrl && item.tileState?.image) {
     imageUrl = item.tileState.image;
   }
