@@ -100,10 +100,11 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
   useEffect(() => {
     if (visible && stockCheckData?.items) {
       const items: ItemPrepareData[] = stockCheckData.items.map((item) => {
-        // 计算进货价格：使用库存时 = 单价 × 订单数量
+        // 采购单价（库存中记录的是单个商品的采购价格）
         const unitPrice = item.unit_price ?? undefined;
+        // 进货价格：使用库存时直接使用单价（库存中的采购价就是单价，不需要乘以数量）
         const purchasePrice = item.is_sufficient && unitPrice
-          ? unitPrice * item.order_quantity
+          ? unitPrice
           : (item.is_sufficient ? 0 : undefined);
 
         return {
@@ -141,10 +142,8 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
 
           // 如果勾选使用库存且库存充足，自动设置价格和平台
           if (field === 'useStock' && value && item.stockAvailable >= item.orderQuantity) {
-            // 进货价格 = 单价 × 订单数量（如果有单价），否则为0
-            updated.purchasePrice = item.unitPrice
-              ? item.unitPrice * item.orderQuantity
-              : 0;
+            // 进货价格：直接使用单价（库存中的采购价就是单价，不需要乘以数量）
+            updated.purchasePrice = item.unitPrice ?? 0;
             updated.sourcePlatform = ['库存'];
           }
 
