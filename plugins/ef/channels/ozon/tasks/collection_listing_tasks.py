@@ -113,11 +113,10 @@ def process_follow_pdp_listing(record_id: int) -> dict:
 
             logger.info(f"[CollectionListing] 变体数量: {len(variants)}")
 
-            # 4. 异步翻译和创建任务
-            async def process_variants():
-                """异步处理变体翻译和任务创建"""
+            # 4. 异步翻译和准备变体数据
+            async def prepare_variants():
+                """异步处理变体翻译和数据准备（不触发 Celery 任务）"""
                 from ..services.translation_factory import TranslationFactory
-                from ..tasks.quick_publish_task import quick_publish_chain_task
                 from ..models.listing import OzonCategory
 
                 settings = get_settings()
@@ -178,8 +177,8 @@ def process_follow_pdp_listing(record_id: int) -> dict:
                         except Exception as e:
                             logger.warning(f"[CollectionListing] 描述翻译失败: {e}")
 
-                    # 为每个变体创建任务
-                    task_ids = []
+                    # 为每个变体准备数据
+                    variant_dtos = []
                     for idx, variant in enumerate(variants):
                         # 获取变体名称
                         variant_name = variant.get("name", "") or listing_payload.get("title", "")
@@ -258,24 +257,32 @@ def process_follow_pdp_listing(record_id: int) -> dict:
                             "currency_code": "CNY",
                         }
 
-                        # 生成唯一任务ID
-                        task_id = f"follow_pdp_{shop_id}_{record_id}_{idx}_{int(time.time() * 1000)}"
+                        variant_dtos.append(variant_dto)
+                        logger.info(f"[CollectionListing] 变体 {idx+1}/{len(variants)} 数据准备完成")
 
-                        # 触发 Celery 任务
-                        quick_publish_chain_task.apply_async(
-                            args=[variant_dto, user_id, shop_id],
-                            task_id=task_id
-                        )
+                    return variant_dtos
 
-                        task_ids.append(task_id)
-                        logger.info(f"[CollectionListing] 变体 {idx+1}/{len(variants)} 任务已创建: task_id={task_id}")
+            # 执行异步处理（仅准备数据，不触发任务）
+            variant_dtos = run_async_in_celery(prepare_variants())
 
-                    return task_ids
+            # 5. 在同步上下文中触发 Celery 任务（避免异步上下文中的连接问题）
+            from ..tasks.quick_publish_task import quick_publish_chain_task
 
-            # 执行异步处理
-            task_ids = run_async_in_celery(process_variants())
+            task_ids = []
+            for idx, variant_dto in enumerate(variant_dtos):
+                # 生成唯一任务ID
+                task_id = f"follow_pdp_{shop_id}_{record_id}_{idx}_{int(time.time() * 1000)}"
 
-            # 5. 更新记录状态
+                # 触发 Celery 任务（在同步上下文中）
+                result = quick_publish_chain_task.apply_async(
+                    args=[variant_dto, user_id, shop_id],
+                    task_id=task_id
+                )
+
+                task_ids.append(task_id)
+                logger.info(f"[CollectionListing] 变体 {idx+1}/{len(variant_dtos)} Celery任务已触发: task_id={task_id}, celery_result_id={result.id}")
+
+            # 6. 更新记录状态
             record.listing_status = "success"
             record.listing_error_message = None
             # 保存所有任务ID（逗号分隔）
