@@ -6,6 +6,8 @@ import asyncio
 import json
 import time
 import logging
+import secrets
+import string
 from typing import Dict, Any, List, Optional
 from datetime import datetime, UTC
 
@@ -514,16 +516,21 @@ def create_product_task(self, prev_result: Dict, dto_dict: Dict, user_id: int, s
                     formatted_attr["values"][0]["dictionary_value_id"] = attr["dictionary_value_id"]
                 formatted_attributes.append(formatted_attr)
 
-        # 自动添加型号名称（attribute_id: 9048）- 使用 offer_id 作为默认值
+        # 自动添加型号名称（attribute_id: 9048）
+        # 型号名称用于合并商品卡：同一商品的多个变体共用同一个型号名称
+        # 使用10位随机字母数字码，不能使用货号(offer_id)
         existing_attr_ids = {attr.get("id") for attr in formatted_attributes}
         if 9048 not in existing_attr_ids:
+            # 生成10位随机码（大小写字母+数字）
+            alphabet = string.ascii_letters + string.digits
+            model_code = ''.join(secrets.choice(alphabet) for _ in range(10))
             model_name_attr = {
                 "id": 9048,
                 "complex_id": 0,
-                "values": [{"value": dto_dict.get("offer_id", "DEFAULT")}]
+                "values": [{"value": model_code}]
             }
             formatted_attributes.append(model_name_attr)
-            logger.info(f"[Step 2] 自动添加型号名称: {dto_dict.get('offer_id')}")
+            logger.info(f"[Step 2] 自动添加型号名称: {model_code}")
 
         # 添加商品描述（attribute_id: 4191）
         # OZON API 不支持 description 作为直接字段，必须作为属性传递
