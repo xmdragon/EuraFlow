@@ -586,3 +586,40 @@
 .ef-variants-table__input--right {
   text-align: right;
 }
+
+/* ========== 描述警告区域（外链检测） ========== */
+.ef-description-warning {
+  margin: 16px 0;
+  padding: 12px;
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 8px;
+}
+
+.ef-description-warning__field {
+  margin-bottom: 8px;
+}
+
+.ef-description-warning__label {
+  display: block;
+  color: #666;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.ef-description-warning__textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: monospace;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.ef-description-warning__hint {
+  color: #856404;
+  font-size: 12px;
+}

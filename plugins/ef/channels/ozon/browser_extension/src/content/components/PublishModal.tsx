@@ -683,20 +683,13 @@ function renderDescriptionWarning(): string {
     .replace(/>/g, '&gt;');
 
   return `
-    <div class="ef-description-warning" style="margin: 16px 0; padding: 12px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px;">
-      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-        <span style="color: #856404; font-size: 18px;">⚠️</span>
-        <span style="color: #856404; font-weight: 600;">描述中有外链，请检查</span>
+    <div class="ef-description-warning">
+      <div class="ef-description-warning__field">
+        <label class="ef-description-warning__label">商品描述</label>
+        <textarea id="description-edit" class="ef-description-warning__textarea" placeholder="商品描述...">${escapedDescription}</textarea>
       </div>
-      <div style="margin-bottom: 8px;">
-        <label style="display: block; color: #666; font-size: 12px; margin-bottom: 4px;">商品描述（可编辑）</label>
-        <textarea id="description-edit"
-          style="width: 100%; min-height: 120px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; font-family: monospace; resize: vertical; box-sizing: border-box;"
-          placeholder="商品描述..."
-        >${escapedDescription}</textarea>
-      </div>
-      <div style="color: #856404; font-size: 12px;">
-        提示：外链可能导致商品被OZON拒绝，建议删除或修改描述中的 &lt;a&gt; 标签
+      <div class="ef-description-warning__hint">
+        提示：⚠️ 描述中有外链，请检查，建议删除或修改描述中的 &lt;a&gt; 标签。
       </div>
     </div>
   `;

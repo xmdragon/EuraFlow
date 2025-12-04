@@ -525,12 +525,19 @@ def create_product_task(self, prev_result: Dict, dto_dict: Dict, user_id: int, s
             formatted_attributes.append(model_name_attr)
             logger.info(f"[Step 2] 自动添加型号名称: {dto_dict.get('offer_id')}")
 
+        # 添加商品描述（attribute_id: 4191）
+        # OZON API 不支持 description 作为直接字段，必须作为属性传递
+        if dto_dict.get("description") and 4191 not in existing_attr_ids:
+            description_attr = {
+                "id": 4191,
+                "complex_id": 0,
+                "values": [{"value": dto_dict["description"]}]
+            }
+            formatted_attributes.append(description_attr)
+            logger.info(f"[Step 2] 添加商品描述（属性4191），长度: {len(dto_dict['description'])} 字符")
+
         product_item["attributes"] = formatted_attributes
         logger.info(f"[Step 2] 最终属性数量: {len(formatted_attributes)}")
-
-        # 可选字段
-        if dto_dict.get("description"):
-            product_item["description"] = dto_dict["description"]
         if dto_dict.get("brand"):
             product_item["brand"] = dto_dict["brand"]
         if dto_dict.get("barcode"):

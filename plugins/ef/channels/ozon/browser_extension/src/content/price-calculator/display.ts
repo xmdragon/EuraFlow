@@ -104,32 +104,11 @@ function showCollectConfirmModal(description: string): Promise<{confirmed: boole
     // 创建遮罩层
     const overlay = document.createElement('div');
     overlay.id = 'euraflow-collect-confirm-overlay';
-    overlay.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.5);
-      z-index: 2147483646;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      backdrop-filter: blur(2px);
-    `;
+    overlay.className = 'ef-collect-confirm-overlay';
 
     // 创建弹窗
     const modal = document.createElement('div');
-    modal.style.cssText = `
-      background: white;
-      border-radius: 12px;
-      padding: 24px;
-      width: 600px;
-      max-width: 90vw;
-      max-height: 80vh;
-      overflow-y: auto;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-    `;
+    modal.className = 'ef-collect-confirm-modal';
 
     // 转义HTML用于显示
     const escapedDescription = description
@@ -138,38 +117,16 @@ function showCollectConfirmModal(description: string): Promise<{confirmed: boole
       .replace(/>/g, '&gt;');
 
     modal.innerHTML = `
-      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px;">
-        <span style="color: #856404; font-size: 24px;">⚠️</span>
-        <h3 style="margin: 0; font-size: 18px; color: #333;">描述中有外链，请检查</h3>
+      <div class="ef-collect-confirm__field">
+        <label class="ef-collect-confirm__label">商品描述</label>
+        <textarea id="collect-description-edit" class="ef-collect-confirm__textarea">${escapedDescription}</textarea>
       </div>
-      <div style="margin-bottom: 16px;">
-        <label style="display: block; color: #666; font-size: 12px; margin-bottom: 8px;">商品描述（可编辑）</label>
-        <textarea id="collect-description-edit"
-          style="width: 100%; min-height: 200px; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; font-family: monospace; resize: vertical; box-sizing: border-box;"
-        >${escapedDescription}</textarea>
+      <div class="ef-collect-confirm__warning">
+        提示：⚠️ 描述中有外链，请检查，建议删除或修改描述中的 &lt;a&gt; 标签。
       </div>
-      <div style="color: #856404; font-size: 12px; margin-bottom: 16px; padding: 8px; background: #fff3cd; border-radius: 4px;">
-        提示：外链可能导致商品被OZON拒绝，建议删除或修改描述中的 &lt;a&gt; 标签后再采集
-      </div>
-      <div style="display: flex; justify-content: flex-end; gap: 12px;">
-        <button id="collect-cancel-btn" style="
-          padding: 10px 20px;
-          border: 1px solid #ddd;
-          border-radius: 6px;
-          background: white;
-          color: #666;
-          font-size: 14px;
-          cursor: pointer;
-        ">取消</button>
-        <button id="collect-confirm-btn" style="
-          padding: 10px 20px;
-          border: none;
-          border-radius: 6px;
-          background: #10b981;
-          color: white;
-          font-size: 14px;
-          cursor: pointer;
-        ">确认采集</button>
+      <div class="ef-collect-confirm__actions">
+        <button id="collect-cancel-btn" class="ef-collect-confirm__cancel-btn">取消</button>
+        <button id="collect-confirm-btn" class="ef-collect-confirm__confirm-btn">确认采集</button>
       </div>
     `;
 
