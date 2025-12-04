@@ -613,11 +613,32 @@ def upload_images_to_storage_task(self, dto_dict: Dict, shop_id: int, parent_tas
     步骤 1: 上传图片到图床 (Cloudinary/Aliyun OSS)
     从 OZON URLs 下载并上传到激活的图片存储，添加水印
     """
-    ozon_image_urls = dto_dict.get("images", [])
+    # 构建图片列表：主图在前，附图在后
+    # 主图从 variants[0].primary_image 获取
+    # 附图从 images 数组获取（排除主图）
+    ozon_image_urls = []
+
+    # 1. 先获取变体主图
+    variants = dto_dict.get("variants", [])
+    primary_image = None
+    if variants and len(variants) > 0:
+        primary_image = variants[0].get("primary_image")
+        if primary_image:
+            ozon_image_urls.append(primary_image)
+            logger.info(f"[Step 1] 从变体获取主图: {primary_image[:50]}...")
+
+    # 2. 再添加附图（从 images 数组，排除主图避免重复）
+    images = dto_dict.get("images", [])
+    for img in images:
+        # images 数组中每个元素可能是 dict 或 string
+        img_url = img.get("url") if isinstance(img, dict) else img
+        if img_url and img_url != primary_image:
+            ozon_image_urls.append(img_url)
+
     offer_id = dto_dict.get("offer_id", "unknown")
     watermark_config_id = dto_dict.get("watermark_config_id")  # 用户指定的水印配置
 
-    logger.info(f"[Step 1] Uploading images: offer_id={offer_id}, count={len(ozon_image_urls)}, watermark_config_id={watermark_config_id}")
+    logger.info(f"[Step 1] Uploading images: offer_id={offer_id}, count={len(ozon_image_urls)} (primary={1 if primary_image else 0}, additional={len(images)}), watermark_config_id={watermark_config_id}")
 
     try:
         update_task_progress(
