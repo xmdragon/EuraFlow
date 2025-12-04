@@ -809,4 +809,25 @@ def fetch_data():
 
 ---
 
+## 23) 数据库查询规范
+
+### 查询前必查文档
+- **首次查询某表**：先读 `docs/database/{分类}/{表名}.md` 了解字段结构
+- **查询报错时**：立即查看表结构文档，确认字段名和类型，避免多次尝试
+- **禁止盲猜**：不确定的字段名/类型必须先查文档
+
+### 快速索引
+- **表清单和关系图**：`docs/database/README.md`
+- **核心表**：`docs/database/core/`（users, orders, shipments 等）
+- **OZON 表**：`docs/database/ozon/`（ozon_orders, ozon_products 等）
+- **系统表**：`docs/database/system/`（sync_services 等）
+
+### 文档更新
+模型变更后运行：
+```bash
+./venv/bin/python scripts/generate_db_docs.py
+```
+
+---
+
 - 永远回复中文

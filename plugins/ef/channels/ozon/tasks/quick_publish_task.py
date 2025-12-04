@@ -614,18 +614,14 @@ def upload_images_to_storage_task(self, dto_dict: Dict, shop_id: int, parent_tas
     从 OZON URLs 下载并上传到激活的图片存储，添加水印
     """
     # 构建图片列表：主图在前，附图在后
-    # 主图从 variants[0].primary_image 获取
-    # 附图从 images 数组获取（排除主图）
+    # dto_dict 结构: primary_image (主图), images (附图数组)
     ozon_image_urls = []
 
-    # 1. 先获取变体主图
-    variants = dto_dict.get("variants", [])
-    primary_image = None
-    if variants and len(variants) > 0:
-        primary_image = variants[0].get("primary_image")
-        if primary_image:
-            ozon_image_urls.append(primary_image)
-            logger.info(f"[Step 1] 从变体获取主图: {primary_image[:50]}...")
+    # 1. 先获取主图（直接从 dto_dict.primary_image）
+    primary_image = dto_dict.get("primary_image")
+    if primary_image:
+        ozon_image_urls.append(primary_image)
+        logger.info(f"[Step 1] 获取主图: {primary_image[:50]}...")
 
     # 2. 再添加附图（从 images 数组，排除主图避免重复）
     images = dto_dict.get("images", [])
