@@ -5,10 +5,9 @@ OZON 一键跟卖 Celery 任务
 import asyncio
 import json
 import time
-import logging
 import secrets
 import string
-from typing import Dict, Any, List, Optional
+from typing import Dict, List, Optional
 from datetime import datetime, UTC
 
 from celery import chain
@@ -19,12 +18,10 @@ from ef_core.tasks.celery_app import celery_app
 from ef_core.config import get_settings
 from ef_core.utils.logger import get_logger
 
-from ..models import OzonShop, OzonProduct
+from ..models import OzonShop
 from ..api.client import OzonAPIClient
-from ..services.cloudinary_service import CloudinaryService, CloudinaryConfigManager
 from ..services.image_storage_factory import ImageStorageFactory
-from ..services.aliyun_oss_service import AliyunOssService
-from ..utils.datetime_utils import utcnow
+from ..services.image_relay_service import is_already_staged_url, is_base64_data
 
 logger = get_logger(__name__)
 
@@ -611,42 +608,65 @@ def create_product_task(self, prev_result: Dict, dto_dict: Dict, user_id: int, s
 def upload_images_to_storage_task(self, dto_dict: Dict, shop_id: int, parent_task_id: str):
     """
     步骤 1: 上传图片到图床 (Cloudinary/Aliyun OSS)
-    从 OZON URLs 下载并上传到激活的图片存储，添加水印
+
+    图片来源可能是：
+    1. 已中转的图床 URL（直接使用，无需处理）
+    2. Base64 数据（浏览器扩展预下载，直接上传到图床）
+    3. OZON CDN URL（需要下载并上传，但可能因 403 失败）
     """
     # 构建图片列表：主图在前，附图在后
     # dto_dict 结构: primary_image (主图), images (变体独立的附图数组)
-    ozon_image_urls = []
+    all_image_sources = []  # [{"source": url_or_base64, "type": "staged"|"base64"|"url"}]
+
+    # 分类图片来源
+    def classify_image_source(img_data: str) -> dict:
+        """分类图片来源类型"""
+        if is_already_staged_url(img_data):
+            return {"source": img_data, "type": "staged"}
+        elif is_base64_data(img_data):
+            return {"source": img_data, "type": "base64"}
+        else:
+            return {"source": img_data, "type": "url"}
 
     # 1. 先获取主图
     primary_image = dto_dict.get("primary_image")
     if primary_image:
-        ozon_image_urls.append(primary_image)
-        logger.info(f"[Step 1] 获取主图: {primary_image[:50]}...")
+        source_info = classify_image_source(primary_image)
+        all_image_sources.append(source_info)
+        logger.info(f"[Step 1] 主图类型: {source_info['type']}, {primary_image[:50]}...")
 
     # 2. 再添加附图（变体独立的图片，排除主图避免重复）
     images = dto_dict.get("images", [])
+    seen_sources = {primary_image} if primary_image else set()
     for img in images:
         # images 数组中每个元素可能是 dict 或 string
-        img_url = img.get("url") if isinstance(img, dict) else img
-        if img_url and img_url != primary_image:
-            ozon_image_urls.append(img_url)
+        img_data = img.get("url") if isinstance(img, dict) else img
+        if img_data and img_data not in seen_sources:
+            seen_sources.add(img_data)
+            source_info = classify_image_source(img_data)
+            all_image_sources.append(source_info)
 
     offer_id = dto_dict.get("offer_id", "unknown")
     watermark_config_id = dto_dict.get("watermark_config_id")  # 用户指定的水印配置
 
-    logger.info(f"[Step 1] Uploading images: offer_id={offer_id}, count={len(ozon_image_urls)} (primary={1 if primary_image else 0}, additional={len(images)}), watermark_config_id={watermark_config_id}")
+    # 统计各类型数量
+    staged_count = sum(1 for s in all_image_sources if s["type"] == "staged")
+    base64_count = sum(1 for s in all_image_sources if s["type"] == "base64")
+    url_count = sum(1 for s in all_image_sources if s["type"] == "url")
+
+    logger.info(f"[Step 1] 图片分类: offer_id={offer_id}, total={len(all_image_sources)} (staged={staged_count}, base64={base64_count}, url={url_count}), watermark_config_id={watermark_config_id}")
 
     try:
         update_task_progress(
             parent_task_id, status="running", current_step="upload_images",
-            progress=5, step_details={"status": "running", "total": len(ozon_image_urls), "uploaded": 0}
+            progress=5, step_details={"status": "running", "total": len(all_image_sources), "uploaded": 0}
         )
 
-        if not ozon_image_urls:
+        if not all_image_sources:
             logger.warning("No images to upload")
             return {"image_urls": [], "storage_type": "none"}
 
-        ozon_image_urls = ozon_image_urls[:30]  # 限制最多 30 张（OZON API 限制：1主图+29附图）
+        all_image_sources = all_image_sources[:30]  # 限制最多 30 张（OZON API 限制：1主图+29附图）
 
         storage_type = None
         uploaded_urls = []
@@ -662,10 +682,6 @@ def upload_images_to_storage_task(self, dto_dict: Dict, shop_id: int, parent_tas
             async with AsyncSession() as db:
                 storage_type_result, storage_service = await get_image_storage_config(db)
                 storage_type = storage_type_result
-
-                if not storage_service:
-                    logger.warning("No image storage configured, using original URLs")
-                    return ozon_image_urls
 
                 # 获取水印配置：仅当用户指定时才使用
                 watermark_config = None
@@ -690,56 +706,105 @@ def upload_images_to_storage_task(self, dto_dict: Dict, shop_id: int, parent_tas
                 elif watermark_config and storage_type == "aliyun_oss":
                     logger.info(f"Aliyun OSS watermark config: {watermark_config.name} (will apply via URL params)")
 
-                tasks = []
-                for idx, ozon_url in enumerate(ozon_image_urls):
-                    public_id = f"{shop_id}_{offer_id}_{idx}_{int(time.time())}"
-                    folder = f"{storage_service.product_images_folder or 'products'}/{shop_id}/quick_publish"
-
-                    if storage_type == "cloudinary":
-                        task = storage_service.upload_image_from_url(
-                            image_url=ozon_url,
-                            public_id=public_id,
-                            folder=folder,
-                            transformations=cloudinary_transformations  # 应用水印转换
-                        )
-                    else:
-                        # 阿里云 OSS：先上传原图，水印通过 URL 参数添加
-                        task = storage_service.upload_image_from_url(
-                            image_url=ozon_url,
-                            public_id=public_id,
-                            folder=folder
-                        )
-
-                    tasks.append(task)
-
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-
+                # 处理每张图片
                 uploaded = []
-                for idx, result in enumerate(results):
-                    if isinstance(result, Exception):
-                        logger.error(f"Image {idx} upload failed with exception: {type(result).__name__}: {result or repr(result)}")
-                        uploaded.append(ozon_image_urls[idx])
-                    elif result.get('success'):
-                        base_url = result['url']
-                        # 阿里云 OSS 水印通过 URL 参数添加
-                        if storage_type == "aliyun_oss" and watermark_config:
-                            watermarked_url = _build_aliyun_oss_watermark_url(base_url, watermark_config)
-                            uploaded.append(watermarked_url)
-                            logger.info(f"Image {idx} uploaded with OSS watermark URL: {watermarked_url[:100]}...")
-                        else:
-                            # Cloudinary 已经在 upload_image_from_url 中处理了水印 URL
-                            uploaded.append(base_url)
-                            logger.info(f"Image {idx} uploaded, URL: {base_url[:100]}...")
-                    else:
-                        error_msg = result.get('error') or 'Unknown error (no error message)'
-                        logger.error(f"Image {idx} upload failed: {error_msg}, result={result}")
-                        uploaded.append(ozon_image_urls[idx])
+                for idx, source_info in enumerate(all_image_sources):
+                    source = source_info["source"]
+                    source_type = source_info["type"]
 
-                    progress = 5 + int((idx + 1) / len(ozon_image_urls) * 25)
+                    try:
+                        if source_type == "staged":
+                            # 已是图床 URL，直接使用（可能需要添加水印 URL 参数）
+                            if storage_type == "aliyun_oss" and watermark_config and ".aliyuncs.com" in source:
+                                # 阿里云 OSS 图片，添加水印参数
+                                watermarked_url = _build_aliyun_oss_watermark_url(source, watermark_config)
+                                uploaded.append(watermarked_url)
+                                logger.info(f"Image {idx} (staged+watermark): {watermarked_url[:80]}...")
+                            else:
+                                # 其他图床或无需水印，直接使用
+                                uploaded.append(source)
+                                logger.info(f"Image {idx} (staged): {source[:80]}...")
+
+                        elif source_type == "base64":
+                            # Base64 数据，需要上传到图床
+                            if not storage_service:
+                                logger.warning(f"Image {idx}: No storage configured, cannot upload base64")
+                                uploaded.append(source)  # 无法处理，保留原数据
+                                continue
+
+                            public_id = f"{shop_id}_{offer_id}_{idx}_{int(time.time())}"
+                            folder = f"{storage_service.product_images_folder or 'products'}/{shop_id}/quick_publish"
+
+                            result = await storage_service.upload_base64_image(
+                                base64_data=source,
+                                public_id=public_id,
+                                folder=folder
+                            )
+
+                            if result.get('success'):
+                                base_url = result['url']
+                                # 阿里云 OSS 水印通过 URL 参数添加
+                                if storage_type == "aliyun_oss" and watermark_config:
+                                    watermarked_url = _build_aliyun_oss_watermark_url(base_url, watermark_config)
+                                    uploaded.append(watermarked_url)
+                                    logger.info(f"Image {idx} (base64) uploaded with watermark: {watermarked_url[:80]}...")
+                                else:
+                                    uploaded.append(base_url)
+                                    logger.info(f"Image {idx} (base64) uploaded: {base_url[:80]}...")
+                            else:
+                                error_msg = result.get('error', 'Unknown error')
+                                logger.error(f"Image {idx} (base64) upload failed: {error_msg}")
+                                # 保留 Base64 数据，OZON 可能不支持，但至少不会丢失
+                                uploaded.append(source)
+
+                        else:  # source_type == "url"
+                            # 需要下载并上传（可能失败）
+                            if not storage_service:
+                                logger.warning(f"Image {idx}: No storage configured, using original URL")
+                                uploaded.append(source)
+                                continue
+
+                            public_id = f"{shop_id}_{offer_id}_{idx}_{int(time.time())}"
+                            folder = f"{storage_service.product_images_folder or 'products'}/{shop_id}/quick_publish"
+
+                            if storage_type == "cloudinary":
+                                result = await storage_service.upload_image_from_url(
+                                    image_url=source,
+                                    public_id=public_id,
+                                    folder=folder,
+                                    transformations=cloudinary_transformations
+                                )
+                            else:
+                                result = await storage_service.upload_image_from_url(
+                                    image_url=source,
+                                    public_id=public_id,
+                                    folder=folder
+                                )
+
+                            if result.get('success'):
+                                base_url = result['url']
+                                if storage_type == "aliyun_oss" and watermark_config:
+                                    watermarked_url = _build_aliyun_oss_watermark_url(base_url, watermark_config)
+                                    uploaded.append(watermarked_url)
+                                    logger.info(f"Image {idx} (url) uploaded with watermark: {watermarked_url[:80]}...")
+                                else:
+                                    uploaded.append(base_url)
+                                    logger.info(f"Image {idx} (url) uploaded: {base_url[:80]}...")
+                            else:
+                                error_msg = result.get('error', 'Unknown error')
+                                logger.error(f"Image {idx} (url) upload failed: {error_msg}, using original URL")
+                                uploaded.append(source)
+
+                    except Exception as e:
+                        logger.error(f"Image {idx} processing failed: {e}", exc_info=True)
+                        uploaded.append(source)  # 出错时保留原数据
+
+                    # 更新进度
+                    progress = 5 + int((idx + 1) / len(all_image_sources) * 25)
                     update_task_progress(
                         parent_task_id, status="running", current_step="upload_images",
                         progress=progress,
-                        step_details={"status": "running", "total": len(ozon_image_urls), "uploaded": idx + 1}
+                        step_details={"status": "running", "total": len(all_image_sources), "uploaded": idx + 1}
                     )
 
                 return uploaded
@@ -747,31 +812,32 @@ def upload_images_to_storage_task(self, dto_dict: Dict, shop_id: int, parent_tas
         uploaded_urls = run_async_in_celery(upload_all_images())
 
         if not uploaded_urls:
-            uploaded_urls = ozon_image_urls
+            uploaded_urls = [s["source"] for s in all_image_sources]
             storage_type = "fallback"
 
         update_task_progress(
             parent_task_id, status="running", current_step="upload_images",
             progress=30, step_details={
-                "status": "completed", "total": len(ozon_image_urls),
+                "status": "completed", "total": len(all_image_sources),
                 "uploaded": len(uploaded_urls), "storage_type": storage_type
             }
         )
 
-        logger.info(f"[Step 1] Images uploaded: count={len(uploaded_urls)}, storage={storage_type}")
+        logger.info(f"[Step 1] Images processed: count={len(uploaded_urls)}, storage={storage_type}")
 
         return {"image_urls": uploaded_urls, "storage_type": storage_type}
 
     except Exception as e:
         logger.error(f"[Step 1] Failed: {e}", exc_info=True)
-        logger.warning("Image upload failed, using original URLs as fallback")
+        logger.warning("Image processing failed, using original data as fallback")
 
+        fallback_urls = [s["source"] for s in all_image_sources]
         update_task_progress(
             parent_task_id, status="running", current_step="upload_images",
-            progress=30, step_details={"status": "fallback", "error": str(e), "fallback_urls": ozon_image_urls}
+            progress=30, step_details={"status": "fallback", "error": str(e), "fallback_count": len(fallback_urls)}
         )
 
-        return {"image_urls": ozon_image_urls, "storage_type": "fallback"}
+        return {"image_urls": fallback_urls, "storage_type": "fallback"}
 
 
 @celery_app.task(bind=True, name="ef.ozon.quick_publish.update_price", max_retries=3)
@@ -957,7 +1023,7 @@ def update_product_stock_task(self, prev_result: Dict, dto_dict: Dict, shop_id: 
 
             # 商品创建成功，更新库存
             if not warehouse_id:
-                logger.warning(f"[Step 3] No warehouse_id provided, skipping stock update")
+                logger.warning("[Step 3] No warehouse_id provided, skipping stock update")
                 return product_id
 
             # 等待商品状态变成 price_sent（只有这个状态才能更新库存）
@@ -994,7 +1060,7 @@ def update_product_stock_task(self, prev_result: Dict, dto_dict: Dict, shop_id: 
                 await async_lib.sleep(30)
 
             if not is_price_sent:
-                logger.warning(f"[Step 3] Product did not reach price_sent status, proceeding anyway")
+                logger.warning("[Step 3] Product did not reach price_sent status, proceeding anyway")
 
             logger.info(f"[Step 3] Updating stock: product_id={product_id}, stock={stock}, warehouse_id={warehouse_id}")
 

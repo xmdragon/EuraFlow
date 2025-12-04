@@ -8,10 +8,17 @@
 import type { EuraflowApiProxy } from './api';
 import type { Shop, Warehouse, Watermark } from './types';
 
+interface ImageRelayConfig {
+  enabled: boolean;
+  max_size_mb: number;
+  max_batch_size: number;
+}
+
 interface ConfigCache {
   shops: Shop[];
   warehouses: Map<number, Warehouse[]>; // key: shop_id
   watermarks: Watermark[];
+  imageRelay: ImageRelayConfig;
   timestamp: number;
 }
 
@@ -109,6 +116,21 @@ class ConfigCacheService {
   }
 
   /**
+   * 获取图片中转配置
+   * @param apiClient API客户端实例
+   */
+  async getImageRelayConfig(apiClient: EuraflowApiProxy): Promise<ImageRelayConfig> {
+    const cached = this.getCached();
+    if (cached) {
+      return cached.imageRelay;
+    }
+
+    // 缓存失效，重新加载
+    await this.preload(apiClient);
+    return this.cache?.imageRelay || { enabled: false, max_size_mb: 10, max_batch_size: 200 };
+  }
+
+  /**
    * 清除缓存（用于测试或强制刷新）
    */
   clearCache(): void {
@@ -161,10 +183,18 @@ class ConfigCacheService {
       }
     }
 
+    // 解析图片中转配置（提供默认值）
+    const imageRelay: ImageRelayConfig = config.imageRelay || {
+      enabled: false,
+      max_size_mb: 10,
+      max_batch_size: 200,
+    };
+
     return {
       shops: config.shops,
       warehouses: warehousesMap,
       watermarks: config.watermarks,
+      imageRelay,
       timestamp: Date.now(),
     };
   }

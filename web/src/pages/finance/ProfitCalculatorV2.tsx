@@ -10,8 +10,6 @@ import {
   Typography,
   Space,
   Tabs,
-  Alert,
-  Divider,
   Tag,
 } from 'antd';
 import React, { useState, useEffect, useMemo } from 'react';
@@ -22,6 +20,8 @@ import { SCENARIOS } from './constants';
 import styles from './ProfitCalculatorV2.module.scss';
 import ScenarioCard from './ScenarioCard';
 import { calculateDefaultShipping, formatPercentage, formatMoney } from './utils';
+
+import { formatNumber } from '@/utils/formatNumber';
 
 import { getExchangeRate } from '@/services/exchangeRateApi';
 
@@ -42,7 +42,7 @@ const ProfitCalculatorV2: React.FC = () => {
     cost: undefined,
     price: undefined,
     weight: undefined,
-    packingFee: 0, // 默认0 RMB
+    packingFee: undefined,
   });
   const [activeKey, setActiveKey] = useState<string>('super-light');
 
@@ -73,24 +73,26 @@ const ProfitCalculatorV2: React.FC = () => {
   }, [inputData.weight, primaryScenario]);
 
   // 计算利润和利润率
-  const { profit, profitRate } = useMemo(() => {
+  const { profit, profitRate, platformFee } = useMemo(() => {
     const { cost, price, packingFee } = inputData;
     if (
       cost === undefined ||
       price === undefined ||
       shipping === undefined ||
-      packingFee === undefined ||
       !primaryScenario
     ) {
-      return { profit: undefined, profitRate: undefined };
+      return { profit: undefined, profitRate: undefined, platformFee: undefined };
     }
 
-    const platformFee = price * primaryScenario.defaultPlatformRate;
-    const calculatedProfit = price - cost - shipping - platformFee - packingFee;
+    const actualPackingFee = packingFee ?? 0; // 打包费不填默认0
+    const calculatedPlatformFee = price * primaryScenario.defaultPlatformRate;
+    const calculatedProfit = price - cost - shipping - calculatedPlatformFee - actualPackingFee;
     const calculatedProfitRate = price > 0 ? calculatedProfit / price : undefined;
 
-    return { profit: calculatedProfit, profitRate: calculatedProfitRate };
+    return { profit: calculatedProfit, profitRate: calculatedProfitRate, platformFee: calculatedPlatformFee };
   }, [inputData, shipping, primaryScenario]);
+
+  const profitColor = profit !== undefined ? (profit > 0 ? '#52c41a' : '#ff4d4f') : undefined;
 
   // 当匹配的场景发生变化时，自动切换标签页
   useEffect(() => {
@@ -126,178 +128,110 @@ const ProfitCalculatorV2: React.FC = () => {
             initialValues={inputData}
             onValuesChange={handleFormChange}
           >
-            <Row gutter={24}>
+            {/* 输入区域 */}
+            <Row gutter={16} style={{ maxWidth: 700 }}>
               <Col span={12}>
-                <Row gutter={16}>
-                  <Col span={12}>
-                    <Form.Item label="成本(RMB)" name="cost">
-                      <InputNumber
-                        className={styles.fullWidthInput}
-                        min={0}
-                        precision={2}
-                        placeholder="请输入"
-                        controls={false}
-                      />
-                    </Form.Item>
-                  </Col>
-                  <Col span={12}>
-                    <Form.Item label="售价(RMB)" name="price">
-                      <InputNumber
-                        className={styles.fullWidthInput}
-                        min={0}
-                        precision={2}
-                        placeholder="请输入"
-                        controls={false}
-                      />
-                    </Form.Item>
-                  </Col>
-                </Row>
-
-                <Row gutter={16}>
-                  <Col span={12}>
-                    <Form.Item label="重量(克)" name="weight">
-                      <InputNumber
-                        className={styles.fullWidthInput}
-                        min={0}
-                        max={25000}
-                        precision={0}
-                        placeholder="请输入"
-                        controls={false}
-                      />
-                    </Form.Item>
-                  </Col>
-                  <Col span={12}>
-                    <Form.Item label="打包费(RMB)" name="packingFee">
-                      <InputNumber
-                        className={styles.fullWidthInput}
-                        min={0}
-                        precision={1}
-                        placeholder="默认0.0"
-                        controls={false}
-                      />
-                    </Form.Item>
-                  </Col>
-                </Row>
-
-                {/* 利润计算结果 */}
-                {profit !== undefined && (
-                  <div
-                    style={{
-                      width: 600,
-                      padding: '12px 16px',
-                      background: profit > 0 ? '#f6ffed' : '#fff1f0',
-                      borderRadius: 6,
-                      border: `1px solid ${profit > 0 ? '#b7eb8f' : '#ffccc7'}`,
-                    }}
-                  >
-                    <Row gutter={24}>
-                      <Col span={12}>
-                        <Space>
-                          <Text>💰 利润率:</Text>
-                          <Text
-                            strong
-                            style={{
-                              color: profit > 0 ? '#52c41a' : '#ff4d4f',
-                              fontSize: 16,
-                            }}
-                          >
-                            {formatPercentage(profitRate)}
-                          </Text>
-                        </Space>
-                      </Col>
-                      <Col span={12}>
-                        <Space>
-                          <Text>💵 利润:</Text>
-                          <Text
-                            strong
-                            style={{
-                              color: profit > 0 ? '#52c41a' : '#ff4d4f',
-                              fontSize: 16,
-                            }}
-                          >
-                            {formatMoney(profit)} RMB
-                          </Text>
-                        </Space>
-                      </Col>
-                    </Row>
-                  </div>
-                )}
+                <Form.Item label="成本(RMB)" name="cost">
+                  <InputNumber
+                    className={styles.fullWidthInput}
+                    min={0}
+                    controls={false}
+                  />
+                </Form.Item>
               </Col>
-
               <Col span={12}>
-                <Card size="small" title="场景匹配信息" type="inner">
-                  <Space direction="vertical" className={styles.fullWidthSpace}>
-                    {primaryScenario ? (
-                      <>
-                        <Row justify="space-between">
-                          <Col>
-                            <Text>匹配场景：</Text>
-                          </Col>
-                          <Col>
-                            <Text strong className={styles.profitText}>
-                              {primaryScenario.icon} {primaryScenario.title}
-                            </Text>
-                          </Col>
-                        </Row>
-                        {matchedScenarios.length > 1 && (
-                          <Row justify="space-between">
-                            <Col>
-                              <Text>其他方案：</Text>
-                            </Col>
-                            <Col>
-                              <Tag color="orange">{matchedScenarios.length}个方案可选</Tag>
-                            </Col>
-                          </Row>
-                        )}
-                        <Row justify="space-between">
-                          <Col>
-                            <Text>重量范围：</Text>
-                          </Col>
-                          <Col>
-                            <Tag color="blue">{primaryScenario.weightRange}</Tag>
-                          </Col>
-                        </Row>
-                        <Row justify="space-between">
-                          <Col>
-                            <Text>价格范围：</Text>
-                          </Col>
-                          <Col>
-                            <Tag color="green">{primaryScenario.priceRange}</Tag>
-                          </Col>
-                        </Row>
-                        <Divider className={styles.divider} />
-                        <Row justify="space-between">
-                          <Col>
-                            <Text>平台扣点：</Text>
-                          </Col>
-                          <Col>
-                            <Text strong>
-                              {(primaryScenario.defaultPlatformRate * 100).toFixed(1)}%
-                            </Text>
-                          </Col>
-                        </Row>
-                      </>
-                    ) : (
-                      <Alert
-                        message="请输入售价和重量"
-                        description="系统将根据输入自动匹配适合的场景"
-                        type="info"
-                        showIcon
-                      />
-                    )}
-                  </Space>
-                </Card>
+                <Form.Item label="售价(RMB)" name="price">
+                  <InputNumber
+                    className={styles.fullWidthInput}
+                    min={0}
+                    controls={false}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item label="重量(克)" name="weight">
+                  <InputNumber
+                    className={styles.fullWidthInput}
+                    min={0}
+                    max={25000}
+                    precision={0}
+                    controls={false}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item label="打包费(RMB)" name="packingFee">
+                  <InputNumber
+                    className={styles.fullWidthInput}
+                    min={0}
+                    controls={false}
+                  />
+                </Form.Item>
               </Col>
             </Row>
+
+            {/* 利润计算结果 */}
+            <Card
+                size="small"
+                title="利润计算结果"
+                style={{
+                  maxWidth: 700,
+                  background: profit !== undefined ? (profit > 0 ? '#f6ffed' : '#fff1f0') : '#fafafa',
+                  borderColor: profit !== undefined ? (profit > 0 ? '#b7eb8f' : '#ffccc7') : '#d9d9d9',
+                }}
+              >
+                <Row gutter={24}>
+                  <Col span={12}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>成本明细：</Text>
+                    <div style={{ marginTop: 8 }}>
+                      <Row justify="space-between">
+                        <Col><Text style={{ fontSize: 12 }}>采购成本：</Text></Col>
+                        <Col><Text style={{ fontSize: 12 }}>{inputData.cost !== undefined ? `¥${formatNumber(inputData.cost)}` : '---'}</Text></Col>
+                      </Row>
+                      <Row justify="space-between">
+                        <Col><Text style={{ fontSize: 12 }}>运费：</Text></Col>
+                        <Col><Text style={{ fontSize: 12 }}>{shipping !== undefined ? `¥${formatNumber(shipping)}` : '---'}</Text></Col>
+                      </Row>
+                      <Row justify="space-between">
+                        <Col><Text style={{ fontSize: 12 }}>平台扣点：</Text></Col>
+                        <Col><Text style={{ fontSize: 12 }}>{platformFee !== undefined ? `¥${formatNumber(platformFee)}` : '---'}</Text></Col>
+                      </Row>
+                      <Row justify="space-between">
+                        <Col><Text style={{ fontSize: 12 }}>打包费：</Text></Col>
+                        <Col><Text style={{ fontSize: 12 }}>{profit !== undefined ? `¥${formatNumber(inputData.packingFee ?? 0)}` : '---'}</Text></Col>
+                      </Row>
+                    </div>
+                  </Col>
+                  <Col span={12}>
+                    <Row justify="space-between" align="middle" style={{ marginBottom: 12 }}>
+                      <Col><Text strong style={{ fontSize: 14 }}>利润率:</Text></Col>
+                      <Col>
+                        <Text strong style={{ color: profitColor, fontSize: 20 }}>
+                          {profitRate !== undefined ? formatPercentage(profitRate) : '---'}
+                        </Text>
+                      </Col>
+                    </Row>
+                    <Row justify="space-between" align="middle">
+                      <Col><Text strong style={{ fontSize: 14 }}>利润:</Text></Col>
+                      <Col>
+                        <Text strong style={{ color: profitColor, fontSize: 20 }}>
+                          {profit !== undefined ? `${formatMoney(profit)} RMB` : '---'}
+                        </Text>
+                      </Col>
+                    </Row>
+                  </Col>
+                </Row>
+              </Card>
           </Form>
         </Card>
 
         {/* 场景详细计算 */}
         <Card>
-          <Tabs
-            activeKey={activeKey}
-            onChange={setActiveKey}
-            items={SCENARIOS.map((scenario) => {
+          <div style={{ maxWidth: 700 }}>
+            <Tabs
+              activeKey={activeKey}
+              onChange={setActiveKey}
+              items={SCENARIOS.map((scenario) => {
               // 检查是否有同组的多个场景匹配
               const sameGroupMatched = matchedScenarios.filter(
                 (s) => s.matchGroup === scenario.matchGroup && s.matchGroup !== undefined
@@ -305,18 +239,33 @@ const ProfitCalculatorV2: React.FC = () => {
               const isMatched = matchedScenarios.some((m) => m.id === scenario.id);
               const hasMultipleMatches = sameGroupMatched.length > 1;
 
+              // 解析标题：把（陆空）或（陆运）等放第二行
+              const titleMatch = scenario.title.match(/^(.+?)（(.+?)）$/);
+              const mainTitle = titleMatch ? titleMatch[1] : scenario.title;
+              const subTitle = titleMatch ? `（${titleMatch[2]}）` : '';
+
               return {
                 key: scenario.id,
                 label: (
-                  <Space>
-                    <span className={styles.scenarioIcon}>{scenario.icon}</span>
-                    <Text strong>{scenario.title}</Text>
-                    <Tag color="blue">{scenario.weightRange}</Tag>
-                    {isMatched && <Tag color="success">当前匹配</Tag>}
-                    {hasMultipleMatches && scenario.id === sameGroupMatched[0].id && (
-                      <Tag color="orange">多方案</Tag>
-                    )}
-                  </Space>
+                  <div
+                    className={styles.tabLabel}
+                    style={{
+                      backgroundColor: scenario.color.background,
+                      borderColor: scenario.color.primary,
+                    }}
+                  >
+                    <div className={styles.tabLabelTitle}>
+                      <Text strong>{mainTitle}</Text>
+                      {isMatched && <Tag color="success" className={styles.tabLabelTag}>匹配</Tag>}
+                      {hasMultipleMatches && scenario.id === sameGroupMatched[0].id && (
+                        <Tag color="orange" className={styles.tabLabelTag}>多方案</Tag>
+                      )}
+                    </div>
+                    {subTitle && <div className={styles.tabLabelSub}>{subTitle}</div>}
+                    <div className={styles.tabLabelWeight} style={{ color: scenario.color.primary }}>
+                      {scenario.weightRange}
+                    </div>
+                  </div>
                 ),
                 children: (() => {
                   // 如果有同组的多个场景匹配，且当前是该组第一个场景，则并排显示
@@ -360,7 +309,8 @@ const ProfitCalculatorV2: React.FC = () => {
                 })(),
               };
             })}
-          />
+            />
+          </div>
         </Card>
       </div>
     </div>

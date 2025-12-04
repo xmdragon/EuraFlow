@@ -175,8 +175,8 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
 
   // 获取当前价格（插件采集返回三个价格）
   // 注意：变体的价格可能为0，此时不应 fallback 到商品级别价格
-  const realPrice = (currentVariant as Record<string, unknown>)?.realPrice as number ?? (product_data as Record<string, unknown>)?.realPrice as number ?? 0;
-  const greenPrice = (currentVariant as Record<string, unknown>)?.cardPrice as number ?? (product_data as Record<string, unknown>)?.cardPrice as number ?? 0;
+  const realPrice = (currentVariant as unknown as Record<string, unknown>)?.realPrice as number ?? (product_data as unknown as Record<string, unknown>)?.realPrice as number ?? 0;
+  const greenPrice = (currentVariant as unknown as Record<string, unknown>)?.cardPrice as number ?? (product_data as unknown as Record<string, unknown>)?.cardPrice as number ?? 0;
   const blackPrice = currentVariant?.price ?? product_data?.price ?? 0;
 
   // 获取当前规格

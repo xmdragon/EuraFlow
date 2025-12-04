@@ -95,11 +95,21 @@ export class EuraflowApi extends BaseApiClient {
   }
 
   /**
-   * 获取配置（店铺、仓库、水印）
+   * 图片中转配置
+   */
+  imageRelayConfig?: {
+    enabled: boolean;
+    max_size_mb: number;
+    max_batch_size: number;
+  };
+
+  /**
+   * 获取配置（店铺、仓库、水印、图片中转）
    */
   async getConfig(): Promise<{
     shops: Array<Shop & { warehouses: Warehouse[] }>;
     watermarks: Watermark[];
+    imageRelay?: { enabled: boolean; max_size_mb: number; max_batch_size: number };
   }> {
     const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/quick-publish/config`, {
       method: 'GET',
@@ -119,11 +129,61 @@ export class EuraflowApi extends BaseApiClient {
 
     const result = await response.json();
 
-    // 后端返回 {success: true, data: {shops: [], watermarks: []}}
+    // 后端返回 {success: true, data: {shops: [], watermarks: [], imageRelay: {}}}
     if (result.success && result.data) {
+      // 缓存 imageRelay 配置
+      if (result.data.imageRelay) {
+        this.imageRelayConfig = result.data.imageRelay;
+      }
       return result.data;
     }
     return result;
+  }
+
+  /**
+   * 批量中转图片（将 OZON CDN 图片上传到图床）
+   * @param shopId 店铺 ID
+   * @param images 图片列表 [{url: 原始URL, data: Base64数据}]
+   * @returns 中转结果 {mapping: {原始URL: 图床URL}, successCount, failedCount}
+   */
+  async batchRelayImages(
+    shopId: number,
+    images: Array<{ url: string; data: string }>
+  ): Promise<{
+    mapping: Record<string, string>;
+    successCount: number;
+    failedCount: number;
+  }> {
+    const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/image-relay/batch`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': this.apiKey
+      },
+      body: JSON.stringify({
+        shop_id: shopId,
+        images: images
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw createApiError(
+        'IMAGE_RELAY_FAILED',
+        errorData.detail?.detail || errorData.error || `HTTP ${response.status}`,
+        response.status
+      );
+    }
+
+    const result = await response.json();
+    if (result.ok && result.data) {
+      return {
+        mapping: result.data.mapping || {},
+        successCount: result.data.success_count || 0,
+        failedCount: result.data.failed_count || 0
+      };
+    }
+    throw createApiError('IMAGE_RELAY_FAILED', '响应格式错误', 500);
   }
 
   /**
@@ -582,13 +642,31 @@ export class EuraflowApiProxy {
   }
 
   /**
-   * 获取配置
+   * 获取配置（店铺、仓库、水印、图片中转）
    */
   async getConfig(): Promise<{
     shops: Array<Shop & { warehouses: Warehouse[] }>;
     watermarks: Watermark[];
+    imageRelay?: { enabled: boolean; max_size_mb: number; max_batch_size: number };
   }> {
     return this.sendRequest('GET_CONFIG', {});
+  }
+
+  /**
+   * 批量中转图片（将 OZON CDN 图片上传到图床）
+   * @param shopId 店铺 ID
+   * @param images 图片列表 [{url: 原始URL, data: Base64数据}]
+   * @returns 中转结果
+   */
+  async batchRelayImages(
+    shopId: number,
+    images: Array<{ url: string; data: string }>
+  ): Promise<{
+    mapping: Record<string, string>;
+    successCount: number;
+    failedCount: number;
+  }> {
+    return this.sendRequest('BATCH_RELAY_IMAGES', { shopId, images });
   }
 
   /**

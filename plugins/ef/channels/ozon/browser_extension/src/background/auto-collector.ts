@@ -16,6 +16,7 @@
 
 import { createEuraflowApi, type CollectionSource } from '../shared/api/euraflow-api';
 import { getAutoCollectConfig } from '../shared/storage';
+import { yuanToCents } from '../shared/price-utils';
 
 /**
  * 自动采集状态
@@ -441,7 +442,16 @@ class AutoCollector {
     // 使用地址路径作为批次名称
     const batchName = source.source_path;
 
-    await api.uploadProducts(products, batchName, source.id);
+    // 转换价格为分（后端 API 使用分为单位）
+    const uploadData = products.map(product => ({
+      ...product,
+      current_price: product.current_price != null ? yuanToCents(product.current_price) : undefined,
+      original_price: product.original_price != null ? yuanToCents(product.original_price) : undefined,
+      competitor_min_price: product.competitor_min_price != null ? yuanToCents(product.competitor_min_price) : undefined,
+      follow_seller_min_price: product.follow_seller_min_price != null ? yuanToCents(product.follow_seller_min_price) : undefined,
+    }));
+
+    await api.uploadProducts(uploadData, batchName, source.id);
 
     console.log(`[AutoCollector] 上传成功: ${products.length} 个商品 (批次: ${batchName})`);
   }

@@ -10,7 +10,6 @@ import {
   Alert,
   Row,
   Col,
-  Divider,
 } from 'antd';
 import React, { useState, useEffect, useMemo } from 'react';
 
@@ -145,7 +144,7 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({
   const showMismatchWarning = !isMatched && sharedInputData?.price && sharedInputData?.weight;
 
   return (
-    <div>
+    <div style={{ maxWidth: 700 }}>
       {/* 场景不匹配警告 */}
       {showMismatchWarning && (
         <Alert
@@ -165,50 +164,6 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({
           style={{ marginBottom: 16 }}
         />
       )}
-
-      {/* 场景信息 */}
-      <Card size="small" title="场景条件" style={{ marginBottom: 16 }}>
-        <Space direction="vertical" size="small" style={{ width: '100%' }}>
-          {scenario.transportMode && (
-            <Row justify="space-between">
-              <Col>
-                <Text>运输方式：</Text>
-              </Col>
-              <Col>
-                <Tag color={scenario.transportMode === 'land' ? 'green' : 'blue'}>
-                  {scenario.transportMode === 'land' ? '陆运/纯陆' : '陆空'}
-                </Tag>
-              </Col>
-            </Row>
-          )}
-          <Row justify="space-between">
-            <Col>
-              <Text>重量范围：</Text>
-            </Col>
-            <Col>
-              <Tag color="blue">{scenario.weightRange}</Tag>
-            </Col>
-          </Row>
-          <Row justify="space-between">
-            <Col>
-              <Text>价格范围：</Text>
-            </Col>
-            <Col>
-              <Tag color="green">{getPriceRangeDisplay()}</Tag>
-            </Col>
-          </Row>
-          <Row justify="space-between">
-            <Col>
-              <Text>尺寸限制：</Text>
-            </Col>
-            <Col>
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                {scenario.dimensionLimit.description}
-              </Text>
-            </Col>
-          </Row>
-        </Space>
-      </Card>
 
       {/* 费用调整区域 */}
       <Card
@@ -300,103 +255,50 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({
         </Space>
       </Card>
 
-      {/* 计算结果 */}
-      <Card
-        size="small"
-        title="利润计算结果"
-        style={{
-          background: profit !== undefined ? (profit > 0 ? '#f6ffed' : '#fff1f0') : '#fafafa',
-          borderColor: profit !== undefined ? (profit > 0 ? '#b7eb8f' : '#ffccc7') : '#d9d9d9',
-        }}
-      >
-        {sharedInputData?.cost !== undefined && sharedInputData?.price !== undefined ? (
-          <Space direction="vertical" style={{ width: '100%' }} size="middle">
-            {/* 成本明细 */}
-            <div>
+      {/* 场景信息 */}
+      <Card size="small" title="场景条件" style={{ marginBottom: 16 }}>
+        <Space direction="vertical" size="small" style={{ width: '100%' }}>
+          {scenario.transportMode && (
+            <Row justify="space-between">
+              <Col>
+                <Text>运输方式：</Text>
+              </Col>
+              <Col>
+                <Tag color={scenario.transportMode === 'land' ? 'green' : 'blue'}>
+                  {scenario.transportMode === 'land' ? '陆运/纯陆' : '陆空'}
+                </Tag>
+              </Col>
+            </Row>
+          )}
+          <Row justify="space-between">
+            <Col>
+              <Text>重量范围：</Text>
+            </Col>
+            <Col>
+              <Tag color="blue">{scenario.weightRange}</Tag>
+            </Col>
+          </Row>
+          <Row justify="space-between">
+            <Col>
+              <Text>价格范围：</Text>
+            </Col>
+            <Col>
+              <Tag color="green">{getPriceRangeDisplay()}</Tag>
+            </Col>
+          </Row>
+          <Row justify="space-between">
+            <Col>
+              <Text>尺寸限制：</Text>
+            </Col>
+            <Col>
               <Text type="secondary" style={{ fontSize: 12 }}>
-                成本明细：
+                {scenario.dimensionLimit.description}
               </Text>
-              <Space direction="vertical" style={{ width: '100%', marginTop: 8 }} size="small">
-                <Row justify="space-between">
-                  <Col>
-                    <Text style={{ fontSize: 12 }}>采购成本：</Text>
-                  </Col>
-                  <Col>
-                    <Text style={{ fontSize: 12 }}>¥{formatNumber(sharedInputData.cost)}</Text>
-                  </Col>
-                </Row>
-                <Row justify="space-between">
-                  <Col>
-                    <Text style={{ fontSize: 12 }}>运费：</Text>
-                  </Col>
-                  <Col>
-                    <Text style={{ fontSize: 12 }}>
-                      ¥{shipping !== undefined ? formatNumber(shipping) : '--'}
-                    </Text>
-                  </Col>
-                </Row>
-                <Row justify="space-between">
-                  <Col>
-                    <Text style={{ fontSize: 12 }}>平台扣点：</Text>
-                  </Col>
-                  <Col>
-                    <Text style={{ fontSize: 12 }}>
-                      ¥{formatNumber(sharedInputData.price * platformRate)}
-                    </Text>
-                  </Col>
-                </Row>
-                <Row justify="space-between">
-                  <Col>
-                    <Text style={{ fontSize: 12 }}>打包费：</Text>
-                  </Col>
-                  <Col>
-                    <Text style={{ fontSize: 12 }}>
-                      ¥{packingFee !== undefined ? formatNumber(packingFee) : '--'}
-                    </Text>
-                  </Col>
-                </Row>
-              </Space>
-            </div>
-
-            <Divider style={{ margin: 0 }} />
-
-            {/* 利润结果 */}
-            <Space direction="vertical" style={{ width: '100%' }} size="small">
-              <Row justify="space-between" align="middle">
-                <Col>
-                  <Text strong style={{ fontSize: 14 }}>
-                    💰 利润率:
-                  </Text>
-                </Col>
-                <Col>
-                  <Text strong style={{ color: profitColor, fontSize: 18 }}>
-                    {formatPercentage(profitRate)}
-                  </Text>
-                </Col>
-              </Row>
-              <Row justify="space-between" align="middle">
-                <Col>
-                  <Text strong style={{ fontSize: 14 }}>
-                    💵 利润:
-                  </Text>
-                </Col>
-                <Col>
-                  <Text strong style={{ color: profitColor, fontSize: 18 }}>
-                    {formatMoney(profit)} RMB
-                  </Text>
-                </Col>
-              </Row>
-            </Space>
-          </Space>
-        ) : (
-          <Alert
-            message="请在顶部输入商品信息"
-            description="输入成本、售价、重量等信息后，系统将自动计算利润"
-            type="info"
-            showIcon
-          />
-        )}
+            </Col>
+          </Row>
+        </Space>
       </Card>
+
     </div>
   );
 };
