@@ -1702,3 +1702,271 @@ async def update_product_purchase_info(
             "success": False,
             "message": f"更新失败: {str(e)}"
         }
+
+
+# ==================== 商品描述管理 API ====================
+
+class DescriptionUpdateRequest(BaseModel):
+    """商品描述更新请求"""
+    description: str = Field(..., max_length=5000, description="商品描述内容")
+
+
+@router.get("/products/{product_id}/description")
+async def get_product_description(
+    product_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
+):
+    """
+    获取商品描述信息
+
+    从 OZON API 获取商品的当前描述和描述类目信息
+
+    Args:
+        product_id: 商品ID（本地数据库ID）
+
+    Returns:
+        商品描述信息
+    """
+    from .client import OzonAPIClient
+
+    # 获取商品信息
+    result = await db.execute(
+        select(OzonProduct).where(OzonProduct.id == product_id)
+    )
+    product = result.scalar_one_or_none()
+
+    if not product:
+        raise HTTPException(status_code=404, detail="商品不存在")
+
+    # 检查店铺权限
+    shop_result = await db.execute(
+        select(OzonShop).where(OzonShop.id == product.shop_id)
+    )
+    shop = shop_result.scalar_one_or_none()
+
+    if not shop:
+        raise HTTPException(status_code=404, detail="店铺不存在")
+
+    try:
+        # 从 OZON API 获取商品属性信息
+        client = OzonAPIClient(
+            client_id=shop.client_id,
+            api_key=shop.api_key_enc
+        )
+
+        # 使用 offer_id 查询
+        response = await client.get_product_info_attributes(
+            offer_ids=[product.offer_id],
+            limit=1
+        )
+
+        result_items = response.get("result", [])
+
+        if not result_items:
+            # 如果 API 没有返回数据，使用本地数据
+            return {
+                "success": True,
+                "data": {
+                    "product_id": product.id,
+                    "offer_id": product.offer_id,
+                    "ozon_product_id": product.ozon_product_id,
+                    "title": product.title,
+                    "description": product.description or "",
+                    "description_category_id": product.description_category_id,
+                    "source": "local"
+                }
+            }
+
+        item = result_items[0]
+        attributes = item.get("attributes", [])
+
+        # 查找描述属性（id=4191）
+        description_value = ""
+        for attr in attributes:
+            if attr.get("id") == 4191:
+                values = attr.get("values", [])
+                if values:
+                    description_value = values[0].get("value", "")
+                break
+
+        return {
+            "success": True,
+            "data": {
+                "product_id": product.id,
+                "offer_id": product.offer_id,
+                "ozon_product_id": item.get("id"),
+                "title": item.get("name", product.title),
+                "description": description_value,
+                "description_category_id": item.get("description_category_id"),
+                "source": "ozon_api"
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"获取商品描述失败: {e}", exc_info=True)
+        # 降级到本地数据
+        return {
+            "success": True,
+            "data": {
+                "product_id": product.id,
+                "offer_id": product.offer_id,
+                "ozon_product_id": product.ozon_product_id,
+                "title": product.title,
+                "description": product.description or "",
+                "description_category_id": product.description_category_id,
+                "source": "local",
+                "error": str(e)
+            }
+        }
+
+
+@router.put("/products/{product_id}/description")
+async def update_product_description(
+    product_id: int,
+    request: DescriptionUpdateRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
+):
+    """
+    更新商品描述
+
+    通过 OZON API /v3/product/import 更新商品描述
+
+    Args:
+        product_id: 商品ID（本地数据库ID）
+        request: 描述更新请求
+
+    Returns:
+        更新结果
+    """
+    from .client import OzonAPIClient
+
+    # 获取商品信息
+    result = await db.execute(
+        select(OzonProduct).where(OzonProduct.id == product_id)
+    )
+    product = result.scalar_one_or_none()
+
+    if not product:
+        raise HTTPException(status_code=404, detail="商品不存在")
+
+    # 检查店铺权限
+    shop_result = await db.execute(
+        select(OzonShop).where(OzonShop.id == product.shop_id)
+    )
+    shop = shop_result.scalar_one_or_none()
+
+    if not shop:
+        raise HTTPException(status_code=404, detail="店铺不存在")
+
+    try:
+        client = OzonAPIClient(
+            client_id=shop.client_id,
+            api_key=shop.api_key_enc
+        )
+
+        # 1. 先获取商品的完整属性信息（更新时需要传递所有必要字段）
+        response = await client.get_product_info_attributes(
+            offer_ids=[product.offer_id],
+            limit=1
+        )
+
+        result_items = response.get("result", [])
+
+        if not result_items:
+            raise HTTPException(status_code=400, detail="无法获取商品属性信息")
+
+        item = result_items[0]
+
+        # 2. 获取商品价格信息（避免更新描述时价格被清空）
+        price_response = await client.get_product_prices(offer_ids=[product.offer_id])
+        price_items = price_response.get("result", {}).get("items", [])
+        price_info = price_items[0] if price_items else {}
+        current_price = price_info.get("price", {}).get("price", str(product.price or "0"))
+        current_old_price = price_info.get("price", {}).get("old_price", str(product.old_price or "0"))
+        current_currency = price_info.get("price", {}).get("currency_code", "CNY")
+
+        # 3. 构建更新请求
+        # 获取现有属性，更新描述属性
+        existing_attributes = item.get("attributes", [])
+        updated_attributes = []
+
+        description_updated = False
+        for attr in existing_attributes:
+            if attr.get("id") == 4191:
+                # 更新描述属性
+                updated_attributes.append({
+                    "id": 4191,
+                    "complex_id": 0,
+                    "values": [{"value": request.description}]
+                })
+                description_updated = True
+            else:
+                # 保留其他属性
+                updated_attributes.append(attr)
+
+        # 如果原来没有描述属性，添加一个
+        if not description_updated:
+            updated_attributes.append({
+                "id": 4191,
+                "complex_id": 0,
+                "values": [{"value": request.description}]
+            })
+
+        # 4. 构建导入请求
+        import_item = {
+            "offer_id": product.offer_id,
+            "name": item.get("name", product.title),
+            "description_category_id": item.get("description_category_id"),
+            "type_id": item.get("type_id"),  # OZON API 必需字段
+            "attributes": updated_attributes,
+            "complex_attributes": item.get("complex_attributes", []),
+            # 尺寸信息（必需）
+            "depth": item.get("depth", 10),
+            "width": item.get("width", 10),
+            "height": item.get("height", 10),
+            "weight": item.get("weight", 100),
+            "dimension_unit": item.get("dimension_unit", "mm"),
+            "weight_unit": item.get("weight_unit", "g"),
+            # 图片信息
+            "images": item.get("images", []),
+            "primary_image": item.get("primary_image", ""),
+            # 价格信息（从 OZON API 获取，避免被清空）
+            "price": current_price,
+            "old_price": current_old_price,
+            "currency_code": current_currency,
+            "vat": "0",
+        }
+
+        # 5. 调用导入 API 更新商品
+        import_response = await client.import_products([import_item])
+
+        task_id = import_response.get("result", {}).get("task_id")
+
+        if not task_id:
+            raise HTTPException(status_code=500, detail="更新请求失败，未获得任务ID")
+
+        # 6. 更新本地数据库
+        product.description = request.description
+        product.updated_at = datetime.now()
+        await db.commit()
+
+        logger.info(f"商品描述更新成功: product_id={product_id}, task_id={task_id}")
+
+        return {
+            "success": True,
+            "message": "商品描述更新成功",
+            "data": {
+                "product_id": product.id,
+                "task_id": task_id,
+                "description": request.description
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"更新商品描述失败: {e}", exc_info=True)
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"更新失败: {str(e)}")

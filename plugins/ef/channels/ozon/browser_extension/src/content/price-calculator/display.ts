@@ -85,6 +85,126 @@ function showToast(message: string, type: 'success' | 'error' | 'info' = 'succes
   }, 5000);
 }
 
+// ========== 外链检测与确认弹窗 ==========
+
+/**
+ * 检测描述中是否包含外链（<a>标签）
+ */
+function hasExternalLinks(description: string | undefined | null): boolean {
+  if (!description) return false;
+  return /<a\s/i.test(description);
+}
+
+/**
+ * 显示采集确认弹窗（当描述中包含外链时）
+ * @returns Promise<{confirmed: boolean, editedDescription?: string}>
+ */
+function showCollectConfirmModal(description: string): Promise<{confirmed: boolean, editedDescription?: string}> {
+  return new Promise((resolve) => {
+    // 创建遮罩层
+    const overlay = document.createElement('div');
+    overlay.id = 'euraflow-collect-confirm-overlay';
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 2147483646;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(2px);
+    `;
+
+    // 创建弹窗
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      width: 600px;
+      max-width: 90vw;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    `;
+
+    // 转义HTML用于显示
+    const escapedDescription = description
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    modal.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px;">
+        <span style="color: #856404; font-size: 24px;">⚠️</span>
+        <h3 style="margin: 0; font-size: 18px; color: #333;">描述中有外链，请检查</h3>
+      </div>
+      <div style="margin-bottom: 16px;">
+        <label style="display: block; color: #666; font-size: 12px; margin-bottom: 8px;">商品描述（可编辑）</label>
+        <textarea id="collect-description-edit"
+          style="width: 100%; min-height: 200px; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; font-family: monospace; resize: vertical; box-sizing: border-box;"
+        >${escapedDescription}</textarea>
+      </div>
+      <div style="color: #856404; font-size: 12px; margin-bottom: 16px; padding: 8px; background: #fff3cd; border-radius: 4px;">
+        提示：外链可能导致商品被OZON拒绝，建议删除或修改描述中的 &lt;a&gt; 标签后再采集
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 12px;">
+        <button id="collect-cancel-btn" style="
+          padding: 10px 20px;
+          border: 1px solid #ddd;
+          border-radius: 6px;
+          background: white;
+          color: #666;
+          font-size: 14px;
+          cursor: pointer;
+        ">取消</button>
+        <button id="collect-confirm-btn" style="
+          padding: 10px 20px;
+          border: none;
+          border-radius: 6px;
+          background: #10b981;
+          color: white;
+          font-size: 14px;
+          cursor: pointer;
+        ">确认采集</button>
+      </div>
+    `;
+
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    // 阻止点击弹窗时关闭
+    modal.addEventListener('click', (e) => e.stopPropagation());
+
+    // 点击遮罩层关闭
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        overlay.remove();
+        resolve({ confirmed: false });
+      }
+    });
+
+    // 取消按钮
+    const cancelBtn = modal.querySelector('#collect-cancel-btn');
+    cancelBtn?.addEventListener('click', () => {
+      overlay.remove();
+      resolve({ confirmed: false });
+    });
+
+    // 确认按钮
+    const confirmBtn = modal.querySelector('#collect-confirm-btn');
+    confirmBtn?.addEventListener('click', () => {
+      const textarea = modal.querySelector('#collect-description-edit') as HTMLTextAreaElement;
+      const editedDescription = textarea?.value || description;
+      overlay.remove();
+      resolve({ confirmed: true, editedDescription });
+    });
+  });
+}
+
 // ========== 数据格式化函数 ==========
 
 /**
@@ -953,6 +1073,21 @@ function createCollectButton(
         length: spbSales.depth  // spbSales 的长度字段是 depth
       };
 
+      // 检测描述中是否有外链
+      const description = ozonProduct?.description || '';
+      let finalDescription = description;
+
+      if (hasExternalLinks(description)) {
+        // 显示确认弹窗，让用户检查/编辑描述
+        const result = await showCollectConfirmModal(description);
+        if (!result.confirmed) {
+          // 用户取消采集
+          return;
+        }
+        // 使用编辑后的描述
+        finalDescription = result.editedDescription || description;
+      }
+
       // 直接发送采集请求，不打开弹窗
       collectButton.disabled = true;
       collectButton.classList.add('ef-collect-button--disabled');
@@ -963,7 +1098,8 @@ function createCollectButton(
       const productData = {
         ...ozonProduct,
         dimensions: finalDimensions,  // 使用确定的尺寸数据
-        price: realPrice  // 使用真实售价
+        price: realPrice,  // 使用真实售价
+        description: finalDescription  // 使用可能被编辑的描述
       };
       const response = await chrome.runtime.sendMessage({
         type: 'COLLECT_PRODUCT',

@@ -20,6 +20,7 @@ import dayjs from 'dayjs';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import DescriptionEditModal from './components/DescriptionEditModal';
 import ProductSyncErrorModal from './components/ProductSyncErrorModal';
 import styles from './ProductList.module.scss';
 
@@ -70,6 +71,10 @@ const ProductList: React.FC = () => {
   });
   const [errorModalVisible, setErrorModalVisible] = useState(false);
   const [selectedProductForError, setSelectedProductForError] = useState<number | null>(null);
+
+  // 描述编辑弹窗状态
+  const [descriptionModalVisible, setDescriptionModalVisible] = useState(false);
+  const [selectedProductForDescription, setSelectedProductForDescription] = useState<{id: number; title: string} | null>(null);
 
   // 排序状态管理
   const [sortBy, setSortBy] = useState<string | null>(null);
@@ -337,6 +342,15 @@ const ProductList: React.FC = () => {
     setWatermarkModalVisible(true);
   };
 
+  // 处理描述编辑
+  const handleDescription = (product: ozonApi.Product) => {
+    setSelectedProductForDescription({
+      id: product.id,
+      title: product.title,
+    });
+    setDescriptionModalVisible(true);
+  };
+
   // 表格列定义
   // 使用列配置工厂函数生成表格列
   const allColumns = getProductTableColumns({
@@ -348,6 +362,7 @@ const ProductList: React.FC = () => {
     handleRestore: handleRestore,
     handleDelete: handleDelete,
     handleWatermark,
+    handleDescription,
     handleImageClick,
     copyToClipboard,
     canOperate,
@@ -758,6 +773,17 @@ const ProductList: React.FC = () => {
         onClose={() => {
           setErrorModalVisible(false);
           setSelectedProductForError(null);
+        }}
+      />
+
+      {/* 商品描述编辑弹窗 */}
+      <DescriptionEditModal
+        visible={descriptionModalVisible}
+        productId={selectedProductForDescription?.id || null}
+        productTitle={selectedProductForDescription?.title}
+        onClose={() => {
+          setDescriptionModalVisible(false);
+          setSelectedProductForDescription(null);
         }}
       />
     </div>

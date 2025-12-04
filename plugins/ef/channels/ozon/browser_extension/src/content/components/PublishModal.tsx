@@ -108,6 +108,17 @@ function setCachedDiscountPercent(percent: number): void {
   }
 }
 
+/**
+ * 检测描述中是否包含外链（<a>标签）
+ * @param description 商品描述
+ * @returns 是否包含外链
+ */
+function hasExternalLinks(description: string | undefined | null): boolean {
+  if (!description) return false;
+  // 检测 <a 标签（不区分大小写）
+  return /<a\s/i.test(description);
+}
+
 // ========== 类型定义 ==========
 
 /**
@@ -202,6 +213,9 @@ let variants: VariantEditData[] = [];
 let purchaseUrl: string = '';
 let purchasePrice: number | null = null;
 let purchaseNote: string = '';
+
+// 编辑后的描述（当检测到外链时允许用户编辑）
+let editedDescription: string = '';
 
 // ========== 主函数 ==========
 
@@ -527,6 +541,9 @@ function renderMainModal(): void {
       </table>
     </div>
 
+    <!-- 描述警告（当检测到外链时显示） -->
+    ${renderDescriptionWarning()}
+
     <!-- 采购信息（可选） -->
     <div class="ef-purchase-info">
       <div class="ef-purchase-info__field">
@@ -641,6 +658,48 @@ function renderWatermarkSelect(): string {
     <option value="">不使用水印</option>
     ${options}
   </select>`;
+}
+
+/**
+ * 渲染描述警告区域（当检测到外链时显示）
+ */
+function renderDescriptionWarning(): string {
+  const description = productData?.description || '';
+
+  // 如果没有外链，不显示
+  if (!hasExternalLinks(description)) {
+    return '';
+  }
+
+  // 初始化编辑后的描述
+  if (!editedDescription) {
+    editedDescription = description;
+  }
+
+  // 转义HTML用于显示在textarea中
+  const escapedDescription = editedDescription
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  return `
+    <div class="ef-description-warning" style="margin: 16px 0; padding: 12px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px;">
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+        <span style="color: #856404; font-size: 18px;">⚠️</span>
+        <span style="color: #856404; font-weight: 600;">描述中有外链，请检查</span>
+      </div>
+      <div style="margin-bottom: 8px;">
+        <label style="display: block; color: #666; font-size: 12px; margin-bottom: 4px;">商品描述（可编辑）</label>
+        <textarea id="description-edit"
+          style="width: 100%; min-height: 120px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; font-family: monospace; resize: vertical; box-sizing: border-box;"
+          placeholder="商品描述..."
+        >${escapedDescription}</textarea>
+      </div>
+      <div style="color: #856404; font-size: 12px;">
+        提示：外链可能导致商品被OZON拒绝，建议删除或修改描述中的 &lt;a&gt; 标签
+      </div>
+    </div>
+  `;
 }
 
 /**
@@ -817,6 +876,12 @@ function bindMainModalEvents(): void {
   const purchaseNoteInput = document.getElementById('purchase-note') as HTMLInputElement;
   purchaseNoteInput?.addEventListener('input', (e) => {
     purchaseNote = (e.target as HTMLInputElement).value;
+  });
+
+  // 描述编辑框（仅当检测到外链时存在）
+  const descriptionEditInput = document.getElementById('description-edit') as HTMLTextAreaElement;
+  descriptionEditInput?.addEventListener('input', (e) => {
+    editedDescription = (e.target as HTMLTextAreaElement).value;
   });
 }
 
@@ -1198,6 +1263,9 @@ async function handleFollowPdp(): Promise<void> {
         return !variantImageUrls.has(normalizedImg);
       });
 
+    // 确定使用的描述：如果用户编辑过（检测到外链时），使用编辑后的描述
+    const finalDescription = editedDescription || productData.description || undefined;
+
     // 构建请求数据
     const requestData = {
       shop_id: selectedShopId,
@@ -1207,7 +1275,7 @@ async function handleFollowPdp(): Promise<void> {
       variants: variantsData,
       images: filteredImages,
       videos: productData.videos || undefined,
-      description: productData.description || undefined,
+      description: finalDescription,
       category_id: productData.category_id || undefined,
       brand: productData.brand || undefined,
       barcode: productData.barcode || undefined,
@@ -1291,6 +1359,9 @@ function closeModal(): void {
   purchaseUrl = '';
   purchasePrice = null;
   purchaseNote = '';
+
+  // 重置编辑后的描述
+  editedDescription = '';
 }
 
 // ========== UI 辅助函数 ==========

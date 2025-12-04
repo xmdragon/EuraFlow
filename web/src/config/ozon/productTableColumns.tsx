@@ -11,6 +11,7 @@ import {
   EllipsisOutlined,
   ReloadOutlined,
   FileImageOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons';
 import { Button, Tag, Dropdown, Switch } from 'antd';
 import { ColumnsType } from 'antd/es/table';
@@ -34,6 +35,7 @@ export interface ProductTableColumnsParams {
   handleRestore?: (product: ozonApi.Product) => void;
   handleDelete?: (product: ozonApi.Product) => void;
   handleWatermark?: (product: ozonApi.Product) => void;
+  handleDescription?: (product: ozonApi.Product) => void;
   handleImageClick: (product: ozonApi.Product, images: string[], index?: number) => void;
   copyToClipboard: (text: string, label: string) => void;
   canOperate: boolean;
@@ -69,6 +71,7 @@ export const getProductTableColumns = (
     handleRestore,
     handleDelete,
     handleWatermark,
+    handleDescription,
     handleImageClick,
     copyToClipboard,
     canOperate,
@@ -468,6 +471,11 @@ export const getProductTableColumns = (
                   icon: <FileImageOutlined />,
                   label: '图片',
                 },
+                canOperate && handleDescription && {
+                  key: 'description',
+                  icon: <FileTextOutlined />,
+                  label: '描述',
+                },
                 (canOperate || canSync) && {
                   type: 'divider' as const,
                 },
@@ -495,6 +503,9 @@ export const getProductTableColumns = (
                     break;
                   case 'watermark':
                     handleWatermark?.(record);
+                    break;
+                  case 'description':
+                    handleDescription?.(record);
                     break;
                   case 'sync':
                     handleSyncSingle(record);

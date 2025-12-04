@@ -737,12 +737,30 @@ async def get_category_sync_task_status(
             "state": task.state,
         }
 
-        # 如果有进度数据，使用进度数据
+        # 如果有进度数据，优先使用 Redis 进度状态（比 Celery 状态更准确）
         if progress_data:
             progress_info = json.loads(progress_data)
             response["info"] = progress_info
             response["progress"] = progress_info.get('percent', 0)
 
+            # 根据 Redis 进度状态覆盖 Celery 状态
+            # 因为 Celery 使用 acks_late，任务运行时状态可能仍是 PENDING
+            redis_status = progress_info.get('status', '')
+            if redis_status == 'syncing':
+                response["state"] = "PROGRESS"
+                response["status"] = "执行中"
+                return response
+            elif redis_status == 'completed':
+                response["state"] = "SUCCESS"
+                response["status"] = "已完成"
+                return response
+            elif redis_status == 'failed':
+                response["state"] = "FAILURE"
+                response["status"] = "失败"
+                response["error"] = progress_info.get('error', '未知错误')
+                return response
+
+        # 如果没有 Redis 进度数据，使用 Celery 状态
         if task.state == 'PENDING':
             response["status"] = "等待执行"
             if "progress" not in response:
@@ -811,12 +829,30 @@ async def get_batch_sync_task_status(
             "state": task.state,
         }
 
-        # 如果有进度数据，使用进度数据
+        # 如果有进度数据，优先使用 Redis 进度状态（比 Celery 状态更准确）
         if progress_data:
             progress_info = json.loads(progress_data)
             response["info"] = progress_info
             response["progress"] = progress_info.get('percent', 0)
 
+            # 根据 Redis 进度状态覆盖 Celery 状态
+            # 因为 Celery 使用 acks_late，任务运行时状态可能仍是 PENDING
+            redis_status = progress_info.get('status', '')
+            if redis_status == 'syncing':
+                response["state"] = "PROGRESS"
+                response["status"] = "执行中"
+                return response
+            elif redis_status == 'completed':
+                response["state"] = "SUCCESS"
+                response["status"] = "已完成"
+                return response
+            elif redis_status == 'failed':
+                response["state"] = "FAILURE"
+                response["status"] = "失败"
+                response["error"] = progress_info.get('error', '未知错误')
+                return response
+
+        # 如果没有 Redis 进度数据，使用 Celery 状态
         if task.state == 'PENDING':
             response["status"] = "等待执行"
             if "progress" not in response:
