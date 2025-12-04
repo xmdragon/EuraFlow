@@ -5,7 +5,7 @@
  */
 
 import { calculateRealPrice } from './calculator';
-import { injectCompleteDisplay, updateRealPrice, updateFollowSellerData, updateCategoryData, updateButtonsWithConfig } from './display';
+import { injectCompleteDisplay, updateRealPrice, updateFollowSellerData, updateCategoryData, updateRatingData, updateDimensionsData, updateButtonsWithConfig } from './display';
 import { extractProductData, fetchFollowSellerData } from '../parsers/product-detail';
 
 /**
@@ -214,37 +214,40 @@ export class RealPriceCalculator {
       return null;
     });
 
-    // 配置加载完成后更新按钮
+    // 配置和OZON数据加载完成后：更新真实售价、评分、尺寸、按钮
     Promise.all([configPromise, ozonDataPromise]).then(([configResponse, ozonProduct]) => {
       const euraflowConfig = configResponse?.success ? configResponse.data : null;
-      if (euraflowConfig || ozonProduct) {
-        updateButtonsWithConfig(euraflowConfig, ozonProduct, spbSalesData);
-      }
-    }).catch(() => {});
 
-    // OZON 数据加载完成后：更新真实售价 + 获取类目数据
-    ozonDataPromise.then(ozonProduct => {
       if (ozonProduct) {
-        // 从 OZON API 数据计算真实售价
-        // ozonProduct.cardPrice = 绿色价格（Ozon卡价格）
-        // ozonProduct.price = 黑色价格（普通价格）
+        // 1. 先计算并更新真实售价
         const greenPrice = (ozonProduct.cardPrice ?? 0) > 0 ? ozonProduct.cardPrice : null;
         const blackPrice = (ozonProduct.price ?? 0) > 0 ? ozonProduct.price : null;
         if (blackPrice !== null) {
-          const { message } = calculateRealPrice(greenPrice, blackPrice, '¥');
+          const { message, realPrice } = calculateRealPrice(greenPrice, blackPrice, '¥');
           if (message) {
-            updateRealPrice(message);
+            updateRealPrice(message, realPrice);
           }
         }
 
-        // 获取类目数据
+        // 2. 更新评分
+        const ratingData = extractRatingFromJsonLd();
+        if (ratingData.rating !== null || ratingData.reviewCount !== null) {
+          updateRatingData(ratingData.rating, ratingData.reviewCount);
+        }
+
+        // 3. 更新尺寸和重量
+        if (ozonProduct.dimensions) {
+          updateDimensionsData(ozonProduct.dimensions, spbSalesData);
+        }
+
+        // 4. 获取类目数据
         chrome.runtime.sendMessage({
           type: 'FETCH_ALL_PRODUCT_DATA',
           data: {
             url: window.location.href,
             productSku: productId,
             productDetail: ozonProduct,
-            ratingData: extractRatingFromJsonLd(),
+            ratingData: ratingData,
             spbSalesData: spbSalesData,
             followSellerData: null
           }
@@ -254,7 +257,12 @@ export class RealPriceCalculator {
           }
         }).catch(() => {});
       }
-    });
+
+      // 5. 最后更新按钮（此时 realPrice 已更新）
+      if (euraflowConfig || ozonProduct) {
+        updateButtonsWithConfig(euraflowConfig, ozonProduct, spbSalesData);
+      }
+    }).catch(() => {});
 
     // 跟卖数据
     if (!spbSalesData?.competitorCount && spbSalesData?.competitorCount !== 0) {

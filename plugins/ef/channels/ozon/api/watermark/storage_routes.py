@@ -47,7 +47,9 @@ async def create_cloudinary_config(
             # 更新现有配置
             existing_config.cloud_name = cloud_name
             existing_config.api_key = api_key
-            existing_config.api_secret_encrypted = api_secret  # TODO: 加密
+            # 敏感字段：仅当前端传入非空值时才更新（避免空字符串覆盖原有secret）
+            if api_secret and api_secret.strip():
+                existing_config.api_secret_encrypted = api_secret  # TODO: 加密
             existing_config.product_images_folder = product_images_folder
             existing_config.watermark_images_folder = watermark_images_folder
             existing_config.auto_cleanup_days = auto_cleanup_days
@@ -214,7 +216,9 @@ async def create_aliyun_oss_config(
         if existing:
             # 更新现有配置
             existing.access_key_id = access_key_id
-            existing.access_key_secret_encrypted = access_key_secret  # TODO: 加密
+            # 敏感字段：仅当前端传入非空值时才更新（避免空字符串覆盖原有secret）
+            if access_key_secret and access_key_secret.strip():
+                existing.access_key_secret_encrypted = access_key_secret  # TODO: 加密
             existing.bucket_name = bucket_name
             existing.endpoint = endpoint
             existing.region_id = region_id

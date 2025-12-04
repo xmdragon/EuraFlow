@@ -265,10 +265,6 @@ export class SpbangApi extends BaseApiClient {
   async getSalesDataBatch(productIds: string[]): Promise<Map<string, SpbSalesData>> {
     const results = new Map<string, SpbSalesData>();
 
-    if (__DEBUG__) {
-      console.log('[API] SpbangApi.getSalesDataBatch 调用, productIds:', productIds);
-    }
-
     if (!productIds || productIds.length === 0) {
       return results;
     }
@@ -303,13 +299,6 @@ export class SpbangApi extends BaseApiClient {
       v: 4
     };
 
-    if (__DEBUG__) {
-      console.log('[API] SpbangApi.getSalesDataBatch 请求:', {
-        url: apiUrl,
-        params: { goodsIds: productIds, apiType: 'getGoodsInfoByIds' }
-      });
-    }
-
     try {
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -325,10 +314,6 @@ export class SpbangApi extends BaseApiClient {
       }
 
       const result = await response.json();
-
-      if (__DEBUG__) {
-        console.log('[API] SpbangApi.getSalesDataBatch 返回:', result);
-      }
 
       // 检测 Token 过期
       if (this.isTokenExpired(result)) {

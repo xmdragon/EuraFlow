@@ -21,6 +21,7 @@ import { matchAllScenarios } from '../ozon/profitCalculator';
 import { SCENARIOS } from './constants';
 import styles from './ProfitCalculatorV2.module.scss';
 import ScenarioCard from './ScenarioCard';
+import { calculateDefaultShipping, formatPercentage, formatMoney } from './utils';
 
 import { getExchangeRate } from '@/services/exchangeRateApi';
 
@@ -64,6 +65,32 @@ const ProfitCalculatorV2: React.FC = () => {
 
   // 主要匹配场景（运费最低的那个）
   const primaryScenario = matchedScenarios.length > 0 ? matchedScenarios[0] : null;
+
+  // 计算运费（基于主要匹配场景）
+  const shipping = useMemo(() => {
+    if (!inputData.weight || !primaryScenario) return undefined;
+    return calculateDefaultShipping(inputData.weight, primaryScenario);
+  }, [inputData.weight, primaryScenario]);
+
+  // 计算利润和利润率
+  const { profit, profitRate } = useMemo(() => {
+    const { cost, price, packingFee } = inputData;
+    if (
+      cost === undefined ||
+      price === undefined ||
+      shipping === undefined ||
+      packingFee === undefined ||
+      !primaryScenario
+    ) {
+      return { profit: undefined, profitRate: undefined };
+    }
+
+    const platformFee = price * primaryScenario.defaultPlatformRate;
+    const calculatedProfit = price - cost - shipping - platformFee - packingFee;
+    const calculatedProfitRate = price > 0 ? calculatedProfit / price : undefined;
+
+    return { profit: calculatedProfit, profitRate: calculatedProfitRate };
+  }, [inputData, shipping, primaryScenario]);
 
   // 当匹配的场景发生变化时，自动切换标签页
   useEffect(() => {
@@ -151,6 +178,50 @@ const ProfitCalculatorV2: React.FC = () => {
                     </Form.Item>
                   </Col>
                 </Row>
+
+                {/* 利润计算结果 */}
+                {profit !== undefined && (
+                  <div
+                    style={{
+                      width: 600,
+                      padding: '12px 16px',
+                      background: profit > 0 ? '#f6ffed' : '#fff1f0',
+                      borderRadius: 6,
+                      border: `1px solid ${profit > 0 ? '#b7eb8f' : '#ffccc7'}`,
+                    }}
+                  >
+                    <Row gutter={24}>
+                      <Col span={12}>
+                        <Space>
+                          <Text>💰 利润率:</Text>
+                          <Text
+                            strong
+                            style={{
+                              color: profit > 0 ? '#52c41a' : '#ff4d4f',
+                              fontSize: 16,
+                            }}
+                          >
+                            {formatPercentage(profitRate)}
+                          </Text>
+                        </Space>
+                      </Col>
+                      <Col span={12}>
+                        <Space>
+                          <Text>💵 利润:</Text>
+                          <Text
+                            strong
+                            style={{
+                              color: profit > 0 ? '#52c41a' : '#ff4d4f',
+                              fontSize: 16,
+                            }}
+                          >
+                            {formatMoney(profit)} RMB
+                          </Text>
+                        </Space>
+                      </Col>
+                    </Row>
+                  </div>
+                )}
               </Col>
 
               <Col span={12}>

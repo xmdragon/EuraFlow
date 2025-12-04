@@ -33,7 +33,7 @@ export interface PricesResult {
 }
 
 export interface CalculationResult {
-  price: number | null;
+  realPrice: number | null;
   message: string | null;
 }
 
@@ -152,7 +152,7 @@ export function calculateRealPrice(
   // 检查货币是否为卢布
   if (currency === '₽') {
     return {
-      price: null,
+      realPrice: null,
       message: '⚠️ 请切换货币为CNY',
     };
   }
@@ -160,7 +160,7 @@ export function calculateRealPrice(
   // 检查是否有黑标价
   if (blackPrice === null) {
     return {
-      price: null,
+      realPrice: null,
       message: null,
     };
   }
@@ -169,7 +169,7 @@ export function calculateRealPrice(
   const realPrice = calculateRealPriceCore(greenPrice || 0, blackPrice);
 
   return {
-    price: realPrice,
+    realPrice,
     message: `真实售价：${realPrice.toFixed(2)} ¥`,
   };
 }

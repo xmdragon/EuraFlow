@@ -220,6 +220,7 @@ export interface QuickPublishVariant {
   stock: number;            // 库存
   old_price?: number;       // 原价（分）
   primary_image?: string;   // 变体主图URL（单个图片）
+  images?: string[];        // 变体独立的附加图片URL列表（不同变体可能有不同的附加图）
 }
 
 /**

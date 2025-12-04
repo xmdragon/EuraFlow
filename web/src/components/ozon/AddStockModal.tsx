@@ -286,6 +286,17 @@ const AddStockModal: React.FC<AddStockModalProps> = ({ visible, onClose, onSucce
               />
             </Form.Item>
 
+            <Form.Item label="采购价格" name="unit_price">
+              <InputNumber
+                min={0}
+                precision={2}
+                style={{ width: '100%' }}
+                placeholder="可选"
+                addonBefore={currencySymbol}
+                controls={false}
+              />
+            </Form.Item>
+
             <Form.Item label="备注" name="notes">
               <Input.TextArea
                 placeholder="可选，填写备注信息"

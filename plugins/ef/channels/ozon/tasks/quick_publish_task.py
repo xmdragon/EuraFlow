@@ -551,13 +551,13 @@ def create_product_task(self, prev_result: Dict, dto_dict: Dict, user_id: int, s
             product_item["barcode"] = dto_dict["barcode"]
 
         # 图片（使用 Step 1 处理后的水印图片 URL）
-        # OZON API 支持 primary_image（主图）和 images（其他图片，最多14张）
+        # OZON API /v3/product/import 支持 primary_image（主图）和 images（其他图片，最多29张）
         if image_urls:
             # 第一张作为主图
             product_item["primary_image"] = image_urls[0]
-            # 其余作为附图（最多14张）
+            # 其余作为附图（最多29张）
             if len(image_urls) > 1:
-                product_item["images"] = image_urls[1:15]
+                product_item["images"] = image_urls[1:30]
             logger.info(f"[Step 2] 图片: primary_image={image_urls[0][:50]}..., 附图数量={len(image_urls)-1}")
 
         # 只提交创建请求，不轮询（轮询在 Step 3 中进行）
@@ -614,16 +614,16 @@ def upload_images_to_storage_task(self, dto_dict: Dict, shop_id: int, parent_tas
     从 OZON URLs 下载并上传到激活的图片存储，添加水印
     """
     # 构建图片列表：主图在前，附图在后
-    # dto_dict 结构: primary_image (主图), images (附图数组)
+    # dto_dict 结构: primary_image (主图), images (变体独立的附图数组)
     ozon_image_urls = []
 
-    # 1. 先获取主图（直接从 dto_dict.primary_image）
+    # 1. 先获取主图
     primary_image = dto_dict.get("primary_image")
     if primary_image:
         ozon_image_urls.append(primary_image)
         logger.info(f"[Step 1] 获取主图: {primary_image[:50]}...")
 
-    # 2. 再添加附图（从 images 数组，排除主图避免重复）
+    # 2. 再添加附图（变体独立的图片，排除主图避免重复）
     images = dto_dict.get("images", [])
     for img in images:
         # images 数组中每个元素可能是 dict 或 string
@@ -646,7 +646,7 @@ def upload_images_to_storage_task(self, dto_dict: Dict, shop_id: int, parent_tas
             logger.warning("No images to upload")
             return {"image_urls": [], "storage_type": "none"}
 
-        ozon_image_urls = ozon_image_urls[:15]  # 限制最多 15 张
+        ozon_image_urls = ozon_image_urls[:30]  # 限制最多 30 张（OZON API 限制：1主图+29附图）
 
         storage_type = None
         uploaded_urls = []

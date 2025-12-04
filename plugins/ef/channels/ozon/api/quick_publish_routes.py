@@ -48,6 +48,7 @@ class QuickPublishVariantDTO(BaseModel):
     stock: int = Field(..., ge=0, description="库存数量")
     old_price: Optional[Decimal] = Field(None, gt=0, description="原价（分）")
     primary_image: Optional[str] = Field(None, description="变体主图URL（单个图片）")
+    images: Optional[List[str]] = Field(default=None, max_length=29, description="变体独立的附加图片URL列表（最多29张，不同变体可能有不同的附加图）")
 
 
 class QuickPublishBatchDTO(BaseModel):
@@ -60,9 +61,8 @@ class QuickPublishBatchDTO(BaseModel):
     # 变体列表
     variants: List[QuickPublishVariantDTO] = Field(..., min_length=1, max_length=1000, description="变体列表（1-1000个，OZON限制）")
 
-    # 共享图片和视频
-    images: List[str] = Field(default_factory=list, max_length=29, description="图片URL列表（最多29张，还有1张主图）")
-    videos: List[str] = Field(default_factory=list, max_length=5, description="视频URL列表（最多5个）")
+    # 视频（共享）
+    videos: List[str] = Field(default_factory=list, max_length=5, description="视频URL列表（最多5个，所有变体共享）")
 
     # 共享商品信息
     description: Optional[str] = Field(None, max_length=10000, description="商品描述（HTML或纯文本）")

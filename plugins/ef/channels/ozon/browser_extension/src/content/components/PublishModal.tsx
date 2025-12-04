@@ -33,6 +33,72 @@ function toWcImageUrl(url: string | undefined | null, size: number): string {
 }
 
 /**
+ * 将图片URL转换为Base64数据
+ * 浏览器可以访问OZON CDN，但服务器无法访问（403 Forbidden）
+ * 所以需要在浏览器端下载图片并转换为Base64
+ *
+ * @param imageUrl 图片URL
+ * @returns Base64数据（格式：data:image/xxx;base64,xxx），失败返回null
+ */
+async function imageUrlToBase64(imageUrl: string): Promise<string | null> {
+  try {
+    // 使用fetch下载图片
+    const response = await fetch(imageUrl, {
+      mode: 'cors',
+      credentials: 'include',  // 包含cookie，绕过某些CDN限制
+    });
+
+    if (!response.ok) {
+      console.error(`[imageUrlToBase64] 下载失败: ${response.status} ${response.statusText} - ${imageUrl}`);
+      return null;
+    }
+
+    // 获取图片blob
+    const blob = await response.blob();
+
+    // 转换为Base64
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result as string;
+        resolve(base64);
+      };
+      reader.onerror = () => {
+        console.error(`[imageUrlToBase64] FileReader错误: ${imageUrl}`);
+        resolve(null);
+      };
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.error(`[imageUrlToBase64] 异常: ${error} - ${imageUrl}`);
+    return null;
+  }
+}
+
+/**
+ * 批量将图片URL列表转换为Base64
+ * @param urls 图片URL列表
+ * @param progressCallback 进度回调（可选）
+ * @returns Base64数据列表（失败的项为null）
+ */
+async function batchImageUrlsToBase64(
+  urls: string[],
+  progressCallback?: (current: number, total: number) => void
+): Promise<(string | null)[]> {
+  const results: (string | null)[] = [];
+
+  for (let i = 0; i < urls.length; i++) {
+    if (progressCallback) {
+      progressCallback(i + 1, urls.length);
+    }
+    const base64 = await imageUrlToBase64(urls[i]);
+    results.push(base64);
+  }
+
+  return results;
+}
+
+/**
  * 显示右上角 Toast 通知（5秒后自动消失）
  */
 function showToast(message: string, type: 'success' | 'error' | 'info' = 'success'): void {
@@ -129,7 +195,8 @@ interface VariantEditData {
   name?: string;               // 商品名称（可选，从product-detail.ts提取）
   specifications: string;       // 规格描述（如 "白色,M"）
   spec_details?: Record<string, string>; // 规格详情（如 { color: "白色", size: "M" }）
-  image_url: string;           // 变体图片
+  image_url: string;           // 变体主图
+  images?: string[];           // 变体独立的附加图片URL列表（不同变体可能有不同的附加图）
   original_price: number;      // 原价格（元）- 真实售价
   original_old_price?: number; // 原划线价（元）
   min_follow_price?: number;   // 最低跟卖价（元）- 从商品详情获取
@@ -361,7 +428,7 @@ function initializeVariants(pageRealPrice: number | null = null, minFollowPrice:
       // 初始化使用绿色价格，用户可通过"批量定价"手动调整
       const customPrice = variantPrice;
 
-      // 提取变体图片URL（可能是对象或字符串）
+      // 提取变体主图URL（可能是对象或字符串）
       let variantImageUrl = '';
       if (variant.image_url) {
         if (typeof variant.image_url === 'string') {
@@ -372,11 +439,23 @@ function initializeVariants(pageRealPrice: number | null = null, minFollowPrice:
         }
       }
 
+      // 提取变体独立的附加图片URL列表
+      let variantImages: string[] = [];
+      if (variant.images && Array.isArray(variant.images)) {
+        variantImages = variant.images
+          .map((img: any) => {
+            if (typeof img === 'string') return img;
+            return img?.url || img?.link || img?.src || '';
+          })
+          .filter((url: string) => url && url.length > 0);
+      }
+
       variants.push({
         variant_id: variant.variant_id,
         specifications: variant.specifications || `变体 ${index + 1}`,
         spec_details: variant.spec_details,
         image_url: variantImageUrl,
+        images: variantImages.length > 0 ? variantImages : undefined, // 变体独立的附加图片
         original_price: variantPrice, // 绿色价格（变体无法计算真实售价）
         original_old_price: variantOldPrice, // 原划线价
         min_follow_price: minFollowPrice || undefined, // 最低跟卖价
@@ -411,16 +490,26 @@ function initializeVariants(pageRealPrice: number | null = null, minFollowPrice:
     // 初始化使用原价，用户可通过"批量定价"手动调整
     const customPrice = realPrice;
 
-    // 提取单品图片URL（可能是对象或字符串）
+    // 提取单品主图URL（第一张图）和附加图片列表
     let singleImageUrl = '';
+    const singleImages: string[] = [];
+
     if (product.images && product.images.length > 0) {
-      const firstImage = product.images[0];
-      if (typeof firstImage === 'string') {
-        singleImageUrl = firstImage;
-      } else {
-        const imgObj = firstImage as any;
-        singleImageUrl = imgObj.url || imgObj.link || imgObj.src || '';
-      }
+      product.images.forEach((img: any, index: number) => {
+        let imgUrl = '';
+        if (typeof img === 'string') {
+          imgUrl = img;
+        } else {
+          imgUrl = img?.url || img?.link || img?.src || '';
+        }
+        if (imgUrl) {
+          if (index === 0) {
+            singleImageUrl = imgUrl; // 第一张作为主图
+          } else {
+            singleImages.push(imgUrl); // 其余作为附加图片
+          }
+        }
+      });
     }
 
     variants.push({
@@ -428,6 +517,7 @@ function initializeVariants(pageRealPrice: number | null = null, minFollowPrice:
       specifications: '单品',
       spec_details: undefined,
       image_url: singleImageUrl,
+      images: singleImages.length > 0 ? singleImages : undefined, // 附加图片
       original_price: realPrice, // 原价格显示真实售价
       original_old_price: blackPrice,
       min_follow_price: minFollowPrice || undefined, // 最低跟卖价
@@ -582,8 +672,8 @@ function renderMainModal(): void {
 function renderProductPreview(): string {
   if (!productData) return '';
 
-  // 直接使用上品帮的主图（photo 字段）
-  const imageUrl = productData.primary_image || '';
+  // 使用第一张图片作为预览
+  const imageUrl = productData.images?.[0]?.url || '';
 
   const title = productData.title || '未知商品';
   const variantCount = variants.length;
@@ -1228,8 +1318,79 @@ async function handleFollowPdp(): Promise<void> {
       throw new Error('API配置未初始化');
     }
 
-    // 构建变体数据
+    // ========== 图片转 Base64 ==========
+    // OZON CDN 对服务器端请求返回 403 Forbidden（防盗链）
+    // 浏览器可以访问 OZON 图片，所以在这里预先下载并转为 Base64
+    // 后端收到 Base64 数据后直接上传到 Cloudinary，不再需要从 OZON 下载
+
+    // 更新按钮文字提示用户正在处理图片
+    const followPdpBtn = document.getElementById('follow-pdp-btn');
+    if (followPdpBtn) {
+      followPdpBtn.textContent = '正在处理图片...';
+    }
+
+    // 收集所有需要转换的图片URL
+    const allImageUrls: string[] = [];
+    const urlToIndexMap = new Map<string, number>(); // URL 到索引的映射
+
+    enabledVariants.forEach((variant) => {
+      // 主图
+      if (variant.image_url && !urlToIndexMap.has(variant.image_url)) {
+        urlToIndexMap.set(variant.image_url, allImageUrls.length);
+        allImageUrls.push(variant.image_url);
+      }
+      // 附加图片
+      if (variant.images) {
+        variant.images.forEach((imgUrl) => {
+          if (imgUrl && !urlToIndexMap.has(imgUrl)) {
+            urlToIndexMap.set(imgUrl, allImageUrls.length);
+            allImageUrls.push(imgUrl);
+          }
+        });
+      }
+    });
+
+    console.log(`[PublishModal] 开始转换 ${allImageUrls.length} 张图片为 Base64...`);
+
+    // 批量转换图片
+    const base64Results = await batchImageUrlsToBase64(allImageUrls, (current, total) => {
+      if (followPdpBtn) {
+        followPdpBtn.textContent = `处理图片 ${current}/${total}...`;
+      }
+    });
+
+    // 统计转换结果
+    const successCount = base64Results.filter(b => b !== null).length;
+    const failedCount = base64Results.filter(b => b === null).length;
+    console.log(`[PublishModal] 图片转换完成: 成功 ${successCount}, 失败 ${failedCount}`);
+
+    // 构建 URL 到 Base64 的映射
+    const urlToBase64Map = new Map<string, string>();
+    allImageUrls.forEach((url, idx) => {
+      if (base64Results[idx]) {
+        urlToBase64Map.set(url, base64Results[idx]!);
+      }
+    });
+
+    // 恢复按钮文字
+    if (followPdpBtn) {
+      followPdpBtn.textContent = '跟卖';
+    }
+
+    // ========== 构建变体数据 ==========
+    // 使用 Base64 数据替代 URL（后端会检测并处理 Base64 格式）
     const variantsData: QuickPublishVariant[] = enabledVariants.map((variant) => {
+      // 获取主图的 Base64（如果转换成功）
+      const primaryImageBase64 = variant.image_url ? urlToBase64Map.get(variant.image_url) : undefined;
+
+      // 获取附加图片的 Base64 列表
+      let imagesBase64: string[] | undefined;
+      if (variant.images && variant.images.length > 0) {
+        imagesBase64 = variant.images
+          .map((url) => urlToBase64Map.get(url))
+          .filter((b64): b64 is string => b64 !== undefined);
+      }
+
       return {
         name: variant.name || productData?.title || '',
         sku: variant.variant_id,
@@ -1237,41 +1398,29 @@ async function handleFollowPdp(): Promise<void> {
         price: yuanToCents(variant.custom_price),
         stock: variant.stock,
         old_price: variant.custom_old_price ? yuanToCents(variant.custom_old_price) : undefined,
-        primary_image: variant.image_url || undefined,
+        // 使用 Base64 数据（如果有），否则回退到 URL
+        primary_image: primaryImageBase64 || variant.image_url || undefined,
+        images: (imagesBase64 && imagesBase64.length > 0) ? imagesBase64 : variant.images || undefined,
       };
     });
 
-    // 过滤共享图片：移除已经作为变体主图的图片
-    const variantImageUrls = new Set(
-      variantsData
-        .map(v => v.primary_image)
-        .filter((url): url is string => !!url)
-        .map(url => url.replace(/\/wc\d+\//, '/'))
-    );
-
-    const filteredImages = productData.images
-      .filter(img => img && img.url)
-      .filter(img => {
-        const normalizedImg = img.url.replace(/\/wc\d+\//, '/');
-        return !variantImageUrls.has(normalizedImg);
-      });
+    // 注意：由于每个变体现在有独立的附加图片，不再需要共享图片
+    // 但为了向后兼容，如果变体没有独立的附加图片，仍然使用 productData.images 作为后备
 
     // 确定使用的描述：如果用户编辑过（检测到外链时），使用编辑后的描述
     const finalDescription = editedDescription || productData.description || undefined;
 
     // 构建请求数据
+    // 每个变体有独立的图片（primary_image + images），不再需要共享图片
     const requestData = {
       shop_id: selectedShopId,
       warehouse_id: selectedWarehouseIds[0],
       watermark_config_id: selectedWatermarkId || undefined,
       source_url: window.location.href,
       variants: variantsData,
-      images: filteredImages,
       videos: productData.videos || undefined,
       description: finalDescription,
       category_id: productData.category_id || undefined,
-      brand: productData.brand || undefined,
-      barcode: productData.barcode || undefined,
       dimensions: productData.dimensions,
       attributes: productData.attributes || undefined,
       // 采购信息（可选）

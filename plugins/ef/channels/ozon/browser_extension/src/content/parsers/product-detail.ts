@@ -9,6 +9,10 @@
  */
 
 import { getOzonStandardHeaders, generateShortHash } from '../../shared/ozon-headers';
+import { calculateRealPriceCore } from '../price-calculator/calculator';
+
+// 移除 wc 缩略图参数，获取高清图
+const toHdImageUrl = (url: string): string => url ? url.replace(/\/wc\d+\//, '/') : '';
 
 // 标记页面注入脚本是否已加载
 let pageScriptInjected = false;
@@ -84,19 +88,11 @@ export interface ProductDetailData {
   title: string;
   description?: string;
   category_id?: number;
-  // 三级类目路径
-  category_path?: string;           // 完整类目路径（如："Одежда, обувь и аксессуары > Женщинам > Юбки"）
-  category_level_1?: string;        // 一级类目名称
-  category_level_2?: string;        // 二级类目名称
-  category_level_3?: string;        // 三级类目名称
   cardPrice: number;    // 绿色价格（Ozon卡价格）
   price: number;        // 黑色价格（普通价格）
   original_price?: number;  // 划线价
   realPrice?: number;   // 真实售价（由 display.ts 计算后传入）
-  brand?: string;
-  barcode?: string;
   images: { url: string; is_primary?: boolean }[];
-  primary_image?: string;  // 主图 URL（来自上品帮的 photo 字段）
   videos?: string[];
   dimensions?: {
     weight: number;
@@ -145,7 +141,7 @@ async function fetchProductDataFromOzonAPI(productUrl: string): Promise<any | nu
     }
 
     if (__DEBUG__) {
-      console.log('[API] fetchProductDataFromOzonAPI 返回:', { widgetKeys: Object.keys(data.widgetStates), hasLayoutTracking: !!data.layoutTrackingInfo });
+      console.log('[API] fetchProductDataFromOzonAPI 返回:', data);
     }
 
     // 返回完整的 API 响应（包含 layoutTrackingInfo 等字段）
@@ -199,7 +195,7 @@ async function fetchFullVariantsFromModal(productId: string): Promise<any[] | nu
     const aspects = modalData?.aspects;
 
     if (__DEBUG__) {
-      console.log('[API] fetchFullVariantsFromModal 返回:', { aspectsCount: aspects?.length || 0 });
+      console.log('[API] fetchFullVariantsFromModal 返回:', { aspects });
     }
 
     return aspects && Array.isArray(aspects) ? aspects : null;
@@ -609,9 +605,10 @@ function parseFromWidgetStates(apiResponse: any): Omit<ProductDetailData, 'varia
       });
     }
 
-    // 4. 提取商品ID
+    // 4. 提取商品ID（同时作为 sku）
     const urlMatch = window.location.pathname.match(/product\/.*-(\d+)/);
     const ozon_product_id = urlMatch ? urlMatch[1] : undefined;
+    const sku = ozon_product_id;  // OZON 商品的 sku 就是 ozon_product_id
 
     // 5. 提取类目ID（从 layoutTrackingInfo）
     let category_id: number | undefined = undefined;
@@ -630,67 +627,11 @@ function parseFromWidgetStates(apiResponse: any): Omit<ProductDetailData, 'varia
       }
     }
 
-    // 6. 提取三级类目路径（从 webBreadcrumbs）
-    let category_path: string | undefined = undefined;
-    let category_level_1: string | undefined = undefined;
-    let category_level_2: string | undefined = undefined;
-    let category_level_3: string | undefined = undefined;
-
-    const breadcrumbsKey = keys.find(k => k.includes('webBreadcrumbs'));
-    if (breadcrumbsKey) {
-      try {
-        const breadcrumbsData = JSON.parse(widgetStates[breadcrumbsKey]);
-        // OZON 面包屑结构通常为: { breadcrumbs: [{ text: "类目1" }, { text: "类目2" }, ...] }
-        // 或者: { items: [{ text: "类目1" }, { text: "类目2" }, ...] }
-        const items = breadcrumbsData?.breadcrumbs || breadcrumbsData?.items || [];
-
-        if (Array.isArray(items) && items.length > 0) {
-          // 过滤掉首页("Главная")和最后一项（商品标题）
-          const categoryItems = items.filter((item: any, index: number) => {
-            const text = item.text || item.title || item.name || '';
-            // 跳过首页
-            if (text === 'Главная' || text === 'OZON') return false;
-            // 跳过最后一项（通常是商品标题）
-            if (index === items.length - 1 && items.length > 1) return false;
-            return !!text;
-          });
-
-          // 提取类目名称
-          const categoryNames = categoryItems.map((item: any) =>
-            item.text || item.title || item.name || ''
-          ).filter(Boolean);
-
-          if (categoryNames.length > 0) {
-            category_path = categoryNames.join(' > ');
-            category_level_1 = categoryNames[0] || undefined;
-            category_level_2 = categoryNames[1] || undefined;
-            category_level_3 = categoryNames[2] || undefined;
-          }
-        }
-      } catch (error) {
-        console.error('[EuraFlow] 解析 webBreadcrumbs 失败:', error);
-      }
-    }
-
-    // 7. 提取品牌（webProductHeading 或 webCharacteristics）
-    let brand: string | undefined = headingData?.brand || undefined;
-    if (!brand) {
-      const characteristicsKey = keys.find(k => k.includes('webCharacteristics'));
-      if (characteristicsKey) {
-        const characteristicsData = JSON.parse(widgetStates[characteristicsKey]);
-        if (characteristicsData?.characteristics && Array.isArray(characteristicsData.characteristics)) {
-          const brandChar = characteristicsData.characteristics.find(
-            (char: any) => char.title === 'Бренд' || char.key === 'brand'
-          );
-          if (brandChar?.values && brandChar.values.length > 0) {
-            brand = brandChar.values[0].text || brandChar.values[0].value;
-          }
-        }
-      }
-    }
+    // brand 和 category_path/level 不再从 OZON API 提取，使用上品帮数据
 
     return {
       ozon_product_id,
+      sku,  // 添加 sku 字段（与 ozon_product_id 相同）
       title,
       cardPrice,  // 绿色价格
       price,      // 黑色价格
@@ -698,11 +639,6 @@ function parseFromWidgetStates(apiResponse: any): Omit<ProductDetailData, 'varia
       images,
       videos: videos.length > 0 ? videos : undefined,
       category_id,
-      category_path,
-      category_level_1,
-      category_level_2,
-      category_level_3,
-      brand,
     };
   } catch (error) {
     console.error('[EuraFlow] 解析 widgetStates 失败:', error);
@@ -806,8 +742,6 @@ export async function extractProductData(): Promise<ProductDetailData> {
         if (__DEBUG__) {
           console.log('[EuraFlow] 从特征属性提取尺寸（cm→mm）:', baseData.dimensions);
         }
-      } else if (Object.keys(dimensionsFromAttrs).length > 0 && __DEBUG__) {
-        console.log('[EuraFlow] 特征属性中尺寸数据不完整:', dimensionsFromAttrs);
       }
     }
 
@@ -886,7 +820,7 @@ export async function extractProductData(): Promise<ProductDetailData> {
           }
         }
 
-        // 合并 brand 数据（上品帮数据优先）
+        // brand 数据直接使用上品帮的（不再从 OZON API 提取）
         if (injectedData && injectedData.brand) {
           baseData.brand = injectedData.brand;
         }
@@ -917,7 +851,7 @@ export async function extractProductData(): Promise<ProductDetailData> {
 
           currentVariants.forEach((variant: any) => {
             const { sku, link } = variant;
-            const { title, price, originalPrice, searchableText, coverImage } = variant.data || {};
+            const { title, price, cardPrice, originalPrice, searchableText, coverImage } = variant.data || {};
 
             if (searchableText === 'Уцененные') {
               return;
@@ -930,7 +864,6 @@ export async function extractProductData(): Promise<ProductDetailData> {
               const v = aspect.variants.find((v: any) => v.sku === sku) || aspect.variants.find((v: any) => v.active);
               if (v?.data?.searchableText) {
                 specs.push(v.data.searchableText);
-                // 提取维度名称和值（如 { "Цвет": "белый", "Размер": "M" }）
                 if (aspect.title) {
                   specDetails[aspect.title] = v.data.searchableText;
                 }
@@ -938,22 +871,32 @@ export async function extractProductData(): Promise<ProductDetailData> {
             });
             const specText = specs.join(' / ');
 
-            // 解析价格
-            let priceNum = 0;
-            if (typeof price === 'string') {
-              priceNum = parseFloat(price.replace(/\s/g, '').replace(',', '.').replace(/[^\d.]/g, '')) || 0;
-            } else {
-              priceNum = parseFloat(price) || 0;
-            }
-
-            let originalPriceNum = undefined;
-            if (originalPrice) {
-              if (typeof originalPrice === 'string') {
-                originalPriceNum = parseFloat(originalPrice.replace(/\s/g, '').replace(',', '.').replace(/[^\d.]/g, '')) || undefined;
-              } else {
-                originalPriceNum = parseFloat(originalPrice) || undefined;
+            // 解析价格的通用函数
+            const parsePrice = (p: any): number => {
+              if (!p) return 0;
+              if (typeof p === 'string') {
+                return parseFloat(p.replace(/\s/g, '').replace(',', '.').replace(/[^\d.]/g, '')) || 0;
               }
+              return parseFloat(p) || 0;
+            };
+
+            const priceNum = parsePrice(price);           // 黑色价格
+            const cardPriceNum = parsePrice(cardPrice);   // 绿色价格
+            const originalPriceNum = parsePrice(originalPrice) || undefined;
+            // 计算真实售价
+            const realPriceNum = calculateRealPriceCore(cardPriceNum, priceNum);
+
+            // 构建变体图片数组：主图(coverImage高清版) + 附加图片
+            const variantImgs: { url: string; is_primary: boolean }[] = [];
+            const hdCoverImage = toHdImageUrl(coverImage || '');
+            if (hdCoverImage) {
+              variantImgs.push({ url: hdCoverImage, is_primary: true });
             }
+            baseData.images.forEach((img: { url: string }) => {
+              if (img.url !== hdCoverImage) {
+                variantImgs.push({ url: img.url, is_primary: false });
+              }
+            });
 
             allVariants.push({
               variant_id: sku,
@@ -961,9 +904,11 @@ export async function extractProductData(): Promise<ProductDetailData> {
               specifications: specText,
               spec_details: Object.keys(specDetails).length > 0 ? specDetails : undefined,
               image_url: coverImage || '',
-              images: baseData.images.length > 0 ? baseData.images : undefined,  // 当前页面的附加图片
+              images: variantImgs.length > 0 ? variantImgs : undefined,
               link: link ? link.split('?')[0] : '',
               price: priceNum,
+              cardPrice: cardPriceNum,
+              realPrice: realPriceNum,
               original_price: originalPriceNum,
               stock: undefined,
               sku: sku,
@@ -1034,21 +979,19 @@ export async function extractProductData(): Promise<ProductDetailData> {
 
             variants.forEach((variant: any) => {
               const { sku, link } = variant;
-              const { title, price, originalPrice, searchableText, coverImage } = variant.data || {};
+              const { title, price, cardPrice, originalPrice, searchableText, coverImage } = variant.data || {};
 
-              // 过滤瑕疵品
               if (searchableText === 'Уцененные') {
                 return;
               }
 
-              // 构建规格文本和规格详情（从所有 aspects 提取）
+              // 构建规格文本和规格详情
               const specs: string[] = [];
               const specDetails: Record<string, string> = {};
               variantAspects.forEach((aspect: any) => {
                 const v = aspect.variants.find((v: any) => v.sku === sku) || aspect.variants.find((v: any) => v.active);
                 if (v?.data?.searchableText) {
                   specs.push(v.data.searchableText);
-                  // 提取维度名称和值（如 { "Цвет": "белый", "Размер": "M" }）
                   if (aspect.title) {
                     specDetails[aspect.title] = v.data.searchableText;
                   }
@@ -1057,38 +1000,47 @@ export async function extractProductData(): Promise<ProductDetailData> {
               const specText = specs.join(' / ');
 
               // 解析价格
-              let priceNum = 0;
-              if (typeof price === 'string') {
-                priceNum = parseFloat(price.replace(/\s/g, '').replace(',', '.').replace(/[^\d.]/g, '')) || 0;
-              } else {
-                priceNum = parseFloat(price) || 0;
-              }
-
-              let originalPriceNum = undefined;
-              if (originalPrice) {
-                if (typeof originalPrice === 'string') {
-                  originalPriceNum = parseFloat(originalPrice.replace(/\s/g, '').replace(',', '.').replace(/[^\d.]/g, '')) || undefined;
-                } else {
-                  originalPriceNum = parseFloat(originalPrice) || undefined;
+              const parsePrice = (p: any): number => {
+                if (!p) return 0;
+                if (typeof p === 'string') {
+                  return parseFloat(p.replace(/\s/g, '').replace(',', '.').replace(/[^\d.]/g, '')) || 0;
                 }
-              }
+                return parseFloat(p) || 0;
+              };
 
-              const variantData = {
+              const priceNum = parsePrice(price);
+              const cardPriceNum = parsePrice(cardPrice);
+              const originalPriceNum = parsePrice(originalPrice) || undefined;
+              const realPriceNum = calculateRealPriceCore(cardPriceNum, priceNum);
+
+              // 构建变体图片数组：主图(coverImage高清版) + 附加图片
+              const variantImgs: { url: string; is_primary: boolean }[] = [];
+              const hdCoverImage = toHdImageUrl(coverImage || '');
+              if (hdCoverImage) {
+                variantImgs.push({ url: hdCoverImage, is_primary: true });
+              }
+              variantImages.forEach(img => {
+                if (img.url !== hdCoverImage) {
+                  variantImgs.push({ url: img.url, is_primary: false });
+                }
+              });
+
+              allVariants.push({
                 variant_id: sku,
                 name: title || '',
                 specifications: specText,
                 spec_details: Object.keys(specDetails).length > 0 ? specDetails : undefined,
                 image_url: coverImage || '',
-                images: variantImages.length > 0 ? variantImages : undefined,  // 添加变体的附加图片
+                images: variantImgs.length > 0 ? variantImgs : undefined,
                 link: link ? link.split('?')[0] : '',
                 price: priceNum,
+                cardPrice: cardPriceNum,
+                realPrice: realPriceNum,
                 original_price: originalPriceNum,
                 stock: undefined,
                 sku: sku,
                 available: true
-              };
-
-              allVariants.push(variantData);
+              });
             });
           }
 
@@ -1115,35 +1067,6 @@ export async function extractProductData(): Promise<ProductDetailData> {
       has_variants: finalVariants.length > 0,
       variants: finalVariants,
     };
-
-    // 输出合并后的完整商品数据
-    if (__DEBUG__) {
-      console.log('[商品数据] 合并后完整数据:', {
-        ozon_product_id: finalData.ozon_product_id,
-        sku: finalData.sku,
-        title: finalData.title,
-        description: finalData.description ? finalData.description.substring(0, 100) + '...' : undefined,
-        category_id: finalData.category_id,
-        category_path: finalData.category_path,
-        category_level_1: finalData.category_level_1,
-        category_level_2: finalData.category_level_2,
-        category_level_3: finalData.category_level_3,
-        cardPrice: finalData.cardPrice,
-        price: finalData.price,
-        original_price: finalData.original_price,
-        brand: finalData.brand,
-        barcode: finalData.barcode,
-        images_count: finalData.images?.length || 0,
-        primary_image: finalData.primary_image,
-        videos_count: finalData.videos?.length || 0,
-        dimensions: finalData.dimensions,
-        attributes_count: finalData.attributes?.length || 0,
-        attributes: finalData.attributes,  // 显示全部属性
-        typeNameRu: finalData.typeNameRu,
-        has_variants: finalData.has_variants,
-        variants_count: finalData.variants?.length || 0
-      });
-    }
 
     return finalData;
   } catch (error) {

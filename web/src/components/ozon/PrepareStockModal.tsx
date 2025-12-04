@@ -100,9 +100,9 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
   useEffect(() => {
     if (visible && stockCheckData?.items) {
       const items: ItemPrepareData[] = stockCheckData.items.map((item) => {
-        // 采购单价（库存中记录的是单个商品的采购价格）
+        // 采购单价（库存中记录的就是单价，直接使用）
         const unitPrice = item.unit_price ?? undefined;
-        // 进货价格：使用库存时直接使用单价（库存中的采购价就是单价，不需要乘以数量）
+        // 进货价格：直接使用单价
         const purchasePrice = item.is_sufficient && unitPrice
           ? unitPrice
           : (item.is_sufficient ? 0 : undefined);
@@ -142,7 +142,7 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
 
           // 如果勾选使用库存且库存充足，自动设置价格和平台
           if (field === 'useStock' && value && item.stockAvailable >= item.orderQuantity) {
-            // 进货价格：直接使用单价（库存中的采购价就是单价，不需要乘以数量）
+            // 进货价格：直接使用单价
             updated.purchasePrice = item.unitPrice ?? 0;
             updated.sourcePlatform = ['库存'];
           }
@@ -162,7 +162,7 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
 
   // 计算汇总数据
   const getSummaryData = () => {
-    const totalPrice = itemsData.reduce((sum, item) => sum + (item.purchasePrice || 0), 0);
+    const totalPrice = itemsData.reduce((sum, item) => sum + (Number(item.purchasePrice) || 0), 0);
 
     const allPlatforms = itemsData.flatMap((item) => item.sourcePlatform);
     const uniquePlatforms = Array.from(new Set(allPlatforms));
@@ -228,19 +228,17 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
           }
 
           try {
-            // 计算采购单价：进货价格 / 数量
-            const unitPrice = item.purchasePrice && item.addStockQuantity
-              ? item.purchasePrice / item.addStockQuantity
-              : undefined;
+            // 用户输入的进货价格就是单价，直接使用
+            const unitPrice = item.purchasePrice ? Number(item.purchasePrice) : undefined;
 
             await ozonApi.addStock({
               shop_id: item.shopId,
               sku: item.sku,
               quantity: item.addStockQuantity!,
-              unit_price: unitPrice, // 采购单价 = 进货价格 / 数量
+              unit_price: unitPrice,
               notes: `备货时添加库存 - ${postingNumber}`,
             });
-            loggers.stock.info('添加库存成功', { sku: item.sku, quantity: item.addStockQuantity, unitPrice, purchasePrice: item.purchasePrice });
+            loggers.stock.info('添加库存成功', { sku: item.sku, quantity: item.addStockQuantity, unitPrice });
           } catch (error) {
             const errorMsg = axios.isAxiosError(error)
               ? error.response?.data?.detail || error.message || '添加库存失败'

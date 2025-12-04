@@ -15,6 +15,62 @@ const DISPLAY_CONFIG = {
   injectedSectionId: 'euraflow-section',
 };
 
+// ========== 全局数据存储 ==========
+// 存储当前页面的完整商品数据，异步 API 获取后不断合并更新
+// 按钮点击时从这里获取最新最全的数据
+interface ProductDataStore {
+  ozonProduct: any | null;
+  spbSales: any | null;
+  euraflowConfig: any | null;
+  dimensions: any | null;
+  realPrice: number | null;
+}
+
+const productDataStore: ProductDataStore = {
+  ozonProduct: null,
+  spbSales: null,
+  euraflowConfig: null,
+  dimensions: null,
+  realPrice: null,
+};
+
+/**
+ * 更新全局数据存储（合并新数据到现有数据）
+ */
+export function updateProductDataStore(data: Partial<ProductDataStore>): void {
+  if (data.ozonProduct !== undefined) {
+    // 合并 ozonProduct 数据，保留已有字段
+    productDataStore.ozonProduct = {
+      ...productDataStore.ozonProduct,
+      ...data.ozonProduct,
+    };
+  }
+  if (data.spbSales !== undefined) {
+    // 合并 spbSales 数据，新值覆盖旧值
+    productDataStore.spbSales = {
+      ...productDataStore.spbSales,
+      ...data.spbSales,
+    };
+  }
+  if (data.euraflowConfig !== undefined) {
+    productDataStore.euraflowConfig = data.euraflowConfig;
+  }
+  if (data.dimensions !== undefined) {
+    productDataStore.dimensions = data.dimensions;
+  }
+  if (data.realPrice !== undefined) {
+    productDataStore.realPrice = data.realPrice;
+  }
+
+}
+
+/**
+ * 获取全局数据存储（只读）
+ */
+export function getProductDataStore(): Readonly<ProductDataStore> {
+  return productDataStore;
+}
+
 // ========== Toast 通知 ==========
 
 /**
@@ -184,28 +240,38 @@ function formatDate(dateStr: string | null): string {
 /**
  * 更新真实售价（异步加载完成后调用）
  */
-export function updateRealPrice(message: string): void {
-  const priceElement = document.getElementById('euraflow-real-price');
-  if (!priceElement) return;
+export function updateRealPrice(message: string, price: number | null): void {
+  // 更新全局数据存储
+  if (price !== null) {
+    productDataStore.realPrice = price;
+  }
 
-  // 更新价格文本（去掉"真实售价："前缀）
-  priceElement.textContent = message.replace('真实售价：', '');
+  // 更新 DOM 显示
+  const priceElement = document.getElementById('euraflow-real-price');
+  if (priceElement) {
+    priceElement.textContent = message.replace('真实售价：', '');
+  }
 }
 
 /**
  * 更新跟卖数据（异步加载完成后调用）
- * 替换已注入的跟卖行
+ * 替换已注入的跟卖行，并更新全局数据存储
  */
 export function updateFollowSellerData(spbSales: any): void {
+  // 更新全局数据存储（合并跟卖数据到现有数据）
+  updateProductDataStore({ spbSales });
+
   const existingRow = document.getElementById('ef-follower-row');
   if (!existingRow) return;
 
   const follower = spbSales?.competitorCount;
   const followerStr = follower != null && follower > 0 ? `${follower}家` : '无跟卖';
 
-  // 计算最低跟卖价
-  let minPrice = spbSales?.competitorMinPrice;
-  if (minPrice == null && spbSales?.followSellerPrices?.length > 0) {
+  // 计算最低跟卖价：仅使用 OZON 跟卖数据的 followSellerPrices
+  // followSellerPrices 存在表示 OZON API 成功，空数组表示无跟卖
+  // followSellerPrices 不存在表示 OZON API 失败，显示 ---
+  let minPrice: number | null = null;
+  if (spbSales?.followSellerPrices?.length > 0) {
     const prices = spbSales.followSellerPrices.filter((p: number) => p > 0);
     if (prices.length > 0) {
       minPrice = Math.min(...prices);
@@ -230,6 +296,9 @@ export function updateFollowSellerData(spbSales: any): void {
  * 更新类目数据（异步加载完成后调用）
  */
 export function updateCategoryData(spbSales: any): void {
+  // 更新全局数据存储（合并类目数据到现有数据）
+  updateProductDataStore({ spbSales });
+
   const existingRow = document.getElementById('ef-category-row');
   if (!existingRow) return;
 
@@ -243,6 +312,70 @@ export function updateCategoryData(spbSales: any): void {
 }
 
 /**
+ * 更新评分数据（异步加载完成后调用）
+ */
+export function updateRatingData(rating: number | null, reviewCount: number | null): void {
+  const bottomRow = document.querySelector('.ef-row-bottom');
+  if (!bottomRow) return;
+
+  // 找到评分列
+  const ratingCol = bottomRow.querySelector('.ef-col:first-child');
+  if (!ratingCol) return;
+
+  // 更新评分内容
+  let ratingHtml = '<span class="ef-label">评分:</span>';
+  if (rating != null) {
+    const stars = '★'.repeat(Math.round(rating));
+    const reviewStr = reviewCount != null ? `(${reviewCount})` : '';
+    ratingHtml += `<span class="ef-rating" title="评分: ${rating}">${stars}${rating} ${reviewStr}</span>`;
+  } else {
+    ratingHtml += '<span class="ef-value">---</span>';
+  }
+  ratingCol.innerHTML = ratingHtml;
+}
+
+/**
+ * 更新尺寸和重量数据（异步加载完成后调用）
+ */
+export function updateDimensionsData(dimensions: any, spbSales: any): void {
+  // 更新全局数据存储
+  if (dimensions) {
+    updateProductDataStore({ dimensions });
+  }
+
+  const dataSection = document.getElementById('euraflow-data-section');
+  if (!dataSection) return;
+
+  // 找到重量行（均价 + 重量）
+  const rows = dataSection.querySelectorAll('.ef-row-two');
+  for (const row of rows) {
+    const cols = row.querySelectorAll('.ef-col');
+    if (cols.length === 2) {
+      const label1 = cols[0].querySelector('.ef-label');
+      const label2 = cols[1].querySelector('.ef-label');
+
+      // 更新重量
+      if (label1?.textContent === '均价:' && label2?.textContent === '重量:') {
+        const weight = dimensions?.weight ?? spbSales?.weight;
+        const weightStr = weight != null ? `${weight}g` : '---';
+        const valueSpan = cols[1].querySelector('.ef-value');
+        if (valueSpan) valueSpan.textContent = weightStr;
+      }
+
+      // 更新尺寸
+      if (label1?.textContent === '尺寸:' && label2?.textContent === '模式:') {
+        const d = dimensions?.length ?? spbSales?.depth;
+        const w = dimensions?.width ?? spbSales?.width;
+        const h = dimensions?.height ?? spbSales?.height;
+        const dimStr = (d != null && w != null && h != null) ? `${d}×${w}×${h}` : '---';
+        const valueSpan = cols[0].querySelector('.ef-value');
+        if (valueSpan) valueSpan.textContent = dimStr;
+      }
+    }
+  }
+}
+
+/**
  * 更新按钮区域（配置和 OZON 数据加载完成后调用）
  */
 export function updateButtonsWithConfig(
@@ -250,39 +383,46 @@ export function updateButtonsWithConfig(
   ozonProduct: any,
   spbSales: any
 ): void {
+  const dimensions = ozonProduct?.dimensions || null;
+
+  updateProductDataStore({
+    ozonProduct,
+    spbSales,
+    euraflowConfig,
+    dimensions,
+  });
+
   const buttonRow = document.getElementById('euraflow-button-row');
   if (!buttonRow) return;
 
-  // 获取尺寸数据
-  const dimensions = ozonProduct?.dimensions || null;
   const hasDimensions = dimensions &&
     dimensions.weight !== null && dimensions.weight !== undefined;
   const hasSpbDimensions = spbSales &&
     spbSales.weight !== null && spbSales.weight !== undefined;
   const hasAnyDimensions = hasDimensions || hasSpbDimensions;
 
-  // 获取价格（从已注入的组件中提取）
-  const priceElement = document.querySelector('#euraflow-widget-price .ef-price-value');
-  const priceText = priceElement?.textContent?.replace(/[^\d.]/g, '') || '0';
-  const price = parseFloat(priceText) || null;
-
   // 检查是否已有跟卖按钮
   const existingFollowButton = buttonRow.querySelector('#euraflow-follow');
   if (!existingFollowButton && ozonProduct && hasAnyDimensions) {
-    const followButton = createFollowButton(price, ozonProduct, spbSales, dimensions);
+    const followButton = createFollowButton();
     buttonRow.appendChild(followButton);
   }
 
   // 检查是否已有采集按钮
   const existingCollectButton = buttonRow.querySelector('#euraflow-collect');
   if (!existingCollectButton && ozonProduct && euraflowConfig) {
-    const collectButton = createCollectButton(price, ozonProduct, spbSales, dimensions, euraflowConfig);
+    const collectButton = createCollectButton();
     buttonRow.appendChild(collectButton);
   }
 
   // 如果有任何按钮，显示按钮行
   if (buttonRow.children.length > 0) {
     buttonRow.style.display = '';
+
+    // 按钮注入完成后，输出最终完整数据
+    if (__DEBUG__) {
+      console.log('[ProductDataStore] 完整数据:', getProductDataStore());
+    }
   }
 }
 
@@ -306,6 +446,15 @@ export async function injectCompleteDisplay(data: {
 
   // dimensions 直接从 ozonProduct 中获取
   const dimensions = ozonProduct?.dimensions || null;
+
+  // 初始化全局数据存储（上品帮数据作为初始数据）
+  updateProductDataStore({
+    ozonProduct,
+    spbSales,
+    euraflowConfig,
+    dimensions,
+    realPrice: price,
+  });
 
   // 获取目标容器
   const container = document.querySelector('.container') as HTMLElement | null;
@@ -371,14 +520,14 @@ export async function injectCompleteDisplay(data: {
 
     // 只要有 ozonProduct 就可以显示按钮
     if (ozonProduct && hasAnyDimensions) {
-      // 创建跟卖按钮
-      const followButton = createFollowButton(price, ozonProduct, spbSales, dimensions);
+      // 创建跟卖按钮（从全局存储获取数据）
+      const followButton = createFollowButton();
       buttonRow.appendChild(followButton);
     }
 
     if (hasCollectData) {
-      // 创建采集按钮
-      const collectButton = createCollectButton(price, ozonProduct, spbSales, dimensions, euraflowConfig);
+      // 创建采集按钮（从全局存储获取数据）
+      const collectButton = createCollectButton();
       buttonRow.appendChild(collectButton);
     }
 
@@ -573,9 +722,11 @@ function buildDataRows(spbSales: any | null, dimensions: any | null): HTMLElemen
   // 初始显示 ---，等 API 查询完成后由 updateFollowSellerData 更新为实际值或"无跟卖"
   const followerStr = follower != null && follower > 0 ? `${follower}家` : '---';
 
-  // 最低跟卖价：优先用 competitorMinPrice，其次从 followSellerPrices 取最小值
-  let minPrice = spbSales?.competitorMinPrice;
-  if (minPrice == null && spbSales?.followSellerPrices?.length > 0) {
+  // 最低跟卖价：仅使用 OZON 跟卖数据的 followSellerPrices
+  // followSellerPrices 存在表示 OZON API 成功，空数组表示无跟卖
+  // followSellerPrices 不存在表示 OZON API 失败，显示 ---
+  let minPrice: number | null = null;
+  if (spbSales?.followSellerPrices?.length > 0) {
     const prices = spbSales.followSellerPrices.filter((p: number) => p > 0);
     if (prices.length > 0) {
       minPrice = Math.min(...prices);
@@ -896,13 +1047,9 @@ function formatDimensions(dimensions: any, spbSales: any): string {
 
 /**
  * 创建"跟卖"按钮
+ * 点击时从全局数据存储获取最新最全的数据
  */
-function createFollowButton(
-  realPrice: number | null,
-  ozonProduct: any,
-  spbSales: any | null,
-  dimensions: any | null
-): HTMLButtonElement {
+function createFollowButton(): HTMLButtonElement {
   const followButton = document.createElement('button');
   followButton.id = 'euraflow-follow-sell';
   followButton.setAttribute('type', 'button');
@@ -912,6 +1059,10 @@ function createFollowButton(
   // 事件处理
   followButton.addEventListener('click', async () => {
     try {
+      // 从全局存储获取最新数据
+      const store = getProductDataStore();
+      const { ozonProduct, spbSales, dimensions, realPrice } = store;
+
       // 优先使用 dimensions（OZON Seller API），fallback 到 spbSales（上品帮）
       const hasDimensions = dimensions &&
         dimensions.weight !== null && dimensions.weight !== undefined &&
@@ -950,9 +1101,9 @@ function createFollowButton(
         || ozonProduct?.images?.[0]?.url
         || null;
 
-      // 计算最低跟卖价：优先用 competitorMinPrice，其次从 followSellerPrices 取最小值
-      let minFollowPrice: number | null = spbSales?.competitorMinPrice ?? null;
-      if (minFollowPrice == null && spbSales?.followSellerPrices?.length > 0) {
+      // 计算最低跟卖价：从全局存储的 followSellerPrices 获取（OZON 跟卖 API 返回）
+      let minFollowPrice: number | null = null;
+      if (spbSales?.followSellerPrices?.length > 0) {
         const prices = spbSales.followSellerPrices.filter((p: number) => p > 0);
         if (prices.length > 0) {
           minFollowPrice = Math.min(...prices);
@@ -977,14 +1128,9 @@ function createFollowButton(
 
 /**
  * 创建"采集"按钮
+ * 点击时从全局数据存储获取最新最全的数据
  */
-function createCollectButton(
-  realPrice: number | null,
-  ozonProduct: any,
-  spbSales: any | null,
-  dimensions: any | null,
-  euraflowConfig: any | null
-): HTMLButtonElement {
+function createCollectButton(): HTMLButtonElement {
   const collectButton = document.createElement('button');
   collectButton.id = 'euraflow-collect';
   collectButton.setAttribute('type', 'button');
@@ -994,6 +1140,10 @@ function createCollectButton(
   // 事件处理
   collectButton.addEventListener('click', async () => {
     try {
+      // 从全局存储获取最新数据
+      const store = getProductDataStore();
+      const { ozonProduct, spbSales, dimensions, euraflowConfig, realPrice } = store;
+
       // 优先使用 dimensions（OZON Seller API），fallback 到 spbSales（上品帮）
       const hasDimensions = dimensions &&
         dimensions.weight !== null && dimensions.weight !== undefined &&
@@ -1051,11 +1201,27 @@ function createCollectButton(
       collectButton.textContent = '采集中...';
 
       // 通过 background service worker 发送请求（避免 CORS）
-      // 使用计算出的真实售价，而不是 OZON 的绿色价格
+      // 构建采集数据：
+      // 1. 保留所有价格字段：price, realPrice, cardPrice
+      // 2. 移除不必要字段：barcode, primary_image(顶层), category_level_*, category_path
+      // 3. 确保 sku 字段存在（使用 ozon_product_id）
+      const {
+        barcode: _barcode,
+        primary_image: _primaryImage,
+        category_level_1: _catLevel1,
+        category_level_2: _catLevel2,
+        category_level_3: _catLevel3,
+        category_path: _catPath,
+        ...cleanedOzonProduct
+      } = ozonProduct || {};
+
       const productData = {
-        ...ozonProduct,
+        ...cleanedOzonProduct,
+        sku: ozonProduct?.sku || ozonProduct?.ozon_product_id || null,  // 确保 sku 字段存在
         dimensions: finalDimensions,  // 使用确定的尺寸数据
-        price: realPrice,  // 使用真实售价
+        price: ozonProduct?.price ?? null,  // OZON 黑色价格
+        cardPrice: ozonProduct?.cardPrice ?? null,  // OZON 绿色价格（Ozon卡价格）
+        realPrice: realPrice ?? null,  // 计算出的真实售价
         description: finalDescription  // 使用可能被编辑的描述
       };
       const response = await chrome.runtime.sendMessage({

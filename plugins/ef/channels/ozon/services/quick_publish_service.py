@@ -104,6 +104,9 @@ class QuickPublishService:
                     "old_price": str(variant.old_price) if variant.old_price else None,
                     "primary_image": variant.primary_image,
 
+                    # 变体独立的附加图片（优先使用，如果没有则使用共享图片作为后备）
+                    "images": variant.images if variant.images else [],
+
                     # 共享字段（所有变体共享）
                     "description": russian_description,
                     "category_id": dto.category_id,
@@ -113,8 +116,7 @@ class QuickPublishService:
                     # 尺寸（必填）
                     "dimensions": dto.dimensions.model_dump() if dto.dimensions else None,
 
-                    # 图片和视频
-                    "images": dto.images,
+                    # 视频（共享）
                     "videos": dto.videos,
 
                     # 类目特征

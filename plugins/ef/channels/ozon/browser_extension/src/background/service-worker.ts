@@ -474,10 +474,6 @@ async function handleFetchAllProductData(data: {
 }): Promise<any> {
   const { url, productSku, productDetail, ratingData, spbSalesData: preloadedSpbSales, followSellerData } = data;
 
-  if (__DEBUG__) {
-    console.log('[商品数据] handleFetchAllProductData 开始, productSku:', productSku, 'hasPreloadedSpbSales:', !!preloadedSpbSales);
-  }
-
   // 数据完整性检查
   if (!productDetail) {
     throw new Error('Content Script 未传递 productDetail，数据采集失败');
@@ -632,16 +628,6 @@ async function handleFetchAllProductData(data: {
     euraflowConfig,
     timestamp: Date.now()
   });
-
-  // 4. 调试日志
-  if (__DEBUG__) {
-    console.log('[商品数据] 最终数据:', {
-      变体数量: productDetail.variants?.length || 0,
-      spbSales: finalSpbSales ? '✅' : '❌',
-      评分: finalSpbSales?.rating,
-      评价数: finalSpbSales?.reviewCount
-    });
-  }
 
   return {
     ozonProduct: productDetail,

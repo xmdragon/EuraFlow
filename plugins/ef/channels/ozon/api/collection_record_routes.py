@@ -45,11 +45,10 @@ class FollowPdpRequest(BaseModel):
     """跟卖上架请求"""
     shop_id: int = Field(..., description="店铺ID")
     source_url: str = Field(..., description="商品来源URL")
-    variants: list[dict[str, Any]] = Field(..., description="变体列表")
+    variants: list[dict[str, Any]] = Field(..., description="变体列表（每个变体包含 primary_image 和 images）")
     warehouse_id: int = Field(..., description="仓库ID")
     watermark_config_id: Optional[int] = Field(None, description="水印配置ID")
-    images: Optional[list[dict[str, Any]]] = Field(None, description="图片列表")
-    videos: Optional[list[str]] = Field(None, description="视频列表")
+    videos: Optional[list[str]] = Field(None, description="视频列表（共享）")
     description: Optional[str] = Field(None, description="商品描述")
     category_id: Optional[int] = Field(None, description="类目ID")
     brand: Optional[str] = Field(None, description="品牌")
@@ -158,28 +157,44 @@ async def follow_pdp_listing(
     """
     # 从 variants 和其他字段构造 product_data（供前端展示用）
     # 转换 variants 数据：分→元（字段名保持与插件一致，使用 primary_image）
+    # 每个变体现在包含独立的 images 数组
     variants_for_display = []
     for v in request.variants:
         price_fen = v.get("price", 0) or 0
         old_price_fen = v.get("old_price")
+        # 转换变体的 images 格式（字符串数组 → 对象数组），与采集格式保持一致
+        variant_images = v.get("images", [])
+        if variant_images and isinstance(variant_images[0], str):
+            # 如果是字符串数组，转换为对象数组
+            variant_images = [{"url": url} for url in variant_images]
         variants_for_display.append({
             **v,
             "price": price_fen / 100 if price_fen else None,  # 分→元
             "old_price": old_price_fen / 100 if old_price_fen else None,
+            "images": variant_images,  # 变体独立的图片数组
         })
 
     first_variant = variants_for_display[0] if variants_for_display else {}
 
+    # 从第一个变体提取图片用于商品级展示（向后兼容）
+    first_variant_images = first_variant.get("images", [])
+    if first_variant.get("primary_image"):
+        # 主图放在最前面
+        product_images = [{"url": first_variant["primary_image"], "is_primary": True}]
+        product_images.extend(first_variant_images)
+    else:
+        product_images = first_variant_images
+
     product_data_for_display = {
         "title": request.title or first_variant.get("name", ""),
-        "images": request.images,
+        "images": product_images,  # 商品级图片（从第一个变体提取，用于列表展示）
         "price": first_variant.get("price"),  # 用户设置的价格（元）
         "old_price": first_variant.get("old_price"),
         "description": request.description,
         "dimensions": request.dimensions,
         "brand": request.brand,
         "barcode": request.barcode,
-        "variants": variants_for_display,  # 保存转换后的变体信息
+        "variants": variants_for_display,  # 保存转换后的变体信息（每个变体有独立图片）
     }
 
     # 创建采集记录
@@ -194,15 +209,15 @@ async def follow_pdp_listing(
     )
 
     # 保存上架请求参数（用于异步任务）
+    # 注意：图片现在在每个 variant 中（primary_image + images），不再有顶层 images 字段
     await CollectionRecordService.update_listing_status(
         db=db,
         record_id=record.id,
         listing_status="pending",
         listing_request_payload={
-            "variants": request.variants,
+            "variants": request.variants,  # 每个变体包含 primary_image 和 images
             "warehouse_id": request.warehouse_id,
             "watermark_config_id": request.watermark_config_id,
-            "images": request.images,
             "videos": request.videos,
             "description": request.description,
             "category_id": request.category_id,

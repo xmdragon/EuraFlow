@@ -21,8 +21,9 @@ interface Variant {
   offer_id?: string;
   specifications: string;       // 规格描述（如 "白色,M"）
   name?: string;                // 变体名称
-  primary_image: string;        // 图片URL（与插件字段名一致）
-  images?: { url: string }[];   // 变体图片数组（可选）
+  primary_image?: string;       // 主图URL（跟卖上架使用）
+  image_url?: string;           // 主图URL（采集功能使用）
+  images?: { url: string }[] | string[];   // 变体图片数组（可选，支持对象数组或字符串数组）
   price: number;                // 价格（元）
   old_price?: number;           // 原价（元）
   original_price?: number;      // 原价（兼容旧字段名）
@@ -131,9 +132,12 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
   const currentVariant = hasVariants ? variants[selectedVariantIndex] : null;
 
   // 提取当前变体的图片（useMemo 必须在条件返回之前调用）
+  // 支持两种格式：对象数组 [{url: string}] 或字符串数组 [string]
   const currentImages = useMemo(() => {
     if (currentVariant?.images && currentVariant.images.length > 0) {
-      return currentVariant.images.map(img => img.url).filter(Boolean);
+      return currentVariant.images.map(img =>
+        typeof img === 'string' ? img : (img as { url?: string })?.url || ''
+      ).filter(Boolean);
     }
     if (product_data?.images && product_data.images.length > 0) {
       return product_data.images.map((img: unknown) => (typeof img === 'string' ? img : (img as { url?: string })?.url || '')).filter(Boolean);
@@ -144,7 +148,15 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
   // 条件返回必须在所有 hooks 调用之后
   if (!record) return null;
 
-  const mainImage = currentVariant?.primary_image || currentImages[0] || '';
+  // 获取变体主图：优先 primary_image 字段，其次 images 数组中 is_primary:true 的图
+  const getVariantPrimaryImage = (variant: Variant | null): string => {
+    if (!variant) return '';
+    if (variant.primary_image) return variant.primary_image;
+    if (!variant.images?.length) return '';
+    const primary = variant.images.find(img => typeof img === 'object' && (img as { is_primary?: boolean }).is_primary);
+    return (primary as { url?: string })?.url || (variant.images[0] as { url?: string })?.url || '';
+  };
+  const mainImage = getVariantPrimaryImage(currentVariant) || currentImages[0] || '';
 
   // 获取上架相关信息
   const listingPayload = record.listing_request_payload;
@@ -161,9 +173,11 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
   // 获取当前变体库存（直接从变体数据中取）
   const currentStock = currentVariant?.stock;
 
-  // 获取当前价格
-  const currentPrice = currentVariant?.price || product_data?.price || 0;
-  const currentOriginalPrice = currentVariant?.original_price || product_data?.old_price;
+  // 获取当前价格（插件采集返回三个价格）
+  // 注意：变体的价格可能为0，此时不应 fallback 到商品级别价格
+  const realPrice = (currentVariant as Record<string, unknown>)?.realPrice as number ?? (product_data as Record<string, unknown>)?.realPrice as number ?? 0;
+  const greenPrice = (currentVariant as Record<string, unknown>)?.cardPrice as number ?? (product_data as Record<string, unknown>)?.cardPrice as number ?? 0;
+  const blackPrice = currentVariant?.price ?? product_data?.price ?? 0;
 
   // 获取当前规格
   const currentSpecifications = currentVariant?.specifications || '';
@@ -261,7 +275,7 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
                 title={variant.specifications}
               >
                 <img
-                  src={variant.primary_image}
+                  src={getVariantPrimaryImage(variant)}
                   alt={variant.specifications}
                   className={styles.variantImage}
                 />
@@ -301,14 +315,6 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
       {/* 商品信息表格 */}
       <div className={styles.detailSection}>
         <Descriptions bordered size="small" column={2} labelStyle={{ width: 60 }}>
-          {currentPrice !== undefined && (
-            <Descriptions.Item label="价格" contentStyle={{ width: 120 }}>
-              <span className={styles.price}>
-                {formatPrice(currentPrice)}
-              </span>
-            </Descriptions.Item>
-          )}
-
           {/* 尺寸信息 */}
           {product_data?.dimensions && (
             <Descriptions.Item label="尺寸">
@@ -326,6 +332,39 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
               {product_data.dimensions.weight} g
             </Descriptions.Item>
           )}
+
+          {/* 价格信息：有变体时只显示价格，无变体时显示三个价格 */}
+          <Descriptions.Item label="价格" span={2}>
+            {hasVariants ? (
+              // 有变体：只显示黑色价格
+              <span style={{ fontWeight: 'bold' }}>{blackPrice > 0 ? formatPrice(blackPrice) : '-'}</span>
+            ) : (
+              // 无变体：显示三个价格
+              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                {realPrice > 0 && (
+                  <span>
+                    <span style={{ color: '#666' }}>真实售价：</span>
+                    <span style={{ color: '#f50', fontWeight: 'bold' }}>{formatPrice(realPrice)}</span>
+                  </span>
+                )}
+                {greenPrice > 0 && (
+                  <span>
+                    <span style={{ color: '#666' }}>绿色价格：</span>
+                    <span style={{ color: '#52c41a', fontWeight: 'bold' }}>{formatPrice(greenPrice)}</span>
+                  </span>
+                )}
+                {blackPrice > 0 && (
+                  <span>
+                    <span style={{ color: '#666' }}>黑色价格：</span>
+                    <span style={{ fontWeight: 'bold' }}>{formatPrice(blackPrice)}</span>
+                  </span>
+                )}
+                {realPrice === 0 && greenPrice === 0 && blackPrice === 0 && (
+                  <span style={{ color: '#999' }}>-</span>
+                )}
+              </div>
+            )}
+          </Descriptions.Item>
 
           {product_data?.description && (
             <Descriptions.Item label="描述" span={2}>

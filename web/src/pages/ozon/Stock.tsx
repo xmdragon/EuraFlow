@@ -97,6 +97,7 @@ const Stock: React.FC = () => {
   const handleEdit = (record: ozonApi.StockItem) => {
     form.setFieldsValue({
       quantity: record.qty_available,
+      unit_price: record.unit_price,
       notes: record.notes,
     });
     setEditingKey(record.id);
@@ -201,15 +202,41 @@ const Stock: React.FC = () => {
         </div>
       ),
     },
-    // 价格
+    // 售价
     {
-      title: '价格',
+      title: '售价',
       dataIndex: 'product_price',
       key: 'product_price',
       width: 100,
       render: (price: string | number) => (
         <Text>{price ? `${currencySymbol}${parseFloat(String(price)).toFixed(2)}` : '-'}</Text>
       ),
+    },
+    // 采购价格（可编辑）
+    {
+      title: '采购价格',
+      dataIndex: 'unit_price',
+      key: 'unit_price',
+      width: 120,
+      render: (unitPrice: number | null, record: ozonApi.StockItem) => {
+        const isEditing = editingKey === record.id;
+
+        return isEditing ? (
+          <Form form={form} component={false}>
+            <Form.Item name="unit_price" style={{ margin: 0 }}>
+              <InputNumber
+                min={0}
+                precision={2}
+                style={{ width: '100%' }}
+                addonBefore={currencySymbol}
+                controls={false}
+              />
+            </Form.Item>
+          </Form>
+        ) : (
+          <Text>{unitPrice ? `${currencySymbol}${parseFloat(String(unitPrice)).toFixed(2)}` : '-'}</Text>
+        );
+      },
     },
     // 库存数量（可编辑）
     {

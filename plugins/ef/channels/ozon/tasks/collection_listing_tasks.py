@@ -194,14 +194,12 @@ def process_follow_pdp_listing(record_id: int) -> dict:
                                 logger.warning(f"[CollectionListing] 变体名称翻译失败: {e}")
 
                         # 获取图片列表
-                        # 优先使用变体自带的 images，其次使用顶层 images，最后使用 primary_image
+                        # 每个变体有独立的 images 数组（不再使用共享的顶层 images）
                         variant_images = variant.get("images", [])
-                        top_level_images = listing_payload.get("images", [])
-                        images = variant_images if variant_images else top_level_images
 
                         # 转换图片格式（如果是对象数组，提取 URL）
                         image_urls = []
-                        for img in images:
+                        for img in variant_images:
                             if isinstance(img, str):
                                 image_urls.append(img)
                             elif isinstance(img, dict) and img.get("url"):
@@ -212,7 +210,7 @@ def process_follow_pdp_listing(record_id: int) -> dict:
                             primary_image = variant.get("primary_image")
                             if primary_image:
                                 image_urls.append(primary_image)
-                                logger.info(f"[CollectionListing] 使用 primary_image 作为图片: {primary_image[:50]}...")
+                                logger.info(f"[CollectionListing] 使用 primary_image 作为唯一图片: {primary_image[:50]}...")
 
                         # 价格转换：浏览器扩展传入的是分，需要转换为元
                         price_fen = variant.get("price", 0) or 0
