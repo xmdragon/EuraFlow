@@ -155,16 +155,17 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({
   const renderCostLimit = () => {
     if (!enableCostEstimation) return null;
 
-    const currentPriceRMB = product.current_price / 100;
-    const competitorPriceRMB =
+    // 价格已经是元为单位，无需除100
+    const currentPriceRUB = product.current_price;
+    const competitorPriceRUB =
       product.competitor_min_price !== null && product.competitor_min_price !== undefined
-        ? product.competitor_min_price / 100
+        ? product.competitor_min_price
         : null;
 
-    const priceRMB =
-      competitorPriceRMB !== null
-        ? Math.min(currentPriceRMB, competitorPriceRMB)
-        : currentPriceRMB;
+    const priceRUB =
+      competitorPriceRUB !== null
+        ? Math.min(currentPriceRUB, competitorPriceRUB)
+        : currentPriceRUB;
 
     const weight = product.package_weight || 0;
 
@@ -175,9 +176,9 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({
     };
 
     const maxCost =
-      weight > 0 && priceRMB > 0
+      weight > 0 && priceRUB > 0
         ? calculateMaxCost(
-            priceRMB,
+            priceRUB,
             weight,
             targetProfitRate / 100,
             packingFee,
@@ -222,17 +223,15 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({
           </Text>
         </div>
 
-        {/* 价格信息 - 始终显示当前价 */}
+        {/* 价格信息 - 始终显示当前价（使用系统货币） */}
         <div className={styles.priceContainer}>
           <div className={styles.priceRow}>
             <span className={styles.currentPrice}>
-              {userSymbol}
-              {formatPrice(product.current_price)}
+              {userSymbol}{formatPrice(product.current_price)}
             </span>
             {fieldConfig.originalPrice && product.original_price && (
               <span className={styles.originalPrice}>
-                {userSymbol}
-                {formatPrice(product.original_price)}
+                {userSymbol}{formatPrice(product.original_price)}
               </span>
             )}
           </div>
@@ -442,8 +441,7 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({
                   {product.competitor_min_price !== null &&
                     product.competitor_min_price !== undefined && (
                       <>
-                        （{userSymbol}
-                        {formatPrice(product.competitor_min_price)}）
+                        （{userSymbol}{formatPrice(product.competitor_min_price)}）
                       </>
                     )}
                 </span>

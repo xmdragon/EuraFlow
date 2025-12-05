@@ -7,13 +7,13 @@
 import { formatNumber as formatNumberUtil } from '@/utils/formatNumber';
 
 /**
- * 格式化价格（OZON采集的是分，需要除以100转换为元）
- * @param priceInFen 价格（分）
+ * 格式化价格（已经是元为单位，无需转换）
+ * @param price 价格（元）
  * @returns 格式化后的价格字符串
  */
-export const formatPrice = (priceInFen: number | null | undefined): string => {
-  if (priceInFen === null || priceInFen === undefined) return '0';
-  return formatNumberUtil(priceInFen / 100);
+export const formatPrice = (price: number | null | undefined): string => {
+  if (price === null || price === undefined) return '0';
+  return formatNumberUtil(price);
 };
 
 /**
@@ -50,62 +50,39 @@ export const formatWeight = (value: number | null | undefined): string => {
 };
 
 /**
- * 格式化货币（RUB分 → CNY元）
- * @param rubAmountInFen RUB金额（分，数据库存储格式）
- * @param cnyToRubRate 汇率（1 CNY = X RUB）
- * @returns 格式化后的CNY金额字符串
- *
- * 示例：
- * - 上品帮返回：22.27万 ₽ = 222,700 RUB
- * - 数据库存储：222,700 × 100 = 22,270,000 分
- * - 汇率：1 CNY = 13.5 RUB
- * - 转换：22,270,000 / 100 / 13.5 = 16,496 ¥
+ * 格式化货币（固定显示 ₽，不转换货币）
+ * @param rubAmount RUB金额（元）
+ * @param _cnyToRubRate 汇率参数（保留兼容，不使用）
+ * @returns 格式化后的RUB金额字符串
  */
 export const formatCurrency = (
-  rubAmountInFen: number | null | undefined,
-  cnyToRubRate: number | null
+  rubAmount: number | null | undefined,
+  _cnyToRubRate: number | null
 ): string => {
-  if (!rubAmountInFen || !cnyToRubRate || cnyToRubRate <= 0) return '-';
+  if (!rubAmount) return '-';
 
-  // 1. 分→元（数据库存储的是分）
-  const rubYuan = rubAmountInFen / 100;
-
-  // 2. RUB→CNY（RUB / (CNY→RUB汇率) = CNY）
-  const cny = rubYuan / cnyToRubRate;
-
-  if (cny >= 10000) {
-    return `${formatNumberUtil(cny / 10000)}万¥`;
+  if (rubAmount >= 10000) {
+    return `${formatNumberUtil(rubAmount / 10000)}万₽`;
   }
-  return `${formatNumberUtil(cny)}¥`;
+  return `${formatNumberUtil(rubAmount)}₽`;
 };
 
 /**
- * 格式化销售额（RUB元 → CNY元）
- * 注意：销售额数据单位是 ₽（元），不是分！与价格字段不同
- *
- * @param rubAmount RUB金额（元，上品帮返回的原始值）
- * @param cnyToRubRate 汇率（1 CNY = X RUB）
- * @returns 格式化后的CNY金额字符串
- *
- * 示例：
- * - 上品帮返回：soldSum = 36400（表示 36400₽ = 3.64万₽）
- * - 汇率：1 CNY = 13.5 RUB
- * - 转换：36400 / 13.5 = 2696 ¥
+ * 格式化销售额（固定显示 ₽，不转换货币）
+ * @param rubAmount RUB金额（元）
+ * @param _cnyToRubRate 汇率参数（保留兼容，不使用）
+ * @returns 格式化后的RUB金额字符串
  */
 export const formatSalesRevenue = (
   rubAmount: number | null | undefined,
-  cnyToRubRate: number | null
+  _cnyToRubRate: number | null
 ): string => {
-  if (!rubAmount || !cnyToRubRate || cnyToRubRate <= 0) return '-';
+  if (!rubAmount) return '-';
 
-  // RUB→CNY（RUB / (CNY→RUB汇率) = CNY）
-  // 注意：销售额单位是 ₽（元），不需要除以 100
-  const cny = rubAmount / cnyToRubRate;
-
-  if (cny >= 10000) {
-    return `${formatNumberUtil(cny / 10000)}万¥`;
+  if (rubAmount >= 10000) {
+    return `${formatNumberUtil(rubAmount / 10000)}万₽`;
   }
-  return `${formatNumberUtil(cny)}¥`;
+  return `${formatNumberUtil(rubAmount)}₽`;
 };
 
 /**
