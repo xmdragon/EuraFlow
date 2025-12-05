@@ -30,7 +30,7 @@ interface UseBatchPrintReturn {
   printErrors: FailedPosting[];
   printSuccessPostings: string[];
   printErrorModalVisible: boolean;
-  batchPrint: (postingNumbers: string[]) => Promise<BatchPrintResult | null>;
+  batchPrint: (postingNumbers: string[], weights?: Record<string, number>) => Promise<BatchPrintResult | null>;
   closePrintErrorModal: () => void;
   setPrintErrors: (errors: FailedPosting[]) => void;
   setPrintSuccessPostings: (postings: string[]) => void;
@@ -68,7 +68,7 @@ export const useBatchPrint = (options: UseBatchPrintOptions = {}): UseBatchPrint
     return err.message || '打印失败';
   };
 
-  const batchPrint = async (postingNumbers: string[]): Promise<BatchPrintResult | null> => {
+  const batchPrint = async (postingNumbers: string[], weights?: Record<string, number>): Promise<BatchPrintResult | null> => {
     // 验证
     if (postingNumbers.length === 0) {
       notifyWarning('打印失败', '请先选择需要打印的订单');
@@ -83,7 +83,7 @@ export const useBatchPrint = (options: UseBatchPrintOptions = {}): UseBatchPrint
     setIsPrinting(true);
 
     try {
-      const result = await ozonApi.batchPrintLabels(postingNumbers);
+      const result = await ozonApi.batchPrintLabels(postingNumbers, weights);
 
       if (result.success) {
         // 全部成功 - 不在这里显示通知，由调用方统一显示"标签加载成功"

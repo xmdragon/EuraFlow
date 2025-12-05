@@ -362,6 +362,9 @@ class OzonPosting(Base):
     label_printed_at = Column(DateTime(timezone=True), comment="标签首次打印时间")
     label_print_count = Column(Integer, nullable=False, default=0, server_default='0', comment="标签打印次数")
 
+    # 包装重量
+    package_weight = Column(Integer, comment="包装重量（克），用于跨境物流申报")
+
     # 时间
     in_process_at = Column(DateTime(timezone=True))
     shipped_at = Column(DateTime(timezone=True))

@@ -51,11 +51,13 @@ export const getPackingStats = async (params?: PackingStatsParams): Promise<{
  * 批量打印快递面单（70x125mm竖向标签）
  *
  * @param postingNumbers 货件编号列表（最多20个）
+ * @param weights 各货件的包装重量，key为posting_number，value为重量(克)
  * @returns 批量打印结果，包含PDF URL和详细错误信息
  * @note shop_id自动从posting记录中获取，无需手动指定
  */
 export const batchPrintLabels = async (
   postingNumbers: string[],
+  weights?: Record<string, number>,
 ): Promise<BatchPrintResult> => {
   if (postingNumbers.length > 20) {
     throw new Error("最多支持同时打印20个标签");
@@ -65,6 +67,7 @@ export const batchPrintLabels = async (
     "/ozon/packing/postings/batch-print-labels",
     {
       posting_numbers: postingNumbers,
+      weights: weights,
     },
   );
   return response.data;

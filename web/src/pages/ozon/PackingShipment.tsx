@@ -202,6 +202,7 @@ const PackingShipment: React.FC = () => {
   const [printLabelUrl, setPrintLabelUrl] = useState<string>('');
   const [currentPrintingPosting, setCurrentPrintingPosting] = useState<string>('');
   const [currentPrintingPostings, setCurrentPrintingPostings] = useState<string[]>([]); // 批量打印的postings
+  const [currentPrintingPostingObjects, setCurrentPrintingPostingObjects] = useState<ozonApi.PostingWithOrder[]>([]); // 批量打印的posting对象列表
 
   // 扫描输入框的 ref，用于重新聚焦
   const scanInputRef = React.useRef<InputRef>(null);
@@ -1063,12 +1064,14 @@ const PackingShipment: React.FC = () => {
         setPrintLabelUrl(result.pdf_url);
         setCurrentPrintingPosting(postingNumber);
         setCurrentPrintingPostings([]);
+        setCurrentPrintingPostingObjects(posting ? [posting] : []);
         setShowPrintLabelModal(true);
-        notifySuccess('标签加载成功', '请在弹窗中查看并打印');
+        notifySuccess('标签加载成功', '请在弹窗中填写包装重量后打印');
       } else if (result?.error === 'PARTIAL_FAILURE' && result.pdf_url) {
         setPrintLabelUrl(result.pdf_url);
         setCurrentPrintingPosting(postingNumber);
         setCurrentPrintingPostings([]);
+        setCurrentPrintingPostingObjects(posting ? [posting] : []);
         setShowPrintLabelModal(true);
       }
     };
@@ -1105,12 +1108,16 @@ const PackingShipment: React.FC = () => {
         setPrintLabelUrl(result.pdf_url);
         setCurrentPrintingPostings([...scanSelectedPostings]);
         setCurrentPrintingPosting('');
+        setCurrentPrintingPostingObjects(postingsToPrint);
         setShowPrintLabelModal(true);
-        notifySuccess('标签加载成功', formatLabelStats(result.total, result.cached_count, result.fetched_count));
+        notifySuccess('标签加载成功', '请在弹窗中填写包装重量后打印');
       } else if (result?.error === 'PARTIAL_FAILURE' && result.pdf_url) {
         setPrintLabelUrl(result.pdf_url);
         setCurrentPrintingPostings(result.success_postings || []);
         setCurrentPrintingPosting('');
+        // 只保留成功的 postings
+        const successPostings = postingsToPrint.filter(p => result.success_postings?.includes(p.posting_number));
+        setCurrentPrintingPostingObjects(successPostings);
         setShowPrintLabelModal(true);
       }
     };
@@ -1756,11 +1763,13 @@ const PackingShipment: React.FC = () => {
       <PrintLabelModal
         visible={showPrintLabelModal}
         pdfUrl={printLabelUrl}
+        postings={currentPrintingPostingObjects}
         onClose={() => {
           setShowPrintLabelModal(false);
           setPrintLabelUrl('');
           setCurrentPrintingPosting('');
           setCurrentPrintingPostings([]);
+          setCurrentPrintingPostingObjects([]);
           // 重新聚焦输入框
           setTimeout(() => {
             scanInputRef.current?.focus();
@@ -1771,6 +1780,13 @@ const PackingShipment: React.FC = () => {
           setTimeout(() => {
             scanInputRef.current?.focus();
           }, 100);
+        }}
+        onPrint={async (weights) => {
+          // 获取当前打印的 posting numbers
+          const postingNumbers = currentPrintingPostingObjects.map(p => p.posting_number);
+          if (postingNumbers.length === 0) return;
+          // 调用 batchPrint 更新包装重量
+          await batchPrint(postingNumbers, weights);
         }}
         onMarkPrinted={handleMarkPrintedFromModal}
       />

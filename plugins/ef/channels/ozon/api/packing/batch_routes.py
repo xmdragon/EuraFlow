@@ -158,6 +158,7 @@ async def prepare_order(
 class BatchPrintRequest(BaseModel):
     """批量打印请求"""
     posting_numbers: List[str] = Field(..., max_items=20, description="货件编号列表（最多20个）")
+    weights: Optional[Dict[str, int]] = Field(None, description="各货件的包装重量，key为posting_number，value为重量(克)")
 
 
 @router.post("/packing/postings/batch-print-labels")
@@ -221,9 +222,10 @@ async def batch_print_labels(
 
     # 获取请求参数
     posting_numbers = body.posting_numbers
+    weights = body.weights
 
     # 调试日志：记录接收到的 posting_numbers
-    logger.info(f"📝 批量打印标签请求 - posting_numbers: {posting_numbers}")
+    logger.info(f"📝 批量打印标签请求 - posting_numbers: {posting_numbers}, weights: {weights}")
 
     try:
         # 1. 验证请求参数
@@ -481,6 +483,14 @@ async def batch_print_labels(
                 except Exception as e:
                     # 审计日志失败不应阻塞主流程
                     logger.error(f"记录打印审计日志失败 {pn}: {str(e)}")
+
+        # 更新包装重量（如果提供了weights参数）
+        if weights:
+            for pn in success_postings:
+                posting = postings.get(pn)
+                if posting and pn in weights:
+                    posting.package_weight = weights[pn]
+                    logger.info(f"更新包装重量 {pn}: {weights[pn]}g")
 
         await db.commit()
 
