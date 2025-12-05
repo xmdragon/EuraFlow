@@ -1,7 +1,7 @@
 @import 'antd/dist/reset.css';
 
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: Monaco, 'Courier New', Consolas, monospace;
   line-height: 1.5;
   font-weight: 400;
 
