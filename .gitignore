@@ -67,6 +67,7 @@ debug_*.py
 *.cache
 tmp/
 temp/
+*.timestamp-*.mjs
 
 # Supervisor
 supervisord.pid

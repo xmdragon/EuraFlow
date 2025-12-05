@@ -238,19 +238,48 @@ function formatDate(dateStr: string | null): string {
 }
 
 /**
- * 更新真实售价（异步加载完成后调用）
+ * 更新价格显示（异步加载完成后调用）
+ * @param greenPrice 绿色价格（Ozon卡价格，可能为 null）
+ * @param blackPrice 黑色价格（普通价格）
+ * @param realPrice 真实售价（计算后的价格）
  */
-export function updateRealPrice(message: string, price: number | null): void {
+export function updatePriceDisplay(greenPrice: number | null, blackPrice: number | null, realPrice: number | null): void {
   // 更新全局数据存储
-  if (price !== null) {
-    productDataStore.realPrice = price;
+  if (realPrice !== null) {
+    productDataStore.realPrice = realPrice;
   }
 
   // 更新 DOM 显示
-  const priceElement = document.getElementById('euraflow-real-price');
-  if (priceElement) {
-    priceElement.textContent = message.replace('真实售价：', '');
+  const priceTagsContainer = document.getElementById('euraflow-price-tags');
+  if (priceTagsContainer) {
+    priceTagsContainer.innerHTML = createPriceTags(greenPrice, blackPrice, realPrice);
   }
+}
+
+/**
+ * 创建价格标签 HTML
+ */
+function createPriceTags(greenPrice: number | null, blackPrice: number | null, realPrice: number | null): string {
+  const tags: string[] = [];
+
+  // 绿色价格（Ozon卡价格）- 只有存在且大于0才显示
+  if (greenPrice !== null && greenPrice > 0) {
+    tags.push(`<span class="ef-price-tag ef-price-tag--green">${greenPrice.toFixed(2)}¥</span>`);
+  }
+
+  // 黑色价格（普通价格）
+  if (blackPrice !== null && blackPrice > 0) {
+    tags.push(`<span class="ef-price-tag ef-price-tag--black">${blackPrice.toFixed(2)}¥</span>`);
+  }
+
+  // 红色价格（真实售价）
+  if (realPrice !== null && realPrice > 0) {
+    tags.push(`<span id="euraflow-real-price-tag" class="ef-price-tag ef-price-tag--red">${realPrice.toFixed(2)}¥</span>`);
+  } else {
+    tags.push(`<span id="euraflow-real-price-tag" class="ef-price-tag ef-price-tag--red">---</span>`);
+  }
+
+  return tags.join('');
 }
 
 /**
@@ -571,9 +600,10 @@ export async function injectCompleteDisplay(data: {
 }
 
 /**
- * 创建真实售价区域
+ * 创建价格区域
+ * 显示：标签"价格" + 三个价格标签（绿色/黑色/红色）
  */
-function createPriceSection(message: string): HTMLElement {
+function createPriceSection(_message: string): HTMLElement {
   const section = document.createElement('div');
   section.setAttribute('data-euraflow-component', 'price-section');
   section.className = 'ef-price-section';
@@ -583,15 +613,17 @@ function createPriceSection(message: string): HTMLElement {
 
   const label = document.createElement('span');
   label.className = 'ef-price-display__label';
-  label.textContent = '真实售价';
+  label.textContent = '价格';
 
-  const value = document.createElement('span');
-  value.id = 'euraflow-real-price';
-  value.className = 'ef-price-display__value';
-  value.textContent = message.replace('真实售价：', '');
+  // 价格标签容器
+  const tagsContainer = document.createElement('div');
+  tagsContainer.id = 'euraflow-price-tags';
+  tagsContainer.className = 'ef-price-tags';
+  // 初始显示加载中
+  tagsContainer.innerHTML = '<span class="ef-price-tag ef-price-tag--red">---</span>';
 
   priceDisplay.appendChild(label);
-  priceDisplay.appendChild(value);
+  priceDisplay.appendChild(tagsContainer);
   section.appendChild(priceDisplay);
 
   return section;

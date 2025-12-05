@@ -5,7 +5,7 @@
  */
 
 import { calculateRealPrice } from './calculator';
-import { injectCompleteDisplay, updateRealPrice, updateFollowSellerData, updateCategoryData, updateRatingData, updateDimensionsData, updateButtonsWithConfig } from './display';
+import { injectCompleteDisplay, updatePriceDisplay, updateFollowSellerData, updateCategoryData, updateRatingData, updateDimensionsData, updateButtonsWithConfig } from './display';
 import { extractProductData, fetchFollowSellerData } from '../parsers/product-detail';
 
 /**
@@ -219,14 +219,13 @@ export class RealPriceCalculator {
       const euraflowConfig = configResponse?.success ? configResponse.data : null;
 
       if (ozonProduct) {
-        // 1. 先计算并更新真实售价
+        // 1. 先计算并更新价格显示
         const greenPrice = (ozonProduct.cardPrice ?? 0) > 0 ? ozonProduct.cardPrice : null;
         const blackPrice = (ozonProduct.price ?? 0) > 0 ? ozonProduct.price : null;
         if (blackPrice !== null) {
-          const { message, realPrice } = calculateRealPrice(greenPrice, blackPrice, '¥');
-          if (message) {
-            updateRealPrice(message, realPrice);
-          }
+          const { realPrice } = calculateRealPrice(greenPrice, blackPrice, '¥');
+          // 更新三个价格标签：绿色、黑色、红色（真实售价）
+          updatePriceDisplay(greenPrice, blackPrice, realPrice);
         }
 
         // 2. 更新评分
