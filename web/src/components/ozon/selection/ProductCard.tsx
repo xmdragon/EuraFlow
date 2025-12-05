@@ -274,7 +274,7 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({
         {/* FBP佣金 - 横向三标签（使用原生 title 替代 Tooltip 提升性能） */}
         {fieldConfig.fbpCommission && (
           <div className={styles.commissionRow} title="FBP佣金率">
-            <span className={styles.labelSecondary}>FBP: </span>
+            <span className={styles.labelSecondary}>&nbsp;FBP: </span>
             <Space size={4}>
               <Tag color="success" title="售价 ≤1500₽">{product.fbp_commission_low ?? '-'}</Tag>
               <Tag color="warning" title="售价 1501~5000₽">{product.fbp_commission_mid ?? '-'}</Tag>

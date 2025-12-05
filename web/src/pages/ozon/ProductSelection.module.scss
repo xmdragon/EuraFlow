@@ -163,7 +163,6 @@
   align-items: center;
   gap: 4px;
   font-size: 11px;
-  line-height: 1.4;
   margin-bottom: 1px;
 }
 
@@ -178,14 +177,13 @@
   font-size: 11px;
   font-weight: 600;
   font-family: 'Courier New', monospace;
-  color: inherit;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 
   // Ant Design copyable icon样式
   :global(.ant-typography-copy) {
-    font-size: 12px;
+    font-size: 11px;
     margin-left: 4px;
     color: #1890ff;
   }
@@ -223,16 +221,24 @@
 // ===== 品牌信息（与 statsItem 样式统一） =====
 .brandInfo {
   font-size: 11px;
-  line-height: 1.4;
   margin-bottom: 1px;
+
+  // 值部分使用 valueStrong 样式
+  > span:last-child {
+    font-weight: 600;
+  }
 }
 
 // ===== 通用文本样式（替代 Ant Design Typography 以提升性能） =====
+// 标签样式：11px 灰色
 .labelSecondary {
+  font-size: 11px;
   color: rgba(0, 0, 0, 0.45);
 }
 
+// 值样式：11px 加粗
 .valueStrong {
+  font-size: 11px;
   font-weight: 600;
 }
 
@@ -262,6 +268,8 @@
 }
 
 .competitorCount {
+  font-size: 11px;
+  font-weight: 600;
   color: #fa8c16;
   cursor: pointer;
 
@@ -498,11 +506,11 @@
   }
 }
 
-// ===== 佣金标签行（与 statsItem 样式统一）=====
+// ===== 佣金标签行（标签与 statsItem 统一，值保持 Tag 样式）=====
 .commissionRow {
   display: flex;
   align-items: center;
-  gap: 1px;
+  gap: 4px;
   margin-bottom: 1px;
   font-size: 11px;
 
