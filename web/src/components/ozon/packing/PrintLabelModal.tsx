@@ -2,11 +2,12 @@
  * 打印标签弹窗组件
  * 显示PDF格式的快递面单，并支持包装重量录入
  */
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Modal, Button, Spin, Table, InputNumber, Tooltip } from "antd";
-import { PrinterOutlined } from "@ant-design/icons";
+import { PrinterOutlined, CopyOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import type { PostingWithOrder, OrderItem } from "@/services/ozon/types/order";
+import { useCopy } from "@/hooks/useCopy";
 
 interface PrintLabelModalProps {
   visible: boolean;
@@ -43,11 +44,15 @@ const PrintLabelModal: React.FC<PrintLabelModalProps> = ({
   onMarkPrinted,
 }) => {
   const [weights, setWeights] = useState<Record<string, number | undefined>>({});
+  const { copyToClipboard } = useCopy();
+  // 用于跟踪用户手动修改过的 posting（不再自动同步）
+  const manuallyEditedRef = useRef<Set<string>>(new Set());
 
   // 弹窗关闭时清空重量状态
   useEffect(() => {
     if (!visible) {
       setWeights({});
+      manuallyEditedRef.current.clear();
     }
   }, [visible]);
 
@@ -67,31 +72,45 @@ const PrintLabelModal: React.FC<PrintLabelModalProps> = ({
     return map;
   }, [postings]);
 
-  // 处理重量变化
+  // 处理重量变化（仅更新当前输入框）
   const handleWeightChange = (postingNumber: string, value: number | null) => {
-    const newWeights = { ...weights };
-
-    if (value === null) {
-      delete newWeights[postingNumber];
-    } else {
-      newWeights[postingNumber] = value;
-
-      // 自动填充相同 SKU 签名的其他 Posting
-      const posting = postings.find(p => p.posting_number === postingNumber);
-      if (posting) {
-        const items = posting.items || posting.products || [];
-        const signature = generateSkuSignature(items);
-        const relatedPostings = skuSignatureMap[signature] || [];
-
-        relatedPostings.forEach(pn => {
-          if (pn !== postingNumber && newWeights[pn] === undefined) {
-            newWeights[pn] = value;
-          }
-        });
+    setWeights(prev => {
+      const newWeights = { ...prev };
+      if (value === null) {
+        delete newWeights[postingNumber];
+      } else {
+        newWeights[postingNumber] = value;
       }
-    }
+      return newWeights;
+    });
+  };
 
-    setWeights(newWeights);
+  // 输入框失焦时同步填充相同 SKU 的其他 Posting
+  const handleWeightBlur = (postingNumber: string) => {
+    const value = weights[postingNumber];
+    if (value === undefined || value === null) return;
+
+    // 标记当前 posting 为手动编辑过
+    manuallyEditedRef.current.add(postingNumber);
+
+    // 自动填充相同 SKU 签名的其他 Posting
+    const posting = postings.find(p => p.posting_number === postingNumber);
+    if (!posting) return;
+
+    const items = posting.items || posting.products || [];
+    const signature = generateSkuSignature(items);
+    const relatedPostings = skuSignatureMap[signature] || [];
+
+    setWeights(prev => {
+      const newWeights = { ...prev };
+      relatedPostings.forEach(pn => {
+        // 只填充未手动编辑过的 posting
+        if (pn !== postingNumber && !manuallyEditedRef.current.has(pn)) {
+          newWeights[pn] = value;
+        }
+      });
+      return newWeights;
+    });
   };
 
   // 检查所有重量是否已填写
@@ -119,7 +138,16 @@ const PrintLabelModal: React.FC<PrintLabelModalProps> = ({
       title: "货件编号",
       dataIndex: "posting_number",
       key: "posting_number",
-      width: 180,
+      width: 200,
+      render: (text: string) => (
+        <span>
+          {text}
+          <CopyOutlined
+            style={{ marginLeft: 6, color: '#1890ff', cursor: 'pointer' }}
+            onClick={() => copyToClipboard(text, '货件编号')}
+          />
+        </span>
+      ),
     },
     {
       title: "SKU",
@@ -128,7 +156,12 @@ const PrintLabelModal: React.FC<PrintLabelModalProps> = ({
         <div>
           {record.items.map((item, idx) => (
             <div key={idx}>
-              {item.sku} ×{item.quantity}
+              <span>{item.sku}</span>
+              <CopyOutlined
+                style={{ marginLeft: 6, color: '#1890ff', cursor: 'pointer' }}
+                onClick={() => copyToClipboard(item.sku, 'SKU')}
+              />
+              <span style={{ marginLeft: 4 }}>×{item.quantity}</span>
             </div>
           ))}
         </div>
@@ -145,6 +178,7 @@ const PrintLabelModal: React.FC<PrintLabelModalProps> = ({
           placeholder="必填"
           value={record.weight}
           onChange={(value) => handleWeightChange(record.posting_number, value)}
+          onBlur={() => handleWeightBlur(record.posting_number)}
           style={{ width: 120 }}
         />
       ),
