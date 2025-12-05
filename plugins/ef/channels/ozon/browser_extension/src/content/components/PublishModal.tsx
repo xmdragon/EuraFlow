@@ -13,7 +13,6 @@ import { configCache } from '../../shared/config-cache';
 import { yuanToCents, formatYuan } from '../../shared/price-utils';
 import type { Shop, Warehouse, Watermark, QuickPublishVariant } from '../../shared/types';
 import { injectEuraflowStyles } from '../styles/injector';
-import { isAlreadyStagedUrl } from '../../shared/image-relay';
 
 // ========== 工具函数 ==========
 
@@ -285,9 +284,6 @@ let purchaseNote: string = '';
 // 编辑后的描述（当检测到外链时允许用户编辑）
 let editedDescription: string = '';
 
-// 图片中转配置
-let imageRelayEnabled: boolean = false;
-
 // ========== 主函数 ==========
 
 /**
@@ -359,7 +355,6 @@ async function loadConfigData(): Promise<void> {
   if (cached) {
     shops = cached.shops;
     watermarks = cached.watermarks;
-    imageRelayEnabled = cached.imageRelay?.enabled || false;
 
     if (shops.length > 0) {
       selectedShopId = shops[0].id;
@@ -374,8 +369,6 @@ async function loadConfigData(): Promise<void> {
   // 缓存未命中，手动加载
   shops = await configCache.getShops(apiClient);
   watermarks = await configCache.getWatermarks(apiClient);
-  const imageRelayConfig = await configCache.getImageRelayConfig(apiClient);
-  imageRelayEnabled = imageRelayConfig.enabled;
 
   if (shops.length > 0) {
     selectedShopId = shops[0].id;
@@ -1325,13 +1318,10 @@ async function handleFollowPdp(): Promise<void> {
       throw new Error('API配置未初始化');
     }
 
-    // ========== 图片处理 ==========
+    // ========== 图片转 Base64 ==========
     // OZON CDN 对服务器端请求返回 403 Forbidden（防盗链）
-    // 浏览器可以访问 OZON 图片，需要在浏览器端处理图片
-    //
-    // 两种模式：
-    // 1. 图片中转模式（imageRelayEnabled=true）：下载图片 → 上传到图床 → 使用图床URL
-    // 2. Base64直传模式（imageRelayEnabled=false）：下载图片 → Base64编码 → 发送给后端
+    // 浏览器可以访问 OZON 图片，所以在这里预先下载并转为 Base64
+    // 后端收到 Base64 数据后直接上传到 Cloudinary，不再需要从 OZON 下载
 
     // 更新按钮文字提示用户正在处理图片
     const followPdpBtn = document.getElementById('follow-pdp-btn');
@@ -1339,23 +1329,20 @@ async function handleFollowPdp(): Promise<void> {
       followPdpBtn.textContent = '正在处理图片...';
     }
 
-    // 收集所有需要处理的图片URL（排除已是图床URL的）
+    // 收集所有需要转换的图片URL
     const allImageUrls: string[] = [];
     const urlToIndexMap = new Map<string, number>(); // URL 到索引的映射
 
     enabledVariants.forEach((variant) => {
       // 主图
       if (variant.image_url && !urlToIndexMap.has(variant.image_url)) {
-        // 如果已是图床URL，不需要处理
-        if (!isAlreadyStagedUrl(variant.image_url)) {
-          urlToIndexMap.set(variant.image_url, allImageUrls.length);
-          allImageUrls.push(variant.image_url);
-        }
+        urlToIndexMap.set(variant.image_url, allImageUrls.length);
+        allImageUrls.push(variant.image_url);
       }
       // 附加图片
       if (variant.images) {
         variant.images.forEach((imgUrl) => {
-          if (imgUrl && !urlToIndexMap.has(imgUrl) && !isAlreadyStagedUrl(imgUrl)) {
+          if (imgUrl && !urlToIndexMap.has(imgUrl)) {
             urlToIndexMap.set(imgUrl, allImageUrls.length);
             allImageUrls.push(imgUrl);
           }
@@ -1363,87 +1350,27 @@ async function handleFollowPdp(): Promise<void> {
       }
     });
 
-    console.log(`[PublishModal] 需要处理 ${allImageUrls.length} 张图片, 图片中转=${imageRelayEnabled}`);
+    console.log(`[PublishModal] 开始转换 ${allImageUrls.length} 张图片为 Base64...`);
 
-    // 构建 URL 到最终值的映射（可能是图床URL或Base64）
-    const urlToFinalMap = new Map<string, string>();
-
-    if (allImageUrls.length > 0) {
-      // 批量下载图片为 Base64
-      const base64Results = await batchImageUrlsToBase64(allImageUrls, (current, total) => {
-        if (followPdpBtn) {
-          followPdpBtn.textContent = `下载图片 ${current}/${total}...`;
-        }
-      });
-
-      const downloadSuccessCount = base64Results.filter(b => b !== null).length;
-      const downloadFailedCount = base64Results.filter(b => b === null).length;
-      console.log(`[PublishModal] 图片下载完成: 成功 ${downloadSuccessCount}, 失败 ${downloadFailedCount}`);
-
-      if (imageRelayEnabled && selectedShopId) {
-        // ========== 图片中转模式 ==========
-        // 将 Base64 数据上传到图床，获取图床URL
-        if (followPdpBtn) {
-          followPdpBtn.textContent = '上传图片到图床...';
-        }
-
-        // 准备上传数据（只上传下载成功的图片）
-        const imagesToRelay: Array<{ url: string; data: string }> = [];
-        allImageUrls.forEach((url, idx) => {
-          if (base64Results[idx]) {
-            imagesToRelay.push({ url, data: base64Results[idx]! });
-          }
-        });
-
-        if (imagesToRelay.length > 0) {
-          try {
-            // 调用图片中转 API
-            const relayResponse = await chrome.runtime.sendMessage({
-              type: 'BATCH_RELAY_IMAGES',
-              data: {
-                apiUrl: config.apiUrl,
-                apiKey: config.apiKey || '',
-                shopId: selectedShopId,
-                images: imagesToRelay,
-              },
-            });
-
-            if (relayResponse.success && relayResponse.data?.mapping) {
-              // 使用返回的图床URL映射
-              const mapping = relayResponse.data.mapping as Record<string, string>;
-              Object.entries(mapping).forEach(([originalUrl, stagedUrl]) => {
-                urlToFinalMap.set(originalUrl, stagedUrl);
-              });
-              console.log(`[PublishModal] 图片中转完成: 成功 ${relayResponse.data.successCount}, 失败 ${relayResponse.data.failedCount}`);
-            } else {
-              console.warn('[PublishModal] 图片中转失败，回退到 Base64 模式:', relayResponse.error);
-              // 回退：使用 Base64 数据
-              allImageUrls.forEach((url, idx) => {
-                if (base64Results[idx]) {
-                  urlToFinalMap.set(url, base64Results[idx]!);
-                }
-              });
-            }
-          } catch (relayError) {
-            console.error('[PublishModal] 图片中转异常，回退到 Base64 模式:', relayError);
-            // 回退：使用 Base64 数据
-            allImageUrls.forEach((url, idx) => {
-              if (base64Results[idx]) {
-                urlToFinalMap.set(url, base64Results[idx]!);
-              }
-            });
-          }
-        }
-      } else {
-        // ========== Base64 直传模式 ==========
-        // 直接使用 Base64 数据
-        allImageUrls.forEach((url, idx) => {
-          if (base64Results[idx]) {
-            urlToFinalMap.set(url, base64Results[idx]!);
-          }
-        });
+    // 批量转换图片
+    const base64Results = await batchImageUrlsToBase64(allImageUrls, (current, total) => {
+      if (followPdpBtn) {
+        followPdpBtn.textContent = `处理图片 ${current}/${total}...`;
       }
-    }
+    });
+
+    // 统计转换结果
+    const successCount = base64Results.filter(b => b !== null).length;
+    const failedCount = base64Results.filter(b => b === null).length;
+    console.log(`[PublishModal] 图片转换完成: 成功 ${successCount}, 失败 ${failedCount}`);
+
+    // 构建 URL 到 Base64 的映射
+    const urlToBase64Map = new Map<string, string>();
+    allImageUrls.forEach((url, idx) => {
+      if (base64Results[idx]) {
+        urlToBase64Map.set(url, base64Results[idx]!);
+      }
+    });
 
     // 恢复按钮文字
     if (followPdpBtn) {
@@ -1451,18 +1378,17 @@ async function handleFollowPdp(): Promise<void> {
     }
 
     // ========== 构建变体数据 ==========
-    // 使用处理后的图片数据（图床URL或Base64）
+    // 使用 Base64 数据替代 URL（后端会检测并处理 Base64 格式）
     const variantsData: QuickPublishVariant[] = enabledVariants.map((variant) => {
-      // 获取主图（优先使用处理后的值，否则保持原URL）
-      let primaryImage: string | undefined;
-      if (variant.image_url) {
-        primaryImage = urlToFinalMap.get(variant.image_url) || variant.image_url;
-      }
+      // 获取主图的 Base64（如果转换成功）
+      const primaryImageBase64 = variant.image_url ? urlToBase64Map.get(variant.image_url) : undefined;
 
-      // 获取附加图片列表
-      let images: string[] | undefined;
+      // 获取附加图片的 Base64 列表
+      let imagesBase64: string[] | undefined;
       if (variant.images && variant.images.length > 0) {
-        images = variant.images.map((url) => urlToFinalMap.get(url) || url);
+        imagesBase64 = variant.images
+          .map((url) => urlToBase64Map.get(url))
+          .filter((b64): b64 is string => b64 !== undefined);
       }
 
       return {
@@ -1472,8 +1398,9 @@ async function handleFollowPdp(): Promise<void> {
         price: yuanToCents(variant.custom_price),
         stock: variant.stock,
         old_price: variant.custom_old_price ? yuanToCents(variant.custom_old_price) : undefined,
-        primary_image: primaryImage,
-        images: images,
+        // 使用 Base64 数据（如果有），否则回退到 URL
+        primary_image: primaryImageBase64 || variant.image_url || undefined,
+        images: (imagesBase64 && imagesBase64.length > 0) ? imagesBase64 : variant.images || undefined,
       };
     });
 
@@ -1577,9 +1504,6 @@ function closeModal(): void {
 
   // 重置编辑后的描述
   editedDescription = '';
-
-  // 重置图片中转配置
-  imageRelayEnabled = false;
 }
 
 // ========== UI 辅助函数 ==========

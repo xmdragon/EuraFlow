@@ -12,7 +12,7 @@ import {
   Tabs,
   Tag,
 } from 'antd';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 
 import { matchAllScenarios } from '../ozon/profitCalculator';
 
@@ -36,6 +36,12 @@ interface CalculationInputData {
   packingFee?: number; // 打包费 (RMB)
 }
 
+interface FeeData {
+  platformRate: number;
+  shipping: number | undefined;
+  packingFee: number | undefined;
+}
+
 const ProfitCalculatorV2: React.FC = () => {
   const [form] = Form.useForm();
   const [inputData, setInputData] = useState<CalculationInputData>({
@@ -45,6 +51,8 @@ const ProfitCalculatorV2: React.FC = () => {
     packingFee: undefined,
   });
   const [activeKey, setActiveKey] = useState<string>('super-light');
+  // 存储当前活动场景的费用参数（从ScenarioCard获取）
+  const [scenarioFeeData, setScenarioFeeData] = useState<FeeData | null>(null);
 
   // 查询汇率（CNY → RUB），用于场景匹配
   const { data: exchangeRateData } = useQuery({
@@ -66,14 +74,18 @@ const ProfitCalculatorV2: React.FC = () => {
   // 主要匹配场景（运费最低的那个）
   const primaryScenario = matchedScenarios.length > 0 ? matchedScenarios[0] : null;
 
-  // 计算运费（基于主要匹配场景）
+  // 计算运费（基于主要匹配场景，或使用场景卡片中的值）
   const shipping = useMemo(() => {
+    // 优先使用场景卡片中调整的运费
+    if (scenarioFeeData?.shipping !== undefined) {
+      return scenarioFeeData.shipping;
+    }
     if (!inputData.weight || !primaryScenario) return undefined;
     return calculateDefaultShipping(inputData.weight, primaryScenario);
-  }, [inputData.weight, primaryScenario]);
+  }, [inputData.weight, primaryScenario, scenarioFeeData?.shipping]);
 
   // 计算利润和利润率
-  const { profit, profitRate, platformFee } = useMemo(() => {
+  const { profit, profitRate, platformFee, actualPackingFee } = useMemo(() => {
     const { cost, price, packingFee } = inputData;
     if (
       cost === undefined ||
@@ -81,16 +93,19 @@ const ProfitCalculatorV2: React.FC = () => {
       shipping === undefined ||
       !primaryScenario
     ) {
-      return { profit: undefined, profitRate: undefined, platformFee: undefined };
+      return { profit: undefined, profitRate: undefined, platformFee: undefined, actualPackingFee: undefined };
     }
 
-    const actualPackingFee = packingFee ?? 0; // 打包费不填默认0
-    const calculatedPlatformFee = price * primaryScenario.defaultPlatformRate;
-    const calculatedProfit = price - cost - shipping - calculatedPlatformFee - actualPackingFee;
+    // 优先使用场景卡片中的费用参数
+    const usedPackingFee = scenarioFeeData?.packingFee ?? packingFee ?? 0;
+    const usedPlatformRate = scenarioFeeData?.platformRate ?? primaryScenario.defaultPlatformRate;
+
+    const calculatedPlatformFee = price * usedPlatformRate;
+    const calculatedProfit = price - cost - shipping - calculatedPlatformFee - usedPackingFee;
     const calculatedProfitRate = price > 0 ? calculatedProfit / price : undefined;
 
-    return { profit: calculatedProfit, profitRate: calculatedProfitRate, platformFee: calculatedPlatformFee };
-  }, [inputData, shipping, primaryScenario]);
+    return { profit: calculatedProfit, profitRate: calculatedProfitRate, platformFee: calculatedPlatformFee, actualPackingFee: usedPackingFee };
+  }, [inputData, shipping, primaryScenario, scenarioFeeData]);
 
   const profitColor = profit !== undefined ? (profit > 0 ? '#52c41a' : '#ff4d4f') : undefined;
 
@@ -101,6 +116,11 @@ const ProfitCalculatorV2: React.FC = () => {
     }
   }, [primaryScenario]);
 
+  // 当切换标签页时，重置场景费用数据
+  useEffect(() => {
+    setScenarioFeeData(null);
+  }, [activeKey]);
+
   // 处理表单值变化
   const handleFormChange = (changedValues: Partial<FormValues>) => {
     setInputData((prev) => ({
@@ -108,6 +128,11 @@ const ProfitCalculatorV2: React.FC = () => {
       ...changedValues,
     }));
   };
+
+  // 处理场景卡片中的费用参数变化
+  const handleFeeChange = useCallback((feeData: FeeData) => {
+    setScenarioFeeData(feeData);
+  }, []);
 
   return (
     <div>
@@ -198,7 +223,7 @@ const ProfitCalculatorV2: React.FC = () => {
                       </Row>
                       <Row justify="space-between">
                         <Col><Text style={{ fontSize: 12 }}>打包费：</Text></Col>
-                        <Col><Text style={{ fontSize: 12 }}>{profit !== undefined ? `¥${formatNumber(inputData.packingFee ?? 0)}` : '---'}</Text></Col>
+                        <Col><Text style={{ fontSize: 12 }}>{actualPackingFee !== undefined ? `¥${formatNumber(actualPackingFee)}` : '---'}</Text></Col>
                       </Row>
                     </div>
                   </Col>
@@ -289,6 +314,7 @@ const ProfitCalculatorV2: React.FC = () => {
                                 sharedInputData={inputData}
                                 exchangeRate={exchangeRate}
                                 isMatched={matchedScenarios.some((m) => m.id === s.id)}
+                                onFeeChange={s.id === activeKey ? handleFeeChange : undefined}
                               />
                             </Card>
                           </Col>
@@ -304,6 +330,7 @@ const ProfitCalculatorV2: React.FC = () => {
                       sharedInputData={inputData}
                       exchangeRate={exchangeRate}
                       isMatched={isMatched}
+                      onFeeChange={scenario.id === activeKey ? handleFeeChange : undefined}
                     />
                   );
                 })(),

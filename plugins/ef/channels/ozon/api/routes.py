@@ -195,12 +195,4 @@ try:
 except ImportError as e:
     logger.warning(f"Could not import collection source routes: {e}")
 
-try:
-    from .image_relay_routes import router as image_relay_router
-    router.include_router(image_relay_router)
-    logger.info("✓ Loaded image_relay_routes")
-except ImportError as e:
-    logger.warning(f"Could not import image relay routes: {e}")
-
-
 logger.info("Ozon API routes initialized successfully")

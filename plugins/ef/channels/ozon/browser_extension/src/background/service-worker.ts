@@ -194,13 +194,6 @@ chrome.runtime.onMessage.addListener((message: any, _sender: chrome.runtime.Mess
     return true;
   }
 
-  if (message.type === 'BATCH_RELAY_IMAGES') {
-    handleBatchRelayImages(message.data)
-      .then(response => sendResponse({ success: true, data: response }))
-      .catch(error => sendResponse({ success: false, error: error.message }));
-    return true;
-  }
-
   // 上品帮 API
   if (message.type === 'SPB_LOGIN') {
     handleSpbLogin(message.data)
@@ -351,17 +344,6 @@ async function handleCollectProduct(data: { apiUrl: string; apiKey: string; sour
   const { apiUrl, apiKey, source_url, product_data } = data;
   const api = createEuraflowApi(apiUrl, apiKey);
   return api.collectProduct(source_url, product_data);
-}
-
-async function handleBatchRelayImages(data: {
-  apiUrl: string;
-  apiKey: string;
-  shopId: number;
-  images: Array<{ url: string; data: string }>;
-}) {
-  const { apiUrl, apiKey, shopId, images } = data;
-  const api = createEuraflowApi(apiUrl, apiKey);
-  return api.batchRelayImages(shopId, images);
 }
 
 // ============================================================================

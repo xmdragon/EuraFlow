@@ -21,7 +21,7 @@ from ef_core.utils.logger import get_logger
 from ..models import OzonShop
 from ..api.client import OzonAPIClient
 from ..services.image_storage_factory import ImageStorageFactory
-from ..services.image_relay_service import is_already_staged_url, is_base64_data
+from ..services.image_relay_service import is_already_staged_url
 
 logger = get_logger(__name__)
 
@@ -616,15 +616,13 @@ def upload_images_to_storage_task(self, dto_dict: Dict, shop_id: int, parent_tas
     """
     # 构建图片列表：主图在前，附图在后
     # dto_dict 结构: primary_image (主图), images (变体独立的附图数组)
-    all_image_sources = []  # [{"source": url_or_base64, "type": "staged"|"base64"|"url"}]
+    all_image_sources = []  # [{"source": url, "type": "staged"|"url"}]
 
     # 分类图片来源
     def classify_image_source(img_data: str) -> dict:
         """分类图片来源类型"""
         if is_already_staged_url(img_data):
             return {"source": img_data, "type": "staged"}
-        elif is_base64_data(img_data):
-            return {"source": img_data, "type": "base64"}
         else:
             return {"source": img_data, "type": "url"}
 
@@ -651,10 +649,9 @@ def upload_images_to_storage_task(self, dto_dict: Dict, shop_id: int, parent_tas
 
     # 统计各类型数量
     staged_count = sum(1 for s in all_image_sources if s["type"] == "staged")
-    base64_count = sum(1 for s in all_image_sources if s["type"] == "base64")
     url_count = sum(1 for s in all_image_sources if s["type"] == "url")
 
-    logger.info(f"[Step 1] 图片分类: offer_id={offer_id}, total={len(all_image_sources)} (staged={staged_count}, base64={base64_count}, url={url_count}), watermark_config_id={watermark_config_id}")
+    logger.info(f"[Step 1] 图片分类: offer_id={offer_id}, total={len(all_image_sources)} (staged={staged_count}, url={url_count}), watermark_config_id={watermark_config_id}")
 
     try:
         update_task_progress(
@@ -725,38 +722,6 @@ def upload_images_to_storage_task(self, dto_dict: Dict, shop_id: int, parent_tas
                                 uploaded.append(source)
                                 logger.info(f"Image {idx} (staged): {source[:80]}...")
 
-                        elif source_type == "base64":
-                            # Base64 数据，需要上传到图床
-                            if not storage_service:
-                                logger.warning(f"Image {idx}: No storage configured, cannot upload base64")
-                                uploaded.append(source)  # 无法处理，保留原数据
-                                continue
-
-                            public_id = f"{shop_id}_{offer_id}_{idx}_{int(time.time())}"
-                            folder = f"{storage_service.product_images_folder or 'products'}/{shop_id}/quick_publish"
-
-                            result = await storage_service.upload_base64_image(
-                                base64_data=source,
-                                public_id=public_id,
-                                folder=folder
-                            )
-
-                            if result.get('success'):
-                                base_url = result['url']
-                                # 阿里云 OSS 水印通过 URL 参数添加
-                                if storage_type == "aliyun_oss" and watermark_config:
-                                    watermarked_url = _build_aliyun_oss_watermark_url(base_url, watermark_config)
-                                    uploaded.append(watermarked_url)
-                                    logger.info(f"Image {idx} (base64) uploaded with watermark: {watermarked_url[:80]}...")
-                                else:
-                                    uploaded.append(base_url)
-                                    logger.info(f"Image {idx} (base64) uploaded: {base_url[:80]}...")
-                            else:
-                                error_msg = result.get('error', 'Unknown error')
-                                logger.error(f"Image {idx} (base64) upload failed: {error_msg}")
-                                # 保留 Base64 数据，OZON 可能不支持，但至少不会丢失
-                                uploaded.append(source)
-
                         else:  # source_type == "url"
                             # 需要下载并上传（可能失败）
                             if not storage_service:
@@ -765,7 +730,7 @@ def upload_images_to_storage_task(self, dto_dict: Dict, shop_id: int, parent_tas
                                 continue
 
                             public_id = f"{shop_id}_{offer_id}_{idx}_{int(time.time())}"
-                            folder = f"{storage_service.product_images_folder or 'products'}/{shop_id}/quick_publish"
+                            folder = storage_service.product_images_folder or 'products'
 
                             if storage_type == "cloudinary":
                                 result = await storage_service.upload_image_from_url(

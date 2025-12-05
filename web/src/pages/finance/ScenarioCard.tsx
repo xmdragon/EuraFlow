@@ -11,12 +11,10 @@ import {
   Row,
   Col,
 } from 'antd';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 
 import { ScenarioConfig } from './constants';
-import { calculateDefaultShipping, formatPercentage, formatMoney } from './utils';
-
-import { formatNumber } from '@/utils/formatNumber';
+import { calculateDefaultShipping } from './utils';
 
 const { Text } = Typography;
 
@@ -27,11 +25,18 @@ interface SharedInputData {
   packingFee?: number;
 }
 
+interface FeeData {
+  platformRate: number;
+  shipping: number | undefined;
+  packingFee: number | undefined;
+}
+
 interface ScenarioCardProps {
   scenario: ScenarioConfig;
   sharedInputData?: SharedInputData;
   exchangeRate: number | null;
   isMatched: boolean;
+  onFeeChange?: (feeData: FeeData) => void;
 }
 
 const ScenarioCard: React.FC<ScenarioCardProps> = ({
@@ -39,6 +44,7 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({
   sharedInputData,
   exchangeRate,
   isMatched,
+  onFeeChange,
 }) => {
   // 场景特定的费用（可以在当前场景调整）
   const [platformRate, setPlatformRate] = useState(scenario.defaultPlatformRate);
@@ -66,35 +72,12 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({
     }
   }, [sharedInputData?.weight, scenario]);
 
-  // 计算利润
-  const profit = useMemo(() => {
-    const { cost, price } = sharedInputData || {};
-    if (
-      cost === undefined ||
-      price === undefined ||
-      shipping === undefined ||
-      packingFee === undefined
-    ) {
-      return undefined;
+  // 当费用参数变化时，通知父组件
+  useEffect(() => {
+    if (onFeeChange) {
+      onFeeChange({ platformRate, shipping, packingFee });
     }
-
-    const platformFee = price * platformRate;
-    return price - cost - shipping - platformFee - packingFee;
-  }, [sharedInputData, shipping, packingFee, platformRate]);
-
-  // 计算利润率（小数形式，如0.22表示22%）
-  const profitRate = useMemo(() => {
-    if (
-      profit === undefined ||
-      sharedInputData?.price === undefined ||
-      sharedInputData.price === 0
-    ) {
-      return undefined;
-    }
-    return profit / sharedInputData.price;
-  }, [profit, sharedInputData?.price]);
-
-  const profitColor = profit !== undefined ? (profit > 0 ? '#52c41a' : '#ff4d4f') : undefined;
+  }, [platformRate, shipping, packingFee, onFeeChange]);
 
   // 生成带RMB换算的价格范围显示文本
   const getPriceRangeDisplay = (): string => {

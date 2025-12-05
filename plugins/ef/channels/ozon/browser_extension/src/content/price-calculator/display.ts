@@ -6,9 +6,6 @@
 
 import { showPublishModal } from '../components/PublishModal';
 import { injectEuraflowStyles } from '../styles/injector';
-import { configCache } from '../../shared/config-cache';
-import { createEuraflowApiProxy } from '../../shared/api';
-import { isAlreadyStagedUrl } from '../../shared/image-relay';
 import './display.scss';
 
 // ========== 配置常量 ==========
@@ -1218,75 +1215,6 @@ function createCollectButton(): HTMLButtonElement {
         ...cleanedOzonProduct
       } = ozonProduct || {};
 
-      // 收集所有图片 URL
-      let images = ozonProduct?.images || [];
-      let primaryImage = ozonProduct?.primary_image || (images.length > 0 ? images[0] : null);
-
-      // 检查图片中转配置
-      const apiClient = createEuraflowApiProxy(euraflowConfig.apiUrl, euraflowConfig.apiKey);
-      const imageRelayConfig = await configCache.getImageRelayConfig(apiClient);
-
-      if (imageRelayConfig.enabled) {
-        // 收集需要中转的图片 URL（排除已是图床的）
-        const allImageUrls: string[] = [];
-        if (primaryImage && !isAlreadyStagedUrl(primaryImage)) {
-          allImageUrls.push(primaryImage);
-        }
-        for (const img of images) {
-          if (img && !isAlreadyStagedUrl(img) && !allImageUrls.includes(img)) {
-            allImageUrls.push(img);
-          }
-        }
-
-        if (allImageUrls.length > 0) {
-          collectButton.textContent = `下载图片 0/${allImageUrls.length}...`;
-
-          // 下载图片转 Base64
-          const imageDataList: Array<{ url: string; data: string }> = [];
-          for (let i = 0; i < allImageUrls.length; i++) {
-            collectButton.textContent = `下载图片 ${i + 1}/${allImageUrls.length}...`;
-            try {
-              const response = await fetch(allImageUrls[i], {
-                mode: 'cors',
-                credentials: 'include',
-              });
-              if (response.ok) {
-                const blob = await response.blob();
-                const base64 = await new Promise<string>((resolve) => {
-                  const reader = new FileReader();
-                  reader.onloadend = () => resolve(reader.result as string);
-                  reader.onerror = () => resolve('');
-                  reader.readAsDataURL(blob);
-                });
-                if (base64) {
-                  imageDataList.push({ url: allImageUrls[i], data: base64 });
-                }
-              }
-            } catch (e) {
-              console.warn(`[Collect] 图片下载失败: ${allImageUrls[i]}`, e);
-            }
-          }
-
-          // 上传到图床
-          if (imageDataList.length > 0) {
-            collectButton.textContent = `上传图片 0/${imageDataList.length}...`;
-
-            // 需要一个 shop_id，但采集时可能还没选择店铺，使用默认值 0
-            const relayResult = await apiClient.batchRelayImages(0, imageDataList);
-
-            collectButton.textContent = `上传完成 ${relayResult.successCount}/${imageDataList.length}`;
-
-            // 替换图片 URL
-            if (relayResult.mapping && Object.keys(relayResult.mapping).length > 0) {
-              if (primaryImage && relayResult.mapping[primaryImage]) {
-                primaryImage = relayResult.mapping[primaryImage];
-              }
-              images = images.map((img: string) => relayResult.mapping[img] || img);
-            }
-          }
-        }
-      }
-
       const productData = {
         ...cleanedOzonProduct,
         sku: ozonProduct?.sku || ozonProduct?.ozon_product_id || null,  // 确保 sku 字段存在
@@ -1294,9 +1222,7 @@ function createCollectButton(): HTMLButtonElement {
         price: ozonProduct?.price ?? null,  // OZON 黑色价格
         cardPrice: ozonProduct?.cardPrice ?? null,  // OZON 绿色价格（Ozon卡价格）
         realPrice: realPrice ?? null,  // 计算出的真实售价
-        description: finalDescription,  // 使用可能被编辑的描述
-        primary_image: primaryImage,  // 可能已中转的主图
-        images: images,  // 可能已中转的图片列表
+        description: finalDescription  // 使用可能被编辑的描述
       };
       const response = await chrome.runtime.sendMessage({
         type: 'COLLECT_PRODUCT',

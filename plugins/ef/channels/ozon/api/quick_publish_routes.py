@@ -348,16 +348,7 @@ async def get_quick_publish_config(
         else:
             logger.warning("没有找到激活的图床配置，返回空水印列表")
 
-        # 4. 获取图片中转配置
-        image_relay_config = {"enabled": False, "max_size_mb": 10, "max_batch_size": 50}
-        relay_result = await db.execute(
-            select(OzonGlobalSetting).where(OzonGlobalSetting.setting_key == "image_relay_enabled")
-        )
-        relay_setting = relay_result.scalar_one_or_none()
-        if relay_setting and relay_setting.setting_value:
-            image_relay_config = relay_setting.setting_value
-
-        # 5. 组装返回数据
+        # 4. 组装返回数据
         shops_data = []
         for shop in shops:
             shops_data.append({
@@ -372,8 +363,7 @@ async def get_quick_publish_config(
             "success": True,
             "data": {
                 "shops": shops_data,
-                "watermarks": watermarks,
-                "imageRelay": image_relay_config
+                "watermarks": watermarks
             }
         }
 
