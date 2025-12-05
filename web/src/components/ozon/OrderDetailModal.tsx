@@ -430,6 +430,11 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                         ? formatDateTime(localPosting.shipment_date, 'YYYY-MM-DD HH:mm:ss')
                         : '-'}
                     </Descriptions.Item>
+                    <Descriptions.Item label="包装重量">
+                      {localPosting?.package_weight
+                        ? `${localPosting.package_weight}g`
+                        : '-'}
+                    </Descriptions.Item>
                   </Descriptions>
                   {renderOrderNotesSection()}
                 </>

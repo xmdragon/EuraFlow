@@ -230,6 +230,8 @@ class OzonOrder(Base):
                     # 添加打印状态字段
                     'label_printed_at': posting.label_printed_at.isoformat() if posting.label_printed_at else None,
                     'label_print_count': posting.label_print_count or 0,
+                    # 包装重量
+                    'package_weight': posting.package_weight,
                     'packages': packages,
                     # 添加该 posting 的商品列表（从 raw_payload 提取）
                     'products': posting_products

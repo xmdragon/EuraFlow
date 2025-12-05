@@ -69,6 +69,8 @@ export interface Posting {
   label_print_count?: number; // 标签打印次数
   // 时间字段
   in_process_at?: string; // 开始处理时间
+  // 包装重量（克）
+  package_weight?: number;
 }
 
 /**
