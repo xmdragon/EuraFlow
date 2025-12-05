@@ -4,7 +4,7 @@
  * 支持智能识别SKU/货件编号/追踪号码/国内单号
  */
 import { SearchOutlined, CloseCircleOutlined } from '@ant-design/icons';
-import { Card, Row, Col, Space, Form, Input, Button, FormInstance, InputRef, Select } from 'antd';
+import { Card, Row, Col, Space, Form, Input, Button, FormInstance, InputRef, Select, Segmented } from 'antd';
 import React, { useState, useRef } from 'react';
 
 import styles from '../../../pages/ozon/PackingShipment.module.scss';
@@ -25,6 +25,8 @@ interface PackingSearchFormValues {
   delivery_method?: string;
 }
 
+export type ViewMode = 'list' | 'sku_group';
+
 export interface PackingSearchBarProps {
   /** Form 实例 */
   form: FormInstance;
@@ -38,6 +40,12 @@ export interface PackingSearchBarProps {
   sortOrder?: 'desc' | 'asc';
   /** 排序顺序改变回调 */
   onSortOrderChange?: (_value: 'desc' | 'asc') => void;
+  /** 视图模式 */
+  viewMode?: ViewMode;
+  /** 视图模式改变回调 */
+  onViewModeChange?: (_value: ViewMode) => void;
+  /** 是否显示视图切换（仅等待备货标签页显示） */
+  showViewModeSwitch?: boolean;
 }
 
 /**
@@ -50,6 +58,9 @@ export const PackingSearchBar: React.FC<PackingSearchBarProps> = ({
   onSearchParamsChange,
   sortOrder = 'desc',
   onSortOrderChange,
+  viewMode = 'list',
+  onViewModeChange,
+  showViewModeSwitch = false,
 }) => {
   // 自动填充相关状态
   const [isAutoFilled, setIsAutoFilled] = useState(false);
@@ -196,11 +207,23 @@ export const PackingSearchBar: React.FC<PackingSearchBarProps> = ({
                 onChange={onSortOrderChange}
                 style={{ width: 90 }}
                 options={[
-                  { value: 'desc', label: '倒序' },
-                  { value: 'asc', label: '顺序' },
+                  { value: 'desc', label: '时间新→旧' },
+                  { value: 'asc', label: '时间旧→新' },
                 ]}
               />
             </Form.Item>
+            {showViewModeSwitch && (
+              <Form.Item label="视图">
+                <Segmented
+                  value={viewMode}
+                  onChange={(value) => onViewModeChange?.(value as ViewMode)}
+                  options={[
+                    { value: 'list', label: '列表' },
+                    { value: 'sku_group', label: 'SKU分组' },
+                  ]}
+                />
+              </Form.Item>
+            )}
             <Form.Item>
               <Space>
                 <Button type="primary" htmlType="submit">

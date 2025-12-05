@@ -43,11 +43,13 @@ import {
 
 import styles from './PackingShipment.module.scss';
 
+import BatchPrepareStockModal from '@/components/ozon/BatchPrepareStockModal';
 import DiscardOrderModal from '@/components/ozon/DiscardOrderModal';
 import DomesticTrackingModal from '@/components/ozon/DomesticTrackingModal';
 import OrderDetailModal from '@/components/ozon/OrderDetailModal';
 import OrderCardComponent, { type OrderCard } from '@/components/ozon/packing/OrderCardComponent';
-import PackingSearchBar, { type SearchParams } from '@/components/ozon/packing/PackingSearchBar';
+import PackingSearchBar, { type SearchParams, type ViewMode } from '@/components/ozon/packing/PackingSearchBar';
+import SkuGroupCard, { type SkuGroup } from '@/components/ozon/packing/SkuGroupCard';
 import PrepareStockModal from '@/components/ozon/PrepareStockModal';
 import PurchasePriceHistoryModal from '@/components/ozon/PurchasePriceHistoryModal';
 import UpdateBusinessInfoModal from '@/components/ozon/UpdateBusinessInfoModal';
@@ -164,6 +166,13 @@ const PackingShipment: React.FC = () => {
 
   // 排序状态（desc=倒序/新订单在前，asc=顺序/旧订单在前）
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
+
+  // 视图模式状态（仅等待备货标签页使用）
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
+
+  // 批量备货弹窗状态
+  const [batchPrepareModalVisible, setBatchPrepareModalVisible] = useState(false);
+  const [selectedSkuGroup, setSelectedSkuGroup] = useState<SkuGroup | null>(null);
 
   // 批量打印标签状态
   const [selectedPostingNumbers, setSelectedPostingNumbers] = useState<string[]>([]);
@@ -288,16 +297,23 @@ const PackingShipment: React.FC = () => {
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ['packingOrders', selectedShop, operationStatus, searchParams, currentPage, itemsPerRow, selectedPlatform, selectedPurchaseInfo, sortOrder],
+    queryKey: ['packingOrders', selectedShop, operationStatus, searchParams, currentPage, itemsPerRow, selectedPlatform, selectedPurchaseInfo, sortOrder, viewMode],
     queryFn: () => {
+      // SKU 分组模式下一次性加载全部数据（最多1000条）
+      const isSkuGroupMode = operationStatus === 'awaiting_stock' && viewMode === 'sku_group';
+
       // 计算当前请求的pageSize和offset
       const isFirstPage = currentPageRef.current === 1;
-      const pageSize = isFirstPage ? itemsPerRow * INITIAL_ROWS : itemsPerRow * LOAD_MORE_ROWS;
+      const pageSize = isSkuGroupMode
+        ? 1000 // SKU 分组模式加载全部
+        : isFirstPage ? itemsPerRow * INITIAL_ROWS : itemsPerRow * LOAD_MORE_ROWS;
 
-      // 计算offset：第一页为0，后续页为 初始行数 + (当前页-2) × 加载行数
-      const offset = isFirstPage
+      // 计算offset：SKU 分组模式下始终为0
+      const offset = isSkuGroupMode
         ? 0
-        : itemsPerRow * INITIAL_ROWS + (currentPageRef.current - 2) * itemsPerRow * LOAD_MORE_ROWS;
+        : isFirstPage
+          ? 0
+          : itemsPerRow * INITIAL_ROWS + (currentPageRef.current - 2) * itemsPerRow * LOAD_MORE_ROWS;
 
       // 第一个标签使用OZON原生状态，其他标签使用operation_status
       const queryParams: Record<string, string | number | undefined | null> = {
@@ -336,7 +352,7 @@ const PackingShipment: React.FC = () => {
     staleTime: 30000, // 数据30秒内不会被认为是过期的
   });
 
-  // 当店铺、状态、搜索参数、平台筛选、采购信息筛选或排序变化时，重置分页并强制刷新
+  // 当店铺、状态、搜索参数、平台筛选、采购信息筛选、排序或视图模式变化时，重置分页并强制刷新
   useEffect(() => {
     setCurrentPage(1);
     currentPageRef.current = 1; // 同步更新 ref
@@ -345,7 +361,7 @@ const PackingShipment: React.FC = () => {
     setAccumulatedImageMap({}); // 重置图片映射
     // 强制使缓存失效，确保重新请求
     queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
-  }, [selectedShop, operationStatus, searchParams, selectedPlatform, selectedPurchaseInfo, sortOrder, queryClient]);
+  }, [selectedShop, operationStatus, searchParams, selectedPlatform, selectedPurchaseInfo, sortOrder, viewMode, queryClient]);
 
   // 当收到新数据时，累积到 allPostings
   useEffect(() => {
@@ -573,6 +589,43 @@ const PackingShipment: React.FC = () => {
 
   // offer_id到图片的映射，使用累积的映射
   const offerIdImageMap = accumulatedImageMap;
+
+  // SKU 分组数据（仅在等待备货标签页且视图模式为 sku_group 时计算）
+  const skuGroups = useMemo<SkuGroup[]>(() => {
+    if (operationStatus !== 'awaiting_stock' || viewMode !== 'sku_group') {
+      return [];
+    }
+
+    const groupMap = new Map<string, SkuGroup>();
+
+    allPostings.forEach((posting) => {
+      const products = posting.products || posting.order?.items || [];
+      products.forEach((product) => {
+        const sku = product.sku;
+        if (!sku) return;
+
+        if (!groupMap.has(sku)) {
+          groupMap.set(sku, {
+            sku,
+            productName: product.name || sku,
+            productImage: product.image || accumulatedImageMap[product.offer_id] || null,
+            postings: [],
+            totalQuantity: 0,
+          });
+        }
+
+        const group = groupMap.get(sku)!;
+        // 避免重复添加同一个 posting
+        if (!group.postings.some(p => p.posting_number === posting.posting_number)) {
+          group.postings.push(posting);
+          group.totalQuantity += product.quantity || 1;
+        }
+      });
+    });
+
+    // 按 SKU 字母顺序排序
+    return Array.from(groupMap.values()).sort((a, b) => a.sku.localeCompare(b.sku));
+  }, [allPostings, operationStatus, viewMode, accumulatedImageMap]);
 
   // 使用统一的价格格式化函数 - 使用 useCallback 稳定引用
   const formatPrice = React.useCallback(
@@ -1198,6 +1251,9 @@ const PackingShipment: React.FC = () => {
             onSearchParamsChange={setSearchParams}
             sortOrder={sortOrder}
             onSortOrderChange={setSortOrder}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            showViewModeSwitch={operationStatus === 'awaiting_stock'}
           />
         )}
 
@@ -1511,11 +1567,41 @@ const PackingShipment: React.FC = () => {
               <div className={styles.loadingMore}>
                 <SyncOutlined spin /> 加载中...
               </div>
-            ) : orderCards.length === 0 ? (
+            ) : orderCards.length === 0 && skuGroups.length === 0 ? (
               <div className={styles.emptyState}>
                 <Text type="secondary">暂无数据</Text>
               </div>
+            ) : operationStatus === 'awaiting_stock' && viewMode === 'sku_group' ? (
+              // SKU 分组视图
+              <>
+                <div className={styles.skuGroupGrid}>
+                  {skuGroups.map((group) => (
+                    <SkuGroupCard
+                      key={group.sku}
+                      group={group}
+                      onClick={() => {
+                        setSelectedSkuGroup(group);
+                        setBatchPrepareModalVisible(true);
+                      }}
+                    />
+                  ))}
+                </div>
+
+                {/* 加载提示 */}
+                {isLoadingMore && (
+                  <div className={styles.loadingMore}>
+                    <SyncOutlined spin /> 加载更多...
+                  </div>
+                )}
+
+                {!hasMoreData && skuGroups.length > 0 && (
+                  <div className={styles.loadingMore}>
+                    <Text type="secondary">没有更多数据了</Text>
+                  </div>
+                )}
+              </>
             ) : (
+              // 列表视图
               <>
                 <div className={styles.orderGrid}>
                   {orderCards.map((card) => (
@@ -1715,6 +1801,25 @@ const PackingShipment: React.FC = () => {
         onCancel={() => setPriceHistoryModalVisible(false)}
         sku={selectedSku}
         productName={selectedProductName}
+      />
+
+      {/* 批量备货弹窗 */}
+      <BatchPrepareStockModal
+        visible={batchPrepareModalVisible}
+        onCancel={() => {
+          setBatchPrepareModalVisible(false);
+          setSelectedSkuGroup(null);
+        }}
+        skuGroup={selectedSkuGroup}
+        shopNameMap={shopNameMap}
+        onSuccess={(postingNumbers) => {
+          // 从当前列表中移除已备货的 postings
+          setAllPostings((prev) => prev.filter((p) => !postingNumbers.includes(p.posting_number)));
+          queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
+          queryClient.invalidateQueries({ queryKey: ['packingStats'] });
+          setBatchPrepareModalVisible(false);
+          setSelectedSkuGroup(null);
+        }}
       />
 
       {/* 编辑备注弹窗 */}

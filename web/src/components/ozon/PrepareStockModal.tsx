@@ -477,30 +477,30 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
               padding: '12px',
               background: '#f5f5f5',
               borderRadius: 4,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '24px',
+              flexWrap: 'wrap',
             }}
           >
-            <Space direction="vertical" size="small" style={{ width: '100%' }}>
+            <div>
+              <Text strong>汇总信息：</Text>
+              <Text style={{ marginLeft: 8 }}>总进货金额 </Text>
+              <Text strong style={{ color: '#1890ff', fontSize: 16 }}>
+                {currencySymbol}
+                {summary.totalPrice.toFixed(2)}
+              </Text>
+            </div>
+            <div>
+              <Text>采购平台：</Text>
+              <Text strong>{summary.platforms.join(', ') || '无'}</Text>
+            </div>
+            {summary.notes && (
               <div>
-                <Text strong>汇总信息：</Text>
+                <Text>备注：</Text>
+                <Text>{summary.notes}</Text>
               </div>
-              <div>
-                <Text>总进货价格：</Text>
-                <Text strong style={{ color: '#1890ff', fontSize: 16 }}>
-                  {currencySymbol}
-                  {summary.totalPrice.toFixed(2)}
-                </Text>
-              </div>
-              <div>
-                <Text>采购平台：</Text>
-                <Text strong>{summary.platforms.join(', ') || '无'}</Text>
-              </div>
-              {summary.notes && (
-                <div>
-                  <Text>备注：</Text>
-                  <Text>{summary.notes}</Text>
-                </div>
-              )}
-            </Space>
+            )}
           </div>
 
           {/* 同步到 Ozon */}

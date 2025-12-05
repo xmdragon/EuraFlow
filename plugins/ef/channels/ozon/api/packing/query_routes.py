@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 @router.get("/packing/orders")
 async def get_packing_orders(
     offset: int = 0,
-    limit: int = Query(50, le=100),
+    limit: int = Query(50, le=1000),
     shop_id: Optional[int] = None,
     posting_number: Optional[str] = None,
     sku: Optional[str] = Query(None, description="按商品SKU搜索（在posting的products中查找）"),
