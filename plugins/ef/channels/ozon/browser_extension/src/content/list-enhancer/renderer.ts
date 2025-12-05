@@ -40,6 +40,42 @@ const ROW_LAYOUT: RowConfig[] = [
 // 空值占位符
 const EMPTY = '--';
 
+// 缓存检测到的货币符号
+let detectedCurrencySymbol: string | null = null;
+
+/**
+ * 检测页面货币符号
+ * 从商品价格元素中提取货币符号
+ */
+function detectCurrencySymbol(): string {
+  if (detectedCurrencySymbol) return detectedCurrencySymbol;
+
+  // 尝试从页面商品价格中提取货币符号
+  // OZON 价格通常格式: "1 234 ₽" 或 "$ 12.34" 或 "€ 12,34"
+  const priceSelectors = [
+    '[data-widget="webPrice"] span',
+    '[data-widget="webSale"] span',
+    '.tsHeadline500Medium',  // OZON 商品列表价格常用类
+    '[class*="price"]',
+  ];
+
+  for (const selector of priceSelectors) {
+    const priceElements = document.querySelectorAll(selector);
+    for (const el of priceElements) {
+      const text = el.textContent?.trim() || '';
+      // 匹配常见货币符号
+      const match = text.match(/[₽$€£¥₴₸₼]/);
+      if (match) {
+        detectedCurrencySymbol = match[0];
+        return detectedCurrencySymbol;
+      }
+    }
+  }
+
+  // 默认使用卢布符号
+  return '₽';
+}
+
 function formatNum(value: any): string {
   if (value == null) return EMPTY;
   if (typeof value === 'number') {
@@ -273,7 +309,7 @@ const FIELD_CONFIG: Record<string, FieldConfig> = {
   },
   competitorMinPrice: {
     getValue: (d) => d?.competitorMinPrice,
-    format: (v) => v != null ? `${v}₽` : EMPTY,
+    format: (v) => v != null ? `${v}${detectCurrencySymbol()}` : EMPTY,
     label: '最低价'
   },
 
