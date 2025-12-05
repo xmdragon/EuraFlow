@@ -516,8 +516,11 @@
   :global(.ant-tag) {
     margin: 0;
     font-size: 11px;
-    padding: 1px 6px;
+    padding: 1px 0;
     line-height: 18px;
     font-weight: 600;
+    // 固定宽度容纳2个字符
+    min-width: 28px;
+    text-align: center;
   }
 }
