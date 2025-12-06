@@ -2,7 +2,7 @@
  * 打印标签弹窗组件
  * 显示PDF格式的快递面单，并支持包装重量录入
  */
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Modal, Button, Spin, Table, InputNumber, Tooltip } from "antd";
 import { PrinterOutlined, CopyOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
@@ -45,6 +45,7 @@ const PrintLabelModal: React.FC<PrintLabelModalProps> = ({
 }) => {
   const [weights, setWeights] = useState<Record<string, number | undefined>>({});
   const { copyToClipboard } = useCopy();
+  const firstInputRef = useRef<HTMLInputElement>(null);
 
   // 弹窗关闭时清空重量状态
   useEffect(() => {
@@ -52,6 +53,17 @@ const PrintLabelModal: React.FC<PrintLabelModalProps> = ({
       setWeights({});
     }
   }, [visible]);
+
+  // 弹窗打开时聚焦第一个重量输入框
+  useEffect(() => {
+    if (visible && postings.length > 0) {
+      // 延迟聚焦，等待 Modal 和 Table 渲染完成
+      const timer = setTimeout(() => {
+        firstInputRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [visible, postings.length]);
 
   // 构建 SKU 签名到 posting_numbers 的映射
   const skuSignatureMap = useMemo(() => {
@@ -151,8 +163,9 @@ const PrintLabelModal: React.FC<PrintLabelModalProps> = ({
       title: "重量(g)",
       key: "weight",
       width: 140,
-      render: (_, record) => (
+      render: (_, record, index) => (
         <InputNumber
+          ref={index === 0 ? firstInputRef : undefined}
           min={1}
           precision={0}
           placeholder="必填"
