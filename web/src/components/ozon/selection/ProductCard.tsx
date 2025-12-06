@@ -204,8 +204,23 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({
     );
   };
 
+  // 处理卡片点击：按住 Ctrl 时切换选中状态
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      onToggleSelect(product.id);
+    }
+  };
+
   return (
-    <Card key={product.id} hoverable size="small" className={styles.productCard} cover={renderCover()}>
+    <Card
+      key={product.id}
+      hoverable
+      size="small"
+      className={styles.productCard}
+      cover={renderCover()}
+      onClick={handleCardClick}
+    >
       <div className={styles.productCardBody}>
         {/* 商品名称 - 始终显示 */}
         <Paragraph
