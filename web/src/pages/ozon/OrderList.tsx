@@ -912,6 +912,7 @@ const OrderList: React.FC = () => {
             setActiveTab(key);
             setCurrentPage(1); // 切换Tab时重置到第一页
           }}
+          destroyInactiveTabPane
           items={[
             {
               label: `等待备货 ${stats.awaiting_packaging || 0}`,

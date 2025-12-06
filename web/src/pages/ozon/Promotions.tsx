@@ -809,6 +809,7 @@ const Promotions: React.FC = () => {
           <Tabs
             activeKey={activeTab}
             onChange={(key) => setActiveTab(key as 'candidates' | 'active')}
+            destroyInactiveTabPane
             items={[
               {
                 key: 'candidates',

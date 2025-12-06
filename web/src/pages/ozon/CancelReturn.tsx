@@ -684,6 +684,7 @@ const CancelReturn: React.FC = () => {
         <Tabs
           activeKey={activeTab}
           onChange={setActiveTab}
+          destroyInactiveTabPane
           tabBarExtraContent={
             activeTab === 'cancellations' ? (
               <ColumnSetting

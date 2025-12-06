@@ -256,6 +256,7 @@ const ProfitCalculatorV2: React.FC = () => {
             <Tabs
               activeKey={activeKey}
               onChange={setActiveKey}
+              destroyInactiveTabPane
               items={SCENARIOS.map((scenario) => {
               // 检查是否有同组的多个场景匹配
               const sameGroupMatched = matchedScenarios.filter(

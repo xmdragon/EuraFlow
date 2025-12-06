@@ -144,6 +144,7 @@ const GlobalSettingsTab: React.FC = () => {
     <Card>
       <Tabs
         defaultActiveKey="time-currency"
+        destroyInactiveTabPane
         items={[
           {
             label: (

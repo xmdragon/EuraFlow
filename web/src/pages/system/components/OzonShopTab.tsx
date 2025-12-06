@@ -457,6 +457,7 @@ const OzonShopTab: React.FC = () => {
           <Form form={form} layout="vertical" onFinish={handleSave}>
             <Tabs
               defaultActiveKey="1"
+              destroyInactiveTabPane
               items={[
                 {
                   label: (

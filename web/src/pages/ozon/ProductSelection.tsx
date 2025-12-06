@@ -92,6 +92,7 @@ const ProductSelection: React.FC = () => {
         <Tabs
           activeKey={activeTab}
           onChange={setActiveTab}
+          destroyInactiveTabPane
           items={[
             {
               key: 'search',

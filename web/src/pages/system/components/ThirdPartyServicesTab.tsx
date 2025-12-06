@@ -227,6 +227,7 @@ const ThirdPartyServicesTab: React.FC = () => {
     <div className={styles.container}>
       <Tabs
         defaultActiveKey="image-storage"
+        destroyInactiveTabPane
         items={[
           {
             key: "image-storage",

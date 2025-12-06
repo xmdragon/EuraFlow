@@ -37,7 +37,7 @@ const FinanceCalculator: React.FC = () => {
         <CalculatorOutlined /> 财务计算器
       </Title>
 
-      <Tabs defaultActiveKey="profit" items={tabItems} />
+      <Tabs defaultActiveKey="profit" destroyInactiveTabPane items={tabItems} />
     </div>
   );
 };

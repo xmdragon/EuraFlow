@@ -497,6 +497,7 @@ const ShippingDetailCalculator: React.FC = () => {
           <Tabs
             activeKey={activeKey}
             onChange={setActiveKey}
+            destroyInactiveTabPane
             items={OZON_UNI_DATA.map((category) => ({
               key: category.id,
               label: (

@@ -1351,6 +1351,7 @@ const PackingShipment: React.FC = () => {
                 setScanSelectedPostings([]);
               }
             }}
+                destroyInactiveTabPane
                 items={[
                   {
                     key: 'awaiting_stock',

@@ -481,7 +481,7 @@ const OrderReport: React.FC = () => {
     // 1. 店铺名称（显示第一个单词，完整名称用 Tooltip）
     {
       title: "店铺",
-      width: 80,
+      width: 160,
       render: (_, row) => {
         const shopName = row.shop_name || '-';
         const firstWord = shopName.split(' ')[0] || shopName;
@@ -761,6 +761,7 @@ const OrderReport: React.FC = () => {
               setPage(1);
             }}
             className={styles.reportTabs}
+            destroyInactiveTabPane
           >
             {/* 订单明细Tab */}
             <Tabs.TabPane

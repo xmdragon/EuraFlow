@@ -204,6 +204,7 @@ const TranslationConfigTab: React.FC = () => {
 
       <Tabs
         defaultActiveKey="aliyun"
+        destroyInactiveTabPane
         items={[
           {
             key: 'aliyun',

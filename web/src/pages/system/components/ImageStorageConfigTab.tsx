@@ -225,6 +225,7 @@ const ImageStorageConfigTab: React.FC = () => {
 
       <Tabs
         defaultActiveKey="cloudinary"
+        destroyInactiveTabPane
         items={[
           {
             key: 'cloudinary',

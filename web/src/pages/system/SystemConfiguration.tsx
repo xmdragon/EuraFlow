@@ -70,6 +70,7 @@ const SystemConfiguration: React.FC = () => {
           <Tabs
             defaultActiveKey={defaultActiveKey}
             size="large"
+            destroyInactiveTabPane
             items={tabItems}
           />
         ) : (

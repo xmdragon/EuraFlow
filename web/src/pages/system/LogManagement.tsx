@@ -32,7 +32,7 @@ const LogManagement: React.FC = () => {
       <PageTitle icon={<FileTextOutlined />} title="日志管理" />
 
       <Card className={styles.logCard}>
-        <Tabs defaultActiveKey="webhook" size="large" items={tabItems} />
+        <Tabs defaultActiveKey="webhook" size="large" destroyInactiveTabPane items={tabItems} />
       </Card>
     </div>
   );
