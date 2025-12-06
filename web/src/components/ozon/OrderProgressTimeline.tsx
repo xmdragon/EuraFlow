@@ -77,12 +77,22 @@ const OrderProgressTimeline: React.FC<OrderProgressTimelineProps> = ({
     });
 
     // 构建节点状态
+    // 如果已取消，只显示到最后一个完成节点，后面的待完成节点不显示
+    const isCancelled = !!cancelledAt;
+
     MILESTONES.forEach((milestone, index) => {
       const time = timeMap[milestone.key];
+
+      // 已取消订单：跳过最后完成节点之后的所有待完成节点
+      if (isCancelled && !time && index > lastCompletedIndex) {
+        return;
+      }
+
       let status: 'completed' | 'current' | 'pending';
 
       if (time) {
-        if (index === lastCompletedIndex) {
+        // 已取消订单：最后完成节点显示为绿色（不是红色），因为红色用于取消节点
+        if (index === lastCompletedIndex && !isCancelled) {
           status = 'current'; // 最新完成节点 → 红色
         } else {
           status = 'completed'; // 已完成节点 → 绿色
@@ -99,6 +109,16 @@ const OrderProgressTimeline: React.FC<OrderProgressTimelineProps> = ({
       });
     });
 
+    // 已取消订单：在末尾添加取消节点
+    if (isCancelled) {
+      result.push({
+        key: 'cancelled',
+        label: '取消',
+        time: cancelledAt,
+        status: 'current', // 取消节点显示为红色
+      });
+    }
+
     return result;
   }, [
     orderedAt,
@@ -108,6 +128,7 @@ const OrderProgressTimeline: React.FC<OrderProgressTimelineProps> = ({
     labelPrintedAt,
     shippedAt,
     deliveredAt,
+    cancelledAt,
   ]);
 
   // 格式化时间显示
@@ -146,15 +167,24 @@ const OrderProgressTimeline: React.FC<OrderProgressTimelineProps> = ({
 
   return (
     <div className={styles.container}>
-      {/* 正常流程节点 */}
       <div className={styles.timeline}>
         {milestones.map((milestone, index) => (
           <React.Fragment key={milestone.key}>
             {/* 节点 */}
             <div className={styles.milestone}>
-              <div className={`${styles.node} ${getNodeClass(milestone.status)}`} />
+              <div
+                className={`${styles.node} ${
+                  milestone.key === 'cancelled' ? styles.nodeCancelled : getNodeClass(milestone.status)
+                }`}
+              />
               <div className={styles.content}>
-                <div className={styles.label}>{milestone.label}</div>
+                <div className={styles.label}>
+                  {milestone.key === 'cancelled' ? (
+                    <Text type="danger">{milestone.label}</Text>
+                  ) : (
+                    milestone.label
+                  )}
+                </div>
                 {milestone.time && (
                   <div className={styles.time}>{formatTime(milestone.time)}</div>
                 )}
@@ -170,22 +200,6 @@ const OrderProgressTimeline: React.FC<OrderProgressTimelineProps> = ({
           </React.Fragment>
         ))}
       </div>
-
-      {/* 取消节点（如果存在） */}
-      {cancelledAt && (
-        <div className={styles.cancelSection}>
-          <div className={styles.cancelLine} />
-          <div className={styles.milestone}>
-            <div className={`${styles.node} ${styles.nodeCancelled}`} />
-            <div className={styles.content}>
-              <div className={styles.label}>
-                <Text type="danger">取消</Text>
-              </div>
-              <div className={styles.time}>{formatTime(cancelledAt)}</div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
