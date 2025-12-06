@@ -778,6 +778,8 @@ class PostingOperationsService:
         if posting.status == "cancelled":
             posting.operation_status = "cancelled"
             posting.operation_time = utcnow()
+            if not posting.cancelled_at:
+                posting.cancelled_at = utcnow()  # 记录取消时间用于订单进度显示
             await self.db.commit()
             await self.db.refresh(posting)
 
@@ -823,6 +825,7 @@ class PostingOperationsService:
             # 立即更新本地状态为取消（确保用户看到立即生效，无需等待后台任务完成）
             posting.operation_status = "cancelled"
             posting.operation_time = utcnow()
+            posting.cancelled_at = utcnow()  # 记录取消时间用于订单进度显示
 
             # 5. 提交数据库事务（必须先提交，异步任务才能访问）
             await self.db.commit()
@@ -864,6 +867,7 @@ class PostingOperationsService:
             # 不同步到跨境巴士，直接更新本地状态为取消
             posting.operation_status = "cancelled"
             posting.operation_time = utcnow()
+            posting.cancelled_at = utcnow()  # 记录取消时间用于订单进度显示
 
             await self.db.commit()
             await self.db.refresh(posting)
