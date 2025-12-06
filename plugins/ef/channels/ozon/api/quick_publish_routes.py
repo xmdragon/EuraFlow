@@ -356,6 +356,7 @@ async def get_quick_publish_config(
                 "display_name": shop.shop_name_cn or shop.shop_name,
                 "shop_name": shop.shop_name,  # 俄文名
                 "shop_name_cn": shop.shop_name_cn or "",  # 中文名
+                "client_id": shop.client_id,  # OZON Client ID（用于切换店铺）
                 "warehouses": warehouses_by_shop.get(shop.id, [])
             })
 

@@ -4,7 +4,7 @@
  * 负责商品卡片的网格布局和加载状态展示
  */
 
-import React from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Spin, Empty, Typography } from 'antd';
 import { LoadingOutlined } from '@ant-design/icons';
 
@@ -48,6 +48,8 @@ export interface ProductGridProps {
   selectedIds: Set<number>;
   /** 切换选中状态 */
   onToggleSelect: (id: number) => void;
+  /** 批量切换选中状态（用于 Ctrl+点击整行选中） */
+  onBatchToggleSelect?: (ids: number[]) => void;
   /** 显示竞争对手列表 */
   onShowCompetitors: (product: ProductSelectionItem) => void;
   /** 显示商品图片 */
@@ -73,9 +75,53 @@ export const ProductGrid: React.FC<ProductGridProps> = React.memo(({
   userSymbol,
   selectedIds,
   onToggleSelect,
+  onBatchToggleSelect,
   onShowCompetitors,
   onShowImages,
 }) => {
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [columnsPerRow, setColumnsPerRow] = useState(0);
+
+  // 计算每行的列数
+  useEffect(() => {
+    const calculateColumns = () => {
+      if (!gridRef.current || products.length === 0) return;
+
+      const gridElement = gridRef.current;
+      const firstChild = gridElement.firstElementChild as HTMLElement;
+      if (!firstChild) return;
+
+      const gridWidth = gridElement.clientWidth;
+      const itemWidth = firstChild.offsetWidth;
+      const gap = 2; // 与 CSS 中的 gap 一致
+
+      if (itemWidth > 0) {
+        const cols = Math.floor((gridWidth + gap) / (itemWidth + gap));
+        setColumnsPerRow(Math.max(1, cols));
+      }
+    };
+
+    calculateColumns();
+
+    // 监听窗口大小变化
+    window.addEventListener('resize', calculateColumns);
+    return () => window.removeEventListener('resize', calculateColumns);
+  }, [products.length]);
+
+  // 处理 Ctrl+点击整行选中
+  const handleRowSelect = useCallback((productIndex: number) => {
+    if (columnsPerRow <= 0 || !onBatchToggleSelect) return;
+
+    // 计算当前商品所在行的起始和结束索引
+    const rowIndex = Math.floor(productIndex / columnsPerRow);
+    const startIndex = rowIndex * columnsPerRow;
+    const endIndex = Math.min(startIndex + columnsPerRow, products.length);
+
+    // 获取这一行所有商品的 ID
+    const rowProductIds = products.slice(startIndex, endIndex).map(p => p.id);
+    onBatchToggleSelect(rowProductIds);
+  }, [columnsPerRow, products, onBatchToggleSelect]);
+
   // 首次加载状态
   if (loading && products.length === 0) {
     return (
@@ -93,8 +139,8 @@ export const ProductGrid: React.FC<ProductGridProps> = React.memo(({
   return (
     <>
       {/* 商品网格 */}
-      <div className={styles.productGrid}>
-        {products.map((product) => (
+      <div className={styles.productGrid} ref={gridRef}>
+        {products.map((product, index) => (
           <div key={product.id}>
             <ProductCard
               product={product}
@@ -106,6 +152,7 @@ export const ProductGrid: React.FC<ProductGridProps> = React.memo(({
               userSymbol={userSymbol}
               selected={selectedIds.has(product.id)}
               onToggleSelect={onToggleSelect}
+              onRowSelect={() => handleRowSelect(index)}
               onShowCompetitors={onShowCompetitors}
               onShowImages={onShowImages}
             />

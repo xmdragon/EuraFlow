@@ -54,6 +54,7 @@ const ProductSelection: React.FC = () => {
     hasMoreData,
     selectedProductIds,
     toggleProductSelection,
+    batchToggleProductSelection,
     markingAsRead,
     handleMarkAsRead,
     competitorModalVisible,
@@ -147,6 +148,7 @@ const ProductSelection: React.FC = () => {
                     userSymbol={userSymbol}
                     selectedIds={selectedProductIds}
                     onToggleSelect={toggleProductSelection}
+                    onBatchToggleSelect={batchToggleProductSelection}
                     onShowCompetitors={showCompetitorsList}
                     onShowImages={showProductImages}
                   />

@@ -54,6 +54,8 @@ export interface ProductCardProps {
   selected: boolean;
   /** 切换选中状态 */
   onToggleSelect: (id: number) => void;
+  /** 整行选中（Ctrl+点击时触发） */
+  onRowSelect?: () => void;
   /** 显示竞争对手列表 */
   onShowCompetitors: (product: ProductSelectionItem) => void;
   /** 显示商品图片 */
@@ -74,6 +76,7 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({
   userSymbol,
   selected,
   onToggleSelect,
+  onRowSelect,
   onShowCompetitors,
   onShowImages,
 }) => {
@@ -204,11 +207,15 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({
     );
   };
 
-  // 处理卡片点击：按住 Ctrl 时切换选中状态
+  // 处理卡片点击：按住 Ctrl 时整行选中
   const handleCardClick = (e: React.MouseEvent) => {
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
-      onToggleSelect(product.id);
+      if (onRowSelect) {
+        onRowSelect();
+      } else {
+        onToggleSelect(product.id);
+      }
     }
   };
 

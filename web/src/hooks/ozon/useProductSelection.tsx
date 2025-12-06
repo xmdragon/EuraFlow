@@ -81,6 +81,7 @@ export interface UseProductSelectionReturn {
   // 选择状态
   selectedProductIds: Set<number>;
   toggleProductSelection: (productId: number) => void;
+  batchToggleProductSelection: (productIds: number[]) => void;
   markingAsRead: boolean;
   handleMarkAsRead: () => Promise<void>;
 
@@ -609,6 +610,23 @@ export const useProductSelection = (): UseProductSelectionReturn => {
     });
   }, []);
 
+  // 批量切换选中状态（用于 Ctrl+点击整行选中）
+  const batchToggleProductSelection = useCallback((productIds: number[]) => {
+    setSelectedProductIds((prev) => {
+      const newSet = new Set(prev);
+      // 检查是否所有商品都已选中
+      const allSelected = productIds.every(id => newSet.has(id));
+      if (allSelected) {
+        // 如果都已选中，则全部取消选中
+        productIds.forEach(id => newSet.delete(id));
+      } else {
+        // 否则全部选中
+        productIds.forEach(id => newSet.add(id));
+      }
+      return newSet;
+    });
+  }, []);
+
   const handleMarkAsRead = async () => {
     if (selectedProductIds.size === 0) {
       notifyWarning('操作失败', '请先选择商品');
@@ -750,6 +768,7 @@ export const useProductSelection = (): UseProductSelectionReturn => {
     hasMoreData,
     selectedProductIds,
     toggleProductSelection,
+    batchToggleProductSelection,
     markingAsRead,
     handleMarkAsRead,
     competitorModalVisible,

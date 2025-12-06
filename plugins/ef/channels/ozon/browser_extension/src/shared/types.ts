@@ -149,6 +149,7 @@ export interface Shop {
   display_name: string;     // 显示名称
   platform: string;         // 平台（ozon）
   status: string;           // 状态（active）
+  client_id: string;        // OZON Client ID（用于切换店铺）
 }
 
 /**
