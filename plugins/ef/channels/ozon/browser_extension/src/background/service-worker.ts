@@ -19,6 +19,9 @@ import {
 // 导入自动采集模块
 import { registerAutoCollectorHandlers } from './auto-collector';
 
+// 导入促销自动拉取清理模块
+import { promoAutoAddCleaner, registerPromoCleanerHandlers } from './promo-auto-add-cleaner';
+
 // ============================================================================
 // OZON 版本信息动态拦截器
 // ============================================================================

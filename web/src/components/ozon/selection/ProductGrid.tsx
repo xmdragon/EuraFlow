@@ -4,7 +4,7 @@
  * 负责商品卡片的网格布局和加载状态展示
  */
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useCallback } from 'react';
 import { Spin, Empty, Typography } from 'antd';
 import { LoadingOutlined } from '@ant-design/icons';
 
@@ -80,47 +80,32 @@ export const ProductGrid: React.FC<ProductGridProps> = React.memo(({
   onShowImages,
 }) => {
   const gridRef = useRef<HTMLDivElement>(null);
-  const [columnsPerRow, setColumnsPerRow] = useState(0);
-
-  // 计算每行的列数
-  useEffect(() => {
-    const calculateColumns = () => {
-      if (!gridRef.current || products.length === 0) return;
-
-      const gridElement = gridRef.current;
-      const firstChild = gridElement.firstElementChild as HTMLElement;
-      if (!firstChild) return;
-
-      const gridWidth = gridElement.clientWidth;
-      const itemWidth = firstChild.offsetWidth;
-      const gap = 2; // 与 CSS 中的 gap 一致
-
-      if (itemWidth > 0) {
-        const cols = Math.floor((gridWidth + gap) / (itemWidth + gap));
-        setColumnsPerRow(Math.max(1, cols));
-      }
-    };
-
-    calculateColumns();
-
-    // 监听窗口大小变化
-    window.addEventListener('resize', calculateColumns);
-    return () => window.removeEventListener('resize', calculateColumns);
-  }, [products.length]);
 
   // 处理 Ctrl+点击整行选中
   const handleRowSelect = useCallback((productIndex: number) => {
-    if (columnsPerRow <= 0 || !onBatchToggleSelect) return;
+    if (!onBatchToggleSelect || !gridRef.current) return;
+
+    // 实时计算每行列数（避免闭包问题）
+    const gridElement = gridRef.current;
+    const firstChild = gridElement.firstElementChild as HTMLElement;
+    if (!firstChild) return;
+
+    const gridWidth = gridElement.clientWidth;
+    const itemWidth = firstChild.offsetWidth;
+    const gap = 2;
+
+    const cols = itemWidth > 0 ? Math.floor((gridWidth + gap) / (itemWidth + gap)) : 0;
+    if (cols <= 0) return;
 
     // 计算当前商品所在行的起始和结束索引
-    const rowIndex = Math.floor(productIndex / columnsPerRow);
-    const startIndex = rowIndex * columnsPerRow;
-    const endIndex = Math.min(startIndex + columnsPerRow, products.length);
+    const rowIndex = Math.floor(productIndex / cols);
+    const startIndex = rowIndex * cols;
+    const endIndex = Math.min(startIndex + cols, products.length);
 
     // 获取这一行所有商品的 ID
     const rowProductIds = products.slice(startIndex, endIndex).map(p => p.id);
     onBatchToggleSelect(rowProductIds);
-  }, [columnsPerRow, products, onBatchToggleSelect]);
+  }, [products, onBatchToggleSelect]);
 
   // 首次加载状态
   if (loading && products.length === 0) {
