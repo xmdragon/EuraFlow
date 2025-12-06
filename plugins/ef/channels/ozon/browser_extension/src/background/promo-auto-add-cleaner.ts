@@ -13,6 +13,7 @@
  */
 
 import { createEuraflowApi } from '../shared/api/euraflow-api';
+import { configCache } from '../shared/config-cache';
 import type { Shop } from '../shared/types';
 
 // 缓存键：记录最后执行日期
@@ -88,12 +89,11 @@ class PromoAutoAddCleaner {
         return;
       }
 
-      // 创建 API 客户端并获取配置
+      // 创建 API 客户端
       const api = createEuraflowApi(apiConfig.apiUrl, apiConfig.apiKey);
-      const config = await api.getConfig();
 
-      // 获取店铺列表
-      const shops: Shop[] = config.shops || [];
+      // 获取店铺列表（通过 configCache 统一管理）
+      const shops = await configCache.getShops(api);
       if (!shops.length) {
         console.log('[PromoAutoAddCleaner] 没有可用店铺');
         return;

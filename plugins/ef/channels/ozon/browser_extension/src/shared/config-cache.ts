@@ -5,8 +5,17 @@
  * 避免弹窗时临时加载，提升用户体验
  */
 
-import type { EuraflowApiProxy } from './api';
 import type { Shop, Warehouse, Watermark } from './types';
+
+/**
+ * API 客户端接口（兼容 EuraflowApi 和 EuraflowApiProxy）
+ */
+export interface ConfigApiClient {
+  getConfig(): Promise<{
+    shops: Array<Shop & { warehouses: Warehouse[] }>;
+    watermarks: Watermark[];
+  }>;
+}
 
 interface ConfigCache {
   shops: Shop[];
@@ -23,9 +32,9 @@ class ConfigCacheService {
 
   /**
    * 预加载配置数据
-   * @param apiClient API客户端实例
+   * @param apiClient API客户端实例（支持 EuraflowApi 和 EuraflowApiProxy）
    */
-  async preload(apiClient: EuraflowApiProxy): Promise<void> {
+  async preload(apiClient: ConfigApiClient): Promise<void> {
     // 如果正在加载，等待加载完成
     if (this.loading && this.loadPromise) {
       await this.loadPromise;
@@ -64,9 +73,9 @@ class ConfigCacheService {
 
   /**
    * 获取店铺列表
-   * @param apiClient API客户端实例
+   * @param apiClient API客户端实例（支持 EuraflowApi 和 EuraflowApiProxy）
    */
-  async getShops(apiClient: EuraflowApiProxy): Promise<Shop[]> {
+  async getShops(apiClient: ConfigApiClient): Promise<Shop[]> {
     const cached = this.getCached();
     if (cached) {
       return cached.shops;
@@ -79,10 +88,10 @@ class ConfigCacheService {
 
   /**
    * 获取指定店铺的仓库列表
-   * @param apiClient API客户端实例
+   * @param apiClient API客户端实例（支持 EuraflowApi 和 EuraflowApiProxy）
    * @param shopId 店铺ID
    */
-  async getWarehouses(apiClient: EuraflowApiProxy, shopId: number): Promise<Warehouse[]> {
+  async getWarehouses(apiClient: ConfigApiClient, shopId: number): Promise<Warehouse[]> {
     const cached = this.getCached();
     if (cached && cached.warehouses.has(shopId)) {
       return cached.warehouses.get(shopId) || [];
@@ -95,9 +104,9 @@ class ConfigCacheService {
 
   /**
    * 获取水印列表
-   * @param apiClient API客户端实例
+   * @param apiClient API客户端实例（支持 EuraflowApi 和 EuraflowApiProxy）
    */
-  async getWatermarks(apiClient: EuraflowApiProxy): Promise<Watermark[]> {
+  async getWatermarks(apiClient: ConfigApiClient): Promise<Watermark[]> {
     const cached = this.getCached();
     if (cached) {
       return cached.watermarks;
@@ -132,7 +141,7 @@ class ConfigCacheService {
   /**
    * 加载所有配置数据（优化：使用统一API减少请求次数）
    */
-  private async loadConfig(apiClient: EuraflowApiProxy): Promise<ConfigCache> {
+  private async loadConfig(apiClient: ConfigApiClient): Promise<ConfigCache> {
     // 使用新的统一配置API（1次请求代替原来的3+N次）
     const config = await apiClient.getConfig();
 
