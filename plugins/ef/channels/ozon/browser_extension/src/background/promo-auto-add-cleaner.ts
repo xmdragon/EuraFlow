@@ -8,7 +8,7 @@
  * 1. 检查今天是否已执行过（chrome.storage.local 缓存）
  * 2. 获取店铺列表（从 EuraFlow API）
  * 3. 遍历每个店铺，切换 cookie 后请求促销活动列表
- * 4. 解析 HTML 中的 highlightList.originalHighlights
+ * 4. 从 __MODULE_STATE__.highlights.highlightsModule.highlightList.originalHighlights 获取活动数据
  * 5. 对每个有待自动拉入商品的活动，分页获取商品列表并删除
  */
 
@@ -127,13 +127,13 @@ class PromoAutoAddCleaner {
     console.log(`[PromoAutoAddCleaner] 处理店铺: ${shop.display_name} (${shop.client_id})`);
 
     try {
-      // 1. 获取或创建 seller.ozon.ru 标签页
+      // 1. 先切换到目标店铺（设置 cookie）
+      await this.switchToShop(shop.client_id);
+
+      // 2. 获取或创建标签页（此时 cookie 已设置，页面会加载正确店铺的数据）
       const { tabId, shouldClose } = await this.getOrCreateSellerTab();
 
       try {
-        // 2. 切换到目标店铺
-        await this.switchToShop(shop.client_id);
-
         // 3. 在页面上下文中获取促销活动列表
         const promotions = await this.fetchPromotions(tabId);
 
@@ -154,7 +154,7 @@ class PromoAutoAddCleaner {
 
         // 5. 处理每个活动
         for (const promo of activePromotions) {
-          await this.cleanPromotion(tabId, shop.client_id, promo);
+          await this.cleanPromotion(tabId, promo);
         }
 
       } finally {
@@ -264,57 +264,32 @@ class PromoAutoAddCleaner {
    * 在页面上下文中执行，解析 highlightList.originalHighlights
    */
   private async fetchPromotions(tabId: number): Promise<PromotionHighlight[]> {
-    // 先导航到促销列表页面
+    // 强制完整刷新：先导航到空白页，再导航到目标页（避免 SPA 路由不重新执行 script）
+    await chrome.tabs.update(tabId, { url: 'about:blank' });
+    await this.sleep(100);
     await chrome.tabs.update(tabId, { url: 'https://seller.ozon.ru/app/highlights/list' });
     await this.waitForTabLoad(tabId);
 
-    // 在页面上下文中执行脚本获取促销数据
+    // 在页面主世界中轮询等待数据就绪（必须用 MAIN world 才能访问 __MODULE_STATE__）
     const results = await chrome.scripting.executeScript({
       target: { tabId },
-      func: () => {
-        // 在页面上下文中查找 highlightList 数据
-        // OZON 将数据存储在 window.__INITIAL_STATE__.store.highlightList
-        try {
+      world: 'MAIN',
+      func: async () => {
+        const maxAttempts = 20;
+        const interval = 500;
+
+        for (let i = 0; i < maxAttempts; i++) {
           const win = window as any;
-
-          // 方法1：从 window.__INITIAL_STATE__.store 获取（主要方式）
-          if (win.__INITIAL_STATE__?.store?.highlightList?.originalHighlights) {
-            console.log('[PromoAutoAddCleaner] 从 __INITIAL_STATE__.store 获取数据');
-            return win.__INITIAL_STATE__.store.highlightList.originalHighlights;
+          const highlights = win.__MODULE_STATE__?.highlights?.highlightsModule?.highlightList?.originalHighlights;
+          if (highlights && highlights.length > 0) {
+            console.log(`[PromoAutoAddCleaner] 第 ${i + 1} 次尝试获取到 ${highlights.length} 个促销数据`);
+            return highlights;
           }
-
-          // 方法2：直接从 __INITIAL_STATE__ 获取（备用）
-          if (win.__INITIAL_STATE__?.highlightList?.originalHighlights) {
-            console.log('[PromoAutoAddCleaner] 从 __INITIAL_STATE__ 获取数据');
-            return win.__INITIAL_STATE__.highlightList.originalHighlights;
-          }
-
-          // 方法3：遍历 __INITIAL_STATE__ 查找 highlightList
-          if (win.__INITIAL_STATE__) {
-            const findHighlightList = (obj: any, path: string): any => {
-              if (!obj || typeof obj !== 'object') return null;
-              if (obj.highlightList?.originalHighlights) {
-                console.log(`[PromoAutoAddCleaner] 在 ${path} 找到 highlightList`);
-                return obj.highlightList.originalHighlights;
-              }
-              for (const key of Object.keys(obj)) {
-                if (key === 'highlightList') continue;
-                const result = findHighlightList(obj[key], `${path}.${key}`);
-                if (result) return result;
-              }
-              return null;
-            };
-            const result = findHighlightList(win.__INITIAL_STATE__, '__INITIAL_STATE__');
-            if (result) return result;
-          }
-
-          console.log('[PromoAutoAddCleaner] 未找到 highlightList 数据');
-          console.log('[PromoAutoAddCleaner] __INITIAL_STATE__ keys:', Object.keys(win.__INITIAL_STATE__ || {}));
-          return [];
-        } catch (error) {
-          console.error('[PromoAutoAddCleaner] 页面脚本执行错误:', error);
-          return [];
+          await new Promise(r => setTimeout(r, interval));
         }
+
+        console.log('[PromoAutoAddCleaner] 轮询超时，未找到促销数据');
+        return [];
       }
     });
 
@@ -332,7 +307,6 @@ class PromoAutoAddCleaner {
    */
   private async cleanPromotion(
     tabId: number,
-    clientId: string,
     promo: PromotionHighlight
   ): Promise<void> {
     const autoAddDate = promo.dateToNextAutoAdd!;
@@ -348,7 +322,7 @@ class PromoAutoAddCleaner {
     let offset = 0;
 
     while (offset < totalCount) {
-      const products = await this.fetchAutoAddProducts(tabId, clientId, autoAddDate, offset, pageSize);
+      const products = await this.fetchAutoAddProducts(tabId, promo.id, autoAddDate, offset, pageSize);
       allProductIds.push(...products.map(p => p.id));
       offset += pageSize;
 
@@ -362,7 +336,7 @@ class PromoAutoAddCleaner {
     }
 
     // 2. 删除商品
-    await this.deleteProducts(tabId, clientId, allProductIds, autoAddDate);
+    await this.deleteProducts(tabId, promo.id, allProductIds, autoAddDate);
     console.log(`[PromoAutoAddCleaner] 活动 ${promo.id}: 已删除 ${allProductIds.length} 个商品`);
   }
 
@@ -371,23 +345,36 @@ class PromoAutoAddCleaner {
    */
   private async fetchAutoAddProducts(
     tabId: number,
-    clientId: string,
+    highlightId: string,
     autoAddDate: string,
     offset: number,
     limit: number
   ): Promise<Array<{ id: string }>> {
-    const url = `https://seller.ozon.ru/api/site/sa-auto-add/v1/${clientId}/products-with-offset?offset=${offset}&limit=${limit}&autoAddDate=${encodeURIComponent(autoAddDate)}`;
+    const url = `https://seller.ozon.ru/api/site/sa-auto-add/v1/${highlightId}/products-with-offset?offset=${offset}&limit=${limit}&autoAddDate=${encodeURIComponent(autoAddDate)}`;
 
     const results = await chrome.scripting.executeScript({
       target: { tabId },
+      world: 'MAIN',
       func: async (fetchUrl: string) => {
         try {
+          // 从 Cookie 中提取 sellerId
+          const cookieMatch = document.cookie.match(/sc_company_id=(\d+)/);
+          if (!cookieMatch) {
+            console.error('[PromoAutoAddCleaner] 未找到 sc_company_id');
+            return { products: [] };
+          }
+          const sellerId = cookieMatch[1];
+
+          console.log('[PromoAutoAddCleaner] 发起请求:', fetchUrl, 'sellerId:', sellerId);
           const response = await fetch(fetchUrl, {
             method: 'GET',
             credentials: 'include',
             headers: {
-              'Accept': 'application/json',
-              'Content-Type': 'application/json'
+              'Accept': 'application/json, text/plain, */*',
+              'Content-Type': 'application/json',
+              'x-o3-company-id': sellerId,
+              'x-o3-app-name': 'seller-ui',
+              'x-o3-language': 'zh-Hans'
             }
           });
 
@@ -396,7 +383,9 @@ class PromoAutoAddCleaner {
             return { products: [] };
           }
 
-          return await response.json();
+          const data = await response.json();
+          console.log('[PromoAutoAddCleaner] 响应数据:', data);
+          return data;
         } catch (error) {
           console.error('[PromoAutoAddCleaner] 获取商品列表失败:', error);
           return { products: [] };
@@ -418,11 +407,11 @@ class PromoAutoAddCleaner {
    */
   private async deleteProducts(
     tabId: number,
-    clientId: string,
+    highlightId: string,
     productIds: string[],
     autoAddDate: string
   ): Promise<void> {
-    const url = `https://seller.ozon.ru/api/site/sa-auto-add/v1/${clientId}/delete-products`;
+    const url = `https://seller.ozon.ru/api/site/sa-auto-add/v1/${highlightId}/delete-products`;
     const body = {
       product_ids: productIds,
       auto_add_date: autoAddDate
@@ -430,14 +419,26 @@ class PromoAutoAddCleaner {
 
     const results = await chrome.scripting.executeScript({
       target: { tabId },
+      world: 'MAIN',
       func: async (fetchUrl: string, requestBody: any) => {
         try {
+          // 从 Cookie 中提取 sellerId
+          const cookieMatch = document.cookie.match(/sc_company_id=(\d+)/);
+          if (!cookieMatch) {
+            console.error('[PromoAutoAddCleaner] 未找到 sc_company_id');
+            return { success: false };
+          }
+          const sellerId = cookieMatch[1];
+
           const response = await fetch(fetchUrl, {
             method: 'POST',
             credentials: 'include',
             headers: {
-              'Accept': 'application/json',
-              'Content-Type': 'application/json'
+              'Accept': 'application/json, text/plain, */*',
+              'Content-Type': 'application/json',
+              'x-o3-company-id': sellerId,
+              'x-o3-app-name': 'seller-ui',
+              'x-o3-language': 'zh-Hans'
             },
             body: JSON.stringify(requestBody)
           });
