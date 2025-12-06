@@ -273,37 +273,43 @@ class PromoAutoAddCleaner {
       target: { tabId },
       func: () => {
         // 在页面上下文中查找 highlightList 数据
-        // OZON 将数据存储在 window.__APP_STATE__ 或页面 script 标签中
+        // OZON 将数据存储在 window.__INITIAL_STATE__.store.highlightList
         try {
-          // 方法1：尝试从 window 对象获取
           const win = window as any;
-          if (win.__APP_STATE__?.highlightList?.originalHighlights) {
-            return win.__APP_STATE__.highlightList.originalHighlights;
+
+          // 方法1：从 window.__INITIAL_STATE__.store 获取（主要方式）
+          if (win.__INITIAL_STATE__?.store?.highlightList?.originalHighlights) {
+            console.log('[PromoAutoAddCleaner] 从 __INITIAL_STATE__.store 获取数据');
+            return win.__INITIAL_STATE__.store.highlightList.originalHighlights;
           }
 
-          // 方法2：从页面 HTML 中解析
-          const scripts = document.querySelectorAll('script');
-          for (const script of scripts) {
-            const content = script.textContent || '';
-            // 查找包含 highlightList 的 script
-            if (content.includes('highlightList') && content.includes('originalHighlights')) {
-              // 使用正则提取 originalHighlights 数组
-              const match = content.match(/originalHighlights["\s:]+(\[[\s\S]*?\])/);
-              if (match) {
-                try {
-                  return JSON.parse(match[1]);
-                } catch {
-                  // 解析失败，继续尝试
-                }
+          // 方法2：直接从 __INITIAL_STATE__ 获取（备用）
+          if (win.__INITIAL_STATE__?.highlightList?.originalHighlights) {
+            console.log('[PromoAutoAddCleaner] 从 __INITIAL_STATE__ 获取数据');
+            return win.__INITIAL_STATE__.highlightList.originalHighlights;
+          }
+
+          // 方法3：遍历 __INITIAL_STATE__ 查找 highlightList
+          if (win.__INITIAL_STATE__) {
+            const findHighlightList = (obj: any, path: string): any => {
+              if (!obj || typeof obj !== 'object') return null;
+              if (obj.highlightList?.originalHighlights) {
+                console.log(`[PromoAutoAddCleaner] 在 ${path} 找到 highlightList`);
+                return obj.highlightList.originalHighlights;
               }
-            }
+              for (const key of Object.keys(obj)) {
+                if (key === 'highlightList') continue;
+                const result = findHighlightList(obj[key], `${path}.${key}`);
+                if (result) return result;
+              }
+              return null;
+            };
+            const result = findHighlightList(win.__INITIAL_STATE__, '__INITIAL_STATE__');
+            if (result) return result;
           }
 
-          // 方法3：尝试从 window.initialState 获取
-          if (win.initialState?.highlightList?.originalHighlights) {
-            return win.initialState.highlightList.originalHighlights;
-          }
-
+          console.log('[PromoAutoAddCleaner] 未找到 highlightList 数据');
+          console.log('[PromoAutoAddCleaner] __INITIAL_STATE__ keys:', Object.keys(win.__INITIAL_STATE__ || {}));
           return [];
         } catch (error) {
           console.error('[PromoAutoAddCleaner] 页面脚本执行错误:', error);
