@@ -93,7 +93,7 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({
       const alibaba1688Url = `https://s.1688.com/youyuan/index.htm?ob_search=${encodeURIComponent(wc800Url)}`;
 
       return (
-        <div className={styles.productCover} onClick={() => onShowImages(product)}>
+        <div className={styles.productCover} onClick={(e) => handleClick(e, () => onShowImages(product))}>
           {/* 复选框 - 左上角 */}
           <Checkbox
             className={styles.productCheckbox}
@@ -115,7 +115,11 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({
             title="打开OZON链接"
             onClick={(e) => {
               e.stopPropagation();
-              window.open(product.ozon_link, '_blank');
+              if (!(e.ctrlKey || e.metaKey)) {
+                window.open(product.ozon_link, '_blank');
+              } else {
+                handleClick(e);
+              }
             }}
           >
             <LinkOutlined />
@@ -126,7 +130,11 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({
             title="在1688找货源"
             onClick={(e) => {
               e.stopPropagation();
-              window.open(alibaba1688Url, '_blank');
+              if (!(e.ctrlKey || e.metaKey)) {
+                window.open(alibaba1688Url, '_blank');
+              } else {
+                handleClick(e);
+              }
             }}
           >
             <ShopOutlined />
@@ -137,7 +145,7 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({
       return (
         <div
           className={styles.productImagePlaceholder}
-          onClick={() => window.open(product.ozon_link, '_blank')}
+          onClick={(e) => handleClick(e, () => window.open(product.ozon_link, '_blank'))}
         >
           <Checkbox
             className={styles.productCheckbox}
@@ -207,15 +215,18 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({
     );
   };
 
-  // 处理卡片点击：按住 Ctrl 时整行选中
-  const handleCardClick = (e: React.MouseEvent) => {
+  // 处理点击：按住 Ctrl 时整行选中，否则执行默认操作
+  const handleClick = (e: React.MouseEvent, defaultAction?: () => void) => {
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
+      e.stopPropagation();
       if (onRowSelect) {
         onRowSelect();
       } else {
         onToggleSelect(product.id);
       }
+    } else if (defaultAction) {
+      defaultAction();
     }
   };
 
@@ -226,7 +237,7 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({
       size="small"
       className={styles.productCard}
       cover={renderCover()}
-      onClick={handleCardClick}
+      onClick={(e) => handleClick(e)}
     >
       <div className={styles.productCardBody}>
         {/* 商品名称 - 始终显示 */}

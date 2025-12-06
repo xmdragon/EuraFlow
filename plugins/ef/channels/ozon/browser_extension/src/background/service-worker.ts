@@ -114,6 +114,18 @@ chrome.runtime.onInstalled.addListener((details: chrome.runtime.InstalledDetails
       }
     });
   }
+
+  // 执行促销自动拉取清理（每天首次执行）
+  promoAutoAddCleaner.run().catch((error) => {
+    console.error('[ServiceWorker] 促销清理执行失败:', error);
+  });
+});
+
+// Service Worker 启动时也检查执行
+chrome.runtime.onStartup.addListener(() => {
+  promoAutoAddCleaner.run().catch((error) => {
+    console.error('[ServiceWorker] 促销清理执行失败:', error);
+  });
 });
 
 // ============================================================================
@@ -658,9 +670,10 @@ async function getEuraflowConfig(): Promise<any> {
 }
 
 // ============================================================================
-// 注册自动采集消息处理器
+// 注册消息处理器
 // ============================================================================
 registerAutoCollectorHandlers();
+registerPromoCleanerHandlers();
 
 // 导出类型（供TypeScript使用）
 export {};

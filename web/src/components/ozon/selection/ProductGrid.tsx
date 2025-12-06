@@ -85,7 +85,7 @@ export const ProductGrid: React.FC<ProductGridProps> = React.memo(({
   const handleRowSelect = useCallback((productIndex: number) => {
     if (!onBatchToggleSelect || !gridRef.current) return;
 
-    // 实时计算每行列数（避免闭包问题）
+    // 实时计算每行列数
     const gridElement = gridRef.current;
     const firstChild = gridElement.firstElementChild as HTMLElement;
     if (!firstChild) return;
