@@ -85,16 +85,14 @@ export const ProductGrid: React.FC<ProductGridProps> = React.memo(({
   const handleRowSelect = useCallback((productIndex: number) => {
     if (!onBatchToggleSelect || !gridRef.current) return;
 
-    // 实时计算每行列数
     const gridElement = gridRef.current;
-    const firstChild = gridElement.firstElementChild as HTMLElement;
-    if (!firstChild) return;
 
-    const gridWidth = gridElement.clientWidth;
-    const itemWidth = firstChild.offsetWidth;
-    const gap = 2;
+    // 通过 CSS Grid 的 computed style 获取实际列数
+    const computedStyle = window.getComputedStyle(gridElement);
+    const gridTemplateColumns = computedStyle.getPropertyValue('grid-template-columns');
+    // gridTemplateColumns 格式如 "180px 180px 180px 180px"，通过空格分割计算列数
+    const cols = gridTemplateColumns.split(' ').filter(s => s.trim()).length;
 
-    const cols = itemWidth > 0 ? Math.floor((gridWidth + gap) / (itemWidth + gap)) : 0;
     if (cols <= 0) return;
 
     // 计算当前商品所在行的起始和结束索引
