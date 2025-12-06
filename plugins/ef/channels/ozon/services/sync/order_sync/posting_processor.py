@@ -139,7 +139,12 @@ class PostingProcessor:
 
         # 更新 has_tracking_number
         tracking_number = posting_data.get("tracking_number")
-        posting.has_tracking_number = bool(tracking_number and tracking_number.strip())
+        has_tracking = bool(tracking_number and tracking_number.strip())
+        posting.has_tracking_number = has_tracking
+
+        # 首次同步到追踪号时记录时间
+        if has_tracking and not posting.tracking_synced_at:
+            posting.tracking_synced_at = utcnow()
 
     async def _update_denormalized_fields(
         self,

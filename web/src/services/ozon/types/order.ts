@@ -60,6 +60,7 @@ export interface Posting {
   order_notes?: string; // 订单备注
   // 财务字段
   purchase_price?: string; // 进货价格
+  purchase_price_updated_at?: string; // 进货价格更新时间
   material_cost?: string; // 打包费用（物料成本）
   last_mile_delivery_fee_cny?: string; // 尾程派送费(CNY)
   international_logistics_fee_cny?: string; // 国际物流费(CNY)
@@ -71,6 +72,9 @@ export interface Posting {
   in_process_at?: string; // 开始处理时间
   // 包装重量（克）
   package_weight?: number;
+  // 订单进度时间字段
+  tracking_synced_at?: string; // 国际单号首次同步时间
+  domestic_tracking_updated_at?: string; // 国内单号最后更新时间
 }
 
 /**

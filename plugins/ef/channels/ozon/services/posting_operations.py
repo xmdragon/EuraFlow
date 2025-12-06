@@ -340,6 +340,7 @@ class PostingOperationsService:
             posting.order_notes = order_notes
         posting.operation_time = utcnow()
         posting.has_domestic_tracking = True  # 反范式化字段（避免 EXISTS 子查询）
+        posting.domestic_tracking_updated_at = utcnow()  # 记录国内单号最后更新时间
 
         # 7. 更新操作状态为"单号确认"
         posting.operation_status = "tracking_confirmed"

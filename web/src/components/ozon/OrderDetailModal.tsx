@@ -27,6 +27,7 @@ import React, { useState } from 'react';
 
 import ProductImage from '@/components/ozon/ProductImage';
 import DomesticTrackingModal from '@/components/ozon/DomesticTrackingModal';
+import OrderProgressTimeline from '@/components/ozon/OrderProgressTimeline';
 import { useCopy } from '@/hooks/useCopy';
 import { useDateTime } from '@/hooks/useDateTime';
 import { usePermission } from '@/hooks/usePermission';
@@ -970,6 +971,22 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                   </>
                 );
               })(),
+            },
+            {
+              label: '订单进度',
+              key: '6',
+              children: (
+                <OrderProgressTimeline
+                  orderedAt={localOrder?.ordered_at}
+                  purchasePriceUpdatedAt={localPosting?.purchase_price_updated_at}
+                  trackingSyncedAt={localPosting?.tracking_synced_at}
+                  domesticTrackingUpdatedAt={localPosting?.domestic_tracking_updated_at}
+                  labelPrintedAt={localPosting?.label_printed_at}
+                  shippedAt={localPosting?.shipped_at}
+                  deliveredAt={localPosting?.delivered_at}
+                  cancelledAt={localPosting?.cancelled_at}
+                />
+              ),
             },
           ]}
         />

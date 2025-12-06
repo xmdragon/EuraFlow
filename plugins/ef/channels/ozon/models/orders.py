@@ -232,6 +232,11 @@ class OzonOrder(Base):
                     'label_print_count': posting.label_print_count or 0,
                     # 包装重量
                     'package_weight': posting.package_weight,
+                    # 订单进度时间字段
+                    'tracking_synced_at': posting.tracking_synced_at.isoformat() if posting.tracking_synced_at else None,
+                    'domestic_tracking_updated_at': posting.domestic_tracking_updated_at.isoformat() if posting.domestic_tracking_updated_at else None,
+                    'cancelled_at': posting.cancelled_at.isoformat() if posting.cancelled_at else None,
+                    'in_process_at': posting.in_process_at.isoformat() if posting.in_process_at else None,
                     'packages': packages,
                     # 添加该 posting 的商品列表（从 raw_payload 提取）
                     'products': posting_products
@@ -345,6 +350,10 @@ class OzonPosting(Base):
     international_logistics_fee_cny = Column(Numeric(18, 2), comment="国际物流费(CNY)")
     ozon_commission_cny = Column(Numeric(18, 2), comment="Ozon佣金(CNY)")
     finance_synced_at = Column(DateTime(timezone=True), comment="财务同步时间")
+
+    # 订单进度时间字段
+    tracking_synced_at = Column(DateTime(timezone=True), comment="国际追踪号首次同步时间")
+    domestic_tracking_updated_at = Column(DateTime(timezone=True), comment="国内单号最后更新时间")
 
     # 利润字段（CNY）
     profit = Column(Numeric(18, 2), comment="利润金额(CNY)")
