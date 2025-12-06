@@ -4,13 +4,11 @@ OZON 取消和退货申请同步服务
 import logging
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Dict, Any, List, Optional, Callable, Awaitable
+from typing import Dict, Any, Optional, Callable, Awaitable
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, func
-from sqlalchemy.exc import IntegrityError
-
+from sqlalchemy import select, and_, func
 from ef_core.database import get_db_manager
-from ..models import OzonShop, OzonPosting, OzonOrder
+from ..models import OzonShop, OzonPosting
 from ..models.cancel_return import OzonCancellation, OzonReturn
 from ..api.client import OzonAPIClient
 
