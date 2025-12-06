@@ -100,6 +100,12 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({
             checked={selected}
             onChange={(e) => {
               e.stopPropagation();
+              // Ctrl+点击时不触发单个选中，由 onClick 处理整行选中
+              const nativeEvent = e.nativeEvent as MouseEvent;
+              if (nativeEvent.ctrlKey || nativeEvent.metaKey) {
+                e.preventDefault();
+                return;
+              }
               onToggleSelect(product.id);
             }}
             onClick={(e) => {
@@ -154,6 +160,11 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({
             checked={selected}
             onChange={(e) => {
               e.stopPropagation();
+              const nativeEvent = e.nativeEvent as MouseEvent;
+              if (nativeEvent.ctrlKey || nativeEvent.metaKey) {
+                e.preventDefault();
+                return;
+              }
               onToggleSelect(product.id);
             }}
             onClick={(e) => {
