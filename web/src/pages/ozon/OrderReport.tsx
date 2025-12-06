@@ -904,7 +904,7 @@ const OrderReport: React.FC = () => {
                         >
                           <div className={styles.chartContainer}>
                             {selectedShop !== null ? (
-                              <ResponsiveContainer width="100%" height="100%">
+                              <ResponsiveContainer width="100%" height="100%" minHeight={280}>
                                 <PieChart>
                                   <Pie
                                     data={summaryData.cost_breakdown}
@@ -935,7 +935,7 @@ const OrderReport: React.FC = () => {
                                 </PieChart>
                               </ResponsiveContainer>
                             ) : (
-                              <ResponsiveContainer width="100%" height="100%">
+                              <ResponsiveContainer width="100%" height="100%" minHeight={280}>
                                 <PieChart>
                                   <Pie
                                     data={summaryData.shop_breakdown}
@@ -978,7 +978,7 @@ const OrderReport: React.FC = () => {
                             className={styles.chartCard}
                           >
                             <div className={styles.chartContainer}>
-                              <ResponsiveContainer width="100%" height="100%">
+                              <ResponsiveContainer width="100%" height="100%" minHeight={280}>
                                 <PieChart>
                                   <Pie
                                     data={summaryData.shop_breakdown}
@@ -1018,7 +1018,7 @@ const OrderReport: React.FC = () => {
                         <Col span={12}>
                           <Card title="月度对比" className={styles.chartCard}>
                             <div className={styles.chartContainer}>
-                              <ResponsiveContainer width="100%" height="100%">
+                              <ResponsiveContainer width="100%" height="100%" minHeight={280}>
                                 <BarChart
                                   data={[
                                     {
@@ -1079,7 +1079,7 @@ const OrderReport: React.FC = () => {
                       <Col span={24}>
                         <Card title="每日销售趋势" className={styles.chartCard}>
                           <div className={styles.chartContainer}>
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ResponsiveContainer width="100%" height="100%" minHeight={280}>
                               <LineChart data={summaryData.daily_trend}>
                                 <CartesianGrid strokeDasharray="3 3" />
                                 <XAxis dataKey="date" />
@@ -1145,7 +1145,7 @@ const OrderReport: React.FC = () => {
                         <Col span={24}>
                           <Card title="月度对比" className={styles.chartCard}>
                             <div className={styles.chartContainer}>
-                              <ResponsiveContainer width="100%" height="100%">
+                              <ResponsiveContainer width="100%" height="100%" minHeight={280}>
                                 <BarChart
                                   data={[
                                     {

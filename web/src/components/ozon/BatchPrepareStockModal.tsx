@@ -191,7 +191,11 @@ const BatchPrepareStockModal: React.FC<BatchPrepareStockModalProps> = ({
 
   // 计算汇总数据
   const getSummaryData = () => {
-    const totalPrice = itemsData.reduce((sum, item) => sum + (Number(item.purchasePrice) || 0), 0);
+    // 计算总价 = 单价 × 数量 的总和
+    const totalPrice = itemsData.reduce(
+      (sum, item) => sum + (Number(item.purchasePrice) || 0) * item.orderQuantity,
+      0
+    );
     const allPlatforms = itemsData.flatMap((item) => item.sourcePlatform);
     const uniquePlatforms = Array.from(new Set(allPlatforms));
     const allNotes = itemsData.map((item) => item.notes).filter((n) => n.trim());
@@ -470,7 +474,7 @@ const BatchPrepareStockModal: React.FC<BatchPrepareStockModalProps> = ({
       },
     },
     {
-      title: '进货价格',
+      title: '商品单价',
       dataIndex: 'purchasePrice',
       key: 'purchasePrice',
       width: 120,
@@ -483,6 +487,7 @@ const BatchPrepareStockModal: React.FC<BatchPrepareStockModalProps> = ({
           style={{ width: '100%' }}
           addonBefore={currencySymbol}
           controls={false}
+          placeholder="单价"
         />
       ),
     },

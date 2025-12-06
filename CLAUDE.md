@@ -235,6 +235,27 @@
 ---
 
 ## 13) 远程部署流程
+
+### 服务器列表
+| 服务器 | SSH 访问 | 域名 | 用途 |
+|--------|----------|------|------|
+| ozon | `ssh ozon` | euraflow.hjdtrading.com | 主生产环境 |
+| huoshan | `ssh huoshan` | euraflow.hjdtrading.cn | 火山引擎备用环境 |
+
+### huoshan 服务器 Git 代理配置
+火山服务器访问 GitHub 不稳定，已配置通过新加坡 VPS 代理：
+```bash
+# 启动 SOCKS 代理（如果未运行）
+ssh huoshan "ssh -f -N -D 1080 root@172.104.57.118"
+
+# Git 已配置使用代理
+ssh huoshan "git config --global http.proxy 'socks5://127.0.0.1:1080'"
+
+# 在 huoshan 上执行 git pull
+ssh huoshan "cd /opt/euraflow && git pull"
+```
+
+### ozon 服务器（主环境）
 - **SSH 访问**：`ssh ozon`
 - **部署路径**：`/opt/euraflow`
 - **域名配置**：

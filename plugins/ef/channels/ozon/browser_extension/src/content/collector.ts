@@ -1677,8 +1677,10 @@ export class ProductCollector {
   }
 
   /**
-   * 批量获取跟卖数据（OZON批量API）
+   * 批量获取跟卖数据（OZON买家端API）
    * 优化：只对缺失跟卖数据的商品调用 API（上品帮销售数据可能已包含跟卖信息）
+   *
+   * 【重要】通过页面上下文直接请求，避免 Service Worker 的 403 问题
    */
   private async getFollowSellerDataForBatch(batch: ProductData[]): Promise<void> {
     // 过滤出缺少跟卖数据的商品（competitor_count 为 null 或 undefined）
@@ -1695,38 +1697,14 @@ export class ProductCollector {
       console.log(`[跟卖数据] ${productsWithoutFollowSeller.length}/${batch.length} 个商品缺少跟卖数据，调用 OZON API 补充`);
     }
 
-    try {
-      const productIds = productsWithoutFollowSeller.map(p => p.product_id);
+    // 确保页面脚本已加载
+    await ensurePageScriptLoaded();
 
-      // 通过 Service Worker 获取跟卖数据
-      const response = await chrome.runtime.sendMessage({
-        type: 'GET_FOLLOW_SELLER_DATA_BATCH',
-        data: { productIds }
-      });
+    // 逐个获取跟卖数据（通过页面上下文直接请求）
+    for (const product of productsWithoutFollowSeller) {
+      try {
+        const followSellerData = await this.fetchFollowSellerDataDirect(product.product_id);
 
-      if (!response.success) {
-        throw new Error(response.error || '获取跟卖数据失败');
-      }
-
-      // 转换响应数据为 Map（字段名与后端保持一致）
-      const followSellerMap = new Map<string, Partial<ProductData>>();
-      if (Array.isArray(response.data)) {
-        response.data.forEach((item: any) => {
-          const sku = item.goods_id;
-          if (sku) {
-            const prices = item.gmArr || [];
-            followSellerMap.set(sku, {
-              // 后端字段名：competitor_count / competitor_min_price
-              competitor_count: item.gm || 0,
-              competitor_min_price: prices.length > 0 ? prices[0] : undefined,
-            });
-          }
-        });
-      }
-
-      // 合并数据（只更新缺少跟卖数据的商品）
-      productsWithoutFollowSeller.forEach((product) => {
-        const followSellerData = followSellerMap.get(product.product_id);
         if (followSellerData) {
           Object.assign(product, followSellerData);
 
@@ -1736,9 +1714,113 @@ export class ProductCollector {
             Object.assign(collectedProduct, followSellerData);
           }
         }
+      } catch (error: any) {
+        if (__DEBUG__) {
+          console.warn(`[跟卖数据] SKU=${product.product_id} 获取失败:`, error.message);
+        }
+      }
+
+      // 请求间隔，避免触发限流
+      await this.sleep(100);
+    }
+  }
+
+  /**
+   * 通过页面上下文直接获取单个商品的跟卖数据
+   * 【关键】在页面上下文中执行 fetch，绕过 CSP 和反爬虫检测
+   */
+  private async fetchFollowSellerDataDirect(productId: string): Promise<Partial<ProductData> | null> {
+    return new Promise((resolve) => {
+      const requestId = `follow_seller_${productId}_${Date.now()}`;
+      const encodedUrl = encodeURIComponent(`/modal/otherOffersFromSellers?product_id=${productId}&page_changed=true`);
+      const apiUrl = `${window.location.origin}/api/entrypoint-api.bx/page/json/v2?url=${encodedUrl}`;
+      let resolved = false;
+
+      if (__DEBUG__) {
+        console.log(`[跟卖数据] 页面上下文请求: SKU=${productId}`);
+      }
+
+      // 监听页面返回的结果
+      const handleResponse = (event: CustomEvent) => {
+        if (event.detail?.requestId === requestId && !resolved) {
+          resolved = true;
+          window.removeEventListener('euraflow_page_response', handleResponse as EventListener);
+
+          if (event.detail.success) {
+            const data = this.parseFollowSellerResponse(event.detail.data);
+            resolve(data);
+          } else {
+            if (__DEBUG__) {
+              console.warn(`[跟卖数据] SKU=${productId} 请求失败:`, event.detail.error);
+            }
+            resolve(null);
+          }
+        }
+      };
+
+      window.addEventListener('euraflow_page_response', handleResponse as EventListener);
+
+      // 超时处理（10秒）
+      setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          window.removeEventListener('euraflow_page_response', handleResponse as EventListener);
+          if (__DEBUG__) {
+            console.warn(`[跟卖数据] SKU=${productId} 请求超时`);
+          }
+          resolve(null);
+        }
+      }, 10000);
+
+      // 发送请求到页面上下文
+      window.dispatchEvent(new CustomEvent('euraflow_page_request', {
+        detail: { requestId, type: 'fetch', url: apiUrl }
+      }));
+    });
+  }
+
+  /**
+   * 解析跟卖数据响应
+   */
+  private parseFollowSellerResponse(data: any): Partial<ProductData> | null {
+    try {
+      const widgetStates = data.widgetStates || {};
+
+      // 查找包含 "webSellerList" 的 key
+      const sellerListKey = Object.keys(widgetStates).find(key =>
+        key.includes('webSellerList')
+      );
+
+      if (!sellerListKey || !widgetStates[sellerListKey]) {
+        return { competitor_count: 0 };
+      }
+
+      const sellerListData = JSON.parse(widgetStates[sellerListKey]);
+      const sellers = sellerListData.sellers || [];
+
+      if (sellers.length === 0) {
+        return { competitor_count: 0 };
+      }
+
+      // 提取跟卖价格
+      const prices: number[] = [];
+      sellers.forEach((seller: any) => {
+        let priceStr = seller.price?.cardPrice?.price || seller.price?.price || '';
+        priceStr = priceStr.replace(/\s/g, '').replace(',', '.').replace(/[^\d.]/g, '');
+        const price = parseFloat(priceStr);
+        if (!isNaN(price) && price > 0) {
+          prices.push(price);
+        }
       });
-    } catch (error: any) {
-      console.error('[跟卖数据] 批量获取失败:', error.message);
+
+      prices.sort((a, b) => a - b);
+
+      return {
+        competitor_count: sellers.length,
+        competitor_min_price: prices.length > 0 ? prices[0] : undefined,
+      };
+    } catch (error) {
+      return { competitor_count: 0 };
     }
   }
 

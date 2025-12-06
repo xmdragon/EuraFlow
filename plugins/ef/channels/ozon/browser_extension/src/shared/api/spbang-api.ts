@@ -443,8 +443,10 @@ export class SpbangApi extends BaseApiClient {
       promoDays: rawData.daysInPromo ?? null,
       promoDiscount: rawData.discount ?? null,
       promoConversion: rawData.promoRevenueShare ?? null,
-      paidPromoDays: rawData.daysWithTrafarets ?? null,
-      adShare: rawData.drr ?? null,
+      // 付费推广天数和广告份额：上品帮返回 0 或 undefined 时表示"无数据"
+      // 只有 > 0 的值才是有效数据
+      paidPromoDays: (rawData.daysWithTrafarets != null && rawData.daysWithTrafarets > 0) ? rawData.daysWithTrafarets : null,
+      adShare: (rawData.drr != null && rawData.drr > 0) ? rawData.drr : null,
       // 佣金数据（从销售数据 API 提取）
       rfbsCommissionLow: rawData.rfbs_small ?? null,
       rfbsCommissionMid: rawData.rfbs ?? null,

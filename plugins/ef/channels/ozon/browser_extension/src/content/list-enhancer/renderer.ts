@@ -358,9 +358,40 @@ function renderSingleRow(fieldKey: string, data: any): string {
   const value = config.getValue(data);
   const formattedValue = config.format(value);
 
+  // SKU 字段特殊处理：添加复制图标
+  if (fieldKey === 'sku' && formattedValue && formattedValue !== EMPTY) {
+    return renderSkuRow(formattedValue);
+  }
+
   return `<div class="ef-row ef-row-single">
     <span class="ef-label">${config.label}:</span>
     <span class="ef-value">${formattedValue}</span>
+  </div>`;
+}
+
+/**
+ * 渲染 SKU 行（带复制图标）
+ */
+function renderSkuRow(sku: string): string {
+  // 复制图标 SVG
+  const copyIcon = `<svg class="ef-copy-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+  </svg>`;
+
+  // 成功图标 SVG
+  const checkIcon = `<svg class="ef-check-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+    <polyline points="20 6 9 17 4 12"></polyline>
+  </svg>`;
+
+  return `<div class="ef-row ef-row-single">
+    <span class="ef-label">SKU:</span>
+    <span class="ef-value ef-sku-value" style="display:inline-flex;align-items:center;gap:4px;">
+      <span class="ef-sku-text">${sku}</span>
+      <span class="ef-copy-btn" data-sku="${sku}" title="复制 SKU" style="cursor:pointer;opacity:0.6;display:inline-flex;align-items:center;">
+        ${copyIcon}${checkIcon}
+      </span>
+    </span>
   </div>`;
 }
 

@@ -316,31 +316,136 @@ export class ProductListEnhancer {
   }
 
   /**
-   * 获取跟卖数据
+   * 获取跟卖数据（通过页面上下文直接请求）
    */
   private async fetchFollowSellerData(productIds: string[]): Promise<Map<string, any>> {
     if (productIds.length === 0) return new Map();
 
+    // 确保页面脚本已加载
+    await this.ensurePageScriptLoaded();
+
+    const result = new Map<string, any>();
+
+    // 逐个获取（页面上下文请求）
+    for (const productId of productIds) {
+      try {
+        const data = await this.fetchFollowSellerDataDirect(productId);
+        if (data) {
+          result.set(productId, data);
+        }
+      } catch (error: any) {
+        if (__DEBUG__) {
+          console.warn(`[ProductListEnhancer] SKU=${productId} 跟卖数据获取失败:`, error.message);
+        }
+      }
+      // 请求间隔
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    return result;
+  }
+
+  /**
+   * 确保页面注入脚本已加载
+   */
+  private pageScriptLoaded = false;
+  private async ensurePageScriptLoaded(): Promise<void> {
+    if (this.pageScriptLoaded || (window as any).__EURAFLOW_PAGE_SCRIPT_LOADED__) {
+      this.pageScriptLoaded = true;
+      return;
+    }
+
+    return new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = chrome.runtime.getURL('assets/page-injected.js');
+      script.onload = () => {
+        this.pageScriptLoaded = true;
+        resolve();
+      };
+      script.onerror = () => resolve();
+      document.head.appendChild(script);
+    });
+  }
+
+  /**
+   * 通过页面上下文直接获取单个商品的跟卖数据
+   */
+  private async fetchFollowSellerDataDirect(productId: string): Promise<any | null> {
+    return new Promise((resolve) => {
+      const requestId = `follow_seller_${productId}_${Date.now()}`;
+      const encodedUrl = encodeURIComponent(`/modal/otherOffersFromSellers?product_id=${productId}&page_changed=true`);
+      const apiUrl = `${window.location.origin}/api/entrypoint-api.bx/page/json/v2?url=${encodedUrl}`;
+      let resolved = false;
+
+      const handleResponse = (event: CustomEvent) => {
+        if (event.detail?.requestId === requestId && !resolved) {
+          resolved = true;
+          window.removeEventListener('euraflow_page_response', handleResponse as EventListener);
+
+          if (event.detail.success) {
+            const data = this.parseFollowSellerResponse(event.detail.data);
+            resolve(data);
+          } else {
+            resolve(null);
+          }
+        }
+      };
+
+      window.addEventListener('euraflow_page_response', handleResponse as EventListener);
+
+      // 超时处理
+      setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          window.removeEventListener('euraflow_page_response', handleResponse as EventListener);
+          resolve(null);
+        }
+      }, 10000);
+
+      window.dispatchEvent(new CustomEvent('euraflow_page_request', {
+        detail: { requestId, type: 'fetch', url: apiUrl }
+      }));
+    });
+  }
+
+  /**
+   * 解析跟卖数据响应
+   */
+  private parseFollowSellerResponse(data: any): any | null {
     try {
-      const response = await chrome.runtime.sendMessage({
-        type: 'GET_FOLLOW_SELLER_DATA_BATCH',
-        data: { productIds }
+      const widgetStates = data.widgetStates || {};
+      const sellerListKey = Object.keys(widgetStates).find(key => key.includes('webSellerList'));
+
+      if (!sellerListKey || !widgetStates[sellerListKey]) {
+        return { count: 0, skus: [], prices: [] };
+      }
+
+      const sellerListData = JSON.parse(widgetStates[sellerListKey]);
+      const sellers = sellerListData.sellers || [];
+
+      if (sellers.length === 0) {
+        return { count: 0, skus: [], prices: [] };
+      }
+
+      const prices: number[] = [];
+      const skus: string[] = [];
+
+      sellers.forEach((seller: any) => {
+        if (seller.sku) skus.push(seller.sku);
+
+        let priceStr = seller.price?.cardPrice?.price || seller.price?.price || '';
+        priceStr = priceStr.replace(/\s/g, '').replace(',', '.').replace(/[^\d.]/g, '');
+        const price = parseFloat(priceStr);
+        if (!isNaN(price) && price > 0) {
+          prices.push(price);
+        }
       });
 
-      const result = new Map<string, any>();
-      if (response.success && Array.isArray(response.data)) {
-        response.data.forEach((item: any) => {
-          result.set(item.goods_id, {
-            count: item.gm,
-            skus: item.gmGoodsIds,
-            prices: item.gmArr
-          });
-        });
-      }
-      return result;
-    } catch (error: any) {
-      console.error('[ProductListEnhancer] 跟卖数据获取失败:', error.message);
-      return new Map();
+      prices.sort((a, b) => a - b);
+
+      return { count: sellers.length, skus, prices };
+    } catch {
+      return { count: 0, skus: [], prices: [] };
     }
   }
 
@@ -348,11 +453,14 @@ export class ProductListEnhancer {
    * 更新已注入组件的内容
    */
   private updateComponentContent(sku: string, data: any): void {
-    const component = document.querySelector(`[data-euraflow="true"][data-sku="${sku}"]`);
+    const component = document.querySelector(`[data-euraflow="true"][data-sku="${sku}"]`) as HTMLElement | null;
     if (!component) return;
 
     // 重新渲染内容
     component.innerHTML = renderListItemComponent(data, this.visibleFields);
+
+    // 重新绑定 SKU 复制按钮事件
+    this.bindSkuCopyEvent(component);
   }
 
   /**
@@ -377,6 +485,73 @@ export class ProductListEnhancer {
 
     // 注入到卡片末尾
     card.appendChild(component);
+
+    // 绑定 SKU 复制按钮事件
+    this.bindSkuCopyEvent(component);
+  }
+
+  /**
+   * 绑定 SKU 复制按钮事件
+   */
+  private bindSkuCopyEvent(container: HTMLElement): void {
+    const copyBtn = container.querySelector('.ef-copy-btn[data-sku]') as HTMLElement | null;
+    if (!copyBtn) return;
+
+    const sku = copyBtn.getAttribute('data-sku');
+    if (!sku) return;
+
+    // 悬停效果
+    copyBtn.addEventListener('mouseenter', () => {
+      copyBtn.style.opacity = '1';
+    });
+    copyBtn.addEventListener('mouseleave', () => {
+      copyBtn.style.opacity = '0.6';
+    });
+
+    // 复制功能
+    copyBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+
+      const copyIcon = copyBtn.querySelector('.ef-copy-icon') as HTMLElement | null;
+      const checkIcon = copyBtn.querySelector('.ef-check-icon') as HTMLElement | null;
+
+      try {
+        await navigator.clipboard.writeText(sku);
+
+        // 显示成功图标
+        if (copyIcon) copyIcon.style.display = 'none';
+        if (checkIcon) checkIcon.style.display = 'inline';
+        copyBtn.style.opacity = '1';
+
+        // 1秒后恢复
+        setTimeout(() => {
+          if (copyIcon) copyIcon.style.display = 'inline';
+          if (checkIcon) checkIcon.style.display = 'none';
+          copyBtn.style.opacity = '0.6';
+        }, 1000);
+      } catch {
+        // 降级方案
+        const textarea = document.createElement('textarea');
+        textarea.value = sku;
+        textarea.style.cssText = 'position: fixed; left: -9999px;';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+
+        // 显示成功图标
+        if (copyIcon) copyIcon.style.display = 'none';
+        if (checkIcon) checkIcon.style.display = 'inline';
+        copyBtn.style.opacity = '1';
+
+        setTimeout(() => {
+          if (copyIcon) copyIcon.style.display = 'inline';
+          if (checkIcon) checkIcon.style.display = 'none';
+          copyBtn.style.opacity = '0.6';
+        }, 1000);
+      }
+    });
   }
 
   /**

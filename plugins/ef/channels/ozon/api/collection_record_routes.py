@@ -160,8 +160,6 @@ async def follow_pdp_listing(
     # 每个变体现在包含独立的 images 数组
     variants_for_display = []
     for v in request.variants:
-        price_fen = v.get("price", 0) or 0
-        old_price_fen = v.get("old_price")
         # 转换变体的 images 格式（字符串数组 → 对象数组），与采集格式保持一致
         variant_images = v.get("images", [])
         if variant_images and isinstance(variant_images[0], str):
@@ -169,8 +167,6 @@ async def follow_pdp_listing(
             variant_images = [{"url": url} for url in variant_images]
         variants_for_display.append({
             **v,
-            "price": price_fen / 100 if price_fen else None,  # 分→元
-            "old_price": old_price_fen / 100 if old_price_fen else None,
             "images": variant_images,  # 变体独立的图片数组
         })
 

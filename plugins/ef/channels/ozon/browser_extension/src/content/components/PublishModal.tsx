@@ -10,7 +10,7 @@ import { createEuraflowApiProxy, type EuraflowApiProxy } from '../../shared/api'
 import { getApiConfig } from '../../shared/storage';
 import { calculateRealPriceCore } from '../price-calculator/calculator';
 import { configCache } from '../../shared/config-cache';
-import { yuanToCents, formatYuan } from '../../shared/price-utils';
+import { formatYuan } from '../../shared/price-utils';
 import type { Shop, Warehouse, Watermark, QuickPublishVariant } from '../../shared/types';
 import { injectEuraflowStyles } from '../styles/injector';
 
@@ -273,6 +273,40 @@ let selectedWarehouseIds: number[] = [];
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 let selectedWatermarkId: number | null = null; // 未来功能：水印支持
 
+// 用户选择缓存 key
+const SELECTION_CACHE_KEY = 'euraflow_publish_selection';
+
+// 缓存用户选择
+interface SelectionCache {
+  shopId: number;
+  warehouseId: number;
+  watermarkId: number | null;
+}
+
+async function saveSelectionCache(): Promise<void> {
+  if (selectedShopId && selectedWarehouseIds.length > 0) {
+    const cache: SelectionCache = {
+      shopId: selectedShopId,
+      warehouseId: selectedWarehouseIds[0],
+      watermarkId: selectedWatermarkId,
+    };
+    try {
+      await chrome.storage.local.set({ [SELECTION_CACHE_KEY]: cache });
+    } catch {
+      // 忽略缓存失败
+    }
+  }
+}
+
+async function loadSelectionCache(): Promise<SelectionCache | null> {
+  try {
+    const result = await chrome.storage.local.get(SELECTION_CACHE_KEY);
+    return result[SELECTION_CACHE_KEY] || null;
+  } catch {
+    return null;
+  }
+}
+
 // 变体数据
 let variants: VariantEditData[] = [];
 
@@ -349,7 +383,10 @@ export async function showPublishModal(product: any = null, currentRealPrice: nu
 async function loadConfigData(): Promise<void> {
   if (!apiClient) throw new Error('API客户端未初始化');
 
-  // 尝试从缓存获取
+  // 加载用户上次的选择
+  const selectionCache = await loadSelectionCache();
+
+  // 尝试从缓存获取配置
   const cached = configCache.getCached();
 
   if (cached) {
@@ -357,10 +394,26 @@ async function loadConfigData(): Promise<void> {
     watermarks = cached.watermarks;
 
     if (shops.length > 0) {
-      selectedShopId = shops[0].id;
-      warehouses = cached.warehouses.get(selectedShopId) || [];
-      if (warehouses.length > 0) {
-        selectedWarehouseIds = [warehouses[0].id];
+      // 优先使用缓存的选择，否则使用第一个
+      if (selectionCache && shops.some(s => s.id === selectionCache.shopId)) {
+        selectedShopId = selectionCache.shopId;
+        warehouses = cached.warehouses.get(selectedShopId) || [];
+        // 优先使用缓存的仓库选择
+        if (warehouses.some(w => w.id === selectionCache.warehouseId)) {
+          selectedWarehouseIds = [selectionCache.warehouseId];
+        } else if (warehouses.length > 0) {
+          selectedWarehouseIds = [warehouses[0].id];
+        }
+        // 恢复水印选择
+        if (selectionCache.watermarkId && watermarks.some(w => w.id === selectionCache.watermarkId)) {
+          selectedWatermarkId = selectionCache.watermarkId;
+        }
+      } else {
+        selectedShopId = shops[0].id;
+        warehouses = cached.warehouses.get(selectedShopId) || [];
+        if (warehouses.length > 0) {
+          selectedWarehouseIds = [warehouses[0].id];
+        }
       }
     }
     return;
@@ -371,10 +424,24 @@ async function loadConfigData(): Promise<void> {
   watermarks = await configCache.getWatermarks(apiClient);
 
   if (shops.length > 0) {
-    selectedShopId = shops[0].id;
-    warehouses = await configCache.getWarehouses(apiClient, selectedShopId);
-    if (warehouses.length > 0) {
-      selectedWarehouseIds = [warehouses[0].id];
+    // 优先使用缓存的选择
+    if (selectionCache && shops.some(s => s.id === selectionCache.shopId)) {
+      selectedShopId = selectionCache.shopId;
+      warehouses = await configCache.getWarehouses(apiClient, selectedShopId);
+      if (warehouses.some(w => w.id === selectionCache.warehouseId)) {
+        selectedWarehouseIds = [selectionCache.warehouseId];
+      } else if (warehouses.length > 0) {
+        selectedWarehouseIds = [warehouses[0].id];
+      }
+      if (selectionCache.watermarkId && watermarks.some(w => w.id === selectionCache.watermarkId)) {
+        selectedWatermarkId = selectionCache.watermarkId;
+      }
+    } else {
+      selectedShopId = shops[0].id;
+      warehouses = await configCache.getWarehouses(apiClient, selectedShopId);
+      if (warehouses.length > 0) {
+        selectedWarehouseIds = [warehouses[0].id];
+      }
     }
   }
 }
@@ -1395,9 +1462,9 @@ async function handleFollowPdp(): Promise<void> {
         name: variant.name || productData?.title || '',
         sku: variant.variant_id,
         offer_id: variant.offer_id,
-        price: yuanToCents(variant.custom_price),
+        price: variant.custom_price,
         stock: variant.stock,
-        old_price: variant.custom_old_price ? yuanToCents(variant.custom_old_price) : undefined,
+        old_price: variant.custom_old_price || undefined,
         // 使用 Base64 数据（如果有），否则回退到 URL
         primary_image: primaryImageBase64 || variant.image_url || undefined,
         images: (imagesBase64 && imagesBase64.length > 0) ? imagesBase64 : variant.images || undefined,
@@ -1425,7 +1492,7 @@ async function handleFollowPdp(): Promise<void> {
       attributes: productData.attributes || undefined,
       // 采购信息（可选）
       purchase_url: purchaseUrl || undefined,
-      purchase_price: purchasePrice !== null ? yuanToCents(purchasePrice) : undefined,
+      purchase_price: purchasePrice || undefined,
       purchase_note: purchaseNote || undefined,
       // 商品标题（用于后端构造展示数据）
       title: productData.title,
@@ -1444,6 +1511,9 @@ async function handleFollowPdp(): Promise<void> {
     if (!response.success) {
       throw new Error(response.error || '跟卖失败');
     }
+
+    // 保存用户选择（下次自动选中）
+    await saveSelectionCache();
 
     // 成功后显示右上角通知
     showToast('跟卖已提交，后续请查看Seller后台是否有错', 'info');

@@ -6,6 +6,7 @@
 
 import { showPublishModal } from '../components/PublishModal';
 import { injectEuraflowStyles } from '../styles/injector';
+import { getDataPanelConfig } from '../../shared/storage';
 import './display.scss';
 
 // ========== 配置常量 ==========
@@ -631,6 +632,7 @@ function createPriceSection(_message: string): HTMLElement {
 
 /**
  * 创建数据字段区域（de3.png 风格紧凑两列布局）
+ * 根据 popup 数据面板配置显示字段
  */
 async function createDataSection(spbSales: any | null, dimensions: any | null): Promise<HTMLElement> {
   // 注入保护性 CSS
@@ -666,125 +668,217 @@ async function createDataSection(spbSales: any | null, dimensions: any | null): 
     return section;
   }
 
-  // 渲染紧凑两列布局
-  const rows = buildDataRows(spbSales, dimensions);
+  // 获取数据面板配置
+  const config = await getDataPanelConfig();
+  const visibleFields = new Set(config.visibleFields);
+
+  // 渲染紧凑两列布局（根据配置过滤字段）
+  const rows = buildDataRows(spbSales, dimensions, visibleFields);
   rows.forEach(row => section.appendChild(row));
 
   return section;
 }
 
 /**
- * 构建数据行（de3.png 风格）
+ * 检查两列行中是否至少有一列需要显示
+ * @param leftField 左列字段名
+ * @param rightField 右列字段名
+ * @param visibleFields 可见字段集合
  */
-function buildDataRows(spbSales: any | null, dimensions: any | null): HTMLElement[] {
+function shouldShowTwoColRow(leftField: string, rightField: string, visibleFields: Set<string>): { show: boolean; showLeft: boolean; showRight: boolean } {
+  const showLeft = visibleFields.has(leftField);
+  const showRight = visibleFields.has(rightField);
+  return { show: showLeft || showRight, showLeft, showRight };
+}
+
+/**
+ * 构建数据行（de3.png 风格）
+ * @param spbSales 上品帮销售数据
+ * @param dimensions OZON 尺寸数据
+ * @param visibleFields 可见字段集合（从 popup 配置获取）
+ */
+function buildDataRows(spbSales: any | null, dimensions: any | null, visibleFields: Set<string>): HTMLElement[] {
   const rows: HTMLElement[] = [];
 
   // 类目行（单列）- 带 ID 以便后续异步更新
-  const categoryRow = createSingleRow('类目', spbSales?.category || '加载中...');
-  categoryRow.id = 'ef-category-row';
-  rows.push(categoryRow);
+  if (visibleFields.has('category')) {
+    const categoryRow = createSingleRow('类目', spbSales?.category || '加载中...');
+    categoryRow.id = 'ef-category-row';
+    rows.push(categoryRow);
+  }
 
   // 品牌行（单列）
-  rows.push(createSingleRow('品牌', spbSales?.brand || '---'));
+  if (visibleFields.has('brand')) {
+    rows.push(createSingleRow('品牌', spbSales?.brand || '---'));
+  }
 
-  // 佣金行（三列徽章）
-  const rfbs = formatCommissions(spbSales?.rfbsCommissionLow, spbSales?.rfbsCommissionMid, spbSales?.rfbsCommissionHigh);
-  const fbp = formatCommissions(spbSales?.fbpCommissionLow, spbSales?.fbpCommissionMid, spbSales?.fbpCommissionHigh);
-  rows.push(createBadgeRow('rFBS', rfbs));
-  rows.push(createBadgeRow('FBP', fbp));
+  // 佣金行（三列徽章）- 只要配置了任一佣金字段就显示
+  const hasRfbs = visibleFields.has('rfbsCommissionLow') || visibleFields.has('rfbsCommissionMid') || visibleFields.has('rfbsCommissionHigh');
+  const hasFbp = visibleFields.has('fbpCommissionLow') || visibleFields.has('fbpCommissionMid') || visibleFields.has('fbpCommissionHigh');
+  if (hasRfbs) {
+    const rfbs = formatCommissions(spbSales?.rfbsCommissionLow, spbSales?.rfbsCommissionMid, spbSales?.rfbsCommissionHigh);
+    rows.push(createBadgeRow('rFBS', rfbs));
+  }
+  if (hasFbp) {
+    const fbp = formatCommissions(spbSales?.fbpCommissionLow, spbSales?.fbpCommissionMid, spbSales?.fbpCommissionHigh);
+    rows.push(createBadgeRow('FBP', fbp));
+  }
 
   // 月销行（两列）
   const monthlySalesNum = spbSales?.monthlySales;
-  const monthlySalesStr = monthlySalesNum > 0 ? `${formatNum(monthlySalesNum)}件` : '--';
-  const monthlyAmount = formatMoney(spbSales?.monthlySalesAmount);
-  rows.push(createTwoColRow('月销', monthlySalesStr, '月销额', monthlyAmount));
+  const monthlySalesRow = shouldShowTwoColRow('monthlySales', 'monthlySalesAmount', visibleFields);
+  if (monthlySalesRow.show) {
+    const monthlySalesStr = monthlySalesRow.showLeft && monthlySalesNum > 0 ? `${formatNum(monthlySalesNum)}件` : '--';
+    const monthlyAmount = monthlySalesRow.showRight ? formatMoney(spbSales?.monthlySalesAmount) : '';
+    rows.push(createTwoColRowFiltered('月销', monthlySalesStr, '月销额', monthlyAmount, monthlySalesRow.showLeft, monthlySalesRow.showRight));
+  }
 
   // 日销行（两列）- 根据月销数据计算：月销 / 当天日期
-  const dayOfMonth = new Date().getDate();
-  const dailySalesNum = monthlySalesNum > 0 ? monthlySalesNum / dayOfMonth : 0;
-  const dailySalesStr = dailySalesNum > 0 ? `${dailySalesNum.toFixed(1)}件` : '--';
-  const dailyAmount = spbSales?.monthlySalesAmount > 0
-    ? formatDailyAmount(spbSales.monthlySalesAmount / dayOfMonth)
-    : '--';
-  rows.push(createTwoColRow('日销', dailySalesStr, '日销额', dailyAmount));
+  const dailySalesRow = shouldShowTwoColRow('dailySales', 'dailySalesAmount', visibleFields);
+  if (dailySalesRow.show) {
+    const dayOfMonth = new Date().getDate();
+    const dailySalesNum = monthlySalesNum > 0 ? monthlySalesNum / dayOfMonth : 0;
+    const dailySalesStr = dailySalesRow.showLeft && dailySalesNum > 0 ? `${dailySalesNum.toFixed(1)}件` : '--';
+    const dailyAmount = dailySalesRow.showRight && spbSales?.monthlySalesAmount > 0
+      ? formatDailyAmount(spbSales.monthlySalesAmount / dayOfMonth)
+      : '--';
+    rows.push(createTwoColRowFiltered('日销', dailySalesStr, '日销额', dailyAmount, dailySalesRow.showLeft, dailySalesRow.showRight));
+  }
 
   // 动态 + 点击率（两列）
-  const dynamic = formatPercent(spbSales?.salesDynamic);
-  const ctr = formatPercent(spbSales?.clickThroughRate);
-  rows.push(createTwoColRow('动态', dynamic, '点击', ctr));
+  const dynamicRow = shouldShowTwoColRow('salesDynamic', 'clickThroughRate', visibleFields);
+  if (dynamicRow.show) {
+    const dynamic = dynamicRow.showLeft ? formatPercent(spbSales?.salesDynamic) : '';
+    const ctr = dynamicRow.showRight ? formatPercent(spbSales?.clickThroughRate) : '';
+    rows.push(createTwoColRowFiltered('动态', dynamic, '点击', ctr, dynamicRow.showLeft, dynamicRow.showRight));
+  }
 
   // 卡片浏览 + 加购率（两列）
-  const cardViews = formatNum(spbSales?.cardViews);
-  const cardRate = formatPercent(spbSales?.cardAddToCartRate);
-  rows.push(createTwoColRow('卡片', cardViews, '加购', cardRate));
+  const cardRow = shouldShowTwoColRow('cardViews', 'cardAddToCartRate', visibleFields);
+  if (cardRow.show) {
+    const cardViews = cardRow.showLeft ? formatNum(spbSales?.cardViews) : '';
+    const cardRate = cardRow.showRight ? formatPercent(spbSales?.cardAddToCartRate) : '';
+    rows.push(createTwoColRowFiltered('卡片', cardViews, '加购', cardRate, cardRow.showLeft, cardRow.showRight));
+  }
 
   // 搜索浏览 + 加购率（两列）
-  const searchViews = formatNum(spbSales?.searchViews);
-  const searchRate = formatPercent(spbSales?.searchAddToCartRate);
-  rows.push(createTwoColRow('搜索', searchViews, '加购', searchRate));
+  const searchRow = shouldShowTwoColRow('searchViews', 'searchAddToCartRate', visibleFields);
+  if (searchRow.show) {
+    const searchViews = searchRow.showLeft ? formatNum(spbSales?.searchViews) : '';
+    const searchRate = searchRow.showRight ? formatPercent(spbSales?.searchAddToCartRate) : '';
+    rows.push(createTwoColRowFiltered('搜索', searchViews, '加购', searchRate, searchRow.showLeft, searchRow.showRight));
+  }
 
   // 促销天数 + 折扣（两列）
-  const promoDays = spbSales?.promoDays != null ? `${spbSales.promoDays}天` : '---';
-  const promoDiscount = formatPercent(spbSales?.promoDiscount);
-  rows.push(createTwoColRow('促销', promoDays, '折扣', promoDiscount));
+  const promoRow = shouldShowTwoColRow('promoDays', 'promoDiscount', visibleFields);
+  if (promoRow.show) {
+    const promoDays = promoRow.showLeft && spbSales?.promoDays != null ? `${spbSales.promoDays}天` : '---';
+    const promoDiscount = promoRow.showRight ? formatPercent(spbSales?.promoDiscount) : '';
+    rows.push(createTwoColRowFiltered('促销', promoDays, '折扣', promoDiscount, promoRow.showLeft, promoRow.showRight));
+  }
 
   // 付费推广 + 份额（两列）
-  const paidDays = spbSales?.paidPromoDays != null ? `${spbSales.paidPromoDays}天` : '---';
-  const adShare = formatPercent(spbSales?.adShare);
-  rows.push(createTwoColRow('付费', paidDays, '份额', adShare));
+  const paidRow = shouldShowTwoColRow('paidPromoDays', 'adShare', visibleFields);
+  if (paidRow.show) {
+    const paidDays = paidRow.showLeft && spbSales?.paidPromoDays != null ? `${spbSales.paidPromoDays}天` : '---';
+    const adShare = paidRow.showRight ? formatPercent(spbSales?.adShare) : '';
+    rows.push(createTwoColRowFiltered('付费', paidDays, '份额', adShare, paidRow.showLeft, paidRow.showRight));
+  }
 
   // 成交率 + 退货率（两列）
-  const convRate = formatPercent(spbSales?.transactionRate);
-  const returnRate = formatPercent(spbSales?.returnCancelRate);
-  rows.push(createTwoColRow('成交', convRate, '退取', returnRate));
+  const convRow = shouldShowTwoColRow('transactionRate', 'returnCancelRate', visibleFields);
+  if (convRow.show) {
+    const convRate = convRow.showLeft ? formatPercent(spbSales?.transactionRate) : '';
+    const returnRate = convRow.showRight ? formatPercent(spbSales?.returnCancelRate) : '';
+    rows.push(createTwoColRowFiltered('成交', convRate, '退取', returnRate, convRow.showLeft, convRow.showRight));
+  }
 
   // 均价 + 重量（两列）
-  const avgPrice = formatMoney(spbSales?.avgPrice);
-  const weight = dimensions?.weight ?? spbSales?.weight;
-  const weightStr = weight != null ? `${weight}g` : '---';
-  rows.push(createTwoColRow('均价', avgPrice, '重量', weightStr));
+  const weightRow = shouldShowTwoColRow('avgPrice', 'packageWeight', visibleFields);
+  if (weightRow.show) {
+    const avgPrice = weightRow.showLeft ? formatMoney(spbSales?.avgPrice) : '';
+    const weight = dimensions?.weight ?? spbSales?.weight;
+    const weightStr = weightRow.showRight && weight != null ? `${weight}g` : '---';
+    rows.push(createTwoColRowFiltered('均价', avgPrice, '重量', weightStr, weightRow.showLeft, weightRow.showRight));
+  }
 
   // 尺寸 + 模式（两列）
-  const dim = formatDimensions(dimensions, spbSales);
-  const mode = spbSales?.sellerMode || '---';
-  rows.push(createTwoColRow('尺寸', dim, '模式', mode));
+  // 尺寸字段映射：packageLength/packageWidth/packageHeight -> dimensions
+  const hasDimensions = visibleFields.has('packageLength') || visibleFields.has('packageWidth') || visibleFields.has('packageHeight') || visibleFields.has('dimensions');
+  const dimRow = shouldShowTwoColRow('dimensions', 'sellerMode', visibleFields);
+  if (hasDimensions || dimRow.show) {
+    const showDim = hasDimensions || dimRow.showLeft;
+    const showMode = visibleFields.has('sellerMode') || dimRow.showRight;
+    const dim = showDim ? formatDimensions(dimensions, spbSales) : '';
+    const mode = showMode ? (spbSales?.sellerMode || '---') : '';
+    rows.push(createTwoColRowFiltered('尺寸', dim, '模式', mode, showDim, showMode));
+  }
 
   // 跟卖 + 最低价（两列）- 支持异步加载
-  const follower = spbSales?.competitorCount;
-  // 初始显示 ---，等 API 查询完成后由 updateFollowSellerData 更新为实际值或"无跟卖"
-  const followerStr = follower != null && follower > 0 ? `${follower}家` : '---';
+  const followerRow = shouldShowTwoColRow('competitorCount', 'competitorMinPrice', visibleFields);
+  if (followerRow.show) {
+    const follower = spbSales?.competitorCount;
+    // 初始显示 ---，等 API 查询完成后由 updateFollowSellerData 更新为实际值或"无跟卖"
+    const followerStr = follower != null && follower > 0 ? `${follower}家` : '---';
 
-  // 最低跟卖价：仅使用 OZON 跟卖数据的 followSellerPrices
-  // followSellerPrices 存在表示 OZON API 成功，空数组表示无跟卖
-  // followSellerPrices 不存在表示 OZON API 失败，显示 ---
-  let minPrice: number | null = null;
-  if (spbSales?.followSellerPrices?.length > 0) {
-    const prices = spbSales.followSellerPrices.filter((p: number) => p > 0);
-    if (prices.length > 0) {
-      minPrice = Math.min(...prices);
+    // 最低跟卖价：仅使用 OZON 跟卖数据的 followSellerPrices
+    let minPrice: number | null = null;
+    if (spbSales?.followSellerPrices?.length > 0) {
+      const prices = spbSales.followSellerPrices.filter((p: number) => p > 0);
+      if (prices.length > 0) {
+        minPrice = Math.min(...prices);
+      }
+    }
+    const minPriceStr = minPrice != null ? `${minPrice.toFixed(2)}¥` : '---';
+
+    // 创建跟卖行（带 id 便于后续更新）
+    if (follower != null && follower > 0) {
+      // 使用带悬浮窗口的跟卖行
+      rows.push(createFollowerRow(follower, followerStr, minPriceStr, spbSales?.followSellerList));
+    } else {
+      // 单列显示（加载中或无跟卖）
+      const followerRowEl = createSingleRow('跟卖', followerStr);
+      followerRowEl.id = 'ef-follower-row';  // 添加 id 便于后续更新
+      rows.push(followerRowEl);
     }
   }
-  const minPriceStr = minPrice != null ? `${minPrice.toFixed(2)}¥` : '---';
 
-  // 创建跟卖行（带 id 便于后续更新）
-  if (follower != null && follower > 0) {
-    // 使用带悬浮窗口的跟卖行
-    rows.push(createFollowerRow(follower, followerStr, minPriceStr, spbSales?.followSellerList));
-  } else {
-    // 单列显示（加载中或无跟卖）
-    const followerRow = createSingleRow('跟卖', followerStr);
-    followerRow.id = 'ef-follower-row';  // 添加 id 便于后续更新
-    rows.push(followerRow);
+  // SKU 行（单列，带复制按钮）
+  if (visibleFields.has('sku')) {
+    const sku = spbSales?.sku || '---';
+    rows.push(createSkuRow(sku));
   }
 
-  // 底部行：评分 + 上架时间（两列）
-  const rating = spbSales?.rating;
-  const reviewCount = spbSales?.reviewCount;
-  const listingDate = spbSales?.listingDate ? formatDate(spbSales.listingDate) : '---';
-  const listingDays = spbSales?.listingDays;
-  rows.push(createBottomRow(rating, reviewCount, listingDate, listingDays));
+  // 底部行：评分 + 上架时间（两列）- 上架日期/天数
+  const hasListing = visibleFields.has('listingDate') || visibleFields.has('listingDays');
+  if (hasListing) {
+    const rating = spbSales?.rating;
+    const reviewCount = spbSales?.reviewCount;
+    const listingDate = spbSales?.listingDate ? formatDate(spbSales.listingDate) : '---';
+    const listingDays = spbSales?.listingDays;
+    rows.push(createBottomRow(rating, reviewCount, listingDate, listingDays));
+  }
 
   return rows;
+}
+
+/**
+ * 创建两列行（支持过滤显示）
+ */
+function createTwoColRowFiltered(label1: string, value1: string, label2: string, value2: string, showLeft: boolean, showRight: boolean): HTMLElement {
+  const row = document.createElement('div');
+  row.className = 'ef-row ef-row-two';
+
+  let html = '';
+  if (showLeft) {
+    html += `<div class="ef-col"><span class="ef-label">${label1}:</span><span class="ef-value">${value1}</span></div>`;
+  }
+  if (showRight) {
+    html += `<div class="ef-col"><span class="ef-label">${label2}:</span><span class="ef-value">${value2}</span></div>`;
+  }
+  row.innerHTML = html;
+
+  return row;
 }
 
 /**
@@ -798,15 +892,79 @@ function createSingleRow(label: string, value: string): HTMLElement {
 }
 
 /**
- * 创建两列行
+ * 创建 SKU 行（带复制按钮）
  */
-function createTwoColRow(label1: string, value1: string, label2: string, value2: string): HTMLElement {
+function createSkuRow(sku: string): HTMLElement {
   const row = document.createElement('div');
-  row.className = 'ef-row ef-row-two';
-  row.innerHTML = `
-    <div class="ef-col"><span class="ef-label">${label1}:</span><span class="ef-value">${value1}</span></div>
-    <div class="ef-col"><span class="ef-label">${label2}:</span><span class="ef-value">${value2}</span></div>
-  `;
+  row.className = 'ef-row ef-row-single';
+
+  const label = document.createElement('span');
+  label.className = 'ef-label';
+  label.textContent = 'SKU:';
+
+  const valueWrapper = document.createElement('span');
+  valueWrapper.className = 'ef-value ef-sku-value';
+  valueWrapper.style.cssText = 'display: inline-flex; align-items: center; gap: 4px;';
+
+  const valueSpan = document.createElement('span');
+  valueSpan.textContent = sku;
+
+  // 复制图标按钮
+  const copyBtn = document.createElement('span');
+  copyBtn.className = 'ef-copy-btn';
+  copyBtn.title = '复制 SKU';
+  copyBtn.style.cssText = 'cursor: pointer; opacity: 0.6; transition: opacity 0.2s; display: inline-flex; align-items: center;';
+  copyBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+  </svg>`;
+
+  // 悬停效果
+  copyBtn.addEventListener('mouseenter', () => {
+    copyBtn.style.opacity = '1';
+  });
+  copyBtn.addEventListener('mouseleave', () => {
+    copyBtn.style.opacity = '0.6';
+  });
+
+  // 复制功能
+  copyBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    if (sku === '---') return;
+
+    try {
+      await navigator.clipboard.writeText(sku);
+      // 显示成功提示
+      copyBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>`;
+      copyBtn.style.opacity = '1';
+
+      // 1秒后恢复原图标
+      setTimeout(() => {
+        copyBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </svg>`;
+        copyBtn.style.opacity = '0.6';
+      }, 1000);
+    } catch {
+      // 降级方案
+      const textarea = document.createElement('textarea');
+      textarea.value = sku;
+      textarea.style.cssText = 'position: fixed; left: -9999px;';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    }
+  });
+
+  valueWrapper.appendChild(valueSpan);
+  valueWrapper.appendChild(copyBtn);
+  row.appendChild(label);
+  row.appendChild(valueWrapper);
+
   return row;
 }
 
