@@ -30,6 +30,7 @@ class AddStockRequest(BaseModel):
     quantity: int = Field(..., gt=0, description="库存数量（必须>0）")
     unit_price: Optional[Decimal] = Field(None, ge=0, description="采购单价（每件商品采购价格）")
     notes: Optional[str] = Field(None, max_length=500, description="备注")
+    source_platform: Optional[List[str]] = Field(None, description="采购平台来源（如：['1688', '拼多多']）")
 
 
 class UpdateStockRequest(BaseModel):
@@ -37,6 +38,7 @@ class UpdateStockRequest(BaseModel):
     quantity: int = Field(..., ge=0, description="库存数量（≥0，0表示删除）")
     unit_price: Optional[Decimal] = Field(None, ge=0, description="采购单价（每件商品采购价格）")
     notes: Optional[str] = Field(None, max_length=500, description="备注")
+    source_platform: Optional[List[str]] = Field(None, description="采购平台来源（如：['1688', '拼多多']）")
 
 
 class StockItemResponse(BaseModel):
@@ -52,6 +54,7 @@ class StockItemResponse(BaseModel):
     threshold: int
     unit_price: Optional[Decimal]
     notes: Optional[str]
+    source_platform: Optional[List[str]] = None
     updated_at: datetime
 
     class Config:
@@ -161,6 +164,7 @@ async def get_stock_list(
             threshold=inventory.threshold,
             unit_price=inventory.unit_price,
             notes=inventory.notes,
+            source_platform=inventory.source_platform,
             updated_at=inventory.updated_at
         ))
 
@@ -244,7 +248,8 @@ async def add_stock(
             qty_available=data.quantity,
             threshold=0,
             unit_price=data.unit_price,
-            notes=data.notes
+            notes=data.notes,
+            source_platform=data.source_platform
         )
         db.add(inventory)
         await db.flush()
@@ -328,6 +333,7 @@ async def update_stock(
     old_quantity = inventory.qty_available
     old_unit_price = inventory.unit_price
     old_notes = inventory.notes
+    old_source_platform = inventory.source_platform
 
     # 获取请求上下文
     request_ip = request.client.host if request.client else None
@@ -371,6 +377,8 @@ async def update_stock(
         inventory.unit_price = data.unit_price
     if data.notes is not None:
         inventory.notes = data.notes
+    if data.source_platform is not None:
+        inventory.source_platform = data.source_platform
 
     # 4. 记录修改日志
     changes = {
@@ -389,6 +397,9 @@ async def update_stock(
 
     if data.notes is not None and data.notes != old_notes:
         changes["notes"] = {"old": old_notes, "new": data.notes}
+
+    if data.source_platform is not None and data.source_platform != old_source_platform:
+        changes["source_platform"] = {"old": old_source_platform, "new": data.source_platform}
 
     await AuditService.log_action(
         db=db,

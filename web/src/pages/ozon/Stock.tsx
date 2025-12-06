@@ -14,6 +14,8 @@ import {
   App,
   Form,
   Typography,
+  Select,
+  Tag,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import React, { useState } from 'react';
@@ -99,6 +101,7 @@ const Stock: React.FC = () => {
       quantity: record.qty_available,
       unit_price: record.unit_price,
       notes: record.notes,
+      source_platform: record.source_platform || [],
     });
     setEditingKey(record.id);
   };
@@ -262,6 +265,44 @@ const Stock: React.FC = () => {
           </Form>
         ) : (
           <Text>{quantity}</Text>
+        );
+      },
+    },
+    // 采购平台
+    {
+      title: '采购平台',
+      dataIndex: 'source_platform',
+      key: 'source_platform',
+      width: 180,
+      render: (platforms: string[] | null, record: ozonApi.StockItem) => {
+        const isEditing = editingKey === record.id;
+
+        return isEditing ? (
+          <Form form={form} component={false}>
+            <Form.Item name="source_platform" style={{ margin: 0 }}>
+              <Select
+                mode="multiple"
+                placeholder="选择平台"
+                style={{ width: '100%' }}
+                allowClear
+              >
+                <Select.Option value="1688">1688</Select.Option>
+                <Select.Option value="拼多多">拼多多</Select.Option>
+                <Select.Option value="咸鱼">咸鱼</Select.Option>
+                <Select.Option value="淘宝">淘宝</Select.Option>
+              </Select>
+            </Form.Item>
+          </Form>
+        ) : (
+          <Space size={[0, 4]} wrap>
+            {platforms && platforms.length > 0
+              ? platforms.map((p) => (
+                  <Tag key={p} color="blue">
+                    {p}
+                  </Tag>
+                ))
+              : <Text type="secondary">-</Text>}
+          </Space>
         );
       },
     },

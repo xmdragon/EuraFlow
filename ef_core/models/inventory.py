@@ -3,13 +3,14 @@
 严格按照 PRD § 3.4 定义
 """
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger, Text, Integer, DateTime, String, Numeric,
     CheckConstraint, UniqueConstraint, Index
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import func
 
@@ -56,6 +57,13 @@ class Inventory(Base):
         String(500),
         nullable=True,
         comment="备注"
+    )
+
+    # 采购平台来源（如：['1688', '拼多多']）
+    source_platform: Mapped[Optional[List[str]]] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="采购平台来源（如：['1688', '拼多多']）"
     )
 
     # 时间戳

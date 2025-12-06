@@ -15,6 +15,7 @@ import {
   Card,
   Typography,
   Spin,
+  Select,
 } from 'antd';
 import React, { useState } from 'react';
 
@@ -295,6 +296,19 @@ const AddStockModal: React.FC<AddStockModalProps> = ({ visible, onClose, onSucce
                 addonBefore={currencySymbol}
                 controls={false}
               />
+            </Form.Item>
+
+            <Form.Item label="采购平台" name="source_platform">
+              <Select
+                mode="multiple"
+                placeholder="可选，选择采购平台"
+                allowClear
+              >
+                <Select.Option value="1688">1688</Select.Option>
+                <Select.Option value="拼多多">拼多多</Select.Option>
+                <Select.Option value="咸鱼">咸鱼</Select.Option>
+                <Select.Option value="淘宝">淘宝</Select.Option>
+              </Select>
             </Form.Item>
 
             <Form.Item label="备注" name="notes">

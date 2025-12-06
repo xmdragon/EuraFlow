@@ -228,7 +228,7 @@ const BatchPrepareStockModal: React.FC<BatchPrepareStockModalProps> = ({
         (item) => item.stockAvailable === 0 && item.addStockQuantity && item.addStockQuantity > 0
       );
 
-      // 2. 先添加库存
+      // 2. 先添加库存（如果需要）
       if (itemsNeedAddStock.length > 0) {
         loggers.stock.info('批量备货：需要增加库存的商品', { items: itemsNeedAddStock });
 
@@ -240,15 +240,23 @@ const BatchPrepareStockModal: React.FC<BatchPrepareStockModalProps> = ({
 
           try {
             const unitPrice = item.purchasePrice ? Number(item.purchasePrice) : undefined;
+            // 传递用户选择的采购平台（不含"库存"，因为这是外部采购）
+            const stockSourcePlatform = item.sourcePlatform.filter(p => p !== '库存');
 
             await ozonApi.addStock({
               shop_id: item.shopId,
               sku: item.sku,
               quantity: item.addStockQuantity!,
               unit_price: unitPrice,
+              source_platform: stockSourcePlatform.length > 0 ? stockSourcePlatform : undefined,
               notes: `批量备货时添加库存`,
             });
-            loggers.stock.info('添加库存成功', { sku: item.sku, quantity: item.addStockQuantity, unitPrice });
+            loggers.stock.info('添加库存成功', {
+              sku: item.sku,
+              quantity: item.addStockQuantity,
+              unitPrice,
+              sourcePlatform: stockSourcePlatform
+            });
           } catch (error) {
             const errorMsg = axios.isAxiosError(error)
               ? error.response?.data?.detail || error.message || '添加库存失败'
@@ -266,6 +274,23 @@ const BatchPrepareStockModal: React.FC<BatchPrepareStockModalProps> = ({
       const postingNumbers = skuGroup.postings.map(p => p.posting_number);
       const syncToOzon = form.getFieldValue('sync_to_ozon') !== false;
 
+      // 确定备货时的 source_platform
+      // - 场景A（库存充足）：强制 ['库存']
+      // - 场景C（新增库存后备货）：['库存']（从刚添加的库存扣减）
+      // - 场景B（有部分库存）：合并用户选择的平台
+      const item = itemsData[0]; // 当前SKU的商品
+      let prepareSourcePlatform: string[];
+      if (item.stockAvailable >= item.orderQuantity) {
+        // 场景A：库存充足，强制使用库存
+        prepareSourcePlatform = ['库存'];
+      } else if (itemsNeedAddStock.length > 0) {
+        // 场景C：新增了库存，从库存扣减
+        prepareSourcePlatform = ['库存'];
+      } else {
+        // 场景B：使用用户选择的平台
+        prepareSourcePlatform = summary.platforms;
+      }
+
       setIsProcessing(true);
       setProcessProgress({ current: 0, total: postingNumbers.length });
 
@@ -280,7 +305,7 @@ const BatchPrepareStockModal: React.FC<BatchPrepareStockModalProps> = ({
 
         const prepareData: ozonApi.PrepareStockRequest = {
           purchase_price: String(summary.totalPrice),
-          source_platform: summary.platforms,
+          source_platform: prepareSourcePlatform,
           order_notes: finalNotes,
           sync_to_ozon: syncToOzon,
         };
@@ -408,18 +433,14 @@ const BatchPrepareStockModal: React.FC<BatchPrepareStockModalProps> = ({
       key: 'useStock',
       width: 200,
       render: (_: unknown, record: ItemPrepareData) => {
+        // 场景C：无库存 - 显示新增库存输入框
         if (record.stockAvailable === 0) {
           return (
             <InputNumber
               value={record.addStockQuantity}
               onChange={(value) => {
                 updateItemData(record.sku, 'addStockQuantity', value ?? undefined);
-                if (value && value > 0) {
-                  const newPlatforms = record.sourcePlatform.includes('库存')
-                    ? record.sourcePlatform
-                    : [...record.sourcePlatform, '库存'];
-                  updateItemData(record.sku, 'sourcePlatform', newPlatforms);
-                }
+                // 不再自动添加"库存"到 sourcePlatform
               }}
               min={1}
               max={9999}
@@ -429,6 +450,15 @@ const BatchPrepareStockModal: React.FC<BatchPrepareStockModalProps> = ({
             />
           );
         }
+        // 场景A：库存充足 - 强制使用库存（禁用复选框）
+        if (record.stockAvailable >= record.orderQuantity) {
+          return (
+            <Checkbox checked disabled>
+              使用库存（优先消耗）
+            </Checkbox>
+          );
+        }
+        // 场景B：库存不足但>0 - 可选择是否使用库存
         return (
           <Checkbox
             checked={record.useStock}
@@ -461,21 +491,40 @@ const BatchPrepareStockModal: React.FC<BatchPrepareStockModalProps> = ({
       dataIndex: 'sourcePlatform',
       key: 'sourcePlatform',
       width: 150,
-      render: (_: unknown, record: ItemPrepareData) => (
-        <Select
-          mode="multiple"
-          value={record.sourcePlatform}
-          onChange={(value) => updateItemData(record.sku, 'sourcePlatform', value)}
-          style={{ width: '100%' }}
-          placeholder="选择平台"
-        >
-          <Select.Option value="1688">1688</Select.Option>
-          <Select.Option value="拼多多">拼多多</Select.Option>
-          <Select.Option value="咸鱼">咸鱼</Select.Option>
-          <Select.Option value="淘宝">淘宝</Select.Option>
-          <Select.Option value="库存">库存</Select.Option>
-        </Select>
-      ),
+      render: (_: unknown, record: ItemPrepareData) => {
+        // 场景A：库存充足 - 禁用并只显示"库存"
+        if (record.stockAvailable >= record.orderQuantity) {
+          return (
+            <Select
+              mode="multiple"
+              value={['库存']}
+              disabled
+              style={{ width: '100%' }}
+            >
+              <Select.Option value="库存">库存</Select.Option>
+            </Select>
+          );
+        }
+        // 场景B/C：显示外部平台选项
+        return (
+          <Select
+            mode="multiple"
+            value={record.sourcePlatform}
+            onChange={(value) => updateItemData(record.sku, 'sourcePlatform', value)}
+            style={{ width: '100%' }}
+            placeholder="选择平台"
+          >
+            <Select.Option value="1688">1688</Select.Option>
+            <Select.Option value="拼多多">拼多多</Select.Option>
+            <Select.Option value="咸鱼">咸鱼</Select.Option>
+            <Select.Option value="淘宝">淘宝</Select.Option>
+            {/* 场景B：有部分库存时也显示"库存"选项 */}
+            {record.stockAvailable > 0 && (
+              <Select.Option value="库存">库存</Select.Option>
+            )}
+          </Select>
+        );
+      },
     },
     {
       title: '备注',
@@ -501,20 +550,26 @@ const BatchPrepareStockModal: React.FC<BatchPrepareStockModalProps> = ({
     {
       title: '店铺',
       key: 'shop_name',
-      width: 120,
+      width: 80,
       render: (_: unknown, posting: ozonApi.PostingWithOrder) => {
         const shopId = posting.shop_id || posting.order?.shop_id;
         const shopName = shopId ? shopNameMap[shopId] : '-';
         // 只显示俄文名称（去掉中文部分）
         const russianName = shopName?.split(' [')[0] || shopName || '-';
-        return <Text style={{ fontSize: 11 }}>{russianName}</Text>;
+        // 只显示第一个单词
+        const firstWord = russianName.split(' ')[0] || russianName;
+        return (
+          <Tooltip title={russianName}>
+            <Text style={{ fontSize: 11, cursor: 'help' }}>{firstWord}</Text>
+          </Tooltip>
+        );
       },
     },
     {
       title: '货件编号',
       dataIndex: 'posting_number',
       key: 'posting_number',
-      width: 180,
+      width: 170,
       render: (text: string) => (
         <span>
           {text}
@@ -531,54 +586,87 @@ const BatchPrepareStockModal: React.FC<BatchPrepareStockModalProps> = ({
     {
       title: '数量',
       key: 'quantity',
-      width: 60,
+      width: 50,
       align: 'center' as const,
       render: (_: unknown, posting: ozonApi.PostingWithOrder) => {
         const products = posting.products || posting.order?.items || [];
         const product = products.find(p => p.sku === skuGroup?.sku);
-        return product?.quantity || 1;
+        const qty = product?.quantity || 1;
+        if (qty > 1) {
+          return (
+            <span
+              style={{
+                color: '#ff0000',
+                fontWeight: 'bold',
+                backgroundColor: '#ffe0e0',
+                border: '1px solid #ff0000',
+                borderRadius: 4,
+                padding: '2px 6px',
+              }}
+            >
+              {qty}
+            </span>
+          );
+        }
+        return qty;
       },
     },
     {
       title: '配送',
       key: 'delivery_method',
-      width: 80,
+      width: 180,
       render: (_: unknown, posting: ozonApi.PostingWithOrder) => {
         const deliveryMethod = posting.delivery_method_name || posting.order?.delivery_method || '-';
-        // 只显示括号之前的部分，括号内容以 tooltip 显示
-        const parenIndex = deliveryMethod.indexOf('(');
-        const displayText = parenIndex > 0 ? deliveryMethod.substring(0, parenIndex).trim() : deliveryMethod;
-        const hasMore = parenIndex > 0;
-
-        if (hasMore) {
-          return (
-            <Tooltip title={deliveryMethod}>
-              <Text style={{ fontSize: 11, cursor: 'help' }}>{displayText}</Text>
-            </Tooltip>
-          );
+        // 只显示括号之前的部分（支持中文（和英文(）
+        const parenIndexEn = deliveryMethod.indexOf('(');
+        const parenIndexZh = deliveryMethod.indexOf('（');
+        // 取最小的有效索引
+        let parenIndex = -1;
+        if (parenIndexEn > 0 && parenIndexZh > 0) {
+          parenIndex = Math.min(parenIndexEn, parenIndexZh);
+        } else if (parenIndexEn > 0) {
+          parenIndex = parenIndexEn;
+        } else if (parenIndexZh > 0) {
+          parenIndex = parenIndexZh;
         }
-        return <Text style={{ fontSize: 11 }}>{displayText}</Text>;
+        const displayText = parenIndex > 0 ? deliveryMethod.substring(0, parenIndex).trim() : deliveryMethod;
+
+        return (
+          <Tooltip title={deliveryMethod}>
+            <Text style={{ fontSize: 11, cursor: 'help' }}>{displayText}</Text>
+          </Tooltip>
+        );
       },
     },
     {
-      title: '下单日期',
+      title: '下单',
       key: 'ordered_at',
-      width: 100,
+      width: 60,
       render: (_: unknown, posting: ozonApi.PostingWithOrder) => {
         const orderedAt = posting.order?.ordered_at || posting.in_process_at;
-        return orderedAt ? formatDateTime(orderedAt, 'MM-DD HH:mm') : '-';
+        const fullDate = orderedAt ? formatDateTime(orderedAt, 'YYYY-MM-DD HH:mm') : '-';
+        const shortDate = orderedAt ? formatDateTime(orderedAt, 'MM-DD') : '-';
+        return (
+          <Tooltip title={fullDate}>
+            <Text style={{ fontSize: 11, cursor: 'help' }}>{shortDate}</Text>
+          </Tooltip>
+        );
       },
     },
     {
-      title: '截止日期',
+      title: '截止',
       dataIndex: 'shipment_date',
       key: 'shipment_date',
-      width: 100,
-      render: (text: string) => (
-        <Text type="danger">
-          {text ? formatDateTime(text, 'MM-DD HH:mm') : '-'}
-        </Text>
-      ),
+      width: 60,
+      render: (text: string) => {
+        const fullDate = text ? formatDateTime(text, 'YYYY-MM-DD HH:mm') : '-';
+        const shortDate = text ? formatDateTime(text, 'MM-DD') : '-';
+        return (
+          <Tooltip title={fullDate}>
+            <Text type="danger" style={{ fontSize: 11, cursor: 'help' }}>{shortDate}</Text>
+          </Tooltip>
+        );
+      },
     },
     {
       title: '备注',

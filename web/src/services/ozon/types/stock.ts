@@ -17,6 +17,7 @@ export interface StockItem {
   threshold: number;
   unit_price?: number; // 采购单价
   notes?: string;
+  source_platform?: string[]; // 采购平台来源
   updated_at: string;
 }
 
@@ -29,6 +30,7 @@ export interface AddStockRequest {
   quantity: number;
   unit_price?: number; // 采购单价
   notes?: string;
+  source_platform?: string[]; // 采购平台来源
 }
 
 /**
@@ -38,6 +40,7 @@ export interface UpdateStockRequest {
   quantity: number;
   unit_price?: number; // 采购单价
   notes?: string;
+  source_platform?: string[]; // 采购平台来源
 }
 
 /**
