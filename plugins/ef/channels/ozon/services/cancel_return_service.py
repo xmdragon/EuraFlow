@@ -397,6 +397,8 @@ class CancelReturnService:
 
                 logger.info(f"OZON 退货API 返回：{len(returns)} 条退货申请，has_next={has_next}")
 
+                # 第一阶段：保存基本数据
+                return_ids_to_fetch_detail = []
                 for return_data in returns:
                     try:
                         is_updated = await self._save_return(db, shop.id, return_data)
@@ -405,19 +407,26 @@ class CancelReturnService:
                         else:
                             synced_count += 1
 
-                        # 获取并更新详情信息
-                        try:
-                            return_id = return_data.get("return_id")
-                            if return_id:
-                                await self._fetch_and_update_return_detail(db, shop, return_id)
-                        except Exception as detail_error:
-                            logger.warning(f"获取退货详情失败 (return_id={return_id}): {detail_error}")
-                            # 详情获取失败不影响主流程，继续处理
+                        # 记录需要获取详情的 return_id
+                        return_id = return_data.get("return_id")
+                        if return_id:
+                            return_ids_to_fetch_detail.append(return_id)
                     except Exception as e:
                         logger.error(f"保存退货申请失败: {e}", exc_info=True)
                         continue
 
-                # 提交批次
+                # 提交基本数据，释放事务锁
+                await db.commit()
+
+                # 第二阶段：获取详情（在事务外进行 API 调用，避免长时间持有事务）
+                for return_id in return_ids_to_fetch_detail:
+                    try:
+                        await self._fetch_and_update_return_detail(db, shop, return_id)
+                    except Exception as detail_error:
+                        logger.warning(f"获取退货详情失败 (return_id={return_id}): {detail_error}")
+                        # 详情获取失败不影响主流程，继续处理
+
+                # 提交详情更新
                 await db.commit()
 
                 # ⚠️ 退货API分页逻辑：使用 has_next 判断，从最后一条记录获取 id
@@ -786,14 +795,14 @@ class CancelReturnService:
         """
         from ..api.client import OzonAPIClient
 
-        # 初始化API客户端
-        client = OzonAPIClient(
+        # 使用 async with 确保 API 客户端正确关闭
+        async with OzonAPIClient(
             client_id=shop.client_id,
-            api_key=shop.api_key_enc  # 使用 api_key_enc 而不是 api_key
-        )
-
-        # 调用详情API
-        detail_response = await client.get_return_rfbs_info(return_id)
+            api_key=shop.api_key_enc,
+            shop_id=shop.id
+        ) as client:
+            # 调用详情API
+            detail_response = await client.get_return_rfbs_info(return_id)
 
         # 提取详情数据（从 returns 字段）
         detail_data = detail_response.get("returns", {})
