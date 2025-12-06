@@ -478,43 +478,23 @@ const OrderReport: React.FC = () => {
   // ===== 订单明细Tab - 表格列定义（优化后：每个 posting 一行）=====
 
   const detailColumns: ColumnsType<PostingReportItem & { key: string }> = [
-    // 1. 订单日期
-    {
-      title: "订单日期",
-      width: 80,
-      render: (_, row) => (
-        <Tooltip title={formatDate(row.created_at, "YYYY-MM-DD HH:mm")}>
-          <div className={styles.date} style={{ cursor: 'help' }}>
-            {formatDate(row.created_at, "MM-DD")}
-          </div>
-        </Tooltip>
-      ),
-    },
-    // 2. 签收日期
-    {
-      title: "签收日期",
-      width: 80,
-      render: (_, row) => (
-        row.delivered_at ? (
-          <Tooltip title={formatDate(row.delivered_at, "YYYY-MM-DD HH:mm")}>
-            <div className={styles.date} style={{ cursor: 'help' }}>
-              {formatDate(row.delivered_at, "MM-DD")}
-            </div>
-          </Tooltip>
-        ) : (
-          <span>-</span>
-        )
-      ),
-    },
-    // 3. 店铺名称
+    // 1. 店铺名称（显示第一个单词，完整名称用 Tooltip）
     {
       title: "店铺",
-      width: 100,
-      render: (_, row) => (
-        <div className={styles.shopName}>{row.shop_name}</div>
-      ),
+      width: 80,
+      render: (_, row) => {
+        const shopName = row.shop_name || '-';
+        const firstWord = shopName.split(' ')[0] || shopName;
+        return (
+          <Tooltip title={shopName}>
+            <div className={styles.shopName} style={{ cursor: 'help' }}>
+              {firstWord}
+            </div>
+          </Tooltip>
+        );
+      },
     },
-    // 3. 货件编号（可点击查看详情）
+    // 2. 货件编号（可点击查看详情）
     {
       title: "货件编号",
       width: 180,
@@ -633,6 +613,34 @@ const OrderReport: React.FC = () => {
           </span>
         );
       },
+    },
+    // 11. 订单日期（放最后）
+    {
+      title: "订单日期",
+      width: 70,
+      render: (_, row) => (
+        <Tooltip title={formatDate(row.created_at, "YYYY-MM-DD HH:mm")}>
+          <div className={styles.date} style={{ cursor: 'help' }}>
+            {formatDate(row.created_at, "MM-DD")}
+          </div>
+        </Tooltip>
+      ),
+    },
+    // 12. 签收日期（放最后）
+    {
+      title: "签收日期",
+      width: 70,
+      render: (_, row) => (
+        row.delivered_at ? (
+          <Tooltip title={formatDate(row.delivered_at, "YYYY-MM-DD HH:mm")}>
+            <div className={styles.date} style={{ cursor: 'help' }}>
+              {formatDate(row.delivered_at, "MM-DD")}
+            </div>
+          </Tooltip>
+        ) : (
+          <span>-</span>
+        )
+      ),
     },
   ];
 
@@ -768,6 +776,7 @@ const OrderReport: React.FC = () => {
                   scroll={{ x: 1400 }}
                   loading={false}
                   size="small"
+                  sticky={{ offsetHeader: 100 }}
                 />
                 {/* 加载更多提示 */}
                 {isFetching && (

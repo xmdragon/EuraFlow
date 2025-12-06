@@ -399,6 +399,7 @@ async def get_posting_report(
             OzonPosting.posting_number,
             OzonPosting.status,
             OzonPosting.in_process_at,
+            OzonPosting.delivered_at,  # 签收日期
             OzonPosting.order_total_price,
             OzonPosting.purchase_price,
             OzonPosting.ozon_commission_cny,
@@ -455,6 +456,7 @@ async def get_posting_report(
                 'is_cancelled': is_cancelled,
                 'created_at': row.ordered_at.isoformat(),
                 'in_process_at': row.in_process_at.isoformat() if row.in_process_at else None,
+                'delivered_at': row.delivered_at.isoformat() if row.delivered_at else None,  # 签收日期
                 'product_count': row.product_count,  # 商品数量（替代 products 数组）
                 'order_amount': format_currency(real_order_amount),
                 'purchase_price': format_currency(purchase_price),
