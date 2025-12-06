@@ -13,6 +13,30 @@
   }
 }
 
+// ===== Sticky 头部区域（筛选区域） =====
+.stickyHeader {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: #fff;
+  padding: $spacing-md;
+  padding-bottom: 8px;
+  margin: -$spacing-md;
+  margin-bottom: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+// ===== Tabs导航也sticky =====
+.reportTabs {
+  :global(.ant-tabs-nav) {
+    position: sticky;
+    top: 60px; // 筛选区域高度
+    z-index: 99;
+    background: #fff;
+    margin-bottom: $spacing-md;
+  }
+}
+
 // ===== 筛选区域 =====
 .filterRow {
   margin-bottom: 2px;
@@ -253,13 +277,6 @@
 // ===== 统计卡片样式 =====
 .summaryCards {
   margin-bottom: $spacing-lg;
-}
-
-// ===== Tabs样式 =====
-.reportTabs {
-  :global(.ant-tabs-nav) {
-    margin-bottom: $spacing-md;
-  }
 }
 
 // ===== 空状态样式 =====

@@ -99,6 +99,7 @@ interface PostingReportItem {
   is_cancelled: boolean;
   created_at: string;
   in_process_at?: string;
+  delivered_at?: string;  // 签收日期
   product_count: number;  // 商品数量（替代 products 数组）
   order_amount: string;
   purchase_price: string;
@@ -477,17 +478,35 @@ const OrderReport: React.FC = () => {
   // ===== 订单明细Tab - 表格列定义（优化后：每个 posting 一行）=====
 
   const detailColumns: ColumnsType<PostingReportItem & { key: string }> = [
-    // 1. 日期列
+    // 1. 订单日期
     {
-      title: "日期",
+      title: "订单日期",
       width: 80,
       render: (_, row) => (
-        <div className={styles.date}>
-          {formatDate(row.created_at, "MM-DD")}
-        </div>
+        <Tooltip title={formatDate(row.created_at, "YYYY-MM-DD HH:mm")}>
+          <div className={styles.date} style={{ cursor: 'help' }}>
+            {formatDate(row.created_at, "MM-DD")}
+          </div>
+        </Tooltip>
       ),
     },
-    // 2. 店铺名称
+    // 2. 签收日期
+    {
+      title: "签收日期",
+      width: 80,
+      render: (_, row) => (
+        row.delivered_at ? (
+          <Tooltip title={formatDate(row.delivered_at, "YYYY-MM-DD HH:mm")}>
+            <div className={styles.date} style={{ cursor: 'help' }}>
+              {formatDate(row.delivered_at, "MM-DD")}
+            </div>
+          </Tooltip>
+        ) : (
+          <span>-</span>
+        )
+      ),
+    },
+    // 3. 店铺名称
     {
       title: "店铺",
       width: 100,
@@ -626,7 +645,8 @@ const OrderReport: React.FC = () => {
 
       <Card className={styles.mainCard}>
         <div className={styles.contentContainer}>
-          {/* 筛选区域 */}
+          {/* 筛选区域（sticky固定） */}
+          <div className={styles.stickyHeader}>
           <Row gutter={16} className={styles.filterRow} align="middle">
             <Col>
               <Space>
@@ -722,6 +742,7 @@ const OrderReport: React.FC = () => {
               </Tooltip>
             </Col>
           </Row>
+          </div>
 
           {/* Tab切换 */}
           <Tabs
