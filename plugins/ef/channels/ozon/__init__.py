@@ -177,6 +177,13 @@ async def setup(hooks) -> None:
         task=pull_orders_task
     )
 
+    # 注册定时任务：同步商品（每小时第50分钟，同步最近6小时）
+    await hooks.register_cron(
+        name="ef.ozon.products.pull",
+        cron="50 * * * *",
+        task=pull_products_task
+    )
+
     # 注册定时任务：同步库存（每小时第20和50分钟）
     await hooks.register_cron(
         name="ef.ozon.inventory.sync",
@@ -819,41 +826,23 @@ async def setup(hooks) -> None:
     # 配置信息已在上面打印
 
 
-async def pull_orders_task(**kwargs) -> None:
+async def pull_products_task(**kwargs) -> None:
     """
-    拉取 Ozon 商品和订单的定时任务
-    根据 sync_services 配置决定是否同步商品和订单
-    使用 OrderSyncService 进行批量处理（避免 N+1 查询问题）
+    拉取 Ozon 商品的定时任务（每小时第50分钟，同步最近6小时）
     """
     try:
         from ef_core.database import get_task_db_manager
         from .models import OzonShop
-        from .models.sync_service import SyncService
-        from .services.sync.order_sync import OrderSyncService
         from .services.ozon_sync import OzonSyncService
         from sqlalchemy import select
         import uuid
 
         current_time = datetime.now(UTC)
-        logger.info(f"[{current_time.isoformat()}] Starting OZON sync task...")
+        logger.info(f"[{current_time.isoformat()}] Starting OZON product sync task...")
 
-        # 获取同步配置
         db_manager = get_task_db_manager()
-        sync_products = True  # 默认同步商品
-        sync_orders = True    # 默认同步订单
 
         async with db_manager.get_session() as db:
-            # 读取 sync_services 配置
-            result = await db.execute(
-                select(SyncService).where(
-                    SyncService.service_key == "ozon_sync_incremental"
-                )
-            )
-            service = result.scalar_one_or_none()
-            if service and service.config_json:
-                sync_products = service.config_json.get("sync_products", True)
-                sync_orders = service.config_json.get("sync_orders", True)
-
             # 获取所有活跃店铺
             result = await db.execute(
                 select(OzonShop).where(OzonShop.status == "active")
@@ -866,17 +855,80 @@ async def pull_orders_task(**kwargs) -> None:
                 shops.append({
                     'id': shop.id,
                     'shop_name': shop.shop_name,
-                    'client_id': shop.client_id,
-                    'api_key_enc': shop.api_key_enc
                 })
 
-        logger.info(
-            f"Sync config: products={sync_products}, orders={sync_orders}, "
-            f"shops={len(shops)}"
-        )
+        logger.info(f"Product sync: {len(shops)} shops")
 
         # 统计
         total_products_synced = 0
+
+        # 对每个店铺执行同步
+        for shop_data in shops:
+            shop_id = shop_data['id']
+            shop_name = shop_data['shop_name']
+
+            try:
+                async with db_manager.get_session() as db:
+                    task_id = f"product_sync_{shop_id}_{uuid.uuid4().hex[:8]}"
+                    result = await OzonSyncService.sync_products(
+                        shop_id=shop_id,
+                        db=db,
+                        task_id=task_id,
+                        mode="incremental"
+                    )
+                    sync_result = result.get("result", {})
+                    products_synced = sync_result.get("total_synced", 0)
+                    total_products_synced += products_synced
+                    logger.info(
+                        f"[{shop_name}] Product sync completed",
+                        extra={
+                            "shop_id": shop_id,
+                            "products_synced": products_synced
+                        }
+                    )
+            except Exception as e:
+                logger.error(f"Error syncing products for shop {shop_name}: {e}")
+
+        logger.info(f"OZON product sync task completed: {total_products_synced} products synced")
+
+    except Exception as e:
+        logger.error(f"Error in OZON product sync task: {e}")
+
+
+async def pull_orders_task(**kwargs) -> None:
+    """
+    拉取 Ozon 订单的定时任务（每小时第15分钟，同步最近6小时）
+    """
+    try:
+        from ef_core.database import get_task_db_manager
+        from .models import OzonShop
+        from .services.sync.order_sync import OrderSyncService
+        from sqlalchemy import select
+        import uuid
+
+        current_time = datetime.now(UTC)
+        logger.info(f"[{current_time.isoformat()}] Starting OZON order sync task...")
+
+        db_manager = get_task_db_manager()
+
+        async with db_manager.get_session() as db:
+            # 获取所有活跃店铺
+            result = await db.execute(
+                select(OzonShop).where(OzonShop.status == "active")
+            )
+            shops_orm = result.scalars().all()
+
+            # 立即提取所有店铺信息到字典，避免懒加载
+            shops = []
+            for shop in shops_orm:
+                shops.append({
+                    'id': shop.id,
+                    'shop_name': shop.shop_name,
+                })
+
+        logger.info(f"Order sync: {len(shops)} shops")
+
+        # 统计
         total_orders_synced = 0
 
         # 对每个店铺执行同步
@@ -884,65 +936,35 @@ async def pull_orders_task(**kwargs) -> None:
             shop_id = shop_data['id']
             shop_name = shop_data['shop_name']
 
-            # 1. 同步商品（如果启用）
-            if sync_products:
-                try:
-                    async with db_manager.get_session() as db:
-                        task_id = f"product_sync_{shop_id}_{uuid.uuid4().hex[:8]}"
-                        result = await OzonSyncService.sync_products(
-                            shop_id=shop_id,
-                            db=db,
-                            task_id=task_id,
-                            mode="incremental"
-                        )
-                        sync_result = result.get("result", {})
-                        products_synced = sync_result.get("total_synced", 0)
-                        total_products_synced += products_synced
-                        logger.info(
-                            f"[{shop_name}] Product sync completed",
-                            extra={
-                                "shop_id": shop_id,
-                                "products_synced": products_synced
-                            }
-                        )
-                except Exception as e:
-                    logger.error(f"Error syncing products for shop {shop_name}: {e}")
+            try:
+                async with db_manager.get_session() as db:
+                    task_id = f"order_sync_{shop_id}_{uuid.uuid4().hex[:8]}"
+                    sync_service = OrderSyncService()
+                    result = await sync_service.sync_orders(
+                        shop_id=shop_id,
+                        db=db,
+                        task_id=task_id,
+                        mode="incremental"
+                    )
 
-            # 2. 同步订单（如果启用）
-            if sync_orders:
-                try:
-                    async with db_manager.get_session() as db:
-                        # 使用新版 OrderSyncService 执行批量同步
-                        task_id = f"order_sync_{shop_id}_{uuid.uuid4().hex[:8]}"
-                        sync_service = OrderSyncService()
-                        result = await sync_service.sync_orders(
-                            shop_id=shop_id,
-                            db=db,
-                            task_id=task_id,
-                            mode="incremental"
-                        )
+                    sync_result = result.get("result", {})
+                    orders_synced = sync_result.get("total_synced", 0)
+                    total_orders_synced += orders_synced
+                    logger.info(
+                        f"[{shop_name}] Order sync completed",
+                        extra={
+                            "shop_id": shop_id,
+                            "orders_synced": orders_synced
+                        }
+                    )
 
-                        sync_result = result.get("result", {})
-                        orders_synced = sync_result.get("total_synced", 0)
-                        total_orders_synced += orders_synced
-                        logger.info(
-                            f"[{shop_name}] Order sync completed",
-                            extra={
-                                "shop_id": shop_id,
-                                "orders_synced": orders_synced
-                            }
-                        )
+            except Exception as e:
+                logger.error(f"Error pulling orders for shop {shop_name}: {e}")
 
-                except Exception as e:
-                    logger.error(f"Error pulling orders for shop {shop_name}: {e}")
-
-        logger.info(
-            f"OZON sync task completed: {total_products_synced} products, "
-            f"{total_orders_synced} orders synced"
-        )
+        logger.info(f"OZON order sync task completed: {total_orders_synced} orders synced")
 
     except Exception as e:
-        logger.error(f"Error in OZON sync task: {e}")
+        logger.error(f"Error in OZON order sync task: {e}")
 
 
 async def sync_inventory_task(**kwargs) -> None:

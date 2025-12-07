@@ -80,7 +80,7 @@ class ProductSyncService:
             # 增量同步：设置时间过滤
             filter_params = {}
             if mode == "incremental":
-                last_sync_time = utcnow() - timedelta(hours=48)
+                last_sync_time = utcnow() - timedelta(hours=6)
                 filter_params["last_changed_since"] = last_sync_time.strftime("%Y-%m-%dT%H:%M:%S.000Z")
                 logger.info(f"Incremental sync: fetching products changed since {last_sync_time}")
 

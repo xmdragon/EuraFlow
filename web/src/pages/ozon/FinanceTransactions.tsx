@@ -1,7 +1,7 @@
 /**
  * OZON 财务交易页面
  */
-import { DollarOutlined } from '@ant-design/icons';
+import { CopyOutlined, DollarOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import {
   Card,
@@ -11,7 +11,6 @@ import {
   Row,
   Col,
   Pagination,
-  Typography,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
@@ -23,13 +22,13 @@ import OrderDetailModal from '@/components/ozon/OrderDetailModal';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import PageTitle from '@/components/PageTitle';
 import { ORDER_STATUS_CONFIG } from '@/config/ozon/orderStatusConfig';
+import { useCopy } from '@/hooks/useCopy';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useDateTime } from '@/hooks/useDateTime';
 import * as ozonApi from '@/services/ozon';
 import { notifyError } from '@/utils/notification';
 
 const { Option } = Select;
-const { Text } = Typography;
 
 // 交易类型中文映射
 const TRANSACTION_TYPE_MAP: Record<string, string> = {
@@ -170,6 +169,7 @@ const FinanceTransactions: React.FC = () => {
 
   // 货币和状态配置
   const { currency: userCurrency } = useCurrency();
+  const { copyToClipboard } = useCopy();
   const statusConfig = ORDER_STATUS_CONFIG;
 
   // 查询财务交易按日期汇总（主表格）
@@ -371,23 +371,37 @@ const FinanceTransactions: React.FC = () => {
     {
       title: '货件编号',
       dataIndex: 'posting_number',
-      width: 145,
+      width: 200,
       render: (text, record) => {
         if (!text) return '-';
         // 只有数字-数字-数字格式才显示为链接
         if (isValidPostingNumber(text)) {
           return (
-            <a
-              onClick={() => {
-                showPostingDetail(text, record.shop_id);
-              }}
-              style={{ cursor: 'pointer', color: '#1890ff' }}
-            >
-              {text}
-            </a>
+            <span>
+              <a
+                onClick={() => {
+                  showPostingDetail(text, record.shop_id);
+                }}
+                style={{ cursor: 'pointer', color: '#1890ff' }}
+              >
+                {text}
+              </a>
+              <CopyOutlined
+                style={{ marginLeft: 4, color: '#1890ff', cursor: 'pointer' }}
+                onClick={() => copyToClipboard(text, '货件编号')}
+              />
+            </span>
           );
         }
-        return <span>{text}</span>;
+        return (
+          <span>
+            {text}
+            <CopyOutlined
+              style={{ marginLeft: 4, color: '#1890ff', cursor: 'pointer' }}
+              onClick={() => copyToClipboard(text, '货件编号')}
+            />
+          </span>
+        );
       },
     },
     {
@@ -405,25 +419,17 @@ const FinanceTransactions: React.FC = () => {
     {
       title: '商品SKU',
       dataIndex: 'ozon_sku',
-      width: 110,
-      render: (text) => text || '-',
-    },
-    {
-      title: '商品名称',
-      dataIndex: 'item_name',
-      ellipsis: {
-        showTitle: false,
-      },
+      width: 160,
       render: (text) => {
         if (!text) return '-';
         return (
-          <Text
-            ellipsis={{
-              tooltip: text,
-            }}
-          >
+          <span>
             {text}
-          </Text>
+            <CopyOutlined
+              style={{ marginLeft: 4, color: '#1890ff', cursor: 'pointer' }}
+              onClick={() => copyToClipboard(text, 'SKU')}
+            />
+          </span>
         );
       },
     },
