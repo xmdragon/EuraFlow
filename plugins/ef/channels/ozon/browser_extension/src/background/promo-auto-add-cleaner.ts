@@ -177,12 +177,10 @@ class PromoAutoAddCleaner {
     const existingTabs = await chrome.tabs.query({ url: 'https://seller.ozon.ru/*' });
 
     if (existingTabs.length > 0 && existingTabs[0].id) {
-      console.log('[PromoAutoAddCleaner] 使用现有 seller.ozon.ru 标签页');
       return { tabId: existingTabs[0].id, shouldClose: false };
     }
 
     // 创建新的后台标签页
-    console.log('[PromoAutoAddCleaner] 创建新的 seller.ozon.ru 标签页');
     const newTab = await chrome.tabs.create({
       url: 'https://seller.ozon.ru/app/highlights/list',
       active: false  // 后台打开
@@ -239,7 +237,6 @@ class PromoAutoAddCleaner {
   private async closeTab(tabId: number): Promise<void> {
     try {
       await chrome.tabs.remove(tabId);
-      console.log('[PromoAutoAddCleaner] 已关闭标签页');
     } catch {
       // 标签页可能已关闭
     }
@@ -256,7 +253,6 @@ class PromoAutoAddCleaner {
       domain: '.ozon.ru',
       path: '/'
     });
-    console.log(`[PromoAutoAddCleaner] 已切换到店铺: ${clientId}`);
   }
 
   /**

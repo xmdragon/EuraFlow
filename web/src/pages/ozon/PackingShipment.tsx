@@ -1119,7 +1119,6 @@ const PackingShipment: React.FC = () => {
         setCurrentPrintingPostings([]);
         setCurrentPrintingPostingObjects(posting ? [posting] : []);
         setShowPrintLabelModal(true);
-        notifySuccess('标签加载成功', '请在弹窗中填写包装重量后打印');
       } else if (result?.error === 'PARTIAL_FAILURE' && result.pdf_url) {
         setPrintLabelUrl(result.pdf_url);
         setCurrentPrintingPosting(postingNumber);
@@ -1163,7 +1162,6 @@ const PackingShipment: React.FC = () => {
         setCurrentPrintingPosting('');
         setCurrentPrintingPostingObjects(postingsToPrint);
         setShowPrintLabelModal(true);
-        notifySuccess('标签加载成功', '请在弹窗中填写包装重量后打印');
       } else if (result?.error === 'PARTIAL_FAILURE' && result.pdf_url) {
         setPrintLabelUrl(result.pdf_url);
         setCurrentPrintingPostings(result.success_postings || []);

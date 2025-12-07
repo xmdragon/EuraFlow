@@ -26,6 +26,13 @@ const getNotification = () => {
   return instance;
 };
 
+// 通知框通用样式
+const notificationStyle = {
+  width: 'auto',
+  minWidth: 200,
+  padding: 10,
+};
+
 /**
  * 成功通知
  */
@@ -37,6 +44,7 @@ export const notifySuccess = (message: string, description?: string) => {
       description,
       placement: 'bottomRight',
       duration: 10,
+      style: notificationStyle,
     });
   }
 };
@@ -52,6 +60,7 @@ export const notifyError = (message: string, description?: string) => {
       description,
       placement: 'bottomRight',
       duration: 10,
+      style: notificationStyle,
     });
   }
 };
@@ -67,6 +76,7 @@ export const notifyWarning = (message: string, description?: string) => {
       description,
       placement: 'bottomRight',
       duration: 10,
+      style: notificationStyle,
     });
   }
 };
@@ -82,6 +92,7 @@ export const notifyInfo = (message: string, description?: string) => {
       description,
       placement: 'bottomRight',
       duration: 10,
+      style: notificationStyle,
     });
   }
 };
@@ -96,6 +107,7 @@ export const notify = (config: ArgsProps) => {
       ...config,
       placement: config.placement || 'bottomRight',
       duration: config.duration !== undefined ? config.duration : 10,
+      style: { ...notificationStyle, ...config.style },
     });
   }
 };

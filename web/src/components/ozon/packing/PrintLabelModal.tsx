@@ -47,12 +47,21 @@ const PrintLabelModal: React.FC<PrintLabelModalProps> = ({
   const { copyToClipboard } = useCopy();
   const firstInputRef = useRef<HTMLInputElement>(null);
 
-  // 弹窗关闭时清空重量状态
+  // 弹窗打开时从 posting 读取已有重量，关闭时清空
   useEffect(() => {
-    if (!visible) {
+    if (visible && postings.length > 0) {
+      // 预填充已有的 package_weight
+      const initialWeights: Record<string, number | undefined> = {};
+      postings.forEach(posting => {
+        if (posting.package_weight && posting.package_weight > 0) {
+          initialWeights[posting.posting_number] = posting.package_weight;
+        }
+      });
+      setWeights(initialWeights);
+    } else if (!visible) {
       setWeights({});
     }
-  }, [visible]);
+  }, [visible, postings]);
 
   // 弹窗打开时聚焦第一个重量输入框
   useEffect(() => {
