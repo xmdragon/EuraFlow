@@ -110,155 +110,6 @@ class OzonOrder(Base):
         Index("idx_ozon_orders_join_cover", "id", "shop_id", "ordered_at", "total_price"),
     )
 
-    def to_dict(self, target_posting_number: Optional[str] = None):
-        """转换为字典，包含关联的商品明细和posting信息
-
-        Args:
-            target_posting_number: 可选的目标货件号。如果提供，将使用该货件作为主记录，
-                                  并且只在postings数组中包含该货件
-        """
-        # 调用父类方法获取基础字段
-        result = super().to_dict()
-
-        # 不再构建 items 字段（与 postings[].products 重复）
-        # 所有商品数据都在 postings[].products 中
-
-        # 确定使用哪个posting作为主记录
-        # 如果指定了target_posting_number，使用匹配的posting；否则使用第一个posting
-        if self.postings and len(self.postings) > 0:
-            if target_posting_number:
-                # 查找匹配的posting
-                first_posting = next(
-                    (p for p in self.postings if p.posting_number == target_posting_number),
-                    None
-                )
-                # 如果未找到匹配，使用第一个posting（兜底策略）
-                if not first_posting:
-                    first_posting = self.postings[0]
-            else:
-                # 默认使用第一个posting
-                first_posting = self.postings[0]
-            result['posting_number'] = first_posting.posting_number
-            result['posting_status'] = first_posting.status
-            result['in_process_at'] = first_posting.in_process_at.isoformat() if first_posting.in_process_at else None
-            result['warehouse_name'] = first_posting.warehouse_name
-            result['shipment_date'] = first_posting.shipment_date.isoformat() if first_posting.shipment_date else None
-
-            # 使用 posting 的数据覆盖 order 的字段（因为 ozon_orders 表的某些字段可能为空或0）
-            # 1. 订单金额：使用 posting 的 order_total_price
-            if first_posting.order_total_price:
-                result['total_price'] = str(first_posting.order_total_price)
-                result['total_amount'] = str(first_posting.order_total_price)
-            # 2. 下单时间：如果 order 没有 ordered_at，使用 posting 的 in_process_at
-            if not result.get('ordered_at') and first_posting.in_process_at:
-                result['ordered_at'] = first_posting.in_process_at.isoformat()
-            # 3. 货币代码：统一使用 CNY 显示
-            result['currency_code'] = 'CNY'
-
-            # 添加 posting 维度的业务字段（用于前端表单显示和编辑）
-            result['material_cost'] = str(first_posting.material_cost) if first_posting.material_cost else None
-            result['domestic_tracking_numbers'] = first_posting.get_domestic_tracking_numbers()  # 统一使用数组
-            result['purchase_price'] = str(first_posting.purchase_price) if first_posting.purchase_price else None
-            result['purchase_price_updated_at'] = first_posting.purchase_price_updated_at.isoformat() if first_posting.purchase_price_updated_at else None
-            result['order_notes'] = first_posting.order_notes
-            result['source_platform'] = first_posting.source_platform
-
-            # 添加完整的postings列表
-            # 如果指定了target_posting_number，只包含匹配的posting
-            result['postings'] = []
-            postings_to_include = self.postings
-            if target_posting_number:
-                postings_to_include = [p for p in self.postings if p.posting_number == target_posting_number]
-
-            for posting in postings_to_include:
-                # 构建 packages 列表
-                packages = []
-                if posting.packages:
-                    # 如果有 packages 表数据，使用它
-                    packages = [
-                        {
-                            'id': pkg.id,
-                            'tracking_number': pkg.tracking_number,
-                            'carrier_name': pkg.carrier_name,
-                            'carrier_code': pkg.carrier_code,
-                        }
-                        for pkg in posting.packages
-                    ]
-                elif posting.raw_payload:
-                    # 如果没有 packages 表数据，尝试从 raw_payload 中提取
-                    tracking_number = posting.raw_payload.get('tracking_number')
-                    if tracking_number:
-                        packages = [{
-                            'id': None,
-                            'tracking_number': tracking_number,
-                            'carrier_name': None,
-                            'carrier_code': None,
-                        }]
-
-                # 从 raw_payload 中提取该 posting 的商品信息
-                posting_products = []
-                if posting.raw_payload and 'products' in posting.raw_payload:
-                    for product in posting.raw_payload['products']:
-                        posting_products.append({
-                            'sku': str(product.get('sku', '')),
-                            'offer_id': str(product.get('offer_id', '')) if product.get('offer_id') else None,
-                            'name': product.get('name', ''),
-                            'quantity': product.get('quantity', 0),
-                            'price': str(product.get('price', '0')),
-                        })
-
-                result['postings'].append({
-                    'id': posting.id,
-                    'posting_number': posting.posting_number,
-                    'status': posting.status,
-                    'warehouse_name': posting.warehouse_name,
-                    'delivery_method_name': posting.delivery_method_name,
-                    'shipment_date': posting.shipment_date.isoformat() if posting.shipment_date else None,
-                    'shipped_at': posting.shipped_at.isoformat() if posting.shipped_at else None,
-                    'delivered_at': posting.delivered_at.isoformat() if posting.delivered_at else None,
-                    # 添加业务字段到 posting 对象
-                    'material_cost': str(posting.material_cost) if posting.material_cost else None,
-                    'domestic_tracking_numbers': posting.get_domestic_tracking_numbers(),  # 统一使用数组
-                    'purchase_price': str(posting.purchase_price) if posting.purchase_price else None,
-                    'purchase_price_updated_at': posting.purchase_price_updated_at.isoformat() if posting.purchase_price_updated_at else None,
-                    'order_notes': posting.order_notes,
-                    'source_platform': posting.source_platform,
-                    # 添加财务字段
-                    'last_mile_delivery_fee_cny': str(posting.last_mile_delivery_fee_cny) if posting.last_mile_delivery_fee_cny else None,
-                    'international_logistics_fee_cny': str(posting.international_logistics_fee_cny) if posting.international_logistics_fee_cny else None,
-                    'ozon_commission_cny': str(posting.ozon_commission_cny) if posting.ozon_commission_cny else None,
-                    # 添加打印状态字段
-                    'label_printed_at': posting.label_printed_at.isoformat() if posting.label_printed_at else None,
-                    'label_print_count': posting.label_print_count or 0,
-                    # 包装重量
-                    'package_weight': posting.package_weight,
-                    # 订单进度时间字段
-                    'tracking_synced_at': posting.tracking_synced_at.isoformat() if posting.tracking_synced_at else None,
-                    'domestic_tracking_updated_at': posting.domestic_tracking_updated_at.isoformat() if posting.domestic_tracking_updated_at else None,
-                    'cancelled_at': posting.cancelled_at.isoformat() if posting.cancelled_at else None,
-                    'in_process_at': posting.in_process_at.isoformat() if posting.in_process_at else None,
-                    'packages': packages,
-                    # 添加该 posting 的商品列表（从 raw_payload 提取）
-                    'products': posting_products
-                })
-        else:
-            result['posting_number'] = None
-            result['posting_status'] = None
-            result['in_process_at'] = None
-            result['warehouse_name'] = None
-            result['shipment_date'] = None
-            # 业务字段默认值
-            result['material_cost'] = None
-            result['domestic_tracking_numbers'] = []  # 统一使用数组
-            result['purchase_price'] = None
-            result['purchase_price_updated_at'] = None
-            result['order_notes'] = None
-            result['source_platform'] = None
-            result['postings'] = []
-            # 不设置 items（已废弃）
-
-        return result
-
 
 class OzonDomesticTracking(Base):
     """国内物流单号表（一对多关系）"""
@@ -509,6 +360,130 @@ class OzonPosting(Base):
             pass
 
         return tracking_numbers
+
+    def to_packing_dict(self) -> dict:
+        """
+        转换为打包页面所需的字典格式
+
+        完全不依赖 order 关系，所有数据从 posting 自身获取。
+        用于打包列表、搜索等场景，降低内存占用。
+
+        Returns:
+            打包页面所需的数据字典
+        """
+        # 基础信息
+        result = {
+            'id': self.id,
+            'posting_number': self.posting_number,
+            'status': self.status,
+            'operation_status': self.operation_status,
+            'warehouse_name': self.warehouse_name,
+            'delivery_method': self.delivery_method_name,
+            'shipment_date': self.shipment_date.isoformat() if self.shipment_date else None,
+            'in_process_at': self.in_process_at.isoformat() if self.in_process_at else None,
+            'ordered_at': self.in_process_at.isoformat() if self.in_process_at else None,  # 使用 in_process_at 作为下单时间
+            'shipped_at': self.shipped_at.isoformat() if self.shipped_at else None,
+            'delivered_at': self.delivered_at.isoformat() if self.delivered_at else None,
+
+            # 金额
+            'total_price': str(self.order_total_price) if self.order_total_price else '0',
+            'total_amount': str(self.order_total_price) if self.order_total_price else '0',
+            'currency_code': 'CNY',
+
+            # 业务字段
+            'material_cost': str(self.material_cost) if self.material_cost else None,
+            'purchase_price': str(self.purchase_price) if self.purchase_price else None,
+            'purchase_price_updated_at': self.purchase_price_updated_at.isoformat() if self.purchase_price_updated_at else None,
+            'order_notes': self.order_notes,
+            'source_platform': self.source_platform,
+
+            # 财务字段
+            'last_mile_delivery_fee_cny': str(self.last_mile_delivery_fee_cny) if self.last_mile_delivery_fee_cny else None,
+            'international_logistics_fee_cny': str(self.international_logistics_fee_cny) if self.international_logistics_fee_cny else None,
+            'ozon_commission_cny': str(self.ozon_commission_cny) if self.ozon_commission_cny else None,
+
+            # 利润
+            'profit': str(self.profit) if self.profit else None,
+            'profit_rate': str(self.profit_rate) if self.profit_rate else None,
+
+            # 打印状态
+            'label_printed_at': self.label_printed_at.isoformat() if self.label_printed_at else None,
+            'label_print_count': self.label_print_count or 0,
+
+            # 国内单号
+            'domestic_tracking_numbers': self.get_domestic_tracking_numbers(),
+        }
+
+        # 追踪号 - 从 packages 关系或 raw_payload 获取
+        tracking_number = None
+        if hasattr(self, '__dict__') and 'packages' in self.__dict__ and self.packages:
+            tracking_number = self.packages[0].tracking_number
+        elif self.raw_payload and 'tracking_number' in self.raw_payload:
+            tracking_number = self.raw_payload['tracking_number']
+        result['tracking_number'] = tracking_number
+
+        # 构建 packages 列表
+        packages = []
+        if hasattr(self, '__dict__') and 'packages' in self.__dict__ and self.packages:
+            packages = [
+                {
+                    'id': pkg.id,
+                    'tracking_number': pkg.tracking_number,
+                    'carrier_name': pkg.carrier_name,
+                    'carrier_code': pkg.carrier_code,
+                }
+                for pkg in self.packages
+            ]
+        elif self.raw_payload and self.raw_payload.get('tracking_number'):
+            packages = [{
+                'id': None,
+                'tracking_number': self.raw_payload['tracking_number'],
+                'carrier_name': None,
+                'carrier_code': None,
+            }]
+        result['packages'] = packages
+
+        # 商品列表 - 从 raw_payload 获取
+        items = []
+        if self.raw_payload and 'products' in self.raw_payload:
+            for product in self.raw_payload['products']:
+                items.append({
+                    'sku': str(product.get('sku', '')),
+                    'offer_id': str(product.get('offer_id', '')) if product.get('offer_id') else None,
+                    'name': product.get('name', ''),
+                    'quantity': product.get('quantity', 0),
+                    'price': str(product.get('price', '0')),
+                })
+        result['items'] = items
+        result['products'] = items  # 兼容前端的 posting.products
+
+        # 嵌套的 postings 数组（兼容现有前端结构）
+        result['postings'] = [{
+            'id': self.id,
+            'posting_number': self.posting_number,
+            'status': self.status,
+            'operation_status': self.operation_status,
+            'warehouse_name': self.warehouse_name,
+            'delivery_method_name': self.delivery_method_name,
+            'shipment_date': self.shipment_date.isoformat() if self.shipment_date else None,
+            'shipped_at': self.shipped_at.isoformat() if self.shipped_at else None,
+            'delivered_at': self.delivered_at.isoformat() if self.delivered_at else None,
+            'material_cost': str(self.material_cost) if self.material_cost else None,
+            'domestic_tracking_numbers': self.get_domestic_tracking_numbers(),
+            'purchase_price': str(self.purchase_price) if self.purchase_price else None,
+            'purchase_price_updated_at': self.purchase_price_updated_at.isoformat() if self.purchase_price_updated_at else None,
+            'order_notes': self.order_notes,
+            'source_platform': self.source_platform,
+            'last_mile_delivery_fee_cny': str(self.last_mile_delivery_fee_cny) if self.last_mile_delivery_fee_cny else None,
+            'international_logistics_fee_cny': str(self.international_logistics_fee_cny) if self.international_logistics_fee_cny else None,
+            'ozon_commission_cny': str(self.ozon_commission_cny) if self.ozon_commission_cny else None,
+            'profit': str(self.profit) if self.profit else None,
+            'profit_rate': str(self.profit_rate) if self.profit_rate else None,
+            'packages': packages,
+            'products': items,
+        }]
+
+        return result
 
     __table_args__ = (
         Index("idx_ozon_postings_status", "shop_id", "status"),

@@ -80,11 +80,10 @@ async def get_orders(
     # 获取全局时区设置（用于日期过滤）
     global_timezone = await get_global_timezone(db)
 
-    # 构建查询：以Posting为主体（无需 JOIN Order，通过 selectinload 延迟加载）
+    # 构建查询：以Posting为主体，只加载必要关联（不加载 order）
     from sqlalchemy.orm import selectinload
     query = select(OzonPosting).options(
         selectinload(OzonPosting.packages),
-        selectinload(OzonPosting.order).selectinload(OzonOrder.postings),  # 预加载order及其所有postings
         selectinload(OzonPosting.domestic_trackings)
     )
 
@@ -380,17 +379,12 @@ async def get_orders(
                 elif isinstance(images, list) and images:
                     offer_id_images[offer_id] = images[0]
 
-    # 构建返回数据：每个posting作为独立记录
+    # 构建返回数据：每个posting作为独立记录（使用 to_packing_dict，不依赖 order）
     orders_data = []
     for posting in postings:
-        # 使用关联的order对象构造完整数据
-        order = posting.order
-        if order:
-            # 调用order.to_dict()，指定target_posting_number确保只返回当前posting的数据
-            order_dict = order.to_dict(target_posting_number=posting.posting_number)
-            # 移除 items（与 postings[].products 重复）
-            order_dict.pop('items', None)
-            orders_data.append(order_dict)
+        # 使用 posting.to_packing_dict()，完全不依赖 order 关系
+        order_dict = posting.to_packing_dict()
+        orders_data.append(order_dict)
 
     # 计算总页数
     total_pages = (total + limit - 1) // limit if total > 0 else 1
@@ -799,10 +793,19 @@ async def get_order_detail(
 ):
     """
     获取订单详情
-    通过posting_number获取单个订单的完整信息
+    通过posting_number获取单个posting的完整信息
     """
-    # 通过 posting_number 查找订单（先查 posting，再找 order）
-    posting_query = select(OzonPosting).where(OzonPosting.posting_number == posting_number)
+    # 查询 posting（预加载 packages 和 domestic_trackings）
+    from sqlalchemy.orm import selectinload
+
+    posting_query = (
+        select(OzonPosting)
+        .where(OzonPosting.posting_number == posting_number)
+        .options(
+            selectinload(OzonPosting.packages),
+            selectinload(OzonPosting.domestic_trackings)
+        )
+    )
 
     if shop_id:
         posting_query = posting_query.where(OzonPosting.shop_id == shop_id)
@@ -813,47 +816,16 @@ async def get_order_detail(
     if not posting:
         raise HTTPException(status_code=404, detail="Posting not found")
 
-    # 获取关联的订单（预加载关系字段避免懒加载）
-    from sqlalchemy.orm import selectinload
-
-    query = (
-        select(OzonOrder)
-        .where(OzonOrder.id == posting.order_id)
-        .options(
-            selectinload(OzonOrder.postings).selectinload(OzonPosting.packages),
-            selectinload(OzonOrder.postings).selectinload(OzonPosting.domestic_trackings)
-        )
-    )
-
-    if False:  # shop_id 已经在 posting 查询中检查过了
-        query = query.where(OzonOrder.shop_id == shop_id)
-
-    # 执行查询
-    result = await db.execute(query)
-    order = result.scalar_one_or_none()
-
-    if not order:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Order with posting_number {posting_number} not found"
-        )
-
-    # 获取订单详细信息
-    # 传递posting_number参数，确保返回的主记录是搜索的那个posting
-    order_dict = order.to_dict(target_posting_number=posting_number)
-
-    # 移除 items（与 postings[].products 重复）
-    order_dict.pop('items', None)
+    # 使用 to_packing_dict() 构建响应（不依赖 order）
+    order_dict = posting.to_packing_dict()
 
     # 收集所有商品的offer_id
     all_offer_ids = set()
-    for posting_data in order_dict.get("postings", []):
-        products = posting_data.get("products", [])
-        for product in products:
-            if product.get('offer_id'):
-                all_offer_ids.add(product.get('offer_id'))
+    for product in order_dict.get("products", []):
+        if product.get('offer_id'):
+            all_offer_ids.add(product.get('offer_id'))
 
-    # 批量查询商品图片（使用offer_id匹配）
+    # 批量查询商品图片
     from ..models.products import OzonProduct
     offer_id_images = {}
     if all_offer_ids:
@@ -865,7 +837,6 @@ async def get_order_detail(
         products_result = await db.execute(product_query)
         for offer_id, images in products_result:
             if offer_id and images:
-                # 优先使用primary图片，否则使用第一张
                 if isinstance(images, dict):
                     if images.get("primary"):
                         offer_id_images[offer_id] = images["primary"]
@@ -874,33 +845,30 @@ async def get_order_detail(
                 elif isinstance(images, list) and images:
                     offer_id_images[offer_id] = images[0]
 
-    # 从所有 postings[].products 计算汇总信息
-    total_items = 0
-    total_quantity = 0
-    for posting_data in order_dict.get("postings", []):
-        products = posting_data.get("products", [])
-        total_items += len(products)
-        total_quantity += sum(p.get("quantity", 0) for p in products)
+    # 补充商品图片
+    for product in order_dict.get("products", []):
+        offer_id = product.get('offer_id')
+        if offer_id:
+            product['image'] = offer_id_images.get(offer_id)
 
-    # 添加额外的订单汇总信息
+    # 计算汇总信息
+    products = order_dict.get("products", [])
+    total_items = len(products)
+    total_quantity = sum(p.get("quantity", 0) for p in products)
+
     order_summary = {
         "total_items": total_items,
         "total_quantity": total_quantity,
-        "has_barcodes": bool(order_dict.get("upper_barcode") or order_dict.get("lower_barcode")),
-        "has_cancellation": bool(order_dict.get("cancel_reason") or order_dict.get("cancel_reason_id")),
-        "sync_info": {
-            "mode": order_dict.get("sync_mode"),
-            "version": order_dict.get("sync_version"),
-            "last_sync": order_dict.get("last_sync_at"),
-            "status": order_dict.get("sync_status")
-        }
+        "has_barcodes": False,
+        "has_cancellation": bool(posting.cancel_reason or posting.cancel_reason_id),
+        "sync_info": {}
     }
 
     return {
         "success": True,
         "data": order_dict,
         "summary": order_summary,
-        "offer_id_images": offer_id_images  # 添加商品图片映射
+        "offer_id_images": offer_id_images
     }
 
 

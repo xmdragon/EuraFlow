@@ -430,40 +430,35 @@ async def get_packing_orders(
                 elif isinstance(images, list) and images:
                     offer_id_images[offer_id] = images[0]
 
-    # 构建返回数据：每个posting作为独立记录
+    # 构建返回数据：每个posting作为独立记录（使用 to_packing_dict，不依赖 order）
     from ...services.posting_status_manager import PostingStatusManager
 
     orders_data = []
     for posting in postings:
-        # 使用关联的order对象构造完整数据
-        order = posting.order
-        if order:
-            # 调用order.to_dict()，指定target_posting_number确保只返回当前posting的数据
-            order_dict = order.to_dict(target_posting_number=posting.posting_number)
-            # 移除 items（与 postings[].products 重复）
-            order_dict.pop('items', None)
+        # 使用 posting.to_packing_dict()，完全不依赖 order 关系
+        order_dict = posting.to_packing_dict()
 
-            # 状态修正兜底机制：检查posting的operation_status是否正确
-            if 'postings' in order_dict and order_dict['postings']:
-                for posting_dict in order_dict['postings']:
-                    # 计算正确的operation_status（不保留printed状态，强制重新计算）
-                    correct_status, _ = PostingStatusManager.calculate_operation_status(
-                        posting=posting,
-                        ozon_status=posting_dict.get('status', 'unknown'),
-                        preserve_manual=False  # 不保留手动状态，强制修正
+        # 状态修正兜底机制：检查posting的operation_status是否正确
+        if 'postings' in order_dict and order_dict['postings']:
+            for posting_dict in order_dict['postings']:
+                # 计算正确的operation_status（不保留printed状态，强制重新计算）
+                correct_status, _ = PostingStatusManager.calculate_operation_status(
+                    posting=posting,
+                    ozon_status=posting_dict.get('status', 'unknown'),
+                    preserve_manual=False  # 不保留手动状态，强制修正
+                )
+
+                # 如果状态不一致，记录日志并修正
+                current_status = posting_dict.get('operation_status')
+                if current_status != correct_status:
+                    logger.warning(
+                        f"状态修正: posting {posting_dict['posting_number']} "
+                        f"operation_status 不正确 (当前: {current_status}, 应为: {correct_status}, "
+                        f"ozon_status: {posting_dict.get('status')})"
                     )
+                    posting_dict['operation_status'] = correct_status
 
-                    # 如果状态不一致，记录日志并修正
-                    current_status = posting_dict.get('operation_status')
-                    if current_status != correct_status:
-                        logger.warning(
-                            f"状态修正: posting {posting_dict['posting_number']} "
-                            f"operation_status 不正确 (当前: {current_status}, 应为: {correct_status}, "
-                            f"ozon_status: {posting_dict.get('status')})"
-                        )
-                        posting_dict['operation_status'] = correct_status
-
-            orders_data.append(order_dict)
+        orders_data.append(order_dict)
 
     return {
         "data": orders_data,
@@ -727,8 +722,7 @@ async def search_posting_by_tracking(
             posting_ids = [row[0] for row in id_result.fetchall()]
 
             if posting_ids:
-                # 只对当前页的 posting 进行 selectinload
-                # 需要加载 order.postings 因为 order.to_dict() 会访问
+                # 只对当前页的 posting 进行 selectinload（不加载 order）
                 result = await db.execute(
                     select(OzonPosting)
                     .options(
@@ -770,58 +764,23 @@ async def search_posting_by_tracking(
                     elif isinstance(images, list) and images:
                         offer_id_images[offer_id] = images[0]
 
-        # 构建返回数据列表
+        # 构建返回数据列表（使用 to_packing_dict，不依赖 order）
         result_list = []
         for posting in postings:
-            order = posting.order
-            if not order:
-                continue
+            # 使用 posting.to_packing_dict()，完全不依赖 order 关系
+            order_dict = posting.to_packing_dict()
 
-            # 转换为字典，指定 target_posting_number 确保只返回查询到的 posting 数据
-            order_dict = order.to_dict(target_posting_number=posting.posting_number)
-
-            # 添加前端期望的字段（从查询到的 posting 提取，而不是 order.postings[0]）
-            # 添加 status（前端期望的字段名）
-            order_dict['status'] = posting.status
-            # 添加 operation_status
-            order_dict['operation_status'] = posting.operation_status
-            # 添加 tracking_number（从 packages 或 raw_payload 提取）
-            if posting.packages and len(posting.packages) > 0:
-                order_dict['tracking_number'] = posting.packages[0].tracking_number
-            elif posting.raw_payload and 'tracking_number' in posting.raw_payload:
-                order_dict['tracking_number'] = posting.raw_payload['tracking_number']
-            else:
-                order_dict['tracking_number'] = None
-            # 添加 delivery_method（配送方式）
-            order_dict['delivery_method'] = posting.delivery_method_name or order.delivery_method
-            # 添加 domestic_tracking_numbers（国内单号列表）
-            order_dict['domestic_tracking_numbers'] = posting.get_domestic_tracking_numbers()
-
-            # 添加打印状态字段
-            order_dict['label_printed_at'] = posting.label_printed_at.isoformat() if posting.label_printed_at else None
-            order_dict['label_print_count'] = posting.label_print_count or 0
-
-            # 添加商品列表（从 posting.raw_payload.products 提取，包含图片）
-            items = []
-            if posting.raw_payload and 'products' in posting.raw_payload:
-                for product in posting.raw_payload['products']:
+            # 补充商品图片（to_packing_dict 没有图片数据）
+            if order_dict.get('items'):
+                for item in order_dict['items']:
+                    offer_id = item.get('offer_id')
+                    if offer_id:
+                        item['image'] = offer_id_images.get(offer_id)
+            if order_dict.get('products'):
+                for product in order_dict['products']:
                     offer_id = product.get('offer_id')
-                    item = {
-                        'sku': product.get('sku'),
-                        'name': product.get('name'),
-                        'quantity': product.get('quantity'),
-                        'price': product.get('price'),
-                        'offer_id': offer_id,
-                        'image': offer_id_images.get(offer_id) if offer_id else None
-                    }
-                    items.append(item)
-            order_dict['items'] = items
-            # 添加 products 字段（与 items 相同，兼容前端的 posting.products）
-            order_dict['products'] = items
-
-            # 添加嵌套的 order 对象（前端 PostingWithOrder 类型需要）
-            # 前端调用 showOrderDetail(posting.order, posting) 需要 posting.order 存在
-            order_dict['order'] = order.to_dict(target_posting_number=posting.posting_number)
+                    if offer_id:
+                        product['image'] = offer_id_images.get(offer_id)
 
             result_list.append(order_dict)
 
