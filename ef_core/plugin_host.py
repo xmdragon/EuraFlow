@@ -86,30 +86,47 @@ class PluginHookAPI:
         self._event_handlers = []
     
     async def register_cron(
-        self, 
-        name: str, 
-        cron: str, 
-        task: Callable[..., Awaitable]
+        self,
+        name: str,
+        cron: str,
+        task: Callable[..., Awaitable],
+        display_name: Optional[str] = None,
+        description: Optional[str] = None
     ) -> None:
-        """注册定时任务"""
+        """注册定时任务
+
+        Args:
+            name: 任务名称（必须以 ef. 开头）
+            cron: Cron 表达式
+            task: 异步任务函数
+            display_name: 显示名称（用于 UI）
+            description: 任务描述
+        """
         if not name.startswith("ef."):
             raise EFValidationError(
                 code="INVALID_TASK_NAME",
                 detail=f"Task name must start with 'ef.': {name}"
             )
-        
+
         logger.info(f"Plugin {self.plugin_name} registering cron task",
                    task_name=name, cron=cron)
-        
+
         self._registered_tasks.append({
             "name": name,
             "cron": cron,
             "task": task,
-            "plugin": self.plugin_name
+            "plugin": self.plugin_name,
+            "display_name": display_name,
+            "description": description
         })
-        
-        # 实际注册到 Celery 的逻辑将在 tasks 模块中实现
-        await self.plugin_host.task_registry.register_cron(name, cron, task, plugin_name=self.plugin_name)
+
+        # 实际注册到 Celery
+        await self.plugin_host.task_registry.register_cron(
+            name, cron, task,
+            plugin_name=self.plugin_name,
+            display_name=display_name,
+            description=description
+        )
     
     async def publish_event(
         self, 

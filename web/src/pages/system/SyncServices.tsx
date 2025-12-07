@@ -2,14 +2,13 @@
  * 后台服务管理页面
  *
  * 功能：
- * 1. 查看服务列表（只读）
- * 2. 手动触发服务（通过 Celery Beat）
- * 3. 查看日志
- * 4. 查看统计
- * 5. 清空日志
- * 6. 重置统计
- *
- * 注意：定时任务统一由 Celery Beat 调度，配置需修改插件代码并重启服务
+ * 1. 查看服务列表
+ * 2. 编辑服务配置（cron 表达式、启用/禁用）
+ * 3. 手动触发服务（通过 Celery Beat）
+ * 4. 查看日志
+ * 5. 查看统计
+ * 6. 清空日志
+ * 7. 重置统计
  */
 import {
   SyncOutlined,
@@ -18,8 +17,9 @@ import {
   BarChartOutlined,
   ReloadOutlined,
   DeleteOutlined,
+  EditOutlined,
 } from '@ant-design/icons';
-import { Card, Table, Button, Space, Tag, Modal, Descriptions, Tooltip, Spin, App } from 'antd';
+import { Card, Table, Button, Space, Tag, Modal, Descriptions, Tooltip, Spin, App, Form, Input, Switch } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useState, useEffect } from 'react';
 
@@ -45,6 +45,10 @@ interface SyncService {
   config_json: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+  // Celery 集成字段
+  celery_task_name: string | null;
+  plugin_name: string | null;
+  source: string | null;
 }
 
 interface SyncServiceLog {
@@ -78,6 +82,11 @@ const SyncServices = () => {
   const [services, setServices] = useState<SyncService[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // 编辑模态框
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editForm] = Form.useForm();
+
   // 日志模态框
   const [logsModalVisible, setLogsModalVisible] = useState(false);
   const [logs, setLogs] = useState<SyncServiceLog[]>([]);
@@ -100,6 +109,52 @@ const SyncServices = () => {
       notifyError('加载失败', error.response?.data?.error?.detail || '加载服务列表失败');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 打开编辑模态框
+  const openEditModal = (service: SyncService) => {
+    setSelectedService(service);
+    editForm.setFieldsValue({
+      schedule_config: service.schedule_config,
+      is_enabled: service.is_enabled,
+    });
+    setEditModalVisible(true);
+  };
+
+  // 保存编辑
+  const saveEdit = async () => {
+    if (!selectedService) return;
+
+    try {
+      const values = await editForm.validateFields();
+      setEditLoading(true);
+
+      await axios.put(`/api/ef/v1/sync-services/${selectedService.id}`, {
+        schedule_config: values.schedule_config,
+        is_enabled: values.is_enabled,
+      });
+
+      notifySuccess('保存成功', '服务配置已更新');
+      setEditModalVisible(false);
+      loadServices();
+    } catch (error) {
+      notifyError('保存失败', error.response?.data?.detail || '保存服务配置失败');
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  // 快速切换启用/禁用
+  const toggleEnabled = async (service: SyncService) => {
+    try {
+      await axios.put(`/api/ef/v1/sync-services/${service.id}`, {
+        is_enabled: !service.is_enabled,
+      });
+      notifySuccess('操作成功', service.is_enabled ? '服务已禁用' : '服务已启用');
+      loadServices();
+    } catch (error) {
+      notifyError('操作失败', error.response?.data?.detail || '切换状态失败');
     }
   };
 
@@ -209,9 +264,18 @@ const SyncServices = () => {
       key: 'status',
       width: 100,
       render: (_, record) => (
-        <Tag color={record.is_enabled ? 'green' : 'default'}>
-          {record.is_enabled ? '启用' : '禁用'}
-        </Tag>
+        canOperate ? (
+          <Switch
+            checked={record.is_enabled}
+            checkedChildren="启用"
+            unCheckedChildren="禁用"
+            onChange={() => toggleEnabled(record)}
+          />
+        ) : (
+          <Tag color={record.is_enabled ? 'green' : 'default'}>
+            {record.is_enabled ? '启用' : '禁用'}
+          </Tag>
+        )
       ),
     },
     {
@@ -248,19 +312,29 @@ const SyncServices = () => {
     {
       title: '操作',
       key: 'actions',
-      width: 260,
+      width: 300,
       fixed: 'right',
       render: (_, record) => (
         <Space size="small">
           {canOperate && (
-            <Button
-              type="primary"
-              size="small"
-              icon={<PlayCircleOutlined />}
-              onClick={() => triggerService(record)}
-            >
-              触发
-            </Button>
+            <>
+              <Button
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => openEditModal(record)}
+              >
+                编辑
+              </Button>
+              <Button
+                type="primary"
+                size="small"
+                icon={<PlayCircleOutlined />}
+                onClick={() => triggerService(record)}
+                disabled={!record.celery_task_name}
+              >
+                触发
+              </Button>
+            </>
           )}
           <Button size="small" icon={<FileTextOutlined />} onClick={() => viewLogs(record)} />
           <Button size="small" icon={<BarChartOutlined />} onClick={() => viewStats(record)} />
@@ -396,6 +470,49 @@ const SyncServices = () => {
               scroll={{ x: 900 }}
             />
           </Spin>
+        </Modal>
+
+        {/* 编辑模态框 */}
+        <Modal
+          title={`编辑服务 - ${selectedService?.service_name}`}
+          open={editModalVisible}
+          onCancel={() => setEditModalVisible(false)}
+          onOk={saveEdit}
+          confirmLoading={editLoading}
+          okText="保存"
+          cancelText="取消"
+        >
+          <Form form={editForm} layout="vertical">
+            <Form.Item
+              name="schedule_config"
+              label="Cron 表达式"
+              rules={[{ required: true, message: '请输入 Cron 表达式' }]}
+              extra={
+                <span style={{ color: '#888' }}>
+                  格式：分 时 日 月 周，例如 */5 * * * * 表示每5分钟执行
+                </span>
+              }
+            >
+              <Input placeholder="*/5 * * * *" />
+            </Form.Item>
+            <Form.Item
+              name="is_enabled"
+              label="启用状态"
+              valuePropName="checked"
+            >
+              <Switch checkedChildren="启用" unCheckedChildren="禁用" />
+            </Form.Item>
+            {selectedService?.celery_task_name && (
+              <Form.Item label="Celery 任务名">
+                <Input value={selectedService.celery_task_name} disabled />
+              </Form.Item>
+            )}
+            {selectedService?.plugin_name && (
+              <Form.Item label="所属插件">
+                <Input value={selectedService.plugin_name} disabled />
+              </Form.Item>
+            )}
+          </Form>
         </Modal>
 
         {/* 统计模态框 */}

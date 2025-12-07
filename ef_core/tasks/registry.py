@@ -25,31 +25,44 @@ class TaskRegistry:
         name: str,
         cron: str,
         task_func: Callable[..., Awaitable],
-        plugin_name: Optional[str] = None
+        plugin_name: Optional[str] = None,
+        display_name: Optional[str] = None,
+        description: Optional[str] = None
     ) -> None:
-        """注册定时任务"""
+        """注册定时任务
+
+        Args:
+            name: 任务名称（必须以 ef. 开头）
+            cron: Cron 表达式
+            task_func: 异步任务函数
+            plugin_name: 插件名称
+            display_name: 显示名称（用于 UI）
+            description: 任务描述
+        """
         if not name.startswith("ef."):
             raise ValueError(f"Task name must start with 'ef.': {name}")
-        
+
         # 验证 cron 表达式
         if not self._validate_cron(cron):
             raise ValueError(f"Invalid cron expression: {cron}")
-        
+
         logger.info(f"Registering cron task: {name}", cron=cron, plugin=plugin_name)
-        
+
         # 包装异步函数为 Celery 任务
         celery_task = self._create_celery_task(name, task_func, plugin_name)
-        
-        # 注册任务信息
+
+        # 注册任务信息（包含元数据）
         self.registered_tasks[name] = {
             "name": name,
             "cron": cron,
             "task_func": task_func,
             "celery_task": celery_task,
             "plugin": plugin_name,
-            "enabled": True
+            "enabled": True,
+            "display_name": display_name or name,
+            "description": description or ""
         }
-        
+
         # 添加到 Celery Beat 调度
         self._add_to_beat_schedule(name, cron)
     

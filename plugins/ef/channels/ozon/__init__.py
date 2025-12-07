@@ -174,21 +174,27 @@ async def setup(hooks) -> None:
     await hooks.register_cron(
         name="ef.ozon.orders.pull",
         cron="15 * * * *",
-        task=pull_orders_task
+        task=pull_orders_task,
+        display_name="OZON 订单同步",
+        description="从 OZON 平台拉取最近6小时的订单数据"
     )
 
     # 注册定时任务：同步商品（每小时第50分钟，同步最近6小时）
     await hooks.register_cron(
         name="ef.ozon.products.pull",
         cron="50 * * * *",
-        task=pull_products_task
+        task=pull_products_task,
+        display_name="OZON 商品同步",
+        description="从 OZON 平台拉取最近6小时更新的商品数据"
     )
 
     # 注册定时任务：同步库存（每小时第20和50分钟）
     await hooks.register_cron(
         name="ef.ozon.inventory.sync",
         cron="20,50 * * * *",
-        task=sync_inventory_task
+        task=sync_inventory_task,
+        display_name="OZON 库存同步",
+        description="从 OZON 平台同步商品库存数据"
     )
 
     # 注册定时任务：标签预缓存（每5分钟）
@@ -198,7 +204,9 @@ async def setup(hooks) -> None:
     await hooks.register_cron(
         name="ef.ozon.labels.prefetch",
         cron="*/5 * * * *",
-        task=prefetch_labels_async
+        task=prefetch_labels_async,
+        display_name="标签预缓存",
+        description="预先下载待打印订单的标签 PDF"
     )
 
     # 注册定时任务：标签缓存清理（每天凌晨4点执行）
@@ -206,7 +214,9 @@ async def setup(hooks) -> None:
     await hooks.register_cron(
         name="ef.ozon.labels.cleanup",
         cron="0 4 * * *",
-        task=cleanup_labels_async
+        task=cleanup_labels_async,
+        display_name="标签缓存清理",
+        description="清理超过7天的标签 PDF 文件"
     )
 
     # 订阅事件：发货请求
@@ -606,14 +616,18 @@ async def setup(hooks) -> None:
         await hooks.register_cron(
             name="ef.ozon.promotions.sync",
             cron="25,55 * * * *",
-            task=sync_all_promotions
+            task=sync_all_promotions,
+            display_name="OZON 促销同步",
+            description="同步 OZON 平台的促销活动数据"
         )
 
         # 注册健康检查任务（每小时第2分钟）
         await hooks.register_cron(
             name="ef.ozon.promotions.health_check",
             cron="2 * * * *",
-            task=promotion_health_check
+            task=promotion_health_check,
+            display_name="促销系统健康检查",
+            description="检查促销同步系统的运行状态"
         )
 
         logger.info("Registered promotion tasks successfully")
@@ -662,21 +676,27 @@ async def setup(hooks) -> None:
         await hooks.register_cron(
             name="ef.ozon.kuajing84.material_cost",
             cron="15 * * * *",
-            task=kuajing84_material_cost_task
+            task=kuajing84_material_cost_task,
+            display_name="跨境巴士物料成本同步",
+            description="从跨境巴士查询并更新已打包订单的物料成本"
         )
 
         # 注册财务费用同步（每天凌晨3:15）
         await hooks.register_cron(
             name="ef.ozon.finance.sync",
             cron="15 3 * * *",
-            task=ozon_finance_sync_task
+            task=ozon_finance_sync_task,
+            display_name="OZON 财务费用同步",
+            description="同步已完成订单的财务费用明细（佣金、物流等）"
         )
 
         # 注册财务交易同步（每天UTC 22:00 = 北京时间06:00）
         await hooks.register_cron(
             name="ef.ozon.finance.transactions",
             cron="0 22 * * *",
-            task=ozon_finance_transactions_task
+            task=ozon_finance_transactions_task,
+            display_name="OZON 财务交易同步",
+            description="同步 OZON 平台的财务交易记录"
         )
 
         logger.info("Registered sync service tasks successfully")
@@ -689,14 +709,18 @@ async def setup(hooks) -> None:
         await hooks.register_cron(
             name="ef.ozon.category.sync",
             cron="0 21 * * 1",
-            task=category_sync_task
+            task=category_sync_task,
+            display_name="OZON 类目树同步",
+            description="同步 OZON 平台的商品类目树结构"
         )
 
         # 注册类目特征同步（每周二凌晨5:30北京时间 = 每周一晚上21:30 UTC）
         await hooks.register_cron(
             name="ef.ozon.attributes.sync",
             cron="30 21 * * 1",
-            task=attributes_sync_task
+            task=attributes_sync_task,
+            display_name="OZON 类目特征同步",
+            description="同步 OZON 平台的类目属性和特征"
         )
 
         logger.info("Registered category sync tasks successfully")
@@ -725,7 +749,9 @@ async def setup(hooks) -> None:
         await hooks.register_cron(
             name="ef.ozon.drafts.cleanup",
             cron="10 2 * * *",
-            task=cleanup_drafts_task
+            task=cleanup_drafts_task,
+            display_name="草稿清理",
+            description="清理超过30天未更新的商品草稿"
         )
 
         logger.info("Registered draft cleanup task successfully")
@@ -740,7 +766,9 @@ async def setup(hooks) -> None:
         await hooks.register_cron(
             name="ef.ozon.collection.poll_listing_status",
             cron="*/10 * * * *",
-            task=poll_listing_status_async
+            task=poll_listing_status_async,
+            display_name="采集记录上架状态轮询",
+            description="轮询检查采集商品在 OZON 的上架状态"
         )
 
         logger.info("Registered collection listing status polling task successfully")
@@ -781,14 +809,18 @@ async def setup(hooks) -> None:
         await hooks.register_cron(
             name="ef.ozon.cancellations.sync",
             cron="7 * * * *",
-            task=cancellations_sync_task
+            task=cancellations_sync_task,
+            display_name="取消申请同步",
+            description="同步 OZON 平台的订单取消申请"
         )
 
         # 注册退货申请同步任务（每小时第12分钟执行）
         await hooks.register_cron(
             name="ef.ozon.returns.sync",
             cron="12 * * * *",
-            task=returns_sync_task
+            task=returns_sync_task,
+            display_name="退货申请同步",
+            description="同步 OZON 平台的订单退货申请"
         )
 
         logger.info("Registered cancel and return sync tasks successfully")
@@ -816,7 +848,9 @@ async def setup(hooks) -> None:
         await hooks.register_cron(
             name="ef.ozon.stats.daily_aggregation",
             cron="0 14 * * *",
-            task=daily_stats_aggregation_task
+            task=daily_stats_aggregation_task,
+            display_name="每日统计聚合",
+            description="聚合计算 OZON 订单的每日统计数据"
         )
 
         logger.info("Registered daily stats aggregation task successfully")

@@ -253,100 +253,248 @@ def cleanup_results(self, older_than_days=1):
         }
 
 
-# Celery 任务名到 service_key 的映射
-TASK_TO_SERVICE_KEY_MAPPING = {
-    "ef.system.database_backup": "database_backup",
-    "ef.ozon.kuajing84.material_cost": "kuajing84_material_cost",
-    "ef.ozon.finance.sync": "ozon_finance_sync",
-    "ef.ozon.finance.transactions": "ozon_finance_transactions_daily",
-    "ef.ozon.orders.pull": "ozon_sync_incremental",
-    "ef.finance.rates.refresh": "exchange_rate_refresh",
-    "ef.ozon.promotions.sync": "ozon_promotion_sync",
-    # 注意：以下任务没有对应的 sync_service 记录，不需要统计
-    # ef.ozon.inventory.sync
-    # ef.ozon.promotions.health_check  （健康检查不需要统计）
-    # ef.ozon.category.sync
-    # ef.ozon.attributes.sync
-}
+# 存储任务 log_id 的上下文（任务开始时创建，结束时更新）
+_task_log_ids = {}
 
-# 缓存 SyncService 模型类（避免重复导入导致 SQLAlchemy 表重定义错误）
-_sync_service_model = None
+# 存储任务开始时间
+_task_start_times = {}
 
 
-def _update_service_stats(task_name: str, success: bool, task_id: str, error_message: str = None):
+def _record_task_start(task_name: str, task_id: str):
     """
-    更新同步服务统计信息（使用同步数据库操作）
+    记录任务开始（使用同步数据库操作）
 
     Args:
         task_name: Celery 任务名
-        success: 是否成功
         task_id: 任务ID
-        error_message: 错误信息（失败时）
+
+    Returns:
+        log_id，用于后续更新
     """
-    logger.debug(f"_update_service_stats called: task_name={task_name}, success={success}")
-
-    # 检查是否是需要统计的服务任务
-    service_key = TASK_TO_SERVICE_KEY_MAPPING.get(task_name)
-    if not service_key:
-        # 不是注册的服务任务，跳过统计
-        logger.debug(f"No service_key mapping for task {task_name}, skipping stats update")
-        return
-
-    logger.debug(f"Updating stats for service_key={service_key}")
+    import time
+    _task_start_times[task_id] = time.time()
 
     try:
-        from datetime import datetime, UTC
+        from datetime import datetime, timezone
         from sqlalchemy import create_engine, select
         from sqlalchemy.orm import sessionmaker
         from ef_core.config import get_settings
+        from plugins.ef.system.sync_service.models.sync_service import SyncService
+        from plugins.ef.system.sync_service.models.sync_service_log import SyncServiceLog
 
-        # 使用缓存的模型类
-        global _sync_service_model
-        if _sync_service_model is None:
-            from plugins.ef.system.sync_service.models.sync_service import SyncService
-            _sync_service_model = SyncService
-
-        SyncService = _sync_service_model
-
-        # 创建同步数据库引擎（适用于 gevent 环境）
         settings = get_settings()
-        sync_db_url = settings.database_url.replace('+asyncpg', '')  # 移除 asyncpg，使用 psycopg2
+        sync_db_url = settings.database_url.replace('+asyncpg', '')
         engine = create_engine(sync_db_url, pool_pre_ping=True, pool_recycle=3600)
         SessionLocal = sessionmaker(bind=engine)
 
         with SessionLocal() as db:
-            # 查询服务记录
-            stmt = select(SyncService).where(SyncService.service_key == service_key)
+            # 通过 celery_task_name 查找服务
+            stmt = select(SyncService).where(SyncService.celery_task_name == task_name)
             service = db.execute(stmt).scalar_one_or_none()
 
             if not service:
-                logger.warning(f"Service not found for task {task_name} (service_key: {service_key})")
-                return
+                logger.debug(f"Service not found for task: {task_name}")
+                return None
 
-            # 更新统计字段
-            service.run_count = (service.run_count or 0) + 1
-            service.last_run_at = datetime.now(UTC)
+            # 更新服务状态
+            service.last_run_at = datetime.now(timezone.utc)
+            service.last_run_status = "running"
 
-            if success:
-                service.success_count = (service.success_count or 0) + 1
-                service.last_run_status = "success"
-                service.last_run_message = "任务执行成功"
-            else:
-                service.error_count = (service.error_count or 0) + 1
-                service.last_run_status = "error"
-                service.last_run_message = error_message or "任务执行失败"
+            # 创建日志记录
+            log = SyncServiceLog(
+                service_key=service.service_key,
+                run_id=task_id,
+                started_at=datetime.now(timezone.utc),
+                status="running",
+            )
+            db.add(log)
+            db.commit()
+            db.refresh(log)
+
+            logger.debug(f"Task started: {task_name}, log_id={log.id}")
+            return log.id
+
+    except Exception as e:
+        logger.error(f"Failed to record task start for {task_name}: {e}", exc_info=True)
+        return None
+
+
+def _record_task_end(task_name: str, task_id: str, success: bool, error_message: str = None):
+    """
+    记录任务结束（使用同步数据库操作）
+
+    Args:
+        task_name: Celery 任务名
+        task_id: 任务ID
+        success: 是否成功
+        error_message: 错误信息（失败时）
+    """
+    import time
+
+    # 计算执行时间
+    start_time = _task_start_times.pop(task_id, None)
+    execution_time_ms = int((time.time() - start_time) * 1000) if start_time else 0
+
+    # 获取 log_id
+    log_id = _task_log_ids.pop(task_id, None)
+
+    try:
+        from datetime import datetime, timezone
+        from sqlalchemy import create_engine, select
+        from sqlalchemy.orm import sessionmaker
+        from ef_core.config import get_settings
+        from plugins.ef.system.sync_service.models.sync_service import SyncService
+        from plugins.ef.system.sync_service.models.sync_service_log import SyncServiceLog
+
+        settings = get_settings()
+        sync_db_url = settings.database_url.replace('+asyncpg', '')
+        engine = create_engine(sync_db_url, pool_pre_ping=True, pool_recycle=3600)
+        SessionLocal = sessionmaker(bind=engine)
+
+        with SessionLocal() as db:
+            # 更新日志记录
+            if log_id:
+                stmt = select(SyncServiceLog).where(SyncServiceLog.id == log_id)
+                log = db.execute(stmt).scalar_one_or_none()
+
+                if log:
+                    log.finished_at = datetime.now(timezone.utc)
+                    log.status = "success" if success else "failed"
+                    log.execution_time_ms = execution_time_ms
+                    if error_message:
+                        log.error_message = error_message[:2000]  # 截断过长的错误信息
+
+            # 更新服务统计
+            stmt = select(SyncService).where(SyncService.celery_task_name == task_name)
+            service = db.execute(stmt).scalar_one_or_none()
+
+            if service:
+                service.run_count = (service.run_count or 0) + 1
+                if success:
+                    service.success_count = (service.success_count or 0) + 1
+                    service.last_run_status = "success"
+                    service.last_run_message = f"执行成功，耗时 {execution_time_ms}ms"
+                else:
+                    service.error_count = (service.error_count or 0) + 1
+                    service.last_run_status = "failed"
+                    service.last_run_message = error_message[:500] if error_message else "执行失败"
+
+            db.commit()
+            logger.debug(f"Task ended: {task_name}, success={success}, time={execution_time_ms}ms")
+
+    except Exception as e:
+        logger.error(f"Failed to record task end for {task_name}: {e}", exc_info=True)
+
+
+def _sync_registry_to_database(registered_tasks: dict):
+    """
+    同步 TaskRegistry 到数据库
+
+    策略：
+    1. 遍历 registry 中的所有任务
+    2. 如果数据库中不存在该 celery_task_name，则创建
+    3. 如果存在但配置不同，更新（仅更新 source=code 的记录）
+    4. 标记数据库中存在但 registry 中不存在的任务为 is_deleted=True
+    """
+    try:
+        from sqlalchemy import create_engine, select
+        from sqlalchemy.orm import sessionmaker
+        from ef_core.config import get_settings
+        from plugins.ef.system.sync_service.models.sync_service import SyncService
+
+        settings = get_settings()
+        sync_db_url = settings.database_url.replace('+asyncpg', '')
+        engine = create_engine(sync_db_url, pool_pre_ping=True, pool_recycle=3600)
+        SessionLocal = sessionmaker(bind=engine)
+
+        created = 0
+        updated = 0
+        deleted = 0
+
+        with SessionLocal() as db:
+            # 获取所有现有服务（按 celery_task_name）
+            stmt = select(SyncService)
+            existing_services = {s.celery_task_name: s for s in db.execute(stmt).scalars().all() if s.celery_task_name}
+
+            # 获取所有现有 service_key
+            all_services = {s.service_key: s for s in db.execute(select(SyncService)).scalars().all()}
+
+            registered_task_names = set(registered_tasks.keys())
+
+            # 同步任务
+            for task_name, task_info in registered_tasks.items():
+                cron = task_info.get("cron", "")
+                plugin = task_info.get("plugin", "")
+                display_name = task_info.get("display_name") or task_name
+                description = task_info.get("description") or ""
+
+                # 生成 service_key（从任务名转换）
+                service_key = task_name.replace(".", "_")
+
+                if task_name in existing_services:
+                    # 已存在，检查是否需要更新
+                    service = existing_services[task_name]
+                    if service.source == "code":
+                        # 只更新代码来源的配置
+                        need_update = False
+                        if service.schedule_config != cron:
+                            service.schedule_config = cron
+                            need_update = True
+                        if service.service_name != display_name:
+                            service.service_name = display_name
+                            need_update = True
+                        if service.service_description != description:
+                            service.service_description = description
+                            need_update = True
+                        if service.is_deleted:
+                            service.is_deleted = False
+                            need_update = True
+
+                        if need_update:
+                            updated += 1
+                            logger.debug(f"Updated sync service: {task_name}")
+                elif service_key in all_services:
+                    # service_key 存在但没有 celery_task_name，更新它
+                    service = all_services[service_key]
+                    service.celery_task_name = task_name
+                    service.plugin_name = plugin
+                    service.source = "code"
+                    service.is_deleted = False
+                    if service.schedule_config != cron:
+                        service.schedule_config = cron
+                    updated += 1
+                    logger.debug(f"Linked existing service {service_key} to {task_name}")
+                else:
+                    # 创建新服务
+                    new_service = SyncService(
+                        service_key=service_key,
+                        service_name=display_name,
+                        service_description=description,
+                        service_type="cron",
+                        schedule_config=cron,
+                        is_enabled=True,
+                        celery_task_name=task_name,
+                        plugin_name=plugin,
+                        source="code",
+                        is_deleted=False,
+                    )
+                    db.add(new_service)
+                    created += 1
+                    logger.debug(f"Created sync service: {task_name}")
+
+            # 标记已删除的任务
+            for task_name, service in existing_services.items():
+                if task_name not in registered_task_names and service.source == "code" and not service.is_deleted:
+                    service.is_deleted = True
+                    deleted += 1
+                    logger.debug(f"Marked sync service as deleted: {task_name}")
 
             db.commit()
 
-            logger.info(
-                f"Updated stats for service {service_key}: "
-                f"run_count={service.run_count}, "
-                f"success_count={service.success_count}, "
-                f"error_count={service.error_count}"
-            )
+        logger.info(f"📊 Synced registry to database: created={created}, updated={updated}, deleted={deleted}")
 
     except Exception as e:
-        logger.error(f"Failed to update service stats for {task_name}: {e}", exc_info=True)
+        logger.error(f"Failed to sync registry to database: {e}", exc_info=True)
 
 
 # Celery 信号处理器（注意：必须在模块级别定义，Worker 启动时会自动注册）
@@ -356,6 +504,14 @@ def task_prerun_handler(sender=None, task_id=None, task=None, args=None, kwargs=
     logger.debug(f"Task prerun: {task.name}, task_id={task_id}")
     logger.info(f"Task starting: {task.name}", task_id=task_id)
 
+    # 记录任务开始到 sync_service_logs
+    try:
+        log_id = _record_task_start(task.name, task_id)
+        if log_id:
+            _task_log_ids[task_id] = log_id
+    except Exception as e:
+        logger.error(f"Failed to record task start: {e}", exc_info=True)
+
 
 @signals.task_postrun.connect
 def task_postrun_handler(sender=None, task_id=None, task=None, args=None, kwargs=None, retval=None, state=None, **kwds):
@@ -363,11 +519,11 @@ def task_postrun_handler(sender=None, task_id=None, task=None, args=None, kwargs
     logger.debug(f"Task postrun: {task.name}, task_id={task_id}, state={state}")
     logger.info(f"Task completed: {task.name}", task_id=task_id, state=state)
 
-    # 更新同步服务统计（仅针对注册的服务任务）
+    # 记录任务结束到 sync_service_logs
     try:
-        _update_service_stats(task.name, success=True, task_id=task_id)
+        _record_task_end(task.name, task_id, success=True)
     except Exception as e:
-        logger.error(f"Exception in _update_service_stats: {e}", exc_info=True)
+        logger.error(f"Failed to record task end: {e}", exc_info=True)
 
 
 @signals.task_failure.connect
@@ -375,8 +531,11 @@ def task_failure_handler(sender=None, task_id=None, exception=None, traceback=No
     """任务失败的处理"""
     logger.error(f"Task failed: {sender.name}", task_id=task_id, exception=str(exception))
 
-    # 更新同步服务统计（仅针对注册的服务任务）
-    _update_service_stats(sender.name, success=False, task_id=task_id, error_message=str(exception))
+    # 记录任务失败到 sync_service_logs
+    try:
+        _record_task_end(sender.name, task_id, success=False, error_message=str(exception))
+    except Exception as e:
+        logger.error(f"Failed to record task failure: {e}", exc_info=True)
 
 
 @signals.task_retry.connect
@@ -454,6 +613,9 @@ def _initialize_plugins_for_celery():
         # 输出注册的任务列表（便于调试）
         for task_name in task_registry.registered_tasks.keys():
             logger.info(f"  📋 Registered task: {task_name}")
+
+        # 同步任务注册表到数据库
+        _sync_registry_to_database(task_registry.registered_tasks)
 
     except Exception as e:
         logger.error(f"Failed to initialize plugins for Celery: {e}", exc_info=True)

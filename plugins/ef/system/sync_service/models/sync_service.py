@@ -24,6 +24,12 @@ class SyncService(Base):
     service_name = Column(String(200), nullable=False, comment="服务显示名称")
     service_description = Column(Text, comment="服务功能说明")
 
+    # Celery 集成字段
+    celery_task_name = Column(String(200), comment="Celery任务名（如 ef.ozon.orders.pull）")
+    plugin_name = Column(String(100), comment="所属插件标识")
+    source = Column(String(20), default="code", comment="配置来源: code=代码注册 | manual=手动添加")
+    is_deleted = Column(Boolean, default=False, comment="是否已从代码中移除（软删除）")
+
     # 调度配置
     service_type = Column(String(20), nullable=False, default="interval", comment="调度类型: cron定时 | interval周期")
     schedule_config = Column(String(200), nullable=False, comment="调度配置：cron表达式或间隔秒数")
@@ -49,5 +55,6 @@ class SyncService(Base):
     __table_args__ = (
         Index("idx_sync_services_enabled", "is_enabled", "service_type"),
         Index("idx_sync_services_last_run", "last_run_at"),
+        Index("idx_sync_services_celery_task", "celery_task_name"),
         {'extend_existing': True}  # 允许在同一进程中多次导入模型（Celery worker需要）
     )

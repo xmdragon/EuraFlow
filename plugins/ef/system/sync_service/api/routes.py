@@ -1,18 +1,19 @@
 """
-同步服务管理API路由（只读+手动触发）
+同步服务管理API路由
 
 功能：
 1. GET /handlers - 列出所有可用Handler
 2. GET /sync-services - 查看所有同步服务
-3. GET /{id}/logs - 查看服务日志
-4. GET /{id}/stats - 查看服务统计
-5. POST /{id}/trigger - 手动触发服务（调用 Celery）
-6. DELETE /{id}/logs - 清空服务日志
+3. PUT /{id} - 更新服务配置（cron表达式、启用/禁用）
+4. GET /{id}/logs - 查看服务日志
+5. GET /{id}/stats - 查看服务统计
+6. POST /{id}/trigger - 手动触发服务（调用 Celery）
+7. DELETE /{id}/logs - 清空服务日志
 
 注意：
 - 定时任务统一由 Celery Beat 调度（在插件 setup() 中注册）
-- 本模块不再提供添加/编辑/删除/启用/禁用功能
-- 修改任务配置需要修改插件代码并重启服务
+- 配置存储在数据库中，支持动态修改
+- celery_task_name 字段用于关联 Celery 任务
 """
 import logging
 from datetime import datetime
@@ -64,6 +65,16 @@ class SyncServiceResponse(BaseModel):
     config_json: Optional[dict]
     created_at: str
     updated_at: str
+    # Celery 集成字段
+    celery_task_name: Optional[str] = None
+    plugin_name: Optional[str] = None
+    source: Optional[str] = None
+
+
+class UpdateSyncServiceRequest(BaseModel):
+    """更新同步服务请求DTO"""
+    schedule_config: Optional[str] = Field(None, description="Cron表达式")
+    is_enabled: Optional[bool] = Field(None, description="是否启用")
 
 
 class SyncServiceLogResponse(BaseModel):
@@ -117,10 +128,15 @@ async def list_handlers():
 @router.get("", response_model=List[SyncServiceResponse])
 async def list_sync_services(
     is_enabled: Optional[bool] = Query(None, description="筛选启用状态"),
+    include_deleted: bool = Query(False, description="是否包含已删除的服务"),
     db: AsyncSession = Depends(get_async_session)
 ):
-    """获取同步服务列表（只读）"""
+    """获取同步服务列表"""
     query = select(SyncService)
+
+    # 默认不显示已删除的服务
+    if not include_deleted:
+        query = query.where(SyncService.is_deleted == False)
 
     if is_enabled is not None:
         query = query.where(SyncService.is_enabled == is_enabled)
@@ -148,10 +164,70 @@ async def list_sync_services(
             error_count=service.error_count,
             config_json=service.config_json,
             created_at=service.created_at.isoformat() if service.created_at else "",
-            updated_at=service.updated_at.isoformat() if service.updated_at else ""
+            updated_at=service.updated_at.isoformat() if service.updated_at else "",
+            celery_task_name=service.celery_task_name,
+            plugin_name=service.plugin_name,
+            source=service.source
         )
         for service in services
     ]
+
+
+@router.put("/{service_id}")
+async def update_sync_service(
+    service_id: int,
+    request: UpdateSyncServiceRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
+):
+    """
+    更新同步服务配置（需要操作员权限）
+
+    支持修改：
+    - schedule_config: Cron 表达式
+    - is_enabled: 启用/禁用
+    """
+    from croniter import croniter
+
+    # 查找服务
+    result = await db.execute(
+        select(SyncService).where(SyncService.id == service_id)
+    )
+    service = result.scalar_one_or_none()
+
+    if not service:
+        raise HTTPException(status_code=404, detail=f"Service {service_id} not found")
+
+    # 更新字段
+    if request.schedule_config is not None:
+        # 验证 cron 表达式
+        try:
+            croniter(request.schedule_config)
+        except (ValueError, TypeError):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid cron expression: {request.schedule_config}"
+            )
+        service.schedule_config = request.schedule_config
+        logger.info(f"Updated schedule_config for {service.service_key}: {request.schedule_config}")
+
+    if request.is_enabled is not None:
+        service.is_enabled = request.is_enabled
+        logger.info(f"Updated is_enabled for {service.service_key}: {request.is_enabled}")
+
+    await db.commit()
+    await db.refresh(service)
+
+    return {
+        "ok": True,
+        "message": f"Service {service.service_key} updated successfully",
+        "data": {
+            "id": service.id,
+            "service_key": service.service_key,
+            "schedule_config": service.schedule_config,
+            "is_enabled": service.is_enabled
+        }
+    }
 
 
 @router.post("/{service_id}/trigger")
@@ -163,7 +239,7 @@ async def trigger_sync_service(
     """
     手动触发同步服务（需要操作员权限）
 
-    通过 Celery 任务队列执行，不依赖 APScheduler
+    通过 Celery 任务队列执行
     """
     # 查找服务
     result = await db.execute(
@@ -174,30 +250,14 @@ async def trigger_sync_service(
     if not service:
         raise HTTPException(status_code=404, detail=f"Service {service_id} not found")
 
-    # 从 handler_registry 获取对应的 Celery Beat 任务名
-    # 任务名格式：ef.{plugin}.{service_key}
-    # 例如：ozon_sync_incremental -> ef.ozon.sync_incremental
-    service_key = service.service_key
-
-    # 尝试映射到 Celery Beat 任务名
-    task_name_mapping = {
-        "database_backup": "ef.system.database_backup",
-        "exchange_rate_refresh": "ef.core.exchange_rate_refresh",
-        "kuajing84_material_cost": "ef.ozon.kuajing84.material_cost",
-        "ozon_finance_sync": "ef.ozon.finance.sync",
-        "ozon_sync_incremental": "ef.ozon.orders.pull",  # 统一使用订单拉取任务
-        "ozon_finance_transactions_daily": "ef.ozon.finance.transactions",
-        "ozon_cancellations_sync": "ef.ozon.cancellations.sync",
-        "ozon_returns_sync": "ef.ozon.returns.sync",
-        # 注意：ozon_scheduled_category_sync 和 ozon_scheduled_attributes_sync 已移除（未实现）
-    }
-
-    task_name = task_name_mapping.get(service_key)
+    # 使用 celery_task_name 字段
+    task_name = service.celery_task_name
 
     if not task_name:
         raise HTTPException(
             status_code=400,
-            detail=f"No Celery task found for service: {service_key}. Please check task_name_mapping in routes.py"
+            detail=f"No Celery task linked for service: {service.service_key}. "
+                   f"This service may not be registered via code."
         )
 
     # 触发 Celery 任务
@@ -208,7 +268,7 @@ async def trigger_sync_service(
             **(service.config_json or {})
         )
 
-        logger.info(f"Service triggered manually via Celery: {service_key} -> {task_name}, task_id={task_id}")
+        logger.info(f"Service triggered manually via Celery: {service.service_key} -> {task_name}, task_id={task_id}")
 
         return {
             "ok": True,

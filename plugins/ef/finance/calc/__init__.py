@@ -58,26 +58,15 @@ async def setup(hooks: Any) -> None:
     """
     logger.info(f"Finance Calc Plugin v{__version__} initialized")
 
-    # 注册定时任务：定期更新费率缓存（使用数据库配置）
-    try:
-        from ef_core.database import get_db_manager
-
-        db_manager = get_db_manager()
-        async with db_manager.get_session() as db:
-            cron, enabled = await _get_task_schedule(db, "exchange_rate_refresh", "18 * * * *")
-            if enabled and cron:
-                await hooks.register_cron(
-                    name="ef.finance.rates.refresh",
-                    cron=cron,
-                    task=refresh_rates_cache
-                )
-    except Exception as e:
-        logger.warning(f"Failed to register rates refresh task: {e}, using default")
-        await hooks.register_cron(
-            name="ef.finance.rates.refresh",
-            cron="18 * * * *",
-            task=refresh_rates_cache
-        )
+    # 注册定时任务：定期更新费率缓存
+    # 注意：不再在初始化时读取数据库配置，使用固定的默认 cron
+    await hooks.register_cron(
+        name="ef.finance.rates.refresh",
+        cron="18 * * * *",
+        task=refresh_rates_cache,
+        display_name="汇率刷新",
+        description="定期刷新货币汇率缓存"
+    )
 
 
 async def refresh_rates_cache(**kwargs) -> None:
