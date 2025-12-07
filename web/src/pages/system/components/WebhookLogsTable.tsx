@@ -255,7 +255,7 @@ const WebhookLogsTable: React.FC = () => {
       title: '时间',
       dataIndex: 'created_at',
       key: 'created_at',
-      minWidth: 180,
+      width: 165,
       render: (text: string) => formatDateTime(text, 'YYYY-MM-DD HH:mm:ss'),
     },
     {
@@ -281,6 +281,7 @@ const WebhookLogsTable: React.FC = () => {
     {
       title: '关联实体',
       key: 'entity',
+      width: 220,
       render: (_: unknown, record: WebhookLog) => {
         if (record.entity_type && record.entity_id) {
           // 如果是 posting 类型，优先显示 posting_number，带复制图标
@@ -309,18 +310,18 @@ const WebhookLogsTable: React.FC = () => {
       },
     },
     {
-      title: '重试次数',
+      title: '重试',
       dataIndex: 'retry_count',
       key: 'retry_count',
-      minWidth: 100,
+      width: 60,
       render: (count: number) => (count > 0 ? <Tag color="warning">{count}</Tag> : '-'),
     },
     {
-      title: '耗时(ms)',
+      title: '耗时',
       dataIndex: 'processing_duration_ms',
       key: 'processing_duration_ms',
-      minWidth: 100,
-      render: (ms: number | null) => ms || '-',
+      width: 70,
+      render: (ms: number | null) => (ms ? `${ms}ms` : '-'),
     },
     {
       title: '错误信息',
