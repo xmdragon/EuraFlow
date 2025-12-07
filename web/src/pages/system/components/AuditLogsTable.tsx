@@ -191,46 +191,35 @@ const AuditLogsTable: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      minWidth: 200,
+      width: 140,
       render: (_: unknown, record: AuditLog) => (
         <Space size="small">
           {getModuleTag(record.module)}
           {getActionTag(record.action)}
-          {record.action_display && (
-            <Text type="secondary">({record.action_display})</Text>
-          )}
         </Space>
       ),
+    },
+    {
+      title: '操作说明',
+      dataIndex: 'action_display',
+      key: 'action_display',
+      width: 160,
+      ellipsis: true,
+      render: (text: string | null) => text || <Text type="secondary">-</Text>,
     },
     {
       title: '表名',
       dataIndex: 'table_name',
       key: 'table_name',
-      minWidth: 150,
+      width: 150,
       render: (text: string) => <Text code>{text}</Text>,
     },
     {
       title: '货件编号',
       dataIndex: 'record_id',
       key: 'record_id',
-      minWidth: 150,
+      width: 150,
       ellipsis: true,
-    },
-    {
-      title: '变更详情',
-      dataIndex: 'changes',
-      key: 'changes',
-      minWidth: 200,
-      ellipsis: true,
-      render: (changes: Record<string, unknown> | null) => {
-        if (!changes) return <Text type="secondary">-</Text>;
-        const keys = Object.keys(changes);
-        return (
-          <Text type="secondary">
-            {keys.length > 0 ? `${keys[0]} 等 ${keys.length} 个字段` : '无变更'}
-          </Text>
-        );
-      },
     },
     {
       title: 'IP地址',
@@ -313,12 +302,12 @@ const AuditLogsTable: React.FC = () => {
           <Input
             placeholder="请输入货件编号"
             allowClear
-            style={{ width: 200 }}
+            className={styles.recordIdInput}
           />
         </Form.Item>
 
         <Form.Item name="date_range" label="时间范围">
-          <RangePicker showTime />
+          <RangePicker />
         </Form.Item>
 
         <Form.Item>
