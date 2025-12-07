@@ -1546,19 +1546,6 @@ const PackingShipment: React.FC = () => {
                 </Space>
               )}
 
-              {/* 批量打印按钮 - 只在"已打印"标签页显示 */}
-              {canOperate &&
-                operationStatus === 'printed' && (
-                  <Button
-                    type="primary"
-                    icon={<PrinterOutlined />}
-                    disabled={selectedPostingNumbers.length === 0}
-                    loading={isPrinting}
-                    onClick={handleBatchPrint}
-                  >
-                    打印标签 ({selectedPostingNumbers.length}/20)
-                  </Button>
-                )}
             </div>
 
             {/* 订单卡片网格 */}
