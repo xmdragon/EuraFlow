@@ -13,7 +13,7 @@ from ef_core.database import get_async_session
 from ef_core.models.users import User
 from ef_core.api.auth import get_current_user_flexible
 from ef_core.middleware.auth import require_role
-from ..models import OzonShop, OzonProduct, OzonOrder
+from ..models import OzonShop, OzonProduct, OzonPosting
 from ..utils.datetime_utils import utcnow
 
 router = APIRouter(tags=["ozon-shops"])
@@ -113,14 +113,14 @@ async def get_shops(
     products_result = await db.execute(products_stmt)
     products_count_map = {row.shop_id: row.count for row in products_result}
 
-    # 获取所有店铺的订单数量
-    orders_stmt = (
-        select(OzonOrder.shop_id, func.count(OzonOrder.id).label('count'))
-        .where(OzonOrder.shop_id.in_(shop_ids))
-        .group_by(OzonOrder.shop_id)
+    # 获取所有店铺的订单数量（使用 OzonPosting 统计，不查 OzonOrder）
+    postings_stmt = (
+        select(OzonPosting.shop_id, func.count(OzonPosting.id).label('count'))
+        .where(OzonPosting.shop_id.in_(shop_ids))
+        .group_by(OzonPosting.shop_id)
     )
-    orders_result = await db.execute(orders_stmt)
-    orders_count_map = {row.shop_id: row.count for row in orders_result}
+    postings_result = await db.execute(postings_stmt)
+    orders_count_map = {row.shop_id: row.count for row in postings_result}
 
     # 组装响应数据
     shops_data = []

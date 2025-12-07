@@ -195,7 +195,7 @@ async def get_statistics(
     - admin: 可以访问所有店铺的统计
     - operator/viewer: 只能访问已授权店铺的统计
     """
-    from ..models import OzonShop, OzonProduct, OzonOrder, OzonPosting
+    from ..models import OzonShop, OzonProduct, OzonPosting
     from sqlalchemy import select, func, or_
     from .permissions import filter_by_shop_permission
 
@@ -221,12 +221,10 @@ async def get_statistics(
     try:
         # 构建查询条件
         product_filter = []
-        order_filter = []
         posting_filter = []
 
         if shop_id:
             product_filter.append(OzonProduct.shop_id == shop_id)
-            order_filter.append(OzonOrder.shop_id == shop_id)
             posting_filter.append(OzonPosting.shop_id == shop_id)
 
         # 商品统计 - 合并为单次查询（优化：8个COUNT合并为1个）
