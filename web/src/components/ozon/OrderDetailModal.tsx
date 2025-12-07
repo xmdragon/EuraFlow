@@ -558,9 +558,6 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                         <Descriptions.Item label="状态">
                           {statusConfig[posting.status]?.text || posting.status}
                         </Descriptions.Item>
-                        <Descriptions.Item label="仓库">
-                          {posting.warehouse_name || '-'}
-                        </Descriptions.Item>
                         <Descriptions.Item label="订单类型">
                           {localOrder.order_type || 'FBS'}
                         </Descriptions.Item>
