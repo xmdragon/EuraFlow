@@ -228,7 +228,7 @@ class PostingOperationsService:
         # 3. 重新计算利润（如果进货价格或打包费用有变化）
         if purchase_price is not None or material_cost is not None:
             from .profit_calculator import calculate_and_update_profit
-            await calculate_and_update_profit(self.db, posting)
+            calculate_and_update_profit(posting)
 
         # 4. 提交数据库事务
         await self.db.commit()
@@ -566,7 +566,7 @@ class PostingOperationsService:
 
             # 10. 重新计算利润
             from .profit_calculator import calculate_and_update_profit
-            await calculate_and_update_profit(self.db, posting)
+            calculate_and_update_profit(posting)
 
             # 11. 提交数据库事务
             await self.db.commit()
@@ -687,7 +687,7 @@ class PostingOperationsService:
 
             # 8. 重新计算利润
             from .profit_calculator import calculate_and_update_profit
-            await calculate_and_update_profit(self.db, posting)
+            calculate_and_update_profit(posting)
 
             # 9. 提交数据库事务
             await self.db.commit()
