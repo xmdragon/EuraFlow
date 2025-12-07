@@ -741,18 +741,21 @@ const OrderReport: React.FC = () => {
             </Col>
             <Col>
               <Space>
-                <span>物流单号：</span>
+                <span>货件编号：</span>
                 <Input
                   value={postingNumber}
                   onChange={(e) => setPostingNumber(e.target.value)}
-                  placeholder="输入物流单号"
+                  placeholder="输入货件编号"
                   style={{ width: 200 }}
                   allowClear
-                  onPressEnter={() => {
+                  onPressEnter={async () => {
                     setPage(1);
-                    setAllLoadedData([]);
                     if (activeTab === "details") {
-                      refetchPostings();
+                      const result = await refetchPostings();
+                      if (result.data?.data) {
+                        setAllLoadedData(result.data.data);
+                        setHasMore(1 < (result.data.total_pages || 1));
+                      }
                     }
                   }}
                 />
@@ -761,11 +764,15 @@ const OrderReport: React.FC = () => {
             <Col>
               <Button
                 type="primary"
-                onClick={() => {
+                onClick={async () => {
                   setPage(1);
-                  setAllLoadedData([]);
                   if (activeTab === "details") {
-                    refetchPostings();
+                    // 使用 await refetch 确保数据更新后再设置
+                    const result = await refetchPostings();
+                    if (result.data?.data) {
+                      setAllLoadedData(result.data.data);
+                      setHasMore(1 < (result.data.total_pages || 1));
+                    }
                   } else {
                     refetchSummary();
                   }
