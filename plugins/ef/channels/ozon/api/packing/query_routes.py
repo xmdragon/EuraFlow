@@ -736,7 +736,16 @@ async def search_posting_by_tracking(
                 postings = []
 
         if not postings:
-            raise HTTPException(status_code=404, detail=f"未找到单号为 {tracking_number} 的货件")
+            # 未找到时返回空列表，不抛出404错误
+            logger.info(f"未找到单号为 {tracking_number} 的货件")
+            return {
+                "data": [],
+                "total": 0,
+                "offset": offset,
+                "limit": limit,
+                "has_more": False,
+                "offer_id_images": {}
+            }
 
         # 收集所有offer_id（用于批量查询图片）
         all_offer_ids = set()
