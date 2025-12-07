@@ -317,6 +317,9 @@ class OzonPosting(Base):
             'label_printed_at': self.label_printed_at.isoformat() if self.label_printed_at else None,
             'label_print_count': self.label_print_count or 0,
 
+            # 包装重量
+            'package_weight': self.package_weight,
+
             # 国内单号
             'domestic_tracking_numbers': self.get_domestic_tracking_numbers(),
         }
