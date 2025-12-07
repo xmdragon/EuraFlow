@@ -16,14 +16,8 @@ class Kuajing84SyncLog(Base):
     __tablename__ = "kuajing84_sync_logs"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, comment="主键ID")
-    ozon_order_id: Mapped[int] = mapped_column(
-        BigInteger,
-        ForeignKey("ozon_orders.id", ondelete="CASCADE"),
-        nullable=False,
-        comment="OZON订单ID"
-    )
     shop_id: Mapped[int] = mapped_column(Integer, nullable=False, comment="店铺ID")
-    order_number: Mapped[str] = mapped_column(String(100), nullable=False, comment="订单号")
+    order_number: Mapped[str] = mapped_column(String(100), nullable=False, comment="订单号(posting_number)")
     logistics_order: Mapped[str] = mapped_column(String(100), nullable=False, comment="国内物流单号")
     kuajing84_oid: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, comment="跨境巴士订单OID")
     sync_type: Mapped[str] = mapped_column(
@@ -63,11 +57,7 @@ class Kuajing84SyncLog(Base):
         comment="同步成功时间"
     )
 
-    # 关系
-    ozon_order = relationship("OzonOrder", back_populates="kuajing84_sync_logs")
-
     __table_args__ = (
-        Index("ix_kuajing84_sync_logs_order_id", "ozon_order_id"),
         Index("ix_kuajing84_sync_logs_status", "shop_id", "sync_status"),
         Index("ix_kuajing84_sync_logs_order_number", "order_number"),
         Index("ix_kuajing84_sync_logs_posting_id", "posting_id"),

@@ -15,10 +15,7 @@ from ef_core.utils.logger import get_logger
 from ef_core.utils.errors import ValidationError
 
 from ..api.client import OzonAPIClient
-from ..models.orders import (
-    OzonOrder, OzonPosting, OzonOrderItem,
-    OzonShipmentPackage, OzonRefund
-)
+from ..models.orders import OzonPosting, OzonShipmentPackage, OzonRefund
 from ..models.products import OzonProduct
 from ..models.sync import OzonSyncCheckpoint, OzonSyncLog, OzonOutboxEvent
 

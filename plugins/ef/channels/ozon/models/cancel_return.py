@@ -32,7 +32,6 @@ class OzonCancellation(Base):
 
     # 关联关系
     posting_id = Column(BigInteger, ForeignKey("ozon_postings.id"), comment="关联的货件ID")
-    order_id = Column(BigInteger, ForeignKey("ozon_orders.id"), comment="关联的订单ID")
 
     # OZON 字段
     cancellation_id = Column(BigInteger, nullable=False, unique=True, comment="OZON取消申请ID")
@@ -66,7 +65,6 @@ class OzonCancellation(Base):
 
     # 关系
     posting = relationship("OzonPosting", foreign_keys=[posting_id])
-    order = relationship("OzonOrder", foreign_keys=[order_id])
 
     __table_args__ = (
         UniqueConstraint("shop_id", "cancellation_id", name="uq_ozon_cancellations_shop_id"),
@@ -88,7 +86,6 @@ class OzonReturn(Base):
 
     # 关联关系
     posting_id = Column(BigInteger, ForeignKey("ozon_postings.id"), comment="关联的货件ID")
-    order_id = Column(BigInteger, ForeignKey("ozon_orders.id"), comment="关联的订单ID")
 
     # OZON 字段
     return_id = Column(BigInteger, nullable=False, unique=True, comment="OZON退货申请ID")
@@ -138,7 +135,6 @@ class OzonReturn(Base):
 
     # 关系
     posting = relationship("OzonPosting", foreign_keys=[posting_id])
-    order = relationship("OzonOrder", foreign_keys=[order_id])
 
     __table_args__ = (
         UniqueConstraint("shop_id", "return_id", name="uq_ozon_returns_shop_id"),

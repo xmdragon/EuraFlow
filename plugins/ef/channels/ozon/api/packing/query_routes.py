@@ -14,7 +14,7 @@ import logging
 from ef_core.database import get_async_session
 from ef_core.models.users import User
 from ef_core.api.auth import get_current_user_flexible
-from ...models import OzonOrder, OzonPosting, OzonProduct, OzonShop, OzonDomesticTracking, OzonShipmentPackage
+from ...models import OzonPosting, OzonProduct, OzonShop, OzonDomesticTracking, OzonShipmentPackage
 from ...utils.datetime_utils import utcnow
 from ..permissions import filter_by_shop_permission, build_shop_filter_condition
 

@@ -11,7 +11,7 @@ import asyncio
 from sqlalchemy import select, delete, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models.orders import OzonPosting, OzonOrder, OzonDomesticTracking
+from ..models.orders import OzonPosting, OzonDomesticTracking
 from ..models.ozon_shops import OzonShop
 from ..api.client import OzonAPIClient
 from .kuajing84_sync import create_kuajing84_sync_service
@@ -348,23 +348,10 @@ class PostingOperationsService:
         # 8. 根据参数决定是否同步到跨境巴士
         sync_log_id = None
         if sync_to_kuajing84:
-            # 查询关联的订单（用于跨境巴士同步）
-            order_result = await self.db.execute(
-                select(OzonOrder).where(OzonOrder.id == posting.order_id)
-            )
-            order = order_result.scalar_one_or_none()
-
-            if not order:
-                return {
-                    "success": False,
-                    "message": f"订单不存在: {posting.order_id}"
-                }
-
             # 创建跨境巴士同步日志（异步模式）
             from ..models.kuajing84 import Kuajing84SyncLog
             sync_log = Kuajing84SyncLog(
-                ozon_order_id=order.id,
-                shop_id=order.shop_id,
+                shop_id=posting.shop_id,
                 order_number=posting_number,
                 logistics_order=unique_numbers[0],  # 使用第一个单号
                 sync_type="submit_tracking",
@@ -793,26 +780,13 @@ class PostingOperationsService:
                 }
             }
 
-        # 3. 查询关联的订单
-        order_result = await self.db.execute(
-            select(OzonOrder).where(OzonOrder.id == posting.order_id)
-        )
-        order = order_result.scalar_one_or_none()
-
-        if not order:
-            return {
-                "success": False,
-                "message": f"订单不存在: {posting.order_id}"
-            }
-
-        # 4. 根据参数决定是否同步到跨境巴士
+        # 3. 根据参数决定是否同步到跨境巴士
         sync_log_id = None
         if sync_to_kuajing84:
             # 创建跨境巴士同步日志（异步模式）
             from ..models.kuajing84 import Kuajing84SyncLog
             sync_log = Kuajing84SyncLog(
-                ozon_order_id=order.id,
-                shop_id=order.shop_id,
+                shop_id=posting.shop_id,
                 order_number=posting_number,
                 logistics_order="",  # 废弃操作不需要物流单号
                 sync_type="discard_order",
@@ -905,23 +879,30 @@ class PostingOperationsService:
         """
         from ef_core.models.inventory import Inventory
         from ef_core.services.audit_service import AuditService
-        from ..models.orders import OzonOrderItem
 
-        # 1. 查询订单商品
-        items_query = select(OzonOrderItem).where(
-            OzonOrderItem.order_id == posting.order_id
-        )
-        items_result = await self.db.execute(items_query)
-        items = items_result.scalars().all()
+        # 1. 从 raw_payload 获取商品列表
+        if not posting.raw_payload or "products" not in posting.raw_payload:
+            logger.warning(f"无法获取商品列表，跳过库存扣减: posting_number={posting.posting_number}")
+            return
+
+        items = posting.raw_payload.get("products", [])
 
         # 2. 对每个商品扣减库存
         for item in items:
+            offer_id = item.get("offer_id")
+            quantity = item.get("quantity", 1)
+            product_name = item.get("name", "未知商品")
+
+            if not offer_id:
+                logger.warning(f"商品缺少 offer_id，跳过扣减: posting_number={posting.posting_number}")
+                continue
+
             # 先查询商品获取 ozon_sku
             from ..models.products import OzonProduct
             product_query = select(OzonProduct).where(
                 and_(
                     OzonProduct.shop_id == posting.shop_id,
-                    OzonProduct.offer_id == item.offer_id
+                    OzonProduct.offer_id == offer_id
                 )
             )
             product_result = await self.db.execute(product_query)
@@ -930,7 +911,7 @@ class PostingOperationsService:
             if not product or not product.ozon_sku:
                 logger.warning(
                     f"商品不存在或无ozon_sku，跳过扣减: posting_number={posting.posting_number}, "
-                    f"offer_id={item.offer_id}"
+                    f"offer_id={offer_id}"
                 )
                 continue
 
@@ -955,7 +936,7 @@ class PostingOperationsService:
             old_quantity = inventory.qty_available
 
             # 扣减库存（允许扣减到0，不允许负数）
-            new_quantity = max(0, old_quantity - item.quantity)
+            new_quantity = max(0, old_quantity - quantity)
             actual_deduct = old_quantity - new_quantity
 
             # 如果库存扣减到0，删除记录；否则更新数量
@@ -984,21 +965,21 @@ class PostingOperationsService:
                     },
                     "reason": "订单备货",
                     "posting_number": posting.posting_number,
-                    "deduct_requested": item.quantity,
+                    "deduct_requested": quantity,
                     "deduct_actual": actual_deduct,
                     "deleted": new_quantity == 0
                 },
                 ip_address=ip_address,
                 user_agent=user_agent,
                 request_id=request_id,
-                notes=f"订单 {posting.posting_number} 使用库存备货（商品：{item.name}）"
+                notes=f"订单 {posting.posting_number} 使用库存备货（商品：{product_name}）"
             )
 
             # 如果库存不足，记录警告
-            if actual_deduct < item.quantity:
+            if actual_deduct < quantity:
                 logger.warning(
                     f"库存不足：posting_number={posting.posting_number}, "
-                    f"ozon_sku={product.ozon_sku}, 需要={item.quantity}, "
+                    f"ozon_sku={product.ozon_sku}, 需要={quantity}, "
                     f"实际扣减={actual_deduct}, 剩余库存=0"
                 )
 

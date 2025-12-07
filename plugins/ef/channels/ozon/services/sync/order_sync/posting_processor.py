@@ -10,7 +10,7 @@ import logging
 from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ....models import OzonOrder, OzonPosting, OzonShipmentPackage, OzonProduct, OzonShop
+from ....models import OzonPosting, OzonShipmentPackage, OzonProduct, OzonShop
 from ....api.client import OzonAPIClient
 from ....utils.datetime_utils import parse_datetime, utcnow
 
@@ -23,25 +23,25 @@ class PostingProcessor:
     async def sync_posting(
         self,
         db: AsyncSession,
-        order: OzonOrder,
         posting_data: Dict[str, Any],
-        shop_id: int
+        shop_id: int,
+        ozon_order_id: str = ""
     ) -> Optional[OzonPosting]:
         """
         同步订单的 posting 信息
 
         Args:
             db: 数据库会话
-            order: 订单对象
             posting_data: OZON API 返回的 posting 数据
             shop_id: 店铺ID
+            ozon_order_id: OZON 订单 ID（仅用于日志）
 
         Returns:
             OzonPosting 对象
         """
         posting_number = posting_data.get("posting_number")
         if not posting_number:
-            logger.warning(f"Posting without posting_number for order {order.order_id}")
+            logger.warning(f"Posting without posting_number for order {ozon_order_id}")
             return None
 
         # 查找或创建 Posting
@@ -56,7 +56,6 @@ class PostingProcessor:
 
         if not posting:
             posting = OzonPosting(
-                order_id=order.id,
                 shop_id=shop_id,
                 posting_number=posting_number,
                 ozon_posting_number=posting_data.get("posting_number"),
@@ -97,10 +96,10 @@ class PostingProcessor:
         )
 
         logger.info(
-            f"Synced posting {posting_number} for order {order.order_id}",
+            f"Synced posting {posting_number} for order {ozon_order_id}",
             extra={
                 "posting_number": posting_number,
-                "order_id": order.order_id,
+                "ozon_order_id": ozon_order_id,
                 "status": posting.status,
                 "operation_status": posting.operation_status
             }

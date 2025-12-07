@@ -2,7 +2,6 @@
 Ozon 订单相关数据模型
 """
 from datetime import datetime, timezone
-from decimal import Decimal
 from typing import Optional, List
 
 from sqlalchemy import (
@@ -18,97 +17,6 @@ from ef_core.database import Base
 def utcnow():
     """返回UTC时区的当前时间"""
     return datetime.now(timezone.utc)
-
-
-class OzonOrder(Base):
-    """Ozon 订单表"""
-    __tablename__ = "ozon_orders"
-    
-    # 主键
-    id = Column(BigInteger, primary_key=True)
-    
-    # 店铺隔离
-    shop_id = Column(Integer, nullable=False, index=True)
-    
-    # 订单号映射
-    order_id = Column(String(100), nullable=False, comment="本地订单号")
-    ozon_order_id = Column(String(100), nullable=False, comment="Ozon订单号")
-    ozon_order_number = Column(String(100), comment="Ozon订单编号")
-    
-    # 订单状态
-    status = Column(String(50), nullable=False)  # pending/confirmed/processing/shipped/delivered/cancelled
-    ozon_status = Column(String(50))  # 原始Ozon状态
-    payment_status = Column(String(50))  # pending/paid/refunded
-    
-    # 订单类型
-    order_type = Column(String(50), default="FBS")  # FBS/FBO/CrossDock
-    is_express = Column(Boolean, default=False)
-    is_premium = Column(Boolean, default=False)
-    
-    # 金额信息（Decimal避免精度问题）
-    total_price = Column(Numeric(18, 4), nullable=False)
-    products_price = Column(Numeric(18, 4))
-    delivery_price = Column(Numeric(18, 4))
-    commission_amount = Column(Numeric(18, 4))
-    
-    # 客户信息
-    customer_id = Column(String(100))
-    customer_phone = Column(String(50))
-    customer_email = Column(String(200))
-    
-    # 地址信息（JSON存储）
-    delivery_address = Column(JSONB)
-    # 格式: {"city": "", "region": "", "postal_code": "", "address": "", "lat": 0.0, "lon": 0.0}
-    
-    # 配送信息
-    delivery_method = Column(String(100))
-    delivery_date = Column(DateTime(timezone=True))
-    delivery_time_slot = Column(String(50))
-
-    # 来自 analytics_data 的扩展字段
-    warehouse_id = Column(BigInteger, index=True, comment="仓库ID（来自analytics_data）")
-    warehouse_name = Column(String(200), comment="仓库名称（来自analytics_data）")
-    tpl_provider_id = Column(Integer, index=True, comment="物流提供商ID（来自analytics_data）")
-    tpl_provider_name = Column(String(200), comment="物流提供商名称（来自analytics_data）")
-    is_legal = Column(Boolean, index=True, comment="是否法人订单（来自analytics_data）")
-    payment_type = Column(String(100), index=True, comment="支付方式（来自analytics_data.payment_type_group_name）")
-    delivery_date_begin = Column(DateTime(timezone=True), comment="配送开始日期（来自analytics_data）")
-    delivery_date_end = Column(DateTime(timezone=True), comment="配送结束日期（来自analytics_data）")
-    client_delivery_date_begin = Column(DateTime(timezone=True), index=True, comment="客户期望配送开始日期（来自analytics_data）")
-    client_delivery_date_end = Column(DateTime(timezone=True), comment="客户期望配送结束日期（来自analytics_data）")
-
-    # 原始数据
-    raw_payload = Column(JSONB, comment="Ozon原始订单数据")
-    
-    # 时间信息
-    ordered_at = Column(DateTime(timezone=True), nullable=False)
-    confirmed_at = Column(DateTime(timezone=True))
-    shipped_at = Column(DateTime(timezone=True))
-    delivered_at = Column(DateTime(timezone=True))
-    cancelled_at = Column(DateTime(timezone=True))
-    
-    # 同步信息
-    last_sync_at = Column(DateTime(timezone=True))
-    sync_status = Column(String(50), default="pending")
-
-    # 时间戳
-    created_at = Column(DateTime(timezone=True), default=utcnow)
-    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
-    
-    # 关系
-    postings = relationship("OzonPosting", back_populates="order", cascade="all, delete-orphan")
-    items = relationship("OzonOrderItem", back_populates="order", cascade="all, delete-orphan")
-    refunds = relationship("OzonRefund", back_populates="order", cascade="all, delete-orphan")
-    kuajing84_sync_logs = relationship("Kuajing84SyncLog", back_populates="ozon_order", cascade="all, delete-orphan")
-    
-    __table_args__ = (
-        UniqueConstraint("shop_id", "ozon_order_id", name="uq_ozon_orders_shop_order"),
-        Index("idx_ozon_orders_status", "shop_id", "status"),
-        Index("idx_ozon_orders_date", "shop_id", "ordered_at"),
-        Index("idx_ozon_orders_sync", "sync_status", "last_sync_at"),
-        # 覆盖索引：优化 posting JOIN order 查询，避免回表
-        Index("idx_ozon_orders_join_cover", "id", "shop_id", "ordered_at", "total_price"),
-    )
 
 
 class OzonDomesticTracking(Base):
@@ -143,9 +51,8 @@ class OzonDomesticTracking(Base):
 class OzonPosting(Base):
     """Ozon 发货单（Posting维度）"""
     __tablename__ = "ozon_postings"
-    
+
     id = Column(BigInteger, primary_key=True)
-    order_id = Column(BigInteger, ForeignKey("ozon_orders.id"), nullable=False)
     shop_id = Column(Integer, nullable=False)
     
     # 发货单信息
@@ -237,7 +144,6 @@ class OzonPosting(Base):
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
     
     # 关系
-    order = relationship("OzonOrder", back_populates="postings")
     packages = relationship("OzonShipmentPackage", back_populates="posting", cascade="all, delete-orphan")
     domestic_trackings = relationship(
         "OzonDomesticTracking",
@@ -489,8 +395,6 @@ class OzonPosting(Base):
         Index("idx_ozon_postings_status", "shop_id", "status"),
         Index("idx_ozon_postings_date", "shop_id", "shipment_date"),
         Index("idx_ozon_postings_warehouse", "warehouse_id", "status"),
-        # 优化 JOIN 查询：posting -> order 关联
-        Index("idx_ozon_postings_order_join", "order_id", "in_process_at", "status", "shop_id"),
         # 优化 in_process_at 范围查询（部分索引，仅索引非空值）
         Index(
             "idx_ozon_postings_in_process",
@@ -499,40 +403,6 @@ class OzonPosting(Base):
         ),
         # 优化按状态+时间的统计查询
         Index("idx_ozon_postings_status_time", "status", "in_process_at", "shop_id"),
-    )
-
-
-class OzonOrderItem(Base):
-    """订单商品明细"""
-    __tablename__ = "ozon_order_items"
-    
-    id = Column(BigInteger, primary_key=True)
-    order_id = Column(BigInteger, ForeignKey("ozon_orders.id"), nullable=False)
-
-    # SKU映射
-    offer_id = Column(String(100), nullable=False)
-    ozon_sku = Column(BigInteger)
-    
-    # 商品信息
-    name = Column(String(500))
-    
-    # 数量和价格
-    quantity = Column(Integer, nullable=False)
-    price = Column(Numeric(18, 4), nullable=False)
-    discount = Column(Numeric(18, 4), default=Decimal("0"))
-    total_amount = Column(Numeric(18, 4), nullable=False)
-    
-    # 状态
-    status = Column(String(50))  # pending/confirmed/shipped/delivered/cancelled/returned
-    
-    created_at = Column(DateTime(timezone=True), default=utcnow)
-    
-    # 关系
-    order = relationship("OzonOrder", back_populates="items")
-
-    __table_args__ = (
-        Index("idx_ozon_order_items_offer_id", "offer_id"),
-        Index("idx_ozon_order_items_order", "order_id", "status")
     )
 
 
@@ -582,45 +452,41 @@ class OzonShipmentPackage(Base):
 class OzonRefund(Base):
     """退款/退货记录"""
     __tablename__ = "ozon_refunds"
-    
+
     id = Column(BigInteger, primary_key=True)
-    order_id = Column(BigInteger, ForeignKey("ozon_orders.id"), nullable=False)
     shop_id = Column(Integer, nullable=False)
-    
+
     # 退款信息
     refund_id = Column(String(100), nullable=False, unique=True)
     refund_type = Column(String(50))  # refund/return/partial_refund
-    
+
     # 关联
     posting_id = Column(BigInteger, ForeignKey("ozon_postings.id"))
-    
+
     # 金额
     refund_amount = Column(Numeric(18, 4), nullable=False)
     commission_refund = Column(Numeric(18, 4))
-    
+
     # 商品明细（JSON数组）
     refund_items = Column(JSONB)
     # 格式: [{"sku": "xxx", "quantity": 1, "amount": 100.00, "reason": "xxx"}]
-    
+
     # 原因
     reason_id = Column(Integer)
     reason = Column(String(500))
     customer_comment = Column(String(1000))
-    
+
     # 状态
     status = Column(String(50))  # pending/approved/processing/completed/rejected
-    
+
     # 时间
     requested_at = Column(DateTime(timezone=True), nullable=False)
     approved_at = Column(DateTime(timezone=True))
     completed_at = Column(DateTime(timezone=True))
-    
+
     created_at = Column(DateTime(timezone=True), default=utcnow)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
-    
-    # 关系
-    order = relationship("OzonOrder", back_populates="refunds")
-    
+
     __table_args__ = (
         Index("idx_ozon_refunds_status", "shop_id", "status"),
         Index("idx_ozon_refunds_date", "shop_id", "requested_at")

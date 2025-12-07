@@ -10,14 +10,12 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ....models import OzonShop, OzonOrder
+from ....models import OzonShop
 from ....api.client import OzonAPIClient
 from ....utils.datetime_utils import utcnow
 
 from ..task_state_manager import get_task_state_manager
 from .order_fetcher import OrderFetcher
-from .order_mapper import OrderMapper
-from .order_items_processor import OrderItemsProcessor
 from .posting_processor import PostingProcessor
 
 logger = logging.getLogger(__name__)
@@ -28,8 +26,6 @@ class OrderSyncService:
 
     def __init__(self):
         self.fetcher = OrderFetcher()
-        self.mapper = OrderMapper()
-        self.items_processor = OrderItemsProcessor()
         self.posting_processor = PostingProcessor()
         self.task_manager = get_task_state_manager()
 
@@ -201,20 +197,21 @@ class OrderSyncService:
         mode: str = "incremental",
     ) -> int:
         """
-        处理一批订单
+        处理一批订单（直接同步为 Posting，不再创建 OzonOrder）
 
         Returns:
             更新后的 total_synced
         """
         for idx, item in enumerate(items):
-            order_id = str(item.get("order_id", ""))
+            posting_number = item.get("posting_number", "")
+            ozon_order_id = str(item.get("order_id", ""))
 
-            # 去重检查
-            if order_id in synced_order_ids:
-                logger.debug(f"Order {order_id} already synced, skipping")
+            # 使用 posting_number 去重（更准确）
+            if posting_number in synced_order_ids:
+                logger.debug(f"Posting {posting_number} already synced, skipping")
                 continue
 
-            synced_order_ids.add(order_id)
+            synced_order_ids.add(posting_number)
 
             # 更新进度
             current_count = total_synced + idx + 1
@@ -227,53 +224,16 @@ class OrderSyncService:
             self.task_manager.update_progress(
                 task_id,
                 min(int(progress), 90),
-                f"正在同步订单 {item.get('posting_number', 'unknown')}..."
+                f"正在同步订单 {posting_number}..."
             )
 
-            # 检查订单是否存在
-            existing = await db.execute(
-                select(OzonOrder).where(
-                    OzonOrder.shop_id == shop_id,
-                    OzonOrder.ozon_order_id == order_id
-                ).limit(1)
+            # 直接同步 posting 信息（不再创建 OzonOrder）
+            await self.posting_processor.sync_posting(
+                db=db,
+                posting_data=item,
+                shop_id=shop_id,
+                ozon_order_id=ozon_order_id
             )
-            order = existing.scalar_one_or_none()
-
-            # 计算订单金额
-            total_price, products_price, delivery_price, commission_amount, delivery_address = \
-                self.mapper.calculate_amounts(item)
-
-            # 映射完整字段
-            order_data = self.mapper.map_to_order(
-                item, total_price, products_price,
-                delivery_price, commission_amount,
-                delivery_address, mode
-            )
-
-            if order:
-                # 更新现有订单
-                for key, value in order_data.items():
-                    if hasattr(order, key):
-                        setattr(order, key, value)
-                order.sync_status = "success"
-                order.last_sync_at = utcnow()
-                order.updated_at = utcnow()
-            else:
-                # 创建新订单
-                order = OzonOrder(shop_id=shop_id, **order_data)
-                order.sync_status = "success"
-                order.last_sync_at = utcnow()
-                db.add(order)
-
-            # Flush 确保 order 获得 id
-            await db.flush()
-
-            # 同步订单商品明细
-            products_data = item.get("products", [])
-            await self.items_processor.sync_order_items(db, order, products_data)
-
-            # 同步 posting 信息
-            await self.posting_processor.sync_posting(db, order, item, shop_id)
 
             total_synced += 1
 

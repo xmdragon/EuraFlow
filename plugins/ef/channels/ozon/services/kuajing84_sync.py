@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.ozon_shops import OzonShop
-from ..models.orders import OzonOrder
+from ..models.orders import OzonPosting
 from ..models.kuajing84 import Kuajing84SyncLog
 from ..models.kuajing84_global_config import Kuajing84GlobalConfig
 from .kuajing84_client import Kuajing84Client
@@ -316,17 +316,17 @@ class Kuajing84SyncService:
 
     async def sync_logistics_order(
         self,
-        ozon_order_id: int,
         posting_number: str,
-        logistics_order: str
+        logistics_order: str,
+        posting_id: int = None
     ) -> Dict[str, any]:
         """
         同步物流单号到跨境巴士
 
         Args:
-            ozon_order_id: OZON订单ID
             posting_number: 货件编号（OZON posting number）
             logistics_order: 国内物流单号
+            posting_id: 货件ID（可选）
 
         Returns:
             同步结果:
@@ -336,37 +336,37 @@ class Kuajing84SyncService:
                 "log_id": 同步日志ID
             }
         """
-        logger.info(f"开始同步物流单号，ozon_order_id: {ozon_order_id}, posting_number: {posting_number}, logistics_order: {logistics_order}")
+        logger.info(f"开始同步物流单号，posting_number: {posting_number}, logistics_order: {logistics_order}")
 
-        # 1. 查询订单
+        # 1. 查询 Posting
         result = await self.db.execute(
-            select(OzonOrder).where(OzonOrder.id == ozon_order_id)
+            select(OzonPosting).where(OzonPosting.posting_number == posting_number)
         )
-        order = result.scalar_one_or_none()
+        posting = result.scalar_one_or_none()
 
-        if not order:
+        if not posting:
             return {
                 "success": False,
-                "message": f"订单不存在: {ozon_order_id}"
+                "message": f"货件不存在: {posting_number}"
             }
 
         # 2. 查询店铺配置
         shop_result = await self.db.execute(
-            select(OzonShop).where(OzonShop.id == order.shop_id)
+            select(OzonShop).where(OzonShop.id == posting.shop_id)
         )
         shop = shop_result.scalar_one_or_none()
 
         if not shop:
             return {
                 "success": False,
-                "message": f"店铺不存在: {order.shop_id}"
+                "message": f"店铺不存在: {posting.shop_id}"
             }
 
-        # 3. 创建同步日志（使用前端传入的 posting_number）
+        # 3. 创建同步日志
         sync_log = Kuajing84SyncLog(
-            ozon_order_id=ozon_order_id,
-            shop_id=order.shop_id,
-            order_number=posting_number,  # 直接使用前端传入的货件编号
+            shop_id=posting.shop_id,
+            posting_id=posting.id,
+            order_number=posting_number,
             logistics_order=logistics_order,
             sync_status="pending",
             attempts=0

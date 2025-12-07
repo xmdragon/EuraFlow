@@ -727,13 +727,13 @@ async def setup(hooks) -> None:
 
     # 注册采集记录上架状态轮询任务
     try:
-        from .tasks.collection_listing_tasks import poll_listing_status
+        from .tasks.collection_listing_tasks import poll_listing_status_async
 
         # 注册轮询任务（每10分钟执行一次）
         await hooks.register_cron(
             name="ef.ozon.collection.poll_listing_status",
             cron="*/10 * * * *",
-            task=poll_listing_status
+            task=poll_listing_status_async
         )
 
         logger.info("Registered collection listing status polling task successfully")

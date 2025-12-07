@@ -13,7 +13,7 @@ import logging
 from ef_core.database import get_async_session
 from ef_core.models.users import User
 from ef_core.middleware.auth import require_role
-from ...models import OzonOrder, OzonPosting, OzonShop
+from ...models import OzonPosting, OzonShop
 from ...utils.datetime_utils import utcnow
 
 router = APIRouter(tags=["ozon-packing"])

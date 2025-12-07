@@ -313,8 +313,7 @@ def process_follow_pdp_listing(record_id: int) -> dict:
             }
 
 
-@celery_app.task(name="ef.ozon.collection.poll_listing_status")
-def poll_listing_status() -> dict:
+async def poll_listing_status_async(**kwargs) -> dict:
     """
     定期轮询上架状态（Cron任务）
 
@@ -324,14 +323,16 @@ def poll_listing_status() -> dict:
     Returns:
         处理结果统计
     """
+    from ef_core.database import get_task_db_manager
+
     logger.info("[CollectionListing] 开始轮询上架状态")
 
     processed_count = 0
     success_count = 0
     failed_count = 0
 
-    SessionLocal = get_sync_db_session()
-    with SessionLocal() as db:
+    db_manager = get_task_db_manager()
+    async with db_manager.get_session() as db:
         # 查询所有待处理的记录（24小时内创建）
         cutoff_time = datetime.utcnow() - timedelta(hours=24)
 
@@ -342,7 +343,8 @@ def poll_listing_status() -> dict:
             OzonProductCollectionRecord.created_at >= cutoff_time
         )
 
-        records = db.execute(stmt).scalars().all()
+        result = await db.execute(stmt)
+        records = result.scalars().all()
 
         logger.info(f"[CollectionListing] 找到 {len(records)} 条待处理记录")
 
@@ -357,13 +359,13 @@ def poll_listing_status() -> dict:
                     failed_count += 1
                     logger.warning(f"[CollectionListing] 记录超时 record_id={record.id}")
 
-                db.commit()
+                await db.commit()
 
             except Exception as e:
                 logger.error(f"[CollectionListing] 处理记录失败 record_id={record.id}", exc_info=True)
                 failed_count += 1
 
-        db.commit()
+        await db.commit()
 
     result = {
         "processed": processed_count,

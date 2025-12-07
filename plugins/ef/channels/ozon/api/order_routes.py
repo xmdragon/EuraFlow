@@ -16,7 +16,7 @@ from ef_core.config import get_settings
 from ef_core.models.users import User
 from ef_core.middleware.auth import require_role
 from ef_core.api.auth import get_current_user_flexible
-from ..models import OzonOrder, OzonPosting, OzonProduct, OzonDomesticTracking, OzonGlobalSetting, OzonShipmentPackage
+from ..models import OzonPosting, OzonProduct, OzonDomesticTracking, OzonGlobalSetting, OzonShipmentPackage
 from ..utils.datetime_utils import utcnow, parse_date, parse_date_with_timezone, get_global_timezone
 from sqlalchemy import delete
 from .permissions import filter_by_shop_permission, build_shop_filter_condition
@@ -898,19 +898,17 @@ async def sync_orders(
     import asyncio
     task_id = f"order_sync_{uuid.uuid4().hex[:12]}"
 
-    # 异步执行同步任务
-    from ..services.order_sync import OrderSyncService
-    from ..api.client import OzonAPIClient
-    from ..models import OzonShop
-    from datetime import timedelta
+    # 异步执行同步任务（使用新版 OrderSyncService）
+    from ..services.sync.order_sync import OrderSyncService
 
     async def run_sync():
-        """在后台执行同步任务（使用 OrderSyncService 批量处理）"""
+        """在后台执行同步任务"""
         from ..services.ozon_sync import SYNC_TASKS
         from ..utils.datetime_utils import utcnow
+        from ef_core.database import get_db_manager
 
         try:
-            # 初始化任务状态
+            # 初始化任务状态（用于 API 返回）
             SYNC_TASKS[task_id] = {
                 "status": "running",
                 "progress": 0,
@@ -920,93 +918,27 @@ async def sync_orders(
                 "mode": mode,
             }
 
-            # 创建新的数据库会话用于异步任务
-            from ef_core.database import get_db_manager
+            # 创建新的数据库会话
             db_manager = get_db_manager()
             async with db_manager.get_session() as task_db:
-                # 获取店铺信息
-                SYNC_TASKS[task_id]["progress"] = 5
-                SYNC_TASKS[task_id]["message"] = "正在获取店铺信息..."
-
-                shop_result = await task_db.execute(
-                    select(OzonShop).where(OzonShop.id == shop_id)
-                )
-                shop = shop_result.scalar_one_or_none()
-
-                if not shop:
-                    SYNC_TASKS[task_id] = {
-                        "status": "failed",
-                        "progress": 0,
-                        "message": f"店铺 {shop_id} 不存在",
-                        "error": f"Shop {shop_id} not found",
-                        "failed_at": utcnow().isoformat(),
-                        "type": "orders",
-                        "mode": mode,
-                    }
-                    logger.error(f"Shop {shop_id} not found")
-                    return
-
-                # 创建API客户端
-                SYNC_TASKS[task_id]["progress"] = 10
-                SYNC_TASKS[task_id]["message"] = "正在连接 Ozon API..."
-
-                api_client = OzonAPIClient(
-                    client_id=shop.client_id,
-                    api_key=shop.api_key_enc
+                # 使用新版 OrderSyncService
+                sync_service = OrderSyncService()
+                result = await sync_service.sync_orders(
+                    shop_id=shop_id,
+                    db=task_db,
+                    task_id=task_id,
+                    mode=mode
                 )
 
-                # 使用 OrderSyncService 执行批量同步
-                sync_service = OrderSyncService(shop_id=shop_id, api_client=api_client)
-
-                # 根据模式确定时间范围
-                from datetime import datetime, timezone
-                date_to = datetime.now(timezone.utc)
-                if mode == "full":
-                    date_from = date_to - timedelta(days=360)  # 全量：360天
-                    full_sync = True
-                else:
-                    date_from = date_to - timedelta(days=7)  # 增量：7天
-                    full_sync = False
-
-                SYNC_TASKS[task_id]["progress"] = 20
-                SYNC_TASKS[task_id]["message"] = "正在同步订单..."
-
-                # 执行同步（批量处理，每批50条，无 N+1 问题）
-                stats = await sync_service.sync_orders(
-                    date_from=date_from,
-                    date_to=date_to,
-                    full_sync=full_sync
-                )
-
-                await api_client.close()
-
-                # 更新任务为完成状态
-                SYNC_TASKS[task_id] = {
-                    "status": "completed",
-                    "progress": 100,
-                    "message": f"{'全量' if mode == 'full' else '增量'}同步完成，共同步 {stats['total_processed']} 个订单",
-                    "completed_at": utcnow().isoformat(),
-                    "type": "orders",
-                    "mode": mode,
-                    "result": {
-                        "total_synced": stats["total_processed"],
-                        "success": stats["success"],
-                        "failed": stats["failed"]
-                    },
-                }
+                # 同步任务结果到 SYNC_TASKS
+                SYNC_TASKS[task_id] = result
 
                 logger.info(
                     f"Order sync completed for shop {shop_id}",
-                    extra={
-                        "task_id": task_id,
-                        "mode": mode,
-                        "total_processed": stats["total_processed"],
-                        "success": stats["success"],
-                        "failed": stats["failed"]
-                    }
+                    extra={"task_id": task_id, "mode": mode, "result": result}
                 )
+
         except Exception as e:
-            # 更新任务为失败状态
             SYNC_TASKS[task_id] = {
                 "status": "failed",
                 "progress": SYNC_TASKS.get(task_id, {}).get("progress", 0),
@@ -1016,9 +948,7 @@ async def sync_orders(
                 "type": "orders",
                 "mode": mode,
             }
-            logger.error(f"Order sync failed: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
+            logger.error(f"Order sync failed: {e}", exc_info=True)
 
     # 在后台启动同步任务
     asyncio.create_task(run_sync())
@@ -1044,7 +974,7 @@ async def sync_single_order(
     """
     from ..api.client import OzonAPIClient
     from ..models import OzonShop
-    from ..services.order_sync import OrderSyncService
+    from ..services.sync.order_sync.posting_processor import PostingProcessor
 
     try:
         # 1. 获取店铺信息
@@ -1079,9 +1009,10 @@ async def sync_single_order(
 
         posting_data = detail_response["result"]
 
-        # 4. 使用订单同步服务处理数据
-        sync_service = OrderSyncService(shop_id=shop_id, api_client=api_client)
-        await sync_service._process_single_posting(db, posting_data)
+        # 4. 使用 PostingProcessor 处理数据
+        processor = PostingProcessor()
+        ozon_order_id = str(posting_data.get("order_id", ""))
+        await processor.sync_posting(db, posting_data, shop_id, ozon_order_id)
         await db.commit()
 
         # 5. 关闭API客户端

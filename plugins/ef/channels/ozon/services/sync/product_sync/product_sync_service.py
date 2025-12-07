@@ -123,6 +123,17 @@ class ProductSyncService:
                 total_synced = synced
                 total_products += total
 
+            # 清理过时的错误商品状态（增量同步时）
+            if mode == "incremental":
+                stale_fixed = await self._refresh_stale_error_products(
+                    db=db,
+                    client=client,
+                    shop_id=shop_id,
+                    counters=counters,
+                )
+                if stale_fixed > 0:
+                    logger.info(f"已刷新 {stale_fixed} 个过时错误商品的状态")
+
             # 更新店铺最后同步时间
             shop.last_sync_at = utcnow()
             await db.commit()
@@ -323,3 +334,155 @@ class ProductSyncService:
             )
         )
         return {p.offer_id: p for p in result.scalars().all()}
+
+    async def _refresh_stale_error_products(
+        self,
+        db: AsyncSession,
+        client: OzonAPIClient,
+        shop_id: int,
+        counters: Dict[str, int],
+    ) -> int:
+        """
+        刷新过时的错误商品状态
+
+        当商品在 OZON 平台被修复后，它可能不会出现在增量同步的结果中
+        （因为它从 INVISIBLE 变成了 VISIBLE），导致本地状态过时。
+
+        此方法会：
+        1. 查找本地标记为 error 但超过24小时未同步的商品
+        2. 调用 OZON API 查询这些商品的最新状态
+        3. 更新本地状态
+
+        Args:
+            db: 数据库会话
+            client: OZON API 客户端
+            shop_id: 店铺ID
+            counters: 状态计数器
+
+        Returns:
+            刷新的商品数量
+        """
+        # 查找过时的错误商品（超过24小时未同步）
+        stale_threshold = utcnow() - timedelta(hours=24)
+
+        result = await db.execute(
+            select(OzonProduct).where(
+                and_(
+                    OzonProduct.shop_id == shop_id,
+                    OzonProduct.ozon_status == "error",
+                    OzonProduct.last_sync_at < stale_threshold,
+                )
+            )
+        )
+        stale_products = result.scalars().all()
+
+        if not stale_products:
+            return 0
+
+        logger.info(f"发现 {len(stale_products)} 个过时的错误商品，正在刷新状态...")
+
+        # 提取 offer_ids
+        offer_ids = [p.offer_id for p in stale_products]
+
+        # 批量查询这些商品的最新状态（每批100个）
+        fixed_count = 0
+        batch_size = 100
+
+        for i in range(0, len(offer_ids), batch_size):
+            batch_offer_ids = offer_ids[i:i + batch_size]
+
+            try:
+                # 调用 OZON API 查询商品详情
+                response = await client.get_product_info_list(
+                    offer_ids=batch_offer_ids
+                )
+
+                items = response.get("items", []) if response else []
+                if not items:
+                    continue
+
+                # 创建 offer_id -> item 映射
+                item_map = {item.get("offer_id"): item for item in items}
+
+                # 更新本地商品状态
+                for product in stale_products:
+                    if product.offer_id not in item_map:
+                        continue
+
+                    item = item_map[product.offer_id]
+
+                    # 获取商品详情
+                    product_details = item
+
+                    # 检查是否还有错误
+                    errors = item.get("errors", [])
+                    warnings = item.get("warnings", [])
+
+                    # 确定可见性状态
+                    statuses = item.get("statuses", {})
+                    validation_status = statuses.get("validation_status", "")
+                    moderate_status = statuses.get("moderate_status", "")
+
+                    # 判断是否还是错误状态
+                    has_errors = bool(errors) or validation_status == "failed"
+
+                    if not has_errors:
+                        # 商品已修复，重新计算状态
+                        is_archived = item.get("is_archived", False) or item.get("is_autoarchived", False)
+                        visibility_details = item.get("visibility_details", {})
+                        price = product.price
+                        has_fbo = product.ozon_has_fbo_stocks
+                        has_fbs = product.ozon_has_fbs_stocks
+
+                        # 根据可见性确定 visibility_type
+                        if is_archived:
+                            visibility_type = "ARCHIVED"
+                        elif visibility_details.get("has_price") and visibility_details.get("has_stock"):
+                            visibility_type = "VISIBLE"
+                        else:
+                            visibility_type = "INVISIBLE"
+
+                        status, ozon_status, status_reason = self.status_calculator.calculate_status(
+                            visibility_type=visibility_type,
+                            sync_is_archived=is_archived,
+                            ozon_archived=is_archived,
+                            is_archived=is_archived,
+                            product_details=product_details,
+                            visibility_details=visibility_details,
+                            price=price,
+                            has_fbo_stocks=has_fbo,
+                            has_fbs_stocks=has_fbs,
+                        )
+
+                        # 更新商品状态
+                        old_status = product.ozon_status
+                        product.status = status
+                        product.ozon_status = ozon_status
+                        product.status_reason = status_reason
+                        product.last_sync_at = utcnow()
+                        product.updated_at = utcnow()
+
+                        # 清除错误记录
+                        await self.error_handler.clear_error(db, shop_id, product.offer_id)
+
+                        # 更新计数器
+                        if old_status == "error":
+                            counters["error"] = max(0, counters.get("error", 0) - 1)
+                        counters[status] = counters.get(status, 0) + 1
+
+                        fixed_count += 1
+                        logger.info(
+                            f"商品 {product.offer_id} 状态已更新: error -> {ozon_status}"
+                        )
+                    else:
+                        # 商品仍有错误，只更新同步时间
+                        product.last_sync_at = utcnow()
+                        product.updated_at = utcnow()
+
+                await db.commit()
+
+            except Exception as e:
+                logger.error(f"刷新过时错误商品失败: {e}", exc_info=True)
+                continue
+
+        return fixed_count

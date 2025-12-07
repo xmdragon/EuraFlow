@@ -174,14 +174,18 @@ def retry_task(
     exponential_backoff: bool = True,
     **kwargs
 ):
-    """重试任务装饰器"""
+    """重试任务装饰器
+
+    注意：默认 bind=False，避免函数签名需要 self 参数
+    """
     task_options = {
         "max_retries": max_retries,
         "default_retry_delay": countdown,
         "retry_backoff": exponential_backoff,
         "retry_backoff_max": 600,  # 10分钟
         "retry_jitter": True,
+        "bind": False,  # 默认不绑定，避免函数需要 self 参数
         **kwargs
     }
-    
+
     return task_with_context(**task_options)
