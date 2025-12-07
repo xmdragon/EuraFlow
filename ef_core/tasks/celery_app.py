@@ -588,25 +588,28 @@ def _initialize_plugins_for_celery():
                 await event_bus.shutdown()
 
         # 在单个事件循环中执行所有异步操作
-        # 兼容 Celery worker 环境：检测是否已有运行中的事件循环
+        # 先检测是否已有运行中的事件循环，避免创建不会被 await 的协程
         try:
-            # 优先使用 asyncio.run()（Python 3.7+ 推荐方式）
+            asyncio.get_running_loop()
+            has_running_loop = True
+        except RuntimeError:
+            has_running_loop = False
+
+        if has_running_loop:
+            # Celery worker 环境中已有运行中的事件循环
+            # 创建新的事件循环来执行初始化
+            logger.warning("Detected running event loop, creating new event loop for plugin initialization")
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                task_registry = loop.run_until_complete(async_init())
+            finally:
+                loop.close()
+                # 重要：清理事件循环引用，避免后续冲突
+                asyncio.set_event_loop(None)
+        else:
+            # 没有运行中的事件循环，使用 asyncio.run()（Python 3.7+ 推荐方式）
             task_registry = asyncio.run(async_init())
-        except RuntimeError as e:
-            if "cannot be called from a running event loop" in str(e):
-                # Celery worker 环境中已有运行中的事件循环
-                # 创建新的事件循环来执行初始化
-                logger.warning("Detected running event loop, creating new event loop for plugin initialization")
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    task_registry = loop.run_until_complete(async_init())
-                finally:
-                    loop.close()
-                    # 重要：清理事件循环引用，避免后续冲突
-                    asyncio.set_event_loop(None)
-            else:
-                raise
 
         logger.info(f"✅ Celery plugin initialization completed, registered {len(task_registry.registered_tasks)} tasks")
 
