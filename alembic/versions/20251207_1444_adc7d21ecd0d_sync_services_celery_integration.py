@@ -108,18 +108,23 @@ def upgrade() -> None:
         if not result.fetchone():
             op.create_index('idx_sync_services_celery_task', 'sync_services', ['celery_task_name'])
 
-        # 填充已知映射的 celery_task_name
-        op.execute("""
-            UPDATE sync_services SET celery_task_name = 'ef.system.database_backup', source = 'code' WHERE service_key = 'database_backup' AND celery_task_name IS NULL;
-            UPDATE sync_services SET celery_task_name = 'ef.ozon.kuajing84.material_cost', source = 'code' WHERE service_key = 'kuajing84_material_cost' AND celery_task_name IS NULL;
-            UPDATE sync_services SET celery_task_name = 'ef.ozon.finance.sync', source = 'code' WHERE service_key = 'ozon_finance_sync' AND celery_task_name IS NULL;
-            UPDATE sync_services SET celery_task_name = 'ef.ozon.finance.transactions', source = 'code' WHERE service_key = 'ozon_finance_transactions_daily' AND celery_task_name IS NULL;
-            UPDATE sync_services SET celery_task_name = 'ef.ozon.orders.pull', source = 'code' WHERE service_key = 'ozon_sync_incremental' AND celery_task_name IS NULL;
-            UPDATE sync_services SET celery_task_name = 'ef.finance.rates.refresh', source = 'code' WHERE service_key = 'exchange_rate_refresh' AND celery_task_name IS NULL;
-            UPDATE sync_services SET celery_task_name = 'ef.ozon.promotions.sync', source = 'code' WHERE service_key = 'ozon_promotion_sync' AND celery_task_name IS NULL;
-            UPDATE sync_services SET celery_task_name = 'ef.ozon.cancellations.sync', source = 'code' WHERE service_key = 'ozon_cancellations_sync' AND celery_task_name IS NULL;
-            UPDATE sync_services SET celery_task_name = 'ef.ozon.returns.sync', source = 'code' WHERE service_key = 'ozon_returns_sync' AND celery_task_name IS NULL;
-        """)
+        # 填充已知映射的 celery_task_name（asyncpg 要求每条语句单独执行）
+        task_mappings = [
+            ("database_backup", "ef.system.database_backup"),
+            ("kuajing84_material_cost", "ef.ozon.kuajing84.material_cost"),
+            ("ozon_finance_sync", "ef.ozon.finance.sync"),
+            ("ozon_finance_transactions_daily", "ef.ozon.finance.transactions"),
+            ("ozon_sync_incremental", "ef.ozon.orders.pull"),
+            ("exchange_rate_refresh", "ef.finance.rates.refresh"),
+            ("ozon_promotion_sync", "ef.ozon.promotions.sync"),
+            ("ozon_cancellations_sync", "ef.ozon.cancellations.sync"),
+            ("ozon_returns_sync", "ef.ozon.returns.sync"),
+        ]
+        for service_key, task_name in task_mappings:
+            op.execute(sa.text(
+                f"UPDATE sync_services SET celery_task_name = '{task_name}', source = 'code' "
+                f"WHERE service_key = '{service_key}' AND celery_task_name IS NULL"
+            ))
 
 
 def downgrade() -> None:
