@@ -54,14 +54,17 @@ import {
 
 import styles from "./OrderReport.module.scss";
 
+import OrderDetailModal from "@/components/ozon/OrderDetailModal";
 import ProductImage from "@/components/ozon/ProductImage";
 import ShopSelectorWithLabel from "@/components/ozon/ShopSelectorWithLabel";
 import PageTitle from "@/components/PageTitle";
 import { ORDER_STATUS_CONFIG } from "@/config/ozon/orderStatusConfig";
 import { useCopy } from "@/hooks/useCopy";
+import { useCurrency } from "@/hooks/useCurrency";
 import { useDateTime } from "@/hooks/useDateTime";
 import * as ozonApi from "@/services/ozon";
 import { notifySuccess, notifyError } from "@/utils/notification";
+import { formatDeliveryMethodTextWhite } from "@/utils/packingHelpers";
 
 const { Text } = Typography;
 const { Option } = Select;
@@ -111,17 +114,8 @@ interface PostingReportItem {
   profit_rate: number;
 }
 
-// Posting 详情（含商品列表，用于 Modal 展示）
-interface PostingDetailProduct {
-  sku: string;
-  offer_id?: string;
-  name: string;
-  quantity: number;
-  price: string;
-  image_url?: string;
-}
-
-interface PostingDetail {
+// PostingDetailResponse 转换为 ozonApi.Posting 的辅助类型（用于 API 响应）
+interface PostingDetailResponse {
   posting_number: string;
   shop_name: string;
   status: string;
@@ -130,7 +124,14 @@ interface PostingDetail {
   in_process_at?: string;
   shipped_at?: string;
   delivered_at?: string;
-  products: PostingDetailProduct[];
+  products: Array<{
+    sku: string;
+    offer_id?: string;
+    name: string;
+    quantity: number;
+    price: string;
+    image_url?: string;
+  }>;
   product_count: number;
   order_amount: string;
   purchase_price: string;
@@ -190,6 +191,7 @@ interface ReportSummary {
 const OrderReport: React.FC = () => {
   const { copyToClipboard } = useCopy();
   const { formatDate } = useDateTime();
+  const { currency: userCurrency } = useCurrency();
 
   // ===== 状态管理 =====
   const [selectedMonth, setSelectedMonth] = useState(
@@ -212,10 +214,9 @@ const OrderReport: React.FC = () => {
   const [sortBy, setSortBy] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
-  // 详情Modal状态（使用新的 PostingDetail 类型）
+  // 详情Modal状态（使用统一的 OrderDetailModal）
   const [detailModalVisible, setDetailModalVisible] = useState(false);
-  const [selectedPostingDetail, setSelectedPostingDetail] = useState<PostingDetail | null>(null);
-  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [selectedPosting, setSelectedPosting] = useState<ozonApi.Posting | null>(null);
 
   // 批量同步状态
   const [batchSyncTaskId, setBatchSyncTaskId] = useState<string | null>(null);
@@ -352,18 +353,54 @@ const OrderReport: React.FC = () => {
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
-  // 打开货件详情Modal - 调用新的报表详情 API
-  const showPostingDetail = async (postingNumber: string) => {
+  // 打开货件详情Modal - 调用报表详情 API 并转换为 Posting 格式
+  const showPostingDetail = async (postingNumberToShow: string) => {
     try {
-      setLoadingDetail(true);
-      // 使用新的报表详情 API（不需要 shopId）
-      const detail = await ozonApi.getPostingDetail(postingNumber);
-      setSelectedPostingDetail(detail as PostingDetail);
+      const detail = await ozonApi.getPostingDetail(postingNumberToShow) as PostingDetailResponse;
+
+      // 将 PostingDetailResponse 转换为 ozonApi.Posting 格式
+      const posting: ozonApi.Posting & {
+        total_price?: string;
+        created_at?: string;
+      } = {
+        id: 0,
+        posting_number: detail.posting_number,
+        status: detail.status,
+        is_cancelled: detail.is_cancelled,
+        packages_count: 0,
+        // 财务字段
+        purchase_price: detail.purchase_price,
+        material_cost: detail.material_cost,
+        last_mile_delivery_fee_cny: detail.last_mile_delivery_fee_cny,
+        international_logistics_fee_cny: detail.international_logistics_fee_cny,
+        ozon_commission_cny: detail.ozon_commission_cny,
+        // 时间字段
+        in_process_at: detail.in_process_at,
+        shipped_at: detail.shipped_at,
+        delivered_at: detail.delivered_at,
+        // 其他字段
+        warehouse_name: detail.warehouse_name,
+        delivery_method_name: detail.delivery_method_name,
+        order_notes: detail.order_notes,
+        domestic_tracking_numbers: detail.domestic_tracking_numbers,
+        // 商品列表（转换格式）
+        items: detail.products.map(p => ({
+          sku: p.sku,
+          offer_id: p.offer_id,
+          name: p.name,
+          quantity: p.quantity,
+          price: p.price,
+          image: p.image_url,
+        })),
+        // OrderDetailModal 需要的额外字段
+        total_price: detail.order_amount,
+        created_at: detail.created_at,
+      };
+
+      setSelectedPosting(posting);
       setDetailModalVisible(true);
     } catch {
       notifyError('加载失败', '无法加载货件详情');
-    } finally {
-      setLoadingDetail(false);
     }
   };
 
@@ -768,7 +805,7 @@ const OrderReport: React.FC = () => {
               tab={`订单明细 (${postingReportData?.total || 0})`}
               key="details"
             >
-              <Spin spinning={isLoadingPostings || loadingDetail}>
+              <Spin spinning={isLoadingPostings}>
                 <Table
                   dataSource={postingRows}
                   columns={detailColumns}
@@ -1364,165 +1401,20 @@ const OrderReport: React.FC = () => {
         </div>
       </Card>
 
-      {/* 货件详情Modal（简化版，显示商品列表） */}
-      <Modal
-        title={
-          <Space>
-            <FileTextOutlined />
-            <span>货件详情: {selectedPostingDetail?.posting_number}</span>
-          </Space>
-        }
-        open={detailModalVisible}
+      {/* 货件详情Modal - 使用统一的 OrderDetailModal */}
+      <OrderDetailModal
+        visible={detailModalVisible}
         onCancel={() => {
           setDetailModalVisible(false);
-          setSelectedPostingDetail(null);
+          setSelectedPosting(null);
         }}
-        footer={null}
-        width={900}
-        destroyOnClose
-      >
-        {selectedPostingDetail && (
-          <div>
-            {/* 基本信息 */}
-            <Row gutter={16} className={styles.modalRow}>
-              <Col span={8}>
-                <Text type="secondary">店铺：</Text>
-                <Text strong>{selectedPostingDetail.shop_name}</Text>
-              </Col>
-              <Col span={8}>
-                <Text type="secondary">状态：</Text>
-                <Text strong className={selectedPostingDetail.is_cancelled ? styles.modalStatusNegative : styles.modalStatusPositive}>
-                  {statusConfig[selectedPostingDetail.status]?.text || selectedPostingDetail.status}
-                </Text>
-              </Col>
-              <Col span={8}>
-                <Text type="secondary">下单时间：</Text>
-                <Text>{formatDate(selectedPostingDetail.created_at, "YYYY-MM-DD HH:mm")}</Text>
-              </Col>
-            </Row>
-
-            {/* 商品列表 */}
-            <Divider orientation="left">商品列表 ({selectedPostingDetail.product_count} 件)</Divider>
-            <Table
-              dataSource={selectedPostingDetail.products}
-              rowKey="sku"
-              pagination={false}
-              size="small"
-              columns={[
-                {
-                  title: "图片",
-                  width: 60,
-                  render: (_, product) => (
-                    <ProductImage
-                      imageUrl={product.image_url}
-                      size="small"
-                      hoverBehavior="medium"
-                      name={product.name}
-                    />
-                  ),
-                },
-                {
-                  title: "商品信息",
-                  render: (_, product) => (
-                    <div>
-                      <div className={styles.productNameBold}>{product.name}</div>
-                      <div className={styles.skuContainer}>
-                        <span
-                          className={styles.skuLink}
-                          onClick={() => openProductLink(product.sku)}
-                        >
-                          {product.sku} <LinkOutlined />
-                        </span>
-                        <CopyOutlined
-                          className={styles.copyIcon}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            copyToClipboard(product.sku, 'SKU');
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ),
-                },
-                {
-                  title: "单价",
-                  width: 100,
-                  align: "right" as const,
-                  render: (_, product) => product.price,
-                },
-                {
-                  title: "数量",
-                  width: 60,
-                  align: "center" as const,
-                  dataIndex: "quantity",
-                },
-              ]}
-            />
-
-            {/* 费用明细 */}
-            <Divider orientation="left">费用明细</Divider>
-            <Row gutter={[16, 8]}>
-              <Col span={8}>
-                <Text type="secondary">订单金额：</Text>
-                <Text strong>{selectedPostingDetail.order_amount}</Text>
-              </Col>
-              <Col span={8}>
-                <Text type="secondary">进货金额：</Text>
-                <Text>{selectedPostingDetail.purchase_price || "-"}</Text>
-              </Col>
-              <Col span={8}>
-                <Text type="secondary">Ozon佣金：</Text>
-                <Text>{selectedPostingDetail.ozon_commission_cny || "-"}</Text>
-              </Col>
-              <Col span={8}>
-                <Text type="secondary">国际物流：</Text>
-                <Text>{selectedPostingDetail.international_logistics_fee_cny || "-"}</Text>
-              </Col>
-              <Col span={8}>
-                <Text type="secondary">尾程派送：</Text>
-                <Text>{selectedPostingDetail.last_mile_delivery_fee_cny || "-"}</Text>
-              </Col>
-              <Col span={8}>
-                <Text type="secondary">打包费用：</Text>
-                <Text>{selectedPostingDetail.material_cost || "-"}</Text>
-              </Col>
-              <Col span={8}>
-                <Text type="secondary">利润：</Text>
-                <Text strong className={parseFloat(selectedPostingDetail.profit) >= 0 ? styles.profitPositive : styles.profitNegative}>
-                  {selectedPostingDetail.profit}
-                </Text>
-              </Col>
-              <Col span={8}>
-                <Text type="secondary">利润率：</Text>
-                <Text strong className={selectedPostingDetail.profit_rate >= 0 ? styles.profitPositive : styles.profitNegative}>
-                  {selectedPostingDetail.profit_rate.toFixed(2)}%
-                </Text>
-              </Col>
-            </Row>
-
-            {/* 其他信息 */}
-            {(selectedPostingDetail.warehouse_name || selectedPostingDetail.order_notes) && (
-              <>
-                <Divider orientation="left">其他信息</Divider>
-                <Row gutter={[16, 8]}>
-                  {selectedPostingDetail.warehouse_name && (
-                    <Col span={12}>
-                      <Text type="secondary">仓库：</Text>
-                      <Text>{selectedPostingDetail.warehouse_name}</Text>
-                    </Col>
-                  )}
-                  {selectedPostingDetail.order_notes && (
-                    <Col span={24}>
-                      <Text type="secondary">备注：</Text>
-                      <Text>{selectedPostingDetail.order_notes}</Text>
-                    </Col>
-                  )}
-                </Row>
-              </>
-            )}
-          </div>
-        )}
-      </Modal>
+        selectedOrder={null}
+        selectedPosting={selectedPosting}
+        statusConfig={statusConfig}
+        userCurrency={userCurrency}
+        offerIdImageMap={{}}
+        formatDeliveryMethodTextWhite={formatDeliveryMethodTextWhite}
+      />
     </div>
   );
 };
