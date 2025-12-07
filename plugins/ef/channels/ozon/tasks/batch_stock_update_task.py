@@ -139,32 +139,46 @@ async def _batch_update_stocks_async(
                         "error": "缺少库存数量或仓库ID"
                     }
 
-                # 查询所有在售商品（必须有 offer_id 和 ozon_product_id）
-                products_result = await db.execute(
-                    select(OzonProduct).where(
-                        OzonProduct.shop_id == shop_id,
-                        OzonProduct.status == "on_sale",
-                        OzonProduct.offer_id.isnot(None),
-                        OzonProduct.ozon_product_id.isnot(None)
-                    )
-                )
-                all_products = products_result.scalars().all()
+                # 流式查询所有在售商品（避免 OOM，只查询必要字段）
+                # 使用分批加载，每批 500 条
+                FETCH_BATCH_SIZE = 500
+                updates = []
+                offset = 0
 
-                if not all_products:
+                while True:
+                    # 只查询 offer_id 字段，减少内存占用
+                    products_result = await db.execute(
+                        select(OzonProduct.offer_id).where(
+                            OzonProduct.shop_id == shop_id,
+                            OzonProduct.status == "on_sale",
+                            OzonProduct.offer_id.isnot(None),
+                            OzonProduct.ozon_product_id.isnot(None)
+                        ).order_by(OzonProduct.id).limit(FETCH_BATCH_SIZE).offset(offset)
+                    )
+                    batch = products_result.scalars().all()
+
+                    if not batch:
+                        break
+
+                    # 构建 updates 数组
+                    for offer_id in batch:
+                        updates.append({
+                            "offer_id": offer_id,
+                            "stock": stock_value,
+                            "warehouse_id": warehouse_id_value
+                        })
+
+                    offset += FETCH_BATCH_SIZE
+
+                    # 如果不足一批，说明已经是最后一批
+                    if len(batch) < FETCH_BATCH_SIZE:
+                        break
+
+                if not updates:
                     return {
                         "success": False,
                         "error": "没有找到符合条件的在售商品（需要有货号和OZON产品ID）"
                     }
-
-                # 重新构建 updates 数组
-                updates = [
-                    {
-                        "offer_id": product.offer_id,
-                        "stock": stock_value,
-                        "warehouse_id": warehouse_id_value
-                    }
-                    for product in all_products
-                ]
 
                 logger.info(f"批量更新全部商品库存 - 店铺ID: {shop_id}, 商品数量: {len(updates)}, 目标库存: {stock_value}, 仓库ID: {warehouse_id_value}")
 
@@ -186,6 +200,8 @@ async def _batch_update_stocks_async(
             stock_items = []
             offer_id_to_product = {}  # 用于后续更新本地数据库
 
+            # 批量查询优化：收集所有 offer_id，一次查询所有商品（替代 N 次查询）
+            valid_updates = []
             for update in updates:
                 offer_id = update.get("offer_id")
                 stock = update.get("stock")
@@ -196,15 +212,31 @@ async def _batch_update_stocks_async(
                     errors.append(f"商品货号 {offer_id}: 缺少必要字段")
                     continue
 
-                try:
-                    # 查找本地商品（使用 offer_id）
-                    product_result = await db.execute(
-                        select(OzonProduct).where(
-                            OzonProduct.shop_id == shop_id,
-                            OzonProduct.offer_id == offer_id
-                        )
+                valid_updates.append(update)
+
+            # 批量查询商品
+            offer_ids = [u.get("offer_id") for u in valid_updates]
+            if offer_ids:
+                products_result = await db.execute(
+                    select(OzonProduct).where(
+                        OzonProduct.shop_id == shop_id,
+                        OzonProduct.offer_id.in_(offer_ids)
                     )
-                    product = product_result.scalar_one_or_none()
+                )
+                products_by_offer_id = {
+                    p.offer_id: p for p in products_result.scalars()
+                }
+            else:
+                products_by_offer_id = {}
+
+            # 处理每个更新请求（仅内存操作，无数据库查询）
+            for update in valid_updates:
+                offer_id = update.get("offer_id")
+                stock = update.get("stock")
+                warehouse_id = update.get("warehouse_id")
+
+                try:
+                    product = products_by_offer_id.get(offer_id)
 
                     if not product:
                         errors.append(f"商品货号 {offer_id}: 商品不存在")

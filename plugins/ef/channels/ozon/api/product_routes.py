@@ -53,22 +53,35 @@ async def _update_postings_purchase_info(
         result = await db.execute(stmt)
         postings = result.scalars().all()
 
+        # 批量收集所有 posting 涉及的 SKU（避免 N+1 查询）
+        all_skus = set()
         for posting in postings:
             if posting.product_skus:
-                # 检查这个 posting 的所有 SKU 是否都有采购信息
+                for s in posting.product_skus:
+                    if s.isdigit():
+                        all_skus.add(int(s))
+
+        # 一次性查询所有有采购链接的 SKU
+        skus_with_purchase = set()
+        if all_skus:
+            purchase_result = await db.execute(
+                select(OzonProduct.ozon_sku)
+                .where(
+                    OzonProduct.shop_id == shop_id,
+                    OzonProduct.ozon_sku.in_(list(all_skus)),
+                    OzonProduct.purchase_url.isnot(None),
+                    OzonProduct.purchase_url != ''
+                )
+            )
+            skus_with_purchase = {row[0] for row in purchase_result.all()}
+
+        # 使用缓存的结果判断每个 posting
+        for posting in postings:
+            if posting.product_skus:
                 sku_ints = [int(s) for s in posting.product_skus if s.isdigit()]
                 if sku_ints:
-                    count_result = await db.execute(
-                        select(func.count(OzonProduct.id))
-                        .where(
-                            OzonProduct.shop_id == shop_id,
-                            OzonProduct.ozon_sku.in_(sku_ints),
-                            OzonProduct.purchase_url.isnot(None),
-                            OzonProduct.purchase_url != ''
-                        )
-                    )
-                    products_with_purchase = count_result.scalar() or 0
-                    if products_with_purchase == len(sku_ints):
+                    # 检查所有 SKU 是否都有采购链接
+                    if all(sku in skus_with_purchase for sku in sku_ints):
                         posting.has_purchase_info = True
                         updated_count += 1
     else:

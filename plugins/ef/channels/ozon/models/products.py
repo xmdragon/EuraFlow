@@ -147,6 +147,10 @@ class OzonProduct(Base):
         Index("idx_ozon_products_ozon_visibility", "ozon_visibility_status"),
         Index("idx_ozon_products_sync", "shop_id", "sync_status", "last_sync_at"),
         Index("idx_ozon_products_title_cn", "title_cn"),
+        # 复合索引优化：shop_id + status/created_at/updated_at 组合查询
+        Index("idx_ozon_products_shop_status", "shop_id", "status"),
+        Index("idx_ozon_products_shop_created", "shop_id", "created_at"),
+        Index("idx_ozon_products_shop_updated", "shop_id", "updated_at"),
         {"extend_existing": True}
     )
 

@@ -52,10 +52,19 @@ celery_app.conf.update(
     # 重试配置
     task_default_retry_delay=60,  # 60秒后重试
     task_max_retries=5,  # 最多重试5次
-    
+
+    # 任务超时配置（防止僵尸任务）
+    task_soft_time_limit=300,  # 5分钟软超时（触发 SoftTimeLimitExceeded 异常）
+    task_time_limit=360,  # 6分钟硬超时（强制终止任务）
+
     # 速率限制
     task_annotations={
         "*": {"rate_limit": "100/m"},  # 全局限制
+        # 长时间任务单独配置超时
+        "ef.ozon.orders.pull": {"soft_time_limit": 600, "time_limit": 660},  # 10分钟
+        "ef.ozon.inventory.sync": {"soft_time_limit": 600, "time_limit": 660},  # 10分钟
+        "ef.ozon.promotions.sync": {"soft_time_limit": 600, "time_limit": 660},  # 10分钟
+        "ef.ozon.batch_update_stocks": {"soft_time_limit": 900, "time_limit": 960},  # 15分钟
     },
     
     # 监控配置

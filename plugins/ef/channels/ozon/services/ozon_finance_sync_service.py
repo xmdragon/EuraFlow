@@ -54,13 +54,15 @@ class OzonFinanceSyncService:
 
         db_manager = get_task_db_manager()
         async with db_manager.get_session() as session:
-            # 1. 计算时间范围（3个月内）
+            # 1. 计算时间范围（优先7天内，避免一次加载过多数据）
             now = datetime.now(timezone.utc)
-            three_months_ago = now - timedelta(days=90)
+            priority_days = config.get("priority_days", 7)  # 默认优先7天
+            max_batch = config.get("max_batch", 100)  # 每次最多处理100条
+            priority_time = now - timedelta(days=priority_days)
 
-            logger.info(f"Time range filter: {three_months_ago.isoformat()} ~ {now.isoformat()}")
+            logger.info(f"Time range filter: {priority_time.isoformat()} ~ {now.isoformat()} (priority {priority_days} days)")
 
-            # 2. 查询需要同步的货件（已签收且未同步财务，时间范围：3个月内）
+            # 2. 查询需要同步的货件（已签收且未同步财务，优先7天内，限制数量）
             postings_result = await session.execute(
                 select(OzonPosting)
                 .join(OzonOrder, OzonPosting.order_id == OzonOrder.id)
@@ -68,17 +70,17 @@ class OzonFinanceSyncService:
                 .where(OzonPosting.finance_synced_at == None)
                 .where(OzonPosting.posting_number != None)
                 .where(OzonPosting.posting_number != '')
-                .where(OzonOrder.ordered_at > three_months_ago)  # 3个月内
+                .where(OzonOrder.ordered_at > priority_time)  # 优先7天内
                 .order_by(OzonPosting.delivered_at.desc())
-                # 移除 limit(batch_size) - 一次性获取所有符合条件的订单
+                .limit(max_batch)  # 分批处理，避免OOM
             )
             postings = postings_result.scalars().all()
 
             if not postings:
-                logger.info("No postings need finance sync in time range (3 months)")
+                logger.info(f"No postings need finance sync in time range ({priority_days} days)")
                 return {
                     **stats,
-                    "message": "没有需要同步财务费用的货件（时间范围：3个月内）"
+                    "message": f"没有需要同步财务费用的货件（时间范围：{priority_days}天内）"
                 }
 
             logger.info(f"Found {len(postings)} postings to process (status=delivered, finance_synced_at IS NULL, time range OK)")
@@ -125,9 +127,16 @@ class OzonFinanceSyncService:
 
                 logger.info(f"Processing {len(shop_postings)} postings for shop: {shop_name} (ID: {shop_id})")
 
-                # 4. 创建API客户端
+                # 4. 批量预加载该店铺的所有 posting 对象（避免 N+1 查询）
+                shop_posting_ids = [p['id'] for p in shop_postings]
+                postings_result = await session.execute(
+                    select(OzonPosting).where(OzonPosting.id.in_(shop_posting_ids))
+                )
+                postings_map = {p.id: p for p in postings_result.scalars()}
+
+                # 5. 创建API客户端
                 async with OzonAPIClient(client_id, api_key_enc, shop_id=shop_id) as client:
-                    # 5. 循环处理该店铺的每个货件（每5秒处理一个）
+                    # 6. 循环处理该店铺的每个货件（每5秒处理一个）
                     for idx, posting_data in enumerate(shop_postings):
                         posting_id = posting_data['id']
                         posting_number = posting_data['posting_number']
@@ -139,11 +148,8 @@ class OzonFinanceSyncService:
                         started_at = datetime.now(timezone.utc)
                         run_id = f"ozon_finance_sync_{uuid.uuid4().hex[:12]}"
 
-                        # 重新查询posting对象（因为需要更新它的属性）
-                        posting_result = await session.execute(
-                            select(OzonPosting).where(OzonPosting.id == posting_id)
-                        )
-                        posting = posting_result.scalar_one_or_none()
+                        # 从预加载的 map 中获取 posting（避免 N+1 查询）
+                        posting = postings_map.get(posting_id)
 
                         if not posting:
                             logger.error(f"Posting {posting_id} not found, skipping")

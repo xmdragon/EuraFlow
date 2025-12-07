@@ -144,31 +144,46 @@ class PromotionService:
                 if not products_data:
                     break
 
+                # 批量查询优化：收集本批次所有 ozon_product_id
+                ozon_product_ids = [
+                    p.get("id") for p in products_data if p.get("id")
+                ]
+
+                # 批量查询本地商品（一次查询替代 N 次）
+                products_result = await db.execute(
+                    select(OzonProduct).where(
+                        and_(
+                            OzonProduct.shop_id == shop_id,
+                            OzonProduct.ozon_product_id.in_(ozon_product_ids)
+                        )
+                    )
+                )
+                products_by_ozon_id = {
+                    p.ozon_product_id: p for p in products_result.scalars()
+                }
+
+                # 批量查询促销关联记录（一次查询替代 N 次）
+                promo_products_result = await db.execute(
+                    select(OzonPromotionProduct).where(
+                        and_(
+                            OzonPromotionProduct.shop_id == shop_id,
+                            OzonPromotionProduct.action_id == action_id,
+                            OzonPromotionProduct.ozon_product_id.in_(ozon_product_ids)
+                        )
+                    )
+                )
+                promo_products_by_ozon_id = {
+                    p.ozon_product_id: p for p in promo_products_result.scalars()
+                }
+
+                # 处理每个商品（仅内存操作，无数据库查询）
                 for product_data in products_data:
                     ozon_product_id = product_data.get("id")
                     if not ozon_product_id:
                         continue
 
-                    # 查找本地商品
-                    stmt = select(OzonProduct).where(
-                        and_(
-                            OzonProduct.shop_id == shop_id,
-                            OzonProduct.ozon_product_id == ozon_product_id
-                        )
-                    )
-                    result = await db.execute(stmt)
-                    local_product = result.scalar_one_or_none()
-
-                    # 查找或创建关联记录
-                    stmt = select(OzonPromotionProduct).where(
-                        and_(
-                            OzonPromotionProduct.shop_id == shop_id,
-                            OzonPromotionProduct.action_id == action_id,
-                            OzonPromotionProduct.ozon_product_id == ozon_product_id
-                        )
-                    )
-                    result = await db.execute(stmt)
-                    promo_product = result.scalar_one_or_none()
+                    local_product = products_by_ozon_id.get(ozon_product_id)
+                    promo_product = promo_products_by_ozon_id.get(ozon_product_id)
 
                     if promo_product:
                         # 更新状态为候选
@@ -247,31 +262,46 @@ class PromotionService:
                 if not products_data:
                     break
 
+                # 批量查询优化：收集本批次所有 ozon_product_id
+                ozon_product_ids = [
+                    p.get("id") for p in products_data if p.get("id")
+                ]
+
+                # 批量查询本地商品（一次查询替代 N 次）
+                products_result = await db.execute(
+                    select(OzonProduct).where(
+                        and_(
+                            OzonProduct.shop_id == shop_id,
+                            OzonProduct.ozon_product_id.in_(ozon_product_ids)
+                        )
+                    )
+                )
+                products_by_ozon_id = {
+                    p.ozon_product_id: p for p in products_result.scalars()
+                }
+
+                # 批量查询促销关联记录（一次查询替代 N 次）
+                promo_products_result = await db.execute(
+                    select(OzonPromotionProduct).where(
+                        and_(
+                            OzonPromotionProduct.shop_id == shop_id,
+                            OzonPromotionProduct.action_id == action_id,
+                            OzonPromotionProduct.ozon_product_id.in_(ozon_product_ids)
+                        )
+                    )
+                )
+                promo_products_by_ozon_id = {
+                    p.ozon_product_id: p for p in promo_products_result.scalars()
+                }
+
+                # 处理每个商品（仅内存操作，无数据库查询）
                 for product_data in products_data:
                     ozon_product_id = product_data.get("id")
                     if not ozon_product_id:
                         continue
 
-                    # 查找本地商品
-                    stmt = select(OzonProduct).where(
-                        and_(
-                            OzonProduct.shop_id == shop_id,
-                            OzonProduct.ozon_product_id == ozon_product_id
-                        )
-                    )
-                    result = await db.execute(stmt)
-                    local_product = result.scalar_one_or_none()
-
-                    # 查找或创建关联记录
-                    stmt = select(OzonPromotionProduct).where(
-                        and_(
-                            OzonPromotionProduct.shop_id == shop_id,
-                            OzonPromotionProduct.action_id == action_id,
-                            OzonPromotionProduct.ozon_product_id == ozon_product_id
-                        )
-                    )
-                    result = await db.execute(stmt)
-                    promo_product = result.scalar_one_or_none()
+                    local_product = products_by_ozon_id.get(ozon_product_id)
+                    promo_product = promo_products_by_ozon_id.get(ozon_product_id)
 
                     if promo_product:
                         # 更新现有记录
@@ -343,29 +373,37 @@ class PromotionService:
         result = await db.execute(stmt)
         actions = result.scalars().all()
 
+        if not actions:
+            return []
+
+        # 批量统计优化：一次查询获取所有活动的统计数据（替代 N*2 次查询）
+        action_ids = [action.action_id for action in actions]
+
+        # 使用 GROUP BY 一次查询所有统计
+        from sqlalchemy import case
+        stats_stmt = (
+            select(
+                OzonPromotionProduct.action_id,
+                func.sum(case((OzonPromotionProduct.status == "candidate", 1), else_=0)).label("candidate_count"),
+                func.sum(case((OzonPromotionProduct.status == "active", 1), else_=0)).label("active_count")
+            )
+            .where(
+                and_(
+                    OzonPromotionProduct.shop_id == shop_id,
+                    OzonPromotionProduct.action_id.in_(action_ids)
+                )
+            )
+            .group_by(OzonPromotionProduct.action_id)
+        )
+        stats_result = await db.execute(stats_stmt)
+        stats_by_action_id = {
+            row.action_id: {"candidate_count": row.candidate_count or 0, "active_count": row.active_count or 0}
+            for row in stats_result
+        }
+
         actions_list = []
         for action in actions:
-            # 统计候选商品数
-            stmt = select(func.count()).select_from(OzonPromotionProduct).where(
-                and_(
-                    OzonPromotionProduct.shop_id == shop_id,
-                    OzonPromotionProduct.action_id == action.action_id,
-                    OzonPromotionProduct.status == "candidate"
-                )
-            )
-            result = await db.execute(stmt)
-            candidate_count = result.scalar()
-
-            # 统计参与商品数
-            stmt = select(func.count()).select_from(OzonPromotionProduct).where(
-                and_(
-                    OzonPromotionProduct.shop_id == shop_id,
-                    OzonPromotionProduct.action_id == action.action_id,
-                    OzonPromotionProduct.status == "active"
-                )
-            )
-            result = await db.execute(stmt)
-            active_count = result.scalar()
+            stats = stats_by_action_id.get(action.action_id, {"candidate_count": 0, "active_count": 0})
 
             # 从 raw_data 中提取所有字段
             raw = action.raw_data or {}
@@ -379,8 +417,8 @@ class PromotionService:
                 "date_end": action.date_end.isoformat() if action.date_end else None,
                 "status": action.status,
                 "auto_cancel_enabled": action.auto_cancel_enabled,
-                "candidate_count": candidate_count,
-                "active_count": active_count,
+                "candidate_count": stats["candidate_count"],
+                "active_count": stats["active_count"],
                 "last_sync_at": action.last_sync_at.isoformat() if action.last_sync_at else None,
                 "created_at": action.created_at.isoformat() if action.created_at else None,
                 "updated_at": action.updated_at.isoformat() if action.updated_at else None,
@@ -524,13 +562,29 @@ class PromotionService:
             # 创建API客户端
             client = OzonAPIClient(client_id, api_key_enc, shop_id=shop_id)
 
+            # 批量查询所有商品（避免 N+1 查询）
+            product_ids = [prod["product_id"] for prod in products]
+            products_result = await db.execute(
+                select(OzonProduct).where(OzonProduct.id.in_(product_ids))
+            )
+            products_map = {p.id: p for p in products_result.scalars()}
+
+            # 批量查询已有的促销商品关联（避免 N+1 查询）
+            promo_products_result = await db.execute(
+                select(OzonPromotionProduct).where(
+                    and_(
+                        OzonPromotionProduct.shop_id == shop_id,
+                        OzonPromotionProduct.action_id == action_id,
+                        OzonPromotionProduct.product_id.in_(product_ids)
+                    )
+                )
+            )
+            promo_products_map = {pp.product_id: pp for pp in promo_products_result.scalars()}
+
             # 构建OZON API请求数据
             api_products = []
             for prod in products:
-                # 获取商品信息
-                stmt = select(OzonProduct).where(OzonProduct.id == prod["product_id"])
-                result = await db.execute(stmt)
-                local_product = result.scalar_one_or_none()
+                local_product = products_map.get(prod["product_id"])
                 if not local_product:
                     continue
 
@@ -544,25 +598,13 @@ class PromotionService:
             if api_products:
                 await client.activate_action_products(action_id, api_products)
 
-            # 更新数据库
+            # 更新数据库（使用已缓存的数据，无额外查询）
             for prod in products:
-                stmt = select(OzonProduct).where(OzonProduct.id == prod["product_id"])
-                result = await db.execute(stmt)
-                local_product = result.scalar_one_or_none()
+                local_product = products_map.get(prod["product_id"])
                 if not local_product:
                     continue
 
-                # 查找或创建关联记录
-                stmt = select(OzonPromotionProduct).where(
-                    and_(
-                        OzonPromotionProduct.shop_id == shop_id,
-                        OzonPromotionProduct.action_id == action_id,
-                        OzonPromotionProduct.product_id == prod["product_id"]
-                    )
-                )
-                result = await db.execute(stmt)
-                promo_product = result.scalar_one_or_none()
-
+                promo_product = promo_products_map.get(prod["product_id"])
                 if promo_product:
                     promo_product.status = "active"
                     promo_product.promotion_price = Decimal(str(prod["promotion_price"]))
@@ -626,30 +668,37 @@ class PromotionService:
             # 创建API客户端
             client = OzonAPIClient(client_id, api_key_enc, shop_id=shop_id)
 
+            # 批量查询所有商品（避免 N+1 查询）
+            products_result = await db.execute(
+                select(OzonProduct).where(OzonProduct.id.in_(product_ids))
+            )
+            products_map = {p.id: p for p in products_result.scalars()}
+
+            # 批量查询促销商品关联（避免 N+1 查询）
+            promo_products_result = await db.execute(
+                select(OzonPromotionProduct).where(
+                    and_(
+                        OzonPromotionProduct.shop_id == shop_id,
+                        OzonPromotionProduct.action_id == action_id,
+                        OzonPromotionProduct.product_id.in_(product_ids)
+                    )
+                )
+            )
+            promo_products_map = {pp.product_id: pp for pp in promo_products_result.scalars()}
+
             # 获取OZON商品ID列表
-            ozon_product_ids = []
-            for product_id in product_ids:
-                stmt = select(OzonProduct).where(OzonProduct.id == product_id)
-                result = await db.execute(stmt)
-                product = result.scalar_one_or_none()
-                if product:
-                    ozon_product_ids.append(product.ozon_product_id)
+            ozon_product_ids = [
+                p.ozon_product_id for p in products_map.values()
+                if p.ozon_product_id
+            ]
 
             # 调用OZON API
             if ozon_product_ids:
                 await client.deactivate_action_products(action_id, ozon_product_ids)
 
-            # 更新数据库状态
+            # 更新数据库状态（使用已缓存的数据，无额外查询）
             for product_id in product_ids:
-                stmt = select(OzonPromotionProduct).where(
-                    and_(
-                        OzonPromotionProduct.shop_id == shop_id,
-                        OzonPromotionProduct.action_id == action_id,
-                        OzonPromotionProduct.product_id == product_id
-                    )
-                )
-                result = await db.execute(stmt)
-                promo_product = result.scalar_one_or_none()
+                promo_product = promo_products_map.get(product_id)
                 if promo_product:
                     promo_product.status = "deactivated"
                     promo_product.deactivated_at = utcnow()

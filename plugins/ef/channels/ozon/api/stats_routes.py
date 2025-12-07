@@ -7,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from decimal import Decimal
 from datetime import timedelta
 import logging
+import json
+import redis
 
 from ef_core.database import get_async_session
 from ef_core.api.auth import get_current_user_flexible
@@ -17,6 +19,12 @@ from sqlalchemy import select, or_
 router = APIRouter(tags=["ozon-stats"])
 logger = logging.getLogger(__name__)
 
+# Redis 缓存客户端
+_redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+
+# 统计数据缓存 TTL（秒）
+STATS_CACHE_TTL = 60  # 1 分钟缓存
+
 
 @router.get("/sync-logs")
 async def get_sync_logs(
@@ -24,7 +32,8 @@ async def get_sync_logs(
     entity_type: Optional[str] = Query(None, description="实体类型"),
     status: Optional[str] = Query(None, description="状态"),
     limit: int = Query(20, ge=1, le=100, description="返回数量"),
-    offset: int = Query(0, ge=0, description="偏移量"),
+    offset: int = Query(0, ge=0, description="偏移量（已废弃，建议使用cursor）"),
+    cursor: Optional[int] = Query(None, description="游标（上一页最后一条记录的ID）"),
     session: AsyncSession = Depends(get_async_session)
 ):
     """
@@ -35,7 +44,8 @@ async def get_sync_logs(
         entity_type: 实体类型筛选 (products/orders/postings/inventory)
         status: 状态筛选 (started/success/failed/partial)
         limit: 返回数量
-        offset: 偏移量
+        offset: 偏移量（已废弃，建议使用cursor）
+        cursor: 游标分页 - 上一页最后一条记录的ID
 
     Returns:
         同步日志列表
@@ -53,18 +63,27 @@ async def get_sync_logs(
         if status:
             conditions.append(OzonSyncLog.status == status)
 
-        # 查询总数
+        # 查询总数（仅用于显示，不用于分页计算）
         count_stmt = select(func.count()).select_from(OzonSyncLog)
         if conditions:
             count_stmt = count_stmt.where(and_(*conditions))
         total = await session.scalar(count_stmt)
 
-        # 查询数据
+        # 查询数据 - 优先使用游标分页，避免 OFFSET 全表扫描
         stmt = select(OzonSyncLog)
         if conditions:
             stmt = stmt.where(and_(*conditions))
-        stmt = stmt.order_by(desc(OzonSyncLog.started_at))
-        stmt = stmt.limit(limit).offset(offset)
+
+        # 游标分页：如果提供了 cursor，使用 id < cursor 条件
+        if cursor is not None:
+            stmt = stmt.where(OzonSyncLog.id < cursor)
+
+        stmt = stmt.order_by(desc(OzonSyncLog.id))  # 使用 id 排序，与 cursor 配合
+        stmt = stmt.limit(limit)
+
+        # 仅当未使用 cursor 且 offset > 0 时才应用 offset（向后兼容）
+        if cursor is None and offset > 0:
+            stmt = stmt.offset(offset)
 
         result = await session.execute(stmt)
         logs = result.scalars().all()
@@ -129,11 +148,16 @@ async def get_sync_logs(
                 }
             })
 
+        # 计算下一页游标（最后一条记录的 id）
+        next_cursor = logs[-1].id if len(logs) == limit else None
+
         return {
             "activities": activities,
             "total": total,
             "limit": limit,
-            "offset": offset
+            "offset": offset,  # 保持向后兼容
+            "next_cursor": next_cursor,  # 新增：游标分页
+            "has_more": next_cursor is not None
         }
     except Exception as e:
         logger.error(f"Failed to get sync logs: {e}")
@@ -142,6 +166,8 @@ async def get_sync_logs(
             "total": 0,
             "limit": limit,
             "offset": offset,
+            "next_cursor": None,
+            "has_more": False,
             "error": str(e)
         }
 
@@ -149,6 +175,7 @@ async def get_sync_logs(
 @router.get("/statistics")
 async def get_statistics(
     shop_id: Optional[int] = Query(None, description="店铺ID，为空时获取所有店铺统计"),
+    skip_cache: bool = Query(False, description="跳过缓存，强制刷新数据"),
     db: AsyncSession = Depends(get_async_session),
     current_user = Depends(get_current_user_flexible)
 ):
@@ -157,6 +184,7 @@ async def get_statistics(
 
     Args:
         shop_id: 店铺ID，可选
+        skip_cache: 是否跳过缓存
         db: 数据库会话
         current_user: 当前用户
 
@@ -176,6 +204,19 @@ async def get_statistics(
         allowed_shop_ids = await filter_by_shop_permission(current_user, db, shop_id)
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
+
+    # 构建缓存 key（包含 shop_id 和 user_id）
+    cache_key = f"stats:shop:{shop_id or 'all'}:user:{current_user.id if current_user else 'anon'}"
+
+    # 尝试从缓存获取
+    if not skip_cache:
+        try:
+            cached = _redis_client.get(cache_key)
+            if cached:
+                logger.debug(f"Statistics cache hit: {cache_key}")
+                return json.loads(cached)
+        except Exception as e:
+            logger.warning(f"Redis cache read failed: {e}")
 
     try:
         # 构建查询条件
@@ -355,7 +396,8 @@ async def get_statistics(
         )
         month_revenue = month_revenue_result.scalar() or Decimal('0')
 
-        return {
+        # 构建响应数据
+        result = {
             "products": {
                 "total": product_total,
                 "on_sale": product_on_sale,
@@ -381,6 +423,15 @@ async def get_statistics(
                 "month": str(month_revenue)
             }
         }
+
+        # 缓存结果到 Redis
+        try:
+            _redis_client.setex(cache_key, STATS_CACHE_TTL, json.dumps(result))
+            logger.debug(f"Statistics cached: {cache_key}, TTL: {STATS_CACHE_TTL}s")
+        except Exception as e:
+            logger.warning(f"Redis cache write failed: {e}")
+
+        return result
 
     except Exception as e:
         logger.error(f"Failed to get statistics: {e}")

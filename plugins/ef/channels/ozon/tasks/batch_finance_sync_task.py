@@ -194,15 +194,32 @@ async def _batch_finance_sync_async(task_id: str) -> Dict[str, Any]:
 
             logger.info(f"Processing {len(shop_postings)} postings for shop: {shop_name}")
 
-            # 5. 创建 API 客户端
+            # 5. 批量预加载该店铺的所有 posting 和 order（避免 N+1 查询）
+            shop_posting_ids = [p['id'] for p in shop_postings]
+            postings_result = await session.execute(
+                select(OzonPosting).where(OzonPosting.id.in_(shop_posting_ids))
+            )
+            postings_map = {p.id: p for p in postings_result.scalars()}
+
+            # 批量预加载对应的 order
+            order_ids = list(set(p.order_id for p in postings_map.values() if p.order_id))
+            if order_ids:
+                orders_result = await session.execute(
+                    select(OzonOrder).where(OzonOrder.id.in_(order_ids))
+                )
+                orders_map = {o.id: o for o in orders_result.scalars()}
+            else:
+                orders_map = {}
+
+            # 6. 创建 API 客户端
             async with OzonAPIClient(client_id, api_key_enc, shop_id=shop_id) as client:
-                # 6. 处理每个货件
+                # 7. 处理每个货件
                 for idx, posting_data in enumerate(shop_postings):
                     posting_id = posting_data['id']
                     posting_number = posting_data['posting_number']
                     logger.info(f"Processing {idx+1}/{len(shop_postings)}: {posting_number}")
                     stats["processed"] += 1
-                    
+
                     # 更新进度
                     _update_progress(task_id, {
                         "status": "running",
@@ -211,11 +228,8 @@ async def _batch_finance_sync_async(task_id: str) -> Dict[str, Any]:
                         "message": f"正在同步 {posting_number}..."
                     })
 
-                    # 重新查询 posting 对象
-                    posting_result = await session.execute(
-                        select(OzonPosting).where(OzonPosting.id == posting_id)
-                    )
-                    posting = posting_result.scalar_one_or_none()
+                    # 从预加载的 map 中获取 posting（避免 N+1 查询）
+                    posting = postings_map.get(posting_id)
 
                     if not posting:
                         logger.error(f"Posting {posting_id} not found")
@@ -223,7 +237,7 @@ async def _batch_finance_sync_async(task_id: str) -> Dict[str, Any]:
                         continue
 
                     try:
-                        # 7. 调用财务交易 API
+                        # 8. 调用财务交易 API
                         response = await client.get_finance_transaction_list(
                             posting_number=posting_number,
                             transaction_type="all",
@@ -239,11 +253,8 @@ async def _batch_finance_sync_async(task_id: str) -> Dict[str, Any]:
                             stats["skipped"] += 1
                             continue
 
-                        # 8. 重新获取 order（用于计算汇率）
-                        order_result = await session.execute(
-                            select(OzonOrder).where(OzonOrder.id == posting.order_id)
-                        )
-                        order = order_result.scalar_one_or_none()
+                        # 9. 从预加载的 map 中获取 order（避免 N+1 查询）
+                        order = orders_map.get(posting.order_id)
 
                         if not order:
                             logger.error(f"Order not found for posting {posting_number}")
