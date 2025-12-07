@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ef_core.database import get_task_db_manager
-from ..models.orders import OzonPosting, OzonOrder
+from ..models.orders import OzonPosting
 from ..models.ozon_shops import OzonShop
 from ..models.sync_service import SyncServiceLog
 from ..api.client import OzonAPIClient
@@ -63,14 +63,14 @@ class OzonFinanceSyncService:
             logger.info(f"Time range filter: {priority_time.isoformat()} ~ {now.isoformat()} (priority {priority_days} days)")
 
             # 2. 查询需要同步的货件（已签收且未同步财务，优先7天内，限制数量）
+            # 使用 in_process_at 替代 ordered_at，不依赖 OzonOrder 表
             postings_result = await session.execute(
                 select(OzonPosting)
-                .join(OzonOrder, OzonPosting.order_id == OzonOrder.id)
                 .where(OzonPosting.status == 'delivered')
                 .where(OzonPosting.finance_synced_at == None)
                 .where(OzonPosting.posting_number != None)
                 .where(OzonPosting.posting_number != '')
-                .where(OzonOrder.ordered_at > priority_time)  # 优先7天内
+                .where(OzonPosting.in_process_at > priority_time)  # 使用 posting 自身的时间
                 .order_by(OzonPosting.delivered_at.desc())
                 .limit(max_batch)  # 分批处理，避免OOM
             )

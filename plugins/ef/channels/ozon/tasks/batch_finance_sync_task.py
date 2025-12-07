@@ -14,7 +14,7 @@ from ef_core.tasks.celery_app import celery_app
 from ef_core.database import get_db_manager
 from sqlalchemy import select, or_
 
-from ..models.orders import OzonPosting, OzonOrder
+from ..models.orders import OzonPosting
 from ..models.ozon_shops import OzonShop
 from ..api.client import OzonAPIClient
 
@@ -117,10 +117,9 @@ async def _batch_finance_sync_async(task_id: str) -> Dict[str, Any]:
     db_manager = DatabaseManager()
 
     async with db_manager.get_session() as session:
-        # 1. 查询所有已签收但佣金为0的订单
+        # 1. 查询所有已签收但佣金为0的订单（不依赖 OzonOrder）
         postings_result = await session.execute(
             select(OzonPosting)
-            .join(OzonOrder, OzonPosting.order_id == OzonOrder.id)
             .where(OzonPosting.status == 'delivered')
             .where(
                 or_(
@@ -194,22 +193,12 @@ async def _batch_finance_sync_async(task_id: str) -> Dict[str, Any]:
 
             logger.info(f"Processing {len(shop_postings)} postings for shop: {shop_name}")
 
-            # 5. 批量预加载该店铺的所有 posting 和 order（避免 N+1 查询）
+            # 5. 批量预加载该店铺的所有 posting（不需要加载 order）
             shop_posting_ids = [p['id'] for p in shop_postings]
             postings_result = await session.execute(
                 select(OzonPosting).where(OzonPosting.id.in_(shop_posting_ids))
             )
             postings_map = {p.id: p for p in postings_result.scalars()}
-
-            # 批量预加载对应的 order
-            order_ids = list(set(p.order_id for p in postings_map.values() if p.order_id))
-            if order_ids:
-                orders_result = await session.execute(
-                    select(OzonOrder).where(OzonOrder.id.in_(order_ids))
-                )
-                orders_map = {o.id: o for o in orders_result.scalars()}
-            else:
-                orders_map = {}
 
             # 6. 创建 API 客户端
             async with OzonAPIClient(client_id, api_key_enc, shop_id=shop_id) as client:
@@ -253,16 +242,8 @@ async def _batch_finance_sync_async(task_id: str) -> Dict[str, Any]:
                             stats["skipped"] += 1
                             continue
 
-                        # 9. 从预加载的 map 中获取 order（避免 N+1 查询）
-                        order = orders_map.get(posting.order_id)
-
-                        if not order:
-                            logger.error(f"Order not found for posting {posting_number}")
-                            stats["skipped"] += 1
-                            continue
-
-                        # 9. 计算汇率
-                        exchange_rate = _calculate_exchange_rate(posting, order, operations)
+                        # 9. 计算汇率（不依赖 order，使用 posting.order_total_price）
+                        exchange_rate = _calculate_exchange_rate(posting, operations)
 
                         if exchange_rate is None or exchange_rate <= 0:
                             logger.warning(f"Invalid exchange rate for {posting_number}")
@@ -290,8 +271,8 @@ async def _batch_finance_sync_async(task_id: str) -> Dict[str, Any]:
                         posting.ozon_commission_cny = fees["ozon_commission"]
                         posting.finance_synced_at = datetime.now(timezone.utc)
 
-                        # 12. 计算利润
-                        _calculate_profit(posting, order)
+                        # 12. 计算利润（使用 posting.order_total_price）
+                        _calculate_profit(posting)
 
                         await session.commit()
                         stats["updated"] += 1
@@ -319,11 +300,11 @@ async def _batch_finance_sync_async(task_id: str) -> Dict[str, Any]:
     }
 
 
-def _calculate_exchange_rate(posting: OzonPosting, order: OzonOrder, operations: list) -> float:
-    """计算历史汇率（RUB -> CNY）"""
+def _calculate_exchange_rate(posting: OzonPosting, operations: list) -> float:
+    """计算历史汇率（RUB -> CNY）- 不依赖 OzonOrder"""
     from decimal import Decimal, InvalidOperation
 
-    # 方法1: 从 accruals_for_sale 提取汇率
+    # 方法1: 从 accruals_for_sale 提取汇率（首选）
     for op in operations:
         if op.get("operation_type") == "OperationAgentDeliveredToCustomer":
             services = op.get("services", [])
@@ -334,17 +315,7 @@ def _calculate_exchange_rate(posting: OzonPosting, order: OzonOrder, operations:
                     if price_rub > 0 and price_cny > 0:
                         return float(price_cny / price_rub)
 
-    # 方法2: 从订单总额推算（如果有卢布和人民币价格）
-    try:
-        total_price_rub = Decimal(str(order.total_price or 0))
-        if hasattr(order, 'total_price_cny') and order.total_price_cny:
-            total_price_cny = Decimal(str(order.total_price_cny))
-            if total_price_rub > 0 and total_price_cny > 0:
-                return float(total_price_cny / total_price_rub)
-    except (InvalidOperation, ZeroDivisionError):
-        pass
-
-    # 方法3: 默认汇率（从环境变量或配置）
+    # 方法2: 默认汇率（order.total_price 实际为0，无法用于推算）
     return 0.073  # 默认汇率
 
 
@@ -384,15 +355,15 @@ def _extract_and_convert_fees(operations: list, exchange_rate: float) -> Dict[st
     return fees
 
 
-def _calculate_profit(posting: OzonPosting, order: OzonOrder) -> None:
-    """计算利润"""
+def _calculate_profit(posting: OzonPosting) -> None:
+    """计算利润 - 使用 posting.order_total_price，不依赖 OzonOrder"""
     from decimal import Decimal
 
-    # 订单金额（取消订单不计销售额）
+    # 订单金额（取消订单不计销售额）- 使用 posting.order_total_price
     if posting.status == 'cancelled':
         order_amount = Decimal('0')
     else:
-        order_amount = Decimal(str(order.total_price or '0'))
+        order_amount = Decimal(str(posting.order_total_price or '0'))
 
     # 成本汇总
     purchase_price = posting.purchase_price or Decimal('0')
