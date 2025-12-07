@@ -280,6 +280,7 @@ class OzonPosting(Base):
         # 基础信息
         result = {
             'id': self.id,
+            'shop_id': self.shop_id,
             'posting_number': self.posting_number,
             'status': self.status,
             'operation_status': self.operation_status,
