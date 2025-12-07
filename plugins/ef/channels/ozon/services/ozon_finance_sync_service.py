@@ -211,7 +211,7 @@ class OzonFinanceSyncService:
 
                             # 计算利润
                             from .profit_calculator import calculate_and_update_profit
-                            await calculate_and_update_profit(session, posting)
+                            calculate_and_update_profit(posting)
 
                             stats["records_updated"] += 1
 
