@@ -1047,10 +1047,12 @@ class PostingOperationsService:
                     )
 
                     if detail_response.get("result"):
-                        # 使用现有的订单同步服务更新posting
-                        from ..services.order_sync import OrderSyncService
-                        sync_service = OrderSyncService(shop_id=shop_id, api_client=api_client)
-                        await sync_service._process_single_posting(db_session, detail_response["result"])
+                        # 使用 PostingProcessor 更新posting
+                        from .sync.order_sync.posting_processor import PostingProcessor
+                        processor = PostingProcessor()
+                        posting_data = detail_response["result"]
+                        ozon_order_id = str(posting_data.get("order_id", ""))
+                        await processor.sync_posting(db_session, posting_data, shop_id, ozon_order_id)
                         await db_session.commit()
 
                         # 记录结果

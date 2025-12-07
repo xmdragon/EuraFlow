@@ -20,24 +20,24 @@ class OrderFetcher:
     async def fetch_orders_incremental(
         self,
         client: OzonAPIClient,
-        days: int = 7,
+        hours: int = 6,
         batch_size: int = 200,
     ) -> AsyncIterator[tuple[List[Dict], bool]]:
         """
-        增量获取订单（最近N天）
+        增量获取订单（最近N小时）
 
         Args:
             client: OZON API 客户端
-            days: 获取最近N天的订单
+            hours: 获取最近N小时的订单
             batch_size: 每批获取数量
 
         Yields:
             (items, has_next) - 订单列表、是否有下一页
         """
-        date_from = utcnow() - timedelta(days=days)
+        date_from = utcnow() - timedelta(hours=hours)
         date_to = utcnow()
 
-        logger.info(f"Fetching orders from {date_from} to {date_to} ({days} days, all statuses)")
+        logger.info(f"Fetching orders from {date_from} to {date_to} ({hours} hours, all statuses)")
 
         offset = 0
         has_more = True

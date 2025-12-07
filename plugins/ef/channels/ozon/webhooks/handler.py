@@ -17,7 +17,7 @@ from ef_core.database import get_db_manager
 from ef_core.utils.logger import get_logger
 
 from ..models.sync import OzonWebhookEvent
-from ..services.order_sync import OrderSyncService
+from ..services.sync.order_sync.posting_processor import PostingProcessor
 from ..utils.datetime_utils import parse_datetime, utcnow
 
 logger = get_logger(__name__)
@@ -424,9 +424,6 @@ class OzonWebhookHandler:
                 # Posting不存在，触发同步
                 logger.warning(f"Posting {posting_number} not found, triggering sync")
 
-                # 触发订单同步任务
-                from ..services.order_sync import OrderSyncService
-
                 # 异步触发同步任务（不等待完成）
                 asyncio.create_task(self._trigger_order_sync(posting_number))
 
@@ -440,17 +437,13 @@ class OzonWebhookHandler:
         - 从本地 OzonProduct 表补全 name 和 price 信息
         """
         try:
-            from ..models.orders import OzonOrder, OzonPosting
+            from ..models.orders import OzonPosting
             from ..models.products import OzonProduct
 
             posting_number = payload.get("posting_number")
             if not posting_number:
                 logger.error("Webhook payload missing posting_number, cannot create posting")
                 return None
-
-            # 提取真实的 order_id（如果 webhook 包含）
-            order_id = payload.get("order_id")
-            order_number = payload.get("order_number")
 
             in_process_at = payload.get("in_process_at")
             shipment_date = payload.get("shipment_date")
@@ -481,45 +474,13 @@ class OzonWebhookHandler:
                     # 更新 payload 中的 products
                     payload = {**payload, "products": enriched_products}
 
-                # 创建或获取Order
-                # 注意：OZON的TYPE_NEW_POSTING webhook可能不包含order_id，使用posting_number作为临时标识
-                if not order_id:
-                    logger.warning(f"Webhook payload missing order_id for posting {posting_number}, using posting_number as temporary order_id")
-                    # 使用posting_number作为临时order_id，后续API会更新为真实的order_id
-                    order_id = f"webhook_{posting_number}"
-
-                order = await session.scalar(
-                    select(OzonOrder).where(
-                        and_(
-                            OzonOrder.shop_id == self.shop_id,
-                            OzonOrder.ozon_order_id == str(order_id)
-                        )
-                    )
-                )
-
-                if not order:
-                    order = OzonOrder(
-                        shop_id=self.shop_id,
-                        order_id=f"OZ-{order_id}",
-                        ozon_order_id=str(order_id),
-                        ozon_order_number=order_number,
-                        status="awaiting_packaging",
-                        total_price=Decimal("0.00"),  # 待API更新
-                        ordered_at=parse_datetime(in_process_at) if in_process_at else utcnow(),
-                        raw_payload=payload
-                    )
-                    session.add(order)
-                    await session.flush()
-                    logger.info(f"Created order from webhook with order_id: {order_id}")
-
                 # 检查是否有追踪号（从 payload 中提取）
                 tracking_number = payload.get("tracking_number")
                 has_tracking = bool(tracking_number and str(tracking_number).strip())
 
-                # 创建Posting
+                # 直接创建 Posting（不再创建 OzonOrder）
                 posting = OzonPosting(
                     shop_id=self.shop_id,
-                    order_id=order.id,
                     posting_number=posting_number,
                     status="awaiting_packaging",  # 默认状态
                     operation_status="awaiting_stock",  # 默认操作状态
@@ -536,7 +497,7 @@ class OzonWebhookHandler:
                 try:
                     await session.commit()
                     await session.refresh(posting)
-                    logger.info(f"Created posting {posting_number} from webhook payload (order_id={order.id})")
+                    logger.info(f"Created posting {posting_number} from webhook payload")
                     return posting
                 except Exception as commit_error:
                     await session.rollback()
@@ -668,7 +629,7 @@ class OzonWebhookHandler:
                 await self._trigger_order_sync(posting_number)
 
                 # 检查是否成功更新
-                from ..models.orders import OzonPosting, OzonOrder
+                from ..models.orders import OzonPosting
                 db_manager = get_db_manager()
 
                 async with db_manager.get_session() as session:
@@ -681,12 +642,10 @@ class OzonWebhookHandler:
                         )
                     )
 
-                    # 检查是否已有完整数据（order_id不是临时的即可，不强制要求total_price>0）
-                    if posting and posting.order_id:
-                        order = await session.get(OzonOrder, posting.order_id)
-                        if order and not order.order_id.startswith("webhook_"):
-                            logger.info(f"Successfully updated posting {posting_number} with API data (order_id={order.order_id}, ozon_order_id={order.ozon_order_id})")
-                            return  # 成功，退出
+                    # 检查是否已有完整数据（ozon_order_id 存在且不是 webhook_ 开头即可）
+                    if posting and posting.ozon_order_id and not posting.ozon_order_id.startswith("webhook_"):
+                        logger.info(f"Successfully updated posting {posting_number} with API data (ozon_order_id={posting.ozon_order_id})")
+                        return  # 成功，退出
 
                 logger.warning(f"API data not yet available for posting {posting_number}, will retry")
 
@@ -749,17 +708,15 @@ class OzonWebhookHandler:
                     if not order_id:
                         logger.warning(f"No order_id in posting {posting_number}, cannot sync related postings")
                         # 仍然保存当前包裹
-                        from ..services.order_sync import OrderSyncService
-                        service = OrderSyncService(shop_id=shop.id, api_client=client)
-                        await service._process_single_posting(db, posting_data)
+                        processor = PostingProcessor()
+                        await processor.sync_posting(db, posting_data, shop.id, "")
                         await db.commit()
                         return
 
                     # 步骤2: 查询该订单的所有包裹（时间范围：创建时间前后1天）
                     from datetime import datetime, timezone
                     if created_at:
-                        from ..services.order_sync import OrderSyncService
-                        base_time = OrderSyncService(shop_id=shop.id, api_client=client)._parse_datetime(created_at)
+                        base_time = parse_datetime(created_at)
                         if not base_time:
                             base_time = datetime.now(timezone.utc)
                     else:
@@ -779,9 +736,8 @@ class OzonWebhookHandler:
                     if not all_postings_response or not all_postings_response.get("result"):
                         logger.warning(f"Failed to fetch postings for order {order_id}")
                         # 仍然保存当前包裹
-                        from ..services.order_sync import OrderSyncService
-                        service = OrderSyncService(shop_id=shop.id, api_client=client)
-                        await service._process_single_posting(db, posting_data)
+                        processor = PostingProcessor()
+                        await processor.sync_posting(db, posting_data, shop.id, str(order_id))
                         await db.commit()
                         return
 
@@ -792,12 +748,12 @@ class OzonWebhookHandler:
                     logger.info(f"Found {len(related_postings)} postings for order {order_id}")
 
                     # 步骤4: 批量处理所有包裹
-                    from ..services.order_sync import OrderSyncService
-                    service = OrderSyncService(shop_id=shop.id, api_client=client)
+                    processor = PostingProcessor()
 
                     for posting in related_postings:
                         try:
-                            await service._process_single_posting(db, posting)
+                            ozon_order_id = str(posting.get("order_id", ""))
+                            await processor.sync_posting(db, posting, shop.id, ozon_order_id)
                         except Exception as e:
                             logger.error(f"Failed to process posting {posting.get('posting_number')}: {e}", exc_info=True)
 
@@ -933,7 +889,7 @@ class OzonWebhookHandler:
         
         logger.info(f"Posting {posting_number} delivered at {delivered_at}")
 
-        from ..models.orders import OzonPosting, OzonOrder
+        from ..models.orders import OzonPosting
 
         db_manager = get_db_manager()
         async with db_manager.get_session() as session:
@@ -944,18 +900,10 @@ class OzonWebhookHandler:
                 )
             )
             posting = await session.scalar(stmt)
-            
+
             if posting:
                 posting.status = "delivered"
                 posting.delivered_at = parse_datetime(delivered_at)
-
-                # 更新订单状态
-                order = await session.get(OzonOrder, posting.order_id)
-                if order:
-                    order.status = "delivered"
-                    order.delivered_at = posting.delivered_at
-                    session.add(order)
-
                 session.add(posting)
                 await session.commit()
 
@@ -1121,7 +1069,6 @@ class OzonWebhookHandler:
             if posting:
                 # 创建退款记录
                 refund = OzonRefund(
-                    order_id=posting.order_id,
                     shop_id=self.shop_id,
                     refund_id=str(return_id),
                     refund_type="return",

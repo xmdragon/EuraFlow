@@ -62,7 +62,7 @@ def aggregate_daily_stats(self):
 async def _aggregate_stats() -> Dict[str, Any]:
     """执行统计聚合"""
     from ..models.ozon_shops import OzonShop
-    from ..models.orders import OzonPosting, OzonOrder
+    from ..models.orders import OzonPosting
     from ..models.stats import OzonDailyStats
 
     # 创建独立的数据库引擎（避免与全局单例冲突）
@@ -99,9 +99,9 @@ async def _aggregate_stats() -> Dict[str, Any]:
             for shop in shops:
                 shop_id = shop.id
 
-                # 使用 SQL GROUP BY 聚合统计（按日期分组）
+                # 使用 SQL GROUP BY 聚合统计（按日期分组，基于 OzonPosting.in_process_at）
                 stats_query = select(
-                    func.date(OzonOrder.ordered_at).label('stat_date'),
+                    func.date(OzonPosting.in_process_at).label('stat_date'),
                     func.count().label('order_count'),
                     # 签收订单数
                     func.sum(
@@ -133,16 +133,14 @@ async def _aggregate_stats() -> Dict[str, Any]:
                     ).label('total_logistics'),
                     # 物料成本
                     func.coalesce(func.sum(OzonPosting.material_cost), Decimal('0')).label('total_material_cost'),
-                ).select_from(OzonPosting).join(
-                    OzonOrder, OzonPosting.order_id == OzonOrder.id
-                ).where(
+                ).select_from(OzonPosting).where(
                     and_(
-                        OzonOrder.shop_id == shop_id,
-                        OzonOrder.ordered_at >= datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc),
-                        OzonOrder.ordered_at < datetime.combine(today + timedelta(days=1), datetime.min.time()).replace(tzinfo=timezone.utc),
+                        OzonPosting.shop_id == shop_id,
+                        OzonPosting.in_process_at >= datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc),
+                        OzonPosting.in_process_at < datetime.combine(today + timedelta(days=1), datetime.min.time()).replace(tzinfo=timezone.utc),
                     )
                 ).group_by(
-                    func.date(OzonOrder.ordered_at)
+                    func.date(OzonPosting.in_process_at)
                 )
 
                 result = await db.execute(stats_query)

@@ -124,15 +124,13 @@ class Kuajing84MaterialCostSyncService:
             for posting in postings:
                 postings_data.append({
                     'id': posting.id,
-                    'posting_number': posting.posting_number,
-                    'order_id': posting.order_id
+                    'posting_number': posting.posting_number
                 })
 
             # 4. 循环处理每个货件
             for posting_data in postings_data:
                 posting_id = posting_data['id']
                 posting_number = posting_data['posting_number']
-                order_id = posting_data['order_id']
                 logger.info(f"Processing posting {posting_id} with posting_number: {posting_number}")
                 stats["records_processed"] += 1
                 stats["posting_numbers"].append(posting_number)
@@ -353,8 +351,7 @@ class Kuajing84MaterialCostSyncService:
                     error_message=error_message,
                     extra_data={
                         "posting_number": posting_number,
-                        "posting_id": posting_id,
-                        "order_id": order_id
+                        "posting_id": posting_id
                     }
                 )
                 session.add(sync_log)

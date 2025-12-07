@@ -170,10 +170,10 @@ async def attributes_sync_task(**kwargs):
 async def setup(hooks) -> None:
     """插件初始化函数"""
 
-    # 注册定时任务：拉取订单（每小时第15和45分钟）
+    # 注册定时任务：拉取订单（每小时第15分钟，同步最近6小时）
     await hooks.register_cron(
         name="ef.ozon.orders.pull",
-        cron="15,45 * * * *",
+        cron="15 * * * *",
         task=pull_orders_task
     )
 
@@ -829,8 +829,7 @@ async def pull_orders_task(**kwargs) -> None:
         from ef_core.database import get_task_db_manager
         from .models import OzonShop
         from .models.sync_service import SyncService
-        from .api.client import OzonAPIClient
-        from .services.order_sync import OrderSyncService
+        from .services.sync.order_sync import OrderSyncService
         from .services.ozon_sync import OzonSyncService
         from sqlalchemy import select
         import uuid
@@ -912,38 +911,27 @@ async def pull_orders_task(**kwargs) -> None:
             # 2. 同步订单（如果启用）
             if sync_orders:
                 try:
-                    # 创建API客户端
-                    client = OzonAPIClient(
-                        client_id=shop_data['client_id'],
-                        api_key=shop_data['api_key_enc']
-                    )
+                    async with db_manager.get_session() as db:
+                        # 使用新版 OrderSyncService 执行批量同步
+                        task_id = f"order_sync_{shop_id}_{uuid.uuid4().hex[:8]}"
+                        sync_service = OrderSyncService()
+                        result = await sync_service.sync_orders(
+                            shop_id=shop_id,
+                            db=db,
+                            task_id=task_id,
+                            mode="incremental"
+                        )
 
-                    # 使用 OrderSyncService 执行批量同步
-                    sync_service = OrderSyncService(shop_id=shop_id, api_client=client)
-
-                    # 计算时间范围（最近24小时的订单）
-                    date_from = current_time - timedelta(days=1)
-                    date_to = current_time
-
-                    # 执行同步（批量处理，每批50条，无 N+1 问题）
-                    stats = await sync_service.sync_orders(
-                        date_from=date_from,
-                        date_to=date_to,
-                        full_sync=False
-                    )
-
-                    total_orders_synced += stats.get("success", 0)
-                    logger.info(
-                        f"[{shop_name}] Order sync completed",
-                        extra={
-                            "shop_id": shop_id,
-                            "total_processed": stats["total_processed"],
-                            "success": stats["success"],
-                            "failed": stats["failed"]
-                        }
-                    )
-
-                    await client.close()
+                        sync_result = result.get("result", {})
+                        orders_synced = sync_result.get("total_synced", 0)
+                        total_orders_synced += orders_synced
+                        logger.info(
+                            f"[{shop_name}] Order sync completed",
+                            extra={
+                                "shop_id": shop_id,
+                                "orders_synced": orders_synced
+                            }
+                        )
 
                 except Exception as e:
                     logger.error(f"Error pulling orders for shop {shop_name}: {e}")
@@ -1065,9 +1053,10 @@ async def handle_shipment_request(payload: Dict[str, Any]) -> None:
     """
     try:
         from ef_core.database import get_task_db_manager
-        from .models import OzonShop, OzonOrder
+        from .models import OzonShop
+        from .models.orders import OzonPosting
         from .api.client import OzonAPIClient
-        from sqlalchemy import select
+        from sqlalchemy import select, or_
 
         order_id = payload.get("order_id")
         tracking_number = payload.get("tracking_number")
@@ -1081,46 +1070,34 @@ async def handle_shipment_request(payload: Dict[str, Any]) -> None:
 
         db_manager = get_task_db_manager()
         async with db_manager.get_session() as db:
-            # 查找订单（通过本地订单号或 Ozon 订单号）
-            order_result = await db.execute(
-                select(OzonOrder).where(
-                    (OzonOrder.order_id == order_id) |
-                    (OzonOrder.ozon_order_id == order_id) |
-                    (OzonOrder.ozon_order_number == order_id)
+            # 查找发货单（通过 posting_number 或 ozon_order_id）
+            posting_result = await db.execute(
+                select(OzonPosting).where(
+                    or_(
+                        OzonPosting.posting_number == order_id,
+                        OzonPosting.ozon_order_id == order_id
+                    )
                 )
             )
-            order = order_result.scalar_one_or_none()
+            posting = posting_result.scalar_one_or_none()
 
-            # 如果还没找到，尝试通过 posting_number 查找
-            if not order:
-                from plugins.ef.channels.ozon.models.orders import OzonPosting
-                posting_result = await db.execute(
-                    select(OzonPosting).where(OzonPosting.posting_number == order_id)
-                )
-                posting = posting_result.scalar_one_or_none()
-                if posting:
-                    order_result = await db.execute(
-                        select(OzonOrder).where(OzonOrder.id == posting.order_id)
-                    )
-                    order = order_result.scalar_one_or_none()
-
-            if not order:
-                logger.warning(f"Order {order_id} not found in database")
+            if not posting:
+                logger.warning(f"Posting {order_id} not found in database")
                 return
 
-            # 验证订单状态
-            if order.status not in ["awaiting_packaging", "awaiting_deliver"]:
-                logger.warning(f"Order {order_id} is not ready for shipment. Status: {order.status}")
+            # 验证发货单状态
+            if posting.status not in ["awaiting_packaging", "awaiting_deliver"]:
+                logger.warning(f"Posting {order_id} is not ready for shipment. Status: {posting.status}")
                 return
 
             # 获取店铺信息
             shop_result = await db.execute(
-                select(OzonShop).where(OzonShop.id == order.shop_id)
+                select(OzonShop).where(OzonShop.id == posting.shop_id)
             )
             shop = shop_result.scalar_one_or_none()
 
             if not shop:
-                logger.warning(f"Shop {order.shop_id} not found")
+                logger.warning(f"Shop {posting.shop_id} not found")
                 return
 
             # 创建API客户端
@@ -1129,9 +1106,10 @@ async def handle_shipment_request(payload: Dict[str, Any]) -> None:
                 api_key=shop.api_key_enc
             )
 
-            # 准备发货数据
+            # 准备发货数据（从 raw_payload 获取商品信息）
             packages = []
-            for item in order.items or []:
+            raw_products = posting.raw_payload.get("products", []) if posting.raw_payload else []
+            for item in raw_products:
                 packages.append({
                     "quantity": item.get("quantity", 1),
                     "sku": item.get("sku", "")
@@ -1141,7 +1119,7 @@ async def handle_shipment_request(payload: Dict[str, Any]) -> None:
                 "packages": [{
                     "products": packages
                 }],
-                "posting_number": order.posting_number,
+                "posting_number": posting.posting_number,
                 "tracking_number": tracking_number
             }
 
@@ -1150,14 +1128,13 @@ async def handle_shipment_request(payload: Dict[str, Any]) -> None:
 
             if result.get("result"):
                 # 更新本地发货状态
-                order.status = "delivering"
-                order.tracking_number = tracking_number
-                order.updated_at = datetime.now(UTC)
+                posting.status = "delivering"
+                posting.updated_at = datetime.now(UTC)
                 await db.commit()
 
-                logger.info(f"Successfully shipped order {order_id}")
+                logger.info(f"Successfully shipped posting {posting.posting_number}")
             else:
-                logger.warning(f"Failed to ship order {order_id}: {result}")
+                logger.warning(f"Failed to ship posting {posting.posting_number}: {result}")
 
             await client.close()
 

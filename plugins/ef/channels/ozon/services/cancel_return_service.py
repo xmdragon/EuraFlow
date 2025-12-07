@@ -212,7 +212,6 @@ class CancelReturnService:
             posting = result.scalar_one_or_none()
             if posting:
                 posting_id = posting.id
-                order_id = posting.order_id
 
         # 检查是否已存在
         result = await db.execute(
@@ -470,7 +469,6 @@ class CancelReturnService:
             posting = result.scalar_one_or_none()
             if posting:
                 posting_id = posting.id
-                order_id = posting.order_id
 
         # 检查是否已存在
         result = await db.execute(
