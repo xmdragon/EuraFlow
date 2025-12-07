@@ -345,14 +345,11 @@ const SyncServices = () => {
 
   const logColumns: ColumnsType<SyncServiceLog> = [
     {
-      title: '订单号',
-      key: 'posting_number',
+      title: '运行 ID',
+      dataIndex: 'run_id',
+      key: 'run_id',
       ellipsis: true,
-      width: 250,
-      render: (_, record) => {
-        const extraData = record.extra_data as { posting_number?: string } | undefined;
-        return extraData?.posting_number || record.run_id;
-      },
+      width: 200,
     },
     {
       title: '开始时间',

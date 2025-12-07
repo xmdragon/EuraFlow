@@ -172,6 +172,19 @@ async def prefetch_labels_async(**kwargs) -> Dict[str, Any]:
         f"成功 {total_success}, 跳过 {total_skipped}, 失败 {total_failed}"
     )
 
+    # 7. 记录任务结果到数据库
+    from ef_core.tasks.task_logger import update_task_result
+    update_task_result(
+        task_name="ef.ozon.labels.prefetch",
+        records_processed=total_processed,
+        records_updated=total_success,
+        extra_data={
+            "skipped": total_skipped,
+            "failed": total_failed,
+            "shops": len(shop_results)
+        }
+    )
+
     return {
         "success": True,
         "total_processed": total_processed,
@@ -258,6 +271,19 @@ async def cleanup_labels_async(**kwargs) -> Dict[str, Any]:
         f"标签清理完成: 删除 {files_deleted} 个文件, "
         f"跳过 {files_skipped} 个, 失败 {files_failed} 个, "
         f"更新数据库 {db_updated} 条"
+    )
+
+    # 记录任务结果到数据库
+    from ef_core.tasks.task_logger import update_task_result
+    update_task_result(
+        task_name="ef.ozon.labels.cleanup",
+        records_processed=files_deleted + files_skipped + files_failed,
+        records_updated=files_deleted,
+        extra_data={
+            "db_updated": db_updated,
+            "skipped": files_skipped,
+            "failed": files_failed
+        }
     )
 
     return {

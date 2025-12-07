@@ -50,6 +50,7 @@ async def category_sync_task(**kwargs):
     from .api.client import OzonAPIClient
     from .services.catalog_service import CatalogService
     from ef_core.database import get_task_db_manager
+    from ef_core.tasks.task_logger import update_task_result, record_task_error
     from sqlalchemy import select
 
     logger.info("Starting category tree sync task")
@@ -65,6 +66,10 @@ async def category_sync_task(**kwargs):
 
             if not shop:
                 logger.warning("No active shop found for category sync")
+                record_task_error(
+                    task_name="ef.ozon.category.sync",
+                    error_message="No active shop available"
+                )
                 return {"success": False, "error": "No active shop available"}
 
             logger.info(f"Using shop {shop.id} ({shop.shop_name}) for category sync")
@@ -86,20 +91,35 @@ async def category_sync_task(**kwargs):
             await client.close()
 
             if sync_result.get("success"):
+                total = sync_result.get('total_categories', 0)
+                new = sync_result.get('new_categories', 0)
+                updated = sync_result.get('updated_categories', 0)
                 logger.info(
-                    f"Category sync completed: "
-                    f"{sync_result.get('total_categories')} total, "
-                    f"{sync_result.get('new_categories')} new, "
-                    f"{sync_result.get('updated_categories')} updated"
+                    f"Category sync completed: {total} total, {new} new, {updated} updated"
+                )
+                # 记录任务结果
+                update_task_result(
+                    task_name="ef.ozon.category.sync",
+                    records_processed=total,
+                    records_updated=new + updated,
+                    extra_data={"new_categories": new, "updated_categories": updated}
                 )
                 return sync_result
             else:
                 error = sync_result.get("error", "Unknown error")
                 logger.error(f"Category sync failed: {error}")
+                record_task_error(
+                    task_name="ef.ozon.category.sync",
+                    error_message=error
+                )
                 return {"success": False, "error": error}
 
     except Exception as e:
         logger.error(f"Category tree sync failed: {e}", exc_info=True)
+        record_task_error(
+            task_name="ef.ozon.category.sync",
+            error_message=str(e)
+        )
         return {"success": False, "error": str(e)}
 
 
@@ -109,6 +129,7 @@ async def attributes_sync_task(**kwargs):
     from .api.client import OzonAPIClient
     from .services.catalog_service import CatalogService
     from ef_core.database import get_task_db_manager
+    from ef_core.tasks.task_logger import update_task_result, record_task_error
     from sqlalchemy import select
 
     logger.info("Starting category attributes sync task")
@@ -124,6 +145,10 @@ async def attributes_sync_task(**kwargs):
 
             if not shop:
                 logger.warning("No active shop found for attributes sync")
+                record_task_error(
+                    task_name="ef.ozon.attributes.sync",
+                    error_message="No active shop available"
+                )
                 return {"success": False, "error": "No active shop available"}
 
             logger.info(f"Using shop {shop.id} ({shop.shop_name}) for attributes sync")
@@ -151,19 +176,34 @@ async def attributes_sync_task(**kwargs):
             await client.close()
 
             if sync_result.get("success"):
+                categories = sync_result.get('synced_categories', 0)
+                attributes = sync_result.get('synced_attributes', 0)
                 logger.info(
-                    f"Attributes sync completed: "
-                    f"{sync_result.get('synced_categories')} categories, "
-                    f"{sync_result.get('synced_attributes')} attributes"
+                    f"Attributes sync completed: {categories} categories, {attributes} attributes"
+                )
+                # 记录任务结果
+                update_task_result(
+                    task_name="ef.ozon.attributes.sync",
+                    records_processed=categories,
+                    records_updated=attributes,
+                    extra_data={"synced_attributes": attributes}
                 )
                 return sync_result
             else:
                 error = sync_result.get("error", "Unknown error")
                 logger.error(f"Attributes sync failed: {error}")
+                record_task_error(
+                    task_name="ef.ozon.attributes.sync",
+                    error_message=error
+                )
                 return {"success": False, "error": error}
 
     except Exception as e:
         logger.error(f"Category attributes sync failed: {e}", exc_info=True)
+        record_task_error(
+            task_name="ef.ozon.attributes.sync",
+            error_message=str(e)
+        )
         return {"success": False, "error": str(e)}
 
 
@@ -864,6 +904,12 @@ async def pull_products_task(**kwargs) -> None:
     """
     拉取 Ozon 商品的定时任务（每小时第50分钟，同步最近6小时）
     """
+    from ef_core.tasks.task_logger import update_task_result, record_task_error
+
+    total_products_synced = 0
+    shops_processed = 0
+    errors = []
+
     try:
         from ef_core.database import get_task_db_manager
         from .models import OzonShop
@@ -893,9 +939,6 @@ async def pull_products_task(**kwargs) -> None:
 
         logger.info(f"Product sync: {len(shops)} shops")
 
-        # 统计
-        total_products_synced = 0
-
         # 对每个店铺执行同步
         for shop_data in shops:
             shop_id = shop_data['id']
@@ -913,6 +956,7 @@ async def pull_products_task(**kwargs) -> None:
                     sync_result = result.get("result", {})
                     products_synced = sync_result.get("total_synced", 0)
                     total_products_synced += products_synced
+                    shops_processed += 1
                     logger.info(
                         f"[{shop_name}] Product sync completed",
                         extra={
@@ -921,18 +965,42 @@ async def pull_products_task(**kwargs) -> None:
                         }
                     )
             except Exception as e:
+                errors.append(f"{shop_name}: {str(e)}")
                 logger.error(f"Error syncing products for shop {shop_name}: {e}")
 
         logger.info(f"OZON product sync task completed: {total_products_synced} products synced")
 
+        # 记录任务结果
+        update_task_result(
+            task_name="ef.ozon.products.pull",
+            records_processed=total_products_synced,
+            records_updated=total_products_synced,
+            extra_data={
+                "shops_processed": shops_processed,
+                "errors": errors[:5] if errors else None
+            }
+        )
+
     except Exception as e:
         logger.error(f"Error in OZON product sync task: {e}")
+        record_task_error(
+            task_name="ef.ozon.products.pull",
+            error_message=str(e),
+            records_processed=total_products_synced,
+            extra_data={"shops_processed": shops_processed}
+        )
 
 
 async def pull_orders_task(**kwargs) -> None:
     """
     拉取 Ozon 订单的定时任务（每小时第15分钟，同步最近6小时）
     """
+    from ef_core.tasks.task_logger import update_task_result, record_task_error
+
+    total_orders_synced = 0
+    shops_processed = 0
+    errors = []
+
     try:
         from ef_core.database import get_task_db_manager
         from .models import OzonShop
@@ -962,9 +1030,6 @@ async def pull_orders_task(**kwargs) -> None:
 
         logger.info(f"Order sync: {len(shops)} shops")
 
-        # 统计
-        total_orders_synced = 0
-
         # 对每个店铺执行同步
         for shop_data in shops:
             shop_id = shop_data['id']
@@ -984,6 +1049,7 @@ async def pull_orders_task(**kwargs) -> None:
                     sync_result = result.get("result", {})
                     orders_synced = sync_result.get("total_synced", 0)
                     total_orders_synced += orders_synced
+                    shops_processed += 1
                     logger.info(
                         f"[{shop_name}] Order sync completed",
                         extra={
@@ -993,18 +1059,42 @@ async def pull_orders_task(**kwargs) -> None:
                     )
 
             except Exception as e:
+                errors.append(f"{shop_name}: {str(e)}")
                 logger.error(f"Error pulling orders for shop {shop_name}: {e}")
 
         logger.info(f"OZON order sync task completed: {total_orders_synced} orders synced")
 
+        # 记录任务结果
+        update_task_result(
+            task_name="ef.ozon.orders.pull",
+            records_processed=total_orders_synced,
+            records_updated=total_orders_synced,
+            extra_data={
+                "shops_processed": shops_processed,
+                "errors": errors[:5] if errors else None
+            }
+        )
+
     except Exception as e:
         logger.error(f"Error in OZON order sync task: {e}")
+        record_task_error(
+            task_name="ef.ozon.orders.pull",
+            error_message=str(e),
+            records_processed=total_orders_synced,
+            extra_data={"shops_processed": shops_processed}
+        )
 
 
 async def sync_inventory_task(**kwargs) -> None:
     """
     同步库存的定时任务
     """
+    from ef_core.tasks.task_logger import update_task_result, record_task_error
+
+    total_products_synced = 0
+    shops_processed = 0
+    errors = []
+
     try:
         from ef_core.database import get_task_db_manager
         from .models import OzonShop, OzonProduct
@@ -1087,17 +1177,38 @@ async def sync_inventory_task(**kwargs) -> None:
                                     product.last_sync_at = current_time
 
                             await db.commit()
+                            total_products_synced += len(products_data)
                             logger.info(f"[{shop_name}] Synced inventory for {len(products_data)} products")
                         else:
+                            errors.append(f"{shop_name}: {result}")
                             logger.warning(f"[{shop_name}] Failed to sync inventory: {result}")
 
+                    shops_processed += 1
                     await client.close()
 
                 except Exception as e:
+                    errors.append(f"{shop_name}: {str(e)}")
                     logger.error(f"Error syncing inventory for shop {shop_name}: {e}", exc_info=True)
+
+        # 记录任务结果
+        update_task_result(
+            task_name="ef.ozon.inventory.sync",
+            records_processed=total_products_synced,
+            records_updated=total_products_synced,
+            extra_data={
+                "shops_processed": shops_processed,
+                "errors": errors[:5] if errors else None
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error syncing inventory: {e}", exc_info=True)
+        record_task_error(
+            task_name="ef.ozon.inventory.sync",
+            error_message=str(e),
+            records_processed=total_products_synced,
+            extra_data={"shops_processed": shops_processed}
+        )
 
 
 async def handle_shipment_request(payload: Dict[str, Any]) -> None:

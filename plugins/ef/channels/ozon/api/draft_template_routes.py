@@ -1,7 +1,7 @@
 """
 草稿与模板管理路由
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, Any
 from datetime import datetime
@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field, field_validator
 from ef_core.database import get_async_session
 from ef_core.models.users import User
 from ef_core.api.auth import get_current_user_flexible
+from ef_core.services.audit_service import AuditService
 from ..services.draft_template_service import DraftTemplateService
 
 router = APIRouter(prefix="/listings", tags=["Draft & Template"])
@@ -162,7 +163,8 @@ class DraftDetail(BaseModel):
 
 @router.post("/drafts")
 async def save_draft(
-    request: SaveDraftRequest,
+    http_request: Request,
+    draft_data: SaveDraftRequest,
     current_user: User = Depends(get_current_user_flexible),
     db: AsyncSession = Depends(get_async_session)
 ):
@@ -170,10 +172,30 @@ async def save_draft(
     draft = await DraftTemplateService.save_or_update_draft(
         db=db,
         user_id=current_user.id,
-        form_data=request.form_data.model_dump(),
-        shop_id=request.shop_id,
-        category_id=request.category_id
+        form_data=draft_data.form_data.model_dump(),
+        shop_id=draft_data.shop_id,
+        category_id=draft_data.category_id
     )
+
+    # 记录保存草稿审计日志
+    await AuditService.log_action(
+        db=db,
+        user_id=current_user.id,
+        username=current_user.username,
+        module="ozon",
+        action="create",
+        action_display="保存草稿",
+        table_name="listing_drafts",
+        record_id=str(draft.id),
+        changes={
+            "shop_id": {"new": draft_data.shop_id},
+            "category_id": {"new": draft_data.category_id},
+        },
+        ip_address=http_request.client.host if http_request.client else None,
+        user_agent=http_request.headers.get("user-agent"),
+        request_id=getattr(http_request.state, 'trace_id', None)
+    )
+
     return {
         "success": True,
         "data": {
@@ -208,6 +230,7 @@ async def get_latest_draft(
 
 @router.delete("/drafts/{draft_id}")
 async def delete_draft(
+    request: Request,
     draft_id: int,
     current_user: User = Depends(get_current_user_flexible),
     db: AsyncSession = Depends(get_async_session)
@@ -218,6 +241,20 @@ async def delete_draft(
     if not deleted:
         problem(404, "DRAFT_NOT_FOUND", "Draft not found", "草稿不存在或无权访问")
 
+    # 记录删除草稿审计日志
+    await AuditService.log_delete(
+        db=db,
+        user_id=current_user.id,
+        username=current_user.username,
+        module="ozon",
+        table_name="listing_drafts",
+        record_id=str(draft_id),
+        deleted_data={"draft_id": draft_id},
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+        request_id=getattr(request.state, 'trace_id', None)
+    )
+
     return {"success": True}
 
 
@@ -227,7 +264,8 @@ async def delete_draft(
 
 @router.post("/templates")
 async def create_template(
-    request: CreateTemplateRequest,
+    http_request: Request,
+    template_data: CreateTemplateRequest,
     current_user: User = Depends(get_current_user_flexible),
     db: AsyncSession = Depends(get_async_session)
 ):
@@ -235,12 +273,33 @@ async def create_template(
     template = await DraftTemplateService.create_template(
         db=db,
         user_id=current_user.id,
-        template_name=request.template_name,
-        form_data=request.form_data.model_dump(),
-        shop_id=request.shop_id,
-        category_id=request.category_id,
-        tags=request.tags
+        template_name=template_data.template_name,
+        form_data=template_data.form_data.model_dump(),
+        shop_id=template_data.shop_id,
+        category_id=template_data.category_id,
+        tags=template_data.tags
     )
+
+    # 记录创建模板审计日志
+    await AuditService.log_action(
+        db=db,
+        user_id=current_user.id,
+        username=current_user.username,
+        module="ozon",
+        action="create",
+        action_display="创建模板",
+        table_name="listing_templates",
+        record_id=str(template.id),
+        changes={
+            "template_name": {"new": template_data.template_name},
+            "shop_id": {"new": template_data.shop_id},
+            "category_id": {"new": template_data.category_id},
+        },
+        ip_address=http_request.client.host if http_request.client else None,
+        user_agent=http_request.headers.get("user-agent"),
+        request_id=getattr(http_request.state, 'trace_id', None)
+    )
+
     return {
         "success": True,
         "data": {
@@ -322,8 +381,9 @@ async def get_template(
 
 @router.put("/templates/{template_id}")
 async def update_template(
+    http_request: Request,
     template_id: int,
-    request: UpdateTemplateRequest,
+    update_data: UpdateTemplateRequest,
     current_user: User = Depends(get_current_user_flexible),
     db: AsyncSession = Depends(get_async_session)
 ):
@@ -332,13 +392,32 @@ async def update_template(
         db=db,
         user_id=current_user.id,
         template_id=template_id,
-        template_name=request.template_name,
-        form_data=request.form_data.model_dump() if request.form_data else None,
-        tags=request.tags
+        template_name=update_data.template_name,
+        form_data=update_data.form_data.model_dump() if update_data.form_data else None,
+        tags=update_data.tags
     )
 
     if not template:
         problem(404, "TEMPLATE_NOT_FOUND", "Template not found", "模板不存在或无权访问")
+
+    # 记录更新模板审计日志
+    await AuditService.log_action(
+        db=db,
+        user_id=current_user.id,
+        username=current_user.username,
+        module="ozon",
+        action="update",
+        action_display="更新模板",
+        table_name="listing_templates",
+        record_id=str(template_id),
+        changes={
+            "template_name": {"new": update_data.template_name},
+            "tags": {"new": update_data.tags},
+        },
+        ip_address=http_request.client.host if http_request.client else None,
+        user_agent=http_request.headers.get("user-agent"),
+        request_id=getattr(http_request.state, 'trace_id', None)
+    )
 
     return {
         "success": True,
@@ -350,6 +429,7 @@ async def update_template(
 
 @router.delete("/templates/{template_id}")
 async def delete_template(
+    request: Request,
     template_id: int,
     current_user: User = Depends(get_current_user_flexible),
     db: AsyncSession = Depends(get_async_session)
@@ -361,5 +441,19 @@ async def delete_template(
 
     if not deleted:
         problem(404, "TEMPLATE_NOT_FOUND", "Template not found", "模板不存在或无权访问")
+
+    # 记录删除模板审计日志
+    await AuditService.log_delete(
+        db=db,
+        user_id=current_user.id,
+        username=current_user.username,
+        module="ozon",
+        table_name="listing_templates",
+        record_id=str(template_id),
+        deleted_data={"template_id": template_id},
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+        request_id=getattr(request.state, 'trace_id', None)
+    )
 
     return {"success": True}

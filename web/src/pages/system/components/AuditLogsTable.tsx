@@ -19,6 +19,10 @@ import {
 import dayjs from 'dayjs';
 import React, { useState, useEffect } from 'react';
 
+import {
+  OZON_ORDER_STATUS_MAP,
+  OZON_OPERATION_STATUS_MAP,
+} from '@/constants/ozonStatus';
 import { useDateTime } from '@/hooks/useDateTime';
 import axios from '@/services/axios';
 import { notifyError } from '@/utils/notification';
@@ -75,6 +79,7 @@ const AuditLogsTable: React.FC = () => {
     { value: 'update', label: '更新' },
     { value: 'delete', label: '删除' },
     { value: 'print', label: '打印' },
+    { value: 'login', label: '登录' },
   ];
 
   // 获取用户列表
@@ -164,14 +169,225 @@ const AuditLogsTable: React.FC = () => {
       update: 'blue',
       delete: 'red',
       print: 'orange',
+      login: 'cyan',
     };
     const labels: Record<string, string> = {
       create: '创建',
       update: '更新',
       delete: '删除',
       print: '打印',
+      login: '登录',
     };
     return <Tag color={colors[action] || 'default'}>{labels[action] || action}</Tag>;
+  };
+
+  // 字段名称映射
+  const FIELD_LABEL_MAP: Record<string, string> = {
+    // OZON 订单/库存字段
+    operation_status: '操作状态',
+    status: '订单状态',
+    label_printed: '标签打印',
+    tracking_number: '运单号',
+    domestic_tracking_number: '国内运单号',
+    domestic_tracking_numbers: '国内运单号',
+    shipped_at: '发货时间',
+    notes: '备注',
+    order_notes: '订单备注',
+    price: '价格',
+    stock: '库存',
+    qty_available: '库存数量',
+    unit_price: '单价',
+    source_platform: '采购平台',
+    purchase_price: '进货价格',
+    material_cost: '物料成本',
+    is_enabled: '启用状态',
+    print_count: '打印次数',
+    sku: 'SKU',
+    international_logistics_fee_cny: '国际运费(CNY)',
+    last_mile_delivery_fee_cny: '尾程运费(CNY)',
+
+    // 用户模块字段
+    username: '用户名',
+    role: '角色',
+    is_active: '启用状态',
+    shop_ids: '关联店铺',
+    permissions: '权限列表',
+    password: '密码',
+    login_method: '登录方式',
+    success: '登录结果',
+
+    // API密钥字段
+    key_prefix: 'API密钥前缀',
+    key: 'API密钥',
+    name: '名称',
+    expires_at: '过期时间',
+    key_id: '密钥ID',
+
+    // 选品字段
+    batch_id: '批次ID',
+    batch_name: '批次名称',
+    deleted_count: '删除数量',
+    deleted_products: '删除商品数',
+    deleted_batches: '删除批次数',
+    marked_count: '标记数量',
+
+    // 草稿模板字段
+    template_name: '模板名称',
+    form_data: '表单数据',
+    tags: '标签',
+
+    // 促销字段
+    auto_cancel: '自动取消',
+    add_mode: '加入方式',
+
+    // 系统配置字段
+    api_provider: 'API服务商',
+    base_currency: '基准货币',
+    api_key: 'API密钥',
+
+    // 水印存储字段
+    cloud_name: 'Cloudinary账号',
+    bucket_name: 'OSS存储桶',
+    endpoint: 'OSS端点',
+    is_default: '默认存储',
+    enabled: '启用状态',
+    provider: '存储服务商',
+    product_images_folder: '商品图片目录',
+    region_id: '区域ID',
+    access_key_id: 'AccessKey ID',
+  };
+
+  // 需要跳过的上下文信息字段（不是实际变更，只是描述信息）
+  const SKIP_FIELDS = new Set([
+    'reason',
+    'posting_number',
+    'deduct_requested',
+    'deduct_actual',
+    'deleted',
+    'change',
+    'is_reprint',
+  ]);
+
+  // 值翻译映射（合并多个状态映射）
+  const VALUE_LABEL_MAP: Record<string, string> = {
+    ...OZON_ORDER_STATUS_MAP,
+    ...OZON_OPERATION_STATUS_MAP,
+    // 标签打印状态
+    printed: '已打印',
+    not_printed: '未打印',
+    // 布尔值
+    true: '是',
+    false: '否',
+    // 用户角色
+    admin: '管理员',
+    operator: '操作员',
+    viewer: '查看者',
+    // 登录方式
+    password: '密码登录',
+    // 加入方式
+    manual: '手动',
+    automatic: '自动',
+    // 存储服务商
+    cloudinary: 'Cloudinary',
+    aliyun_oss: '阿里云OSS',
+  };
+
+  // 翻译字段值
+  const translateValue = (value: unknown): string => {
+    if (value === null || value === undefined) return '空';
+    if (typeof value === 'boolean') return value ? '是' : '否';
+    if (Array.isArray(value)) {
+      if (value.length === 0) return '空';
+      return value.join(', ');
+    }
+    if (typeof value === 'object') {
+      // 复杂对象，尝试提取有意义的值
+      return JSON.stringify(value);
+    }
+    const strValue = String(value);
+    return VALUE_LABEL_MAP[strValue] || strValue;
+  };
+
+  // 判断值是否为空
+  const isEmpty = (val: unknown): boolean => {
+    return val === null || val === undefined || val === '';
+  };
+
+  // 格式化变更详情为友好格式
+  const formatChanges = (changes: Record<string, unknown> | null) => {
+    if (!changes) return null;
+
+    const items: React.ReactNode[] = [];
+
+    const processChange = (field: string, value: unknown, prefix = '') => {
+      const fullField = prefix ? `${prefix}.${field}` : field;
+      const fieldLabel = FIELD_LABEL_MAP[field] || field;
+
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        const obj = value as Record<string, unknown>;
+
+        // 检查是否是 old/new 格式
+        if ('old' in obj && 'new' in obj) {
+          const oldVal = obj.old;
+          const newVal = obj.new;
+
+          // 跳过无意义的变更（空 → 空）
+          if (isEmpty(oldVal) && isEmpty(newVal)) {
+            return;
+          }
+          const oldStr = translateValue(oldVal);
+          const newStr = translateValue(newVal);
+          // 跳过值相同的变更
+          if (oldStr === newStr) {
+            return;
+          }
+
+          // 如果有 change 字段，显示变化量
+          const changeAmount = obj.change;
+          const changeText = changeAmount !== undefined
+            ? ` (${Number(changeAmount) > 0 ? '+' : ''}${changeAmount})`
+            : '';
+
+          items.push(
+            <div key={fullField} className={styles.changeItem}>
+              <Text strong>{fieldLabel}：</Text>
+              <Text type="secondary">{oldStr}</Text>
+              <Text className={styles.changeArrow}>→</Text>
+              <Text>{newStr}{changeText}</Text>
+            </div>
+          );
+        } else if ('new' in obj && !('old' in obj)) {
+          // 只有 new，表示新增
+          const newVal = obj.new;
+          if (!isEmpty(newVal)) {
+            items.push(
+              <div key={fullField} className={styles.changeItem}>
+                <Text strong>{fieldLabel}：</Text>
+                <Text type="secondary">空</Text>
+                <Text className={styles.changeArrow}>→</Text>
+                <Text>{translateValue(newVal)}</Text>
+              </div>
+            );
+          }
+        } else {
+          // 其他对象，跳过（如 reason、posting_number 等额外信息字段）
+          // 这些不是变更，只是上下文信息
+        }
+      } else {
+        // 简单值 - 通常是额外的上下文信息，跳过
+        // 如 reason: "订单备货", posting_number: "xxx" 等
+      }
+    };
+
+    Object.entries(changes).forEach(([field, value]) => {
+      processChange(field, value);
+    });
+
+    if (items.length === 0) {
+      return <Text type="secondary">无有效变更</Text>;
+    }
+
+    return <div className={styles.changesList}>{items}</div>;
   };
 
   const columns = [
@@ -206,13 +422,6 @@ const AuditLogsTable: React.FC = () => {
       width: 160,
       ellipsis: true,
       render: (text: string | null) => text || <Text type="secondary">-</Text>,
-    },
-    {
-      title: '表名',
-      dataIndex: 'table_name',
-      key: 'table_name',
-      width: 150,
-      render: (text: string) => <Text code>{text}</Text>,
     },
     {
       title: '货件编号',
@@ -353,76 +562,54 @@ const AuditLogsTable: React.FC = () => {
         open={detailModalVisible}
         onCancel={() => setDetailModalVisible(false)}
         footer={null}
-        width={800}
+        width={600}
       >
         {selectedLog ? (
-          <div>
-            <Space direction="vertical" className={styles.detailContent} size="middle">
-              <div>
-                <Text strong>用户：</Text>
-                <Text>{selectedLog.username} (ID: {selectedLog.user_id})</Text>
+          <div className={styles.detailContent}>
+            <div className={styles.detailRow}>
+              <Text strong>用户：</Text>
+              <Text>{selectedLog.username} (ID: {selectedLog.user_id})</Text>
+            </div>
+            <div className={styles.detailRow}>
+              <Text strong>模块：</Text>
+              {getModuleTag(selectedLog.module)}
+            </div>
+            <div className={styles.detailRow}>
+              <Text strong>操作类型：</Text>
+              {getActionTag(selectedLog.action)}
+            </div>
+            {selectedLog.action_display && (
+              <div className={styles.detailRow}>
+                <Text strong>操作说明：</Text>
+                <Text>{selectedLog.action_display}</Text>
               </div>
-              <div>
-                <Text strong>模块：</Text>
-                {getModuleTag(selectedLog.module)}
+            )}
+            <div className={styles.detailRow}>
+              <Text strong>货件编号：</Text>
+              <Text>{selectedLog.record_id}</Text>
+            </div>
+            {selectedLog.changes && (
+              <div className={styles.detailRow}>
+                <Text strong>变更详情：</Text>
+                {formatChanges(selectedLog.changes)}
               </div>
-              <div>
-                <Text strong>操作类型：</Text>
-                {getActionTag(selectedLog.action)}
+            )}
+            {selectedLog.ip_address && (
+              <div className={styles.detailRow}>
+                <Text strong>IP地址：</Text>
+                <Text>{selectedLog.ip_address}</Text>
               </div>
-              {selectedLog.action_display && (
-                <div>
-                  <Text strong>操作说明：</Text>
-                  <Text>{selectedLog.action_display}</Text>
-                </div>
-              )}
-              <div>
-                <Text strong>表名：</Text>
-                <Text code>{selectedLog.table_name}</Text>
+            )}
+            {selectedLog.notes && (
+              <div className={styles.detailRow}>
+                <Text strong>备注：</Text>
+                <Text>{selectedLog.notes}</Text>
               </div>
-              <div>
-                <Text strong>货件编号：</Text>
-                <Text>{selectedLog.record_id}</Text>
-              </div>
-              {selectedLog.changes && (
-                <div>
-                  <Text strong>变更详情：</Text>
-                  <pre className={styles.detailChanges}>
-                    {JSON.stringify(selectedLog.changes, null, 2)}
-                  </pre>
-                </div>
-              )}
-              {selectedLog.ip_address && (
-                <div>
-                  <Text strong>IP地址：</Text>
-                  <Text>{selectedLog.ip_address}</Text>
-                </div>
-              )}
-              {selectedLog.user_agent && (
-                <div>
-                  <Text strong>User Agent：</Text>
-                  <Text className={styles.detailUserAgent} type="secondary">
-                    {selectedLog.user_agent}
-                  </Text>
-                </div>
-              )}
-              {selectedLog.request_id && (
-                <div>
-                  <Text strong>请求ID：</Text>
-                  <Text code>{selectedLog.request_id}</Text>
-                </div>
-              )}
-              {selectedLog.notes && (
-                <div>
-                  <Text strong>备注：</Text>
-                  <Text>{selectedLog.notes}</Text>
-                </div>
-              )}
-              <div>
-                <Text strong>操作时间：</Text>
-                <Text>{formatDateTime(selectedLog.created_at, 'YYYY-MM-DD HH:mm:ss')}</Text>
-              </div>
-            </Space>
+            )}
+            <div className={styles.detailRow}>
+              <Text strong>操作时间：</Text>
+              <Text>{formatDateTime(selectedLog.created_at, 'YYYY-MM-DD HH:mm:ss')}</Text>
+            </div>
           </div>
         ) : (
           <Empty description="无法加载详情" />

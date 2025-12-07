@@ -9,6 +9,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from ef_core.services.auth_service import get_auth_service
 from ef_core.services.api_key_service import get_api_key_service
+from ef_core.services.audit_service import AuditService
 from ef_core.database import get_async_session, get_db_manager
 from ef_core.models.users import User
 from ef_core.utils.logger import get_logger
@@ -313,9 +314,31 @@ async def login(
             password=login_request.password,
             ip_address=client_ip
         )
-        
+
+        # 记录登录成功审计日志
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as audit_db:
+            await AuditService.log_action(
+                db=audit_db,
+                user_id=result['user']['id'],
+                username=result['user']['username'],
+                module="user",
+                action="login",
+                action_display="用户登录",
+                table_name="users",
+                record_id=str(result['user']['id']),
+                changes={
+                    "login_method": {"new": "password"},
+                    "success": {"new": True}
+                },
+                ip_address=client_ip,
+                user_agent=request.headers.get("user-agent"),
+                request_id=getattr(request.state, 'trace_id', None),
+                notes=f"登录用户名: {login_request.username}"
+            )
+
         return LoginResponse(**result)
-        
+
     except UnauthorizedError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -475,6 +498,7 @@ async def logout(
 
 @router.post("/users", response_model=UserResponse)
 async def create_user(
+    request: Request,
     user_data: CreateUserRequest,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session)
@@ -553,6 +577,28 @@ async def create_user(
     await session.commit()
     await session.refresh(new_user, attribute_names=["shops"])
 
+    # 记录创建用户审计日志
+    await AuditService.log_action(
+        db=session,
+        user_id=current_user.id,
+        username=current_user.username,
+        module="user",
+        action="create",
+        action_display="创建用户",
+        table_name="users",
+        record_id=str(new_user.id),
+        changes={
+            "username": {"new": new_user.username},
+            "role": {"new": new_user.role},
+            "is_active": {"new": new_user.is_active},
+            "shop_ids": {"new": [shop.id for shop in new_user.shops]}
+        },
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+        request_id=getattr(request.state, 'trace_id', None),
+        notes=f"由管理员 {current_user.username} 创建"
+    )
+
     return UserResponse(**{**new_user.to_dict(), "shop_ids": [shop.id for shop in new_user.shops]})
 
 
@@ -589,6 +635,7 @@ async def list_users(
 
 @router.put("/users/{user_id}", response_model=UserResponse)
 async def update_user(
+    request: Request,
     user_id: int,
     update_data: UpdateUserRequest,
     current_user: User = Depends(get_current_user),
@@ -632,6 +679,13 @@ async def update_user(
                 "message": "用户不存在或无权限访问"
             }
         )
+
+    # 保存旧值用于审计日志
+    old_username = user.username
+    old_role = user.role
+    old_is_active = user.is_active
+    old_shop_ids = [shop.id for shop in user.shops] if user.shops else []
+    old_permissions = user.permissions
 
     # 其他管理员不能编辑admin用户
     if not is_super_admin and user.username == "admin":
@@ -744,11 +798,43 @@ async def update_user(
     result = await session.execute(stmt)
     user = result.scalar_one()
 
+    # 记录更新用户审计日志
+    new_shop_ids = [shop.id for shop in user.shops]
+    changes = {}
+    if old_username != user.username:
+        changes["username"] = {"old": old_username, "new": user.username}
+    if old_role != user.role:
+        changes["role"] = {"old": old_role, "new": user.role}
+    if old_is_active != user.is_active:
+        changes["is_active"] = {"old": old_is_active, "new": user.is_active}
+    if old_shop_ids != new_shop_ids:
+        changes["shop_ids"] = {"old": old_shop_ids, "new": new_shop_ids}
+    if old_permissions != user.permissions:
+        changes["permissions"] = {"old": old_permissions, "new": user.permissions}
+
+    if changes:
+        await AuditService.log_action(
+            db=session,
+            user_id=current_user.id,
+            username=current_user.username,
+            module="user",
+            action="update",
+            action_display="更新用户",
+            table_name="users",
+            record_id=str(user_id),
+            changes=changes,
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            request_id=getattr(request.state, 'trace_id', None),
+            notes=f"目标用户: {user.username}"
+        )
+
     return UserResponse(**{**user.to_dict(), "shop_ids": [shop.id for shop in user.shops]})
 
 
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(
+    request: Request,
     user_id: int,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session)
@@ -801,6 +887,27 @@ async def delete_user(
             }
         )
 
+    # 记录删除用户审计日志（在删除前记录）
+    deleted_username = user.username
+    deleted_role = user.role
+    await AuditService.log_delete(
+        db=session,
+        user_id=current_user.id,
+        username=current_user.username,
+        module="user",
+        table_name="users",
+        record_id=str(user_id),
+        deleted_data={
+            "username": deleted_username,
+            "role": deleted_role,
+            "is_active": user.is_active
+        },
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+        request_id=getattr(request.state, 'trace_id', None),
+        notes=f"由管理员 {current_user.username} 删除"
+    )
+
     # 从数据库删除用户（级联删除会自动处理关联表）
     await session.delete(user)
     await session.commit()
@@ -810,6 +917,7 @@ async def delete_user(
 
 @router.put("/me", response_model=UserResponse)
 async def update_profile(
+    request: Request,
     update_data: UpdateProfileRequest,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session)
@@ -824,6 +932,9 @@ async def update_profile(
     stmt = select(User).where(User.id == current_user.id)
     result = await session.execute(stmt)
     user = result.scalar_one()
+
+    # 保存旧值用于审计日志
+    old_username = user.username
 
     # 更新用户名
     if update_data.username is not None:
@@ -843,11 +954,31 @@ async def update_profile(
     await session.commit()
     await session.refresh(user, attribute_names=["shops"])
 
+    # 记录更新个人资料审计日志
+    if old_username != user.username:
+        await AuditService.log_action(
+            db=session,
+            user_id=current_user.id,
+            username=user.username,
+            module="user",
+            action="update",
+            action_display="更新个人资料",
+            table_name="users",
+            record_id=str(current_user.id),
+            changes={
+                "username": {"old": old_username, "new": user.username}
+            },
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            request_id=getattr(request.state, 'trace_id', None)
+        )
+
     return UserResponse(**{**user.to_dict(), "shop_ids": [shop.id for shop in user.shops]})
 
 
 @router.put("/me/password", status_code=status.HTTP_204_NO_CONTENT)
 async def change_password(
+    request: Request,
     password_data: ChangePasswordRequest,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session)
@@ -879,6 +1010,25 @@ async def change_password(
     user.password_hash = auth_service.hash_password(password_data.new_password)
     await session.commit()
 
+    # 记录修改密码审计日志
+    await AuditService.log_action(
+        db=session,
+        user_id=current_user.id,
+        username=current_user.username,
+        module="user",
+        action="update",
+        action_display="修改密码",
+        table_name="users",
+        record_id=str(current_user.id),
+        changes={
+            "password": {"old": "[已脱敏]", "new": "[已修改]"}
+        },
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+        request_id=getattr(request.state, 'trace_id', None),
+        notes="用户主动修改密码"
+    )
+
     return None
 
 
@@ -889,6 +1039,7 @@ class AdminResetPasswordRequest(BaseModel):
 
 @router.patch("/users/{user_id}/password", status_code=status.HTTP_204_NO_CONTENT)
 async def admin_reset_user_password(
+    request: Request,
     user_id: int,
     password_data: AdminResetPasswordRequest,
     current_user: User = Depends(get_current_user),
@@ -948,6 +1099,23 @@ async def admin_reset_user_password(
     user.password_hash = auth_service.hash_password(password_data.new_password)
     await session.commit()
 
-    logger.info(f"管理员 {current_user.id} 重置了用户 {user_id} 的密码")
+    # 记录重置密码审计日志
+    await AuditService.log_action(
+        db=session,
+        user_id=current_user.id,
+        username=current_user.username,
+        module="user",
+        action="update",
+        action_display="重置用户密码",
+        table_name="users",
+        record_id=str(user_id),
+        changes={
+            "password": {"old": "[已脱敏]", "new": "[已重置]"}
+        },
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+        request_id=getattr(request.state, 'trace_id', None),
+        notes=f"目标用户: {user.username}"
+    )
 
     return None

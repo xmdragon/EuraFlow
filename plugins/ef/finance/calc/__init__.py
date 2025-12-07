@@ -71,5 +71,20 @@ async def setup(hooks: Any) -> None:
 
 async def refresh_rates_cache(**kwargs) -> None:
     """刷新费率缓存"""
-    # TODO: 实现费率缓存刷新逻辑
-    pass
+    from ef_core.tasks.task_logger import update_task_result, record_task_error
+
+    try:
+        # TODO: 实现费率缓存刷新逻辑
+        # 目前仅记录任务执行
+        update_task_result(
+            task_name="ef.finance.rates.refresh",
+            records_processed=0,
+            records_updated=0,
+            extra_data={"status": "no_op", "message": "Rate refresh not yet implemented"}
+        )
+    except Exception as e:
+        record_task_error(
+            task_name="ef.finance.rates.refresh",
+            error_message=str(e)
+        )
+        raise

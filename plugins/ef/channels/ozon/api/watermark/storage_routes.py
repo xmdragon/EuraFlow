@@ -4,13 +4,14 @@
 
 import logging
 
-from fastapi import APIRouter, Depends, Form, HTTPException
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ef_core.database import get_async_session
 from ef_core.middleware.auth import require_role
 from ef_core.models.users import User
+from ef_core.services.audit_service import AuditService
 
 from ...models.watermark import AliyunOssConfig, CloudinaryConfig
 from ...services.aliyun_oss_service import AliyunOssConfigManager
@@ -26,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 @router.post("/cloudinary/config")
 async def create_cloudinary_config(
+    request: Request,
     cloud_name: str = Form(...),
     api_key: str = Form(...),
     api_secret: str = Form(...),
@@ -42,6 +44,7 @@ async def create_cloudinary_config(
             select(CloudinaryConfig).limit(1)
         )
         existing_config = existing.scalar_one_or_none()
+        is_create = existing_config is None
 
         if existing_config:
             # 更新现有配置
@@ -68,6 +71,26 @@ async def create_cloudinary_config(
 
         await db.commit()
         await db.refresh(existing_config)
+
+        # 记录配置Cloudinary审计日志
+        await AuditService.log_action(
+            db=db,
+            user_id=current_user.id,
+            username=current_user.username,
+            module="system",
+            action="create" if is_create else "update",
+            action_display="创建Cloudinary配置" if is_create else "更新Cloudinary配置",
+            table_name="cloudinary_configs",
+            record_id=str(existing_config.id),
+            changes={
+                "cloud_name": {"new": cloud_name},
+                "api_key": {"new": "[已脱敏]"},
+                "product_images_folder": {"new": product_images_folder},
+            },
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            request_id=getattr(request.state, 'trace_id', None)
+        )
 
         return CloudinaryConfigResponse(
             id=existing_config.id,
@@ -160,6 +183,7 @@ async def test_cloudinary_connection(
 
 @router.put("/cloudinary/set-default")
 async def set_cloudinary_default(
+    request: Request,
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(require_role("operator"))
 ):
@@ -184,6 +208,25 @@ async def set_cloudinary_default(
 
         await db.commit()
 
+        # 记录设置默认图床审计日志
+        await AuditService.log_action(
+            db=db,
+            user_id=current_user.id,
+            username=current_user.username,
+            module="system",
+            action="update",
+            action_display="设置Cloudinary为默认图床",
+            table_name="cloudinary_configs",
+            record_id=str(cloudinary_config.id),
+            changes={
+                "is_default": {"old": False, "new": True},
+                "provider": {"new": "cloudinary"},
+            },
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            request_id=getattr(request.state, 'trace_id', None)
+        )
+
         return {
             "success": True,
             "message": "Cloudinary set as default storage provider"
@@ -198,6 +241,7 @@ async def set_cloudinary_default(
 
 @router.post("/aliyun-oss/config")
 async def create_aliyun_oss_config(
+    request: Request,
     access_key_id: str = Form(...),
     access_key_secret: str = Form(...),
     bucket_name: str = Form(...),
@@ -212,6 +256,7 @@ async def create_aliyun_oss_config(
     try:
         # 检查是否已存在配置（ID固定为1）
         existing = await db.get(AliyunOssConfig, 1)
+        is_create = existing is None
 
         if existing:
             # 更新现有配置
@@ -241,6 +286,27 @@ async def create_aliyun_oss_config(
 
         await db.commit()
         await db.refresh(existing)
+
+        # 记录配置阿里云OSS审计日志
+        await AuditService.log_action(
+            db=db,
+            user_id=current_user.id,
+            username=current_user.username,
+            module="system",
+            action="create" if is_create else "update",
+            action_display="创建阿里云OSS配置" if is_create else "更新阿里云OSS配置",
+            table_name="aliyun_oss_configs",
+            record_id=str(existing.id),
+            changes={
+                "access_key_id": {"new": access_key_id[:8] + "..." if len(access_key_id) > 8 else access_key_id},
+                "bucket_name": {"new": bucket_name},
+                "endpoint": {"new": endpoint},
+                "region_id": {"new": region_id},
+            },
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            request_id=getattr(request.state, 'trace_id', None)
+        )
 
         return AliyunOssConfigResponse(
             id=existing.id,
@@ -313,6 +379,7 @@ async def test_aliyun_oss_connection(
 
 @router.put("/aliyun-oss/set-default")
 async def set_aliyun_oss_default(
+    request: Request,
     enabled: bool = Form(True, description="是否启用阿里云 OSS"),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(require_role("operator"))
@@ -337,6 +404,26 @@ async def set_aliyun_oss_default(
         config.enabled = enabled
 
         await db.commit()
+
+        # 记录设置默认图床审计日志
+        await AuditService.log_action(
+            db=db,
+            user_id=current_user.id,
+            username=current_user.username,
+            module="system",
+            action="update",
+            action_display="设置阿里云OSS为默认图床",
+            table_name="aliyun_oss_configs",
+            record_id=str(config.id),
+            changes={
+                "is_default": {"old": False, "new": True},
+                "enabled": {"new": enabled},
+                "provider": {"new": "aliyun_oss"},
+            },
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            request_id=getattr(request.state, 'trace_id', None)
+        )
 
         return {
             "success": True,

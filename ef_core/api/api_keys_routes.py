@@ -4,10 +4,11 @@ API Key管理路由
 from typing import Optional, List
 from pydantic import BaseModel, Field
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ef_core.services.api_key_service import get_api_key_service
+from ef_core.services.audit_service import AuditService
 from ef_core.database import get_async_session
 from ef_core.models.users import User
 from ef_core.api.auth import get_current_user
@@ -68,7 +69,8 @@ class RegenerateAPIKeyResponse(BaseModel):
 
 @router.post("/", response_model=CreateAPIKeyResponse, status_code=status.HTTP_201_CREATED)
 async def create_api_key(
-    request: CreateAPIKeyRequest,
+    http_request: Request,
+    key_data: CreateAPIKeyRequest,
     current_user: User = Depends(require_role("operator")),
     db: AsyncSession = Depends(get_async_session)
 ):
@@ -82,9 +84,29 @@ async def create_api_key(
         result = await api_key_service.create_api_key(
             db=db,
             user_id=current_user.id,
-            name=request.name,
-            permissions=request.permissions,
-            expires_in_days=request.expires_in_days
+            name=key_data.name,
+            permissions=key_data.permissions,
+            expires_in_days=key_data.expires_in_days
+        )
+
+        # 记录创建API密钥审计日志
+        await AuditService.log_action(
+            db=db,
+            user_id=current_user.id,
+            username=current_user.username,
+            module="user",
+            action="create",
+            action_display="创建API密钥",
+            table_name="api_keys",
+            record_id=str(result['key_id']),
+            changes={
+                "name": {"new": key_data.name},
+                "key_prefix": {"new": result['key'][:8] + "..."},
+                "permissions": {"new": key_data.permissions}
+            },
+            ip_address=http_request.client.host if http_request.client else None,
+            user_agent=http_request.headers.get("user-agent"),
+            request_id=getattr(http_request.state, 'trace_id', None)
         )
 
         return CreateAPIKeyResponse(**result)
@@ -130,6 +152,7 @@ async def list_api_keys(
 
 @router.delete("/{key_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_api_key(
+    http_request: Request,
     key_id: int,
     current_user: User = Depends(require_role("operator")),
     db: AsyncSession = Depends(get_async_session)
@@ -154,6 +177,20 @@ async def delete_api_key(
                 }
             )
 
+        # 记录删除API密钥审计日志
+        await AuditService.log_delete(
+            db=db,
+            user_id=current_user.id,
+            username=current_user.username,
+            module="user",
+            table_name="api_keys",
+            record_id=str(key_id),
+            deleted_data={"key_id": key_id},
+            ip_address=http_request.client.host if http_request.client else None,
+            user_agent=http_request.headers.get("user-agent"),
+            request_id=getattr(http_request.state, 'trace_id', None)
+        )
+
         return None
 
     except HTTPException:
@@ -171,6 +208,7 @@ async def delete_api_key(
 
 @router.put("/{key_id}/regenerate", response_model=RegenerateAPIKeyResponse)
 async def regenerate_api_key(
+    http_request: Request,
     key_id: int,
     current_user: User = Depends(require_role("operator")),
     db: AsyncSession = Depends(get_async_session)
@@ -196,6 +234,24 @@ async def regenerate_api_key(
                     "message": "API Key不存在或无权限访问"
                 }
             )
+
+        # 记录重新生成API密钥审计日志
+        await AuditService.log_action(
+            db=db,
+            user_id=current_user.id,
+            username=current_user.username,
+            module="user",
+            action="update",
+            action_display="重新生成API密钥",
+            table_name="api_keys",
+            record_id=str(key_id),
+            changes={
+                "key": {"old": "[已脱敏]", "new": result['key'][:8] + "..."}
+            },
+            ip_address=http_request.client.host if http_request.client else None,
+            user_agent=http_request.headers.get("user-agent"),
+            request_id=getattr(http_request.state, 'trace_id', None)
+        )
 
         return RegenerateAPIKeyResponse(**result)
 

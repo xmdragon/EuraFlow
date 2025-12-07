@@ -39,6 +39,8 @@ def aggregate_daily_stats(self):
 
     计算过去30天每个店铺每天的统计数据，使用 UPSERT 更新已有记录。
     """
+    from ef_core.tasks.task_logger import update_task_result, record_task_error
+
     try:
         logger.info("Starting daily stats aggregation")
 
@@ -52,10 +54,26 @@ def aggregate_daily_stats(self):
             asyncio.set_event_loop(None)
 
         logger.info(f"Daily stats aggregation completed: {result}")
+
+        # 记录任务结果
+        update_task_result(
+            task_name="ef.ozon.stats.daily_aggregation",
+            records_processed=result.get("upserted", 0),
+            records_updated=result.get("upserted", 0),
+            extra_data={
+                "shops": result.get("shops", 0),
+                "date_range": result.get("date_range")
+            }
+        )
+
         return result
 
     except Exception as e:
         logger.error(f"Daily stats aggregation failed: {e}", exc_info=True)
+        record_task_error(
+            task_name="ef.ozon.stats.daily_aggregation",
+            error_message=str(e)
+        )
         return {"success": False, "error": str(e)}
 
 

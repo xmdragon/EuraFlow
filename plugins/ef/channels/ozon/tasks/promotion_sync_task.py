@@ -96,6 +96,21 @@ async def sync_all_promotions(**kwargs) -> Dict[str, Any]:
                 }
             )
 
+            # 记录任务结果到数据库
+            from ef_core.tasks.task_logger import update_task_result
+            update_task_result(
+                task_name="ef.ozon.promotions.sync",
+                records_processed=results["actions_synced"] + results["products_synced"],
+                records_updated=results["products_synced"],
+                extra_data={
+                    "shops_processed": results["shops_processed"],
+                    "actions_synced": results["actions_synced"],
+                    "candidates_synced": results["candidates_synced"],
+                    "auto_cancelled": results["auto_cancelled"],
+                    "errors": len(results["errors"])
+                }
+            )
+
             return results
 
     except Exception as e:
@@ -104,6 +119,14 @@ async def sync_all_promotions(**kwargs) -> Dict[str, Any]:
             "error": "Task failed",
             "message": str(e)
         })
+        # 记录任务失败
+        from ef_core.tasks.task_logger import record_task_error
+        record_task_error(
+            task_name="ef.ozon.promotions.sync",
+            error_message=str(e),
+            records_processed=results["actions_synced"],
+            extra_data={"shops_processed": results["shops_processed"]}
+        )
         raise
 
 
@@ -311,10 +334,25 @@ async def promotion_health_check(**kwargs) -> Dict[str, Any]:
                 extra=health_status["statistics"]
             )
 
+            # 记录任务结果到数据库
+            from ef_core.tasks.task_logger import update_task_result
+            update_task_result(
+                task_name="ef.ozon.promotions.health_check",
+                records_processed=total_actions,
+                records_updated=0,
+                extra_data=health_status["statistics"]
+            )
+
     except Exception as e:
         logger.error("Promotion health check failed", exc_info=True)
         health_status["status"] = "unhealthy"
         health_status["error"] = str(e)
+        # 记录任务失败
+        from ef_core.tasks.task_logger import record_task_error
+        record_task_error(
+            task_name="ef.ozon.promotions.health_check",
+            error_message=str(e)
+        )
 
     return health_status
 

@@ -6,13 +6,14 @@ import logging
 from decimal import Decimal
 from typing import Any, Dict
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ef_core.database import get_async_session
 from ef_core.middleware.auth import require_role
 from ef_core.models.users import User
+from ef_core.services.audit_service import AuditService
 
 from ...api.client import OzonAPIClient
 from ...models import OzonShop
@@ -32,7 +33,8 @@ async def get_ozon_client(shop_id: int, db: AsyncSession) -> OzonAPIClient:
 
 @router.post("/listings/products/import")
 async def import_product(
-    request: Dict[str, Any],
+    http_request: Request,
+    import_data: Dict[str, Any],
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(require_role("operator"))
 ):
@@ -44,10 +46,10 @@ async def import_product(
     - FOLLOW_PDP: 跟随已有商品（需要条码）
     """
     try:
-        shop_id = request.get("shop_id")
-        offer_id = request.get("offer_id")
-        mode = request.get("mode", "NEW_CARD")
-        auto_advance = request.get("auto_advance", True)
+        shop_id = import_data.get("shop_id")
+        offer_id = import_data.get("offer_id")
+        mode = import_data.get("mode", "NEW_CARD")
+        auto_advance = import_data.get("auto_advance", True)
 
         if not shop_id or not offer_id:
             raise HTTPException(status_code=400, detail="shop_id and offer_id are required")
@@ -61,6 +63,27 @@ async def import_product(
             mode=mode,
             auto_advance=auto_advance
         )
+
+        # 记录导入商品审计日志
+        if result.get("success"):
+            await AuditService.log_action(
+                db=db,
+                user_id=current_user.id,
+                username=current_user.username,
+                module="ozon",
+                action="create",
+                action_display="导入商品上架",
+                table_name="ozon_products",
+                record_id=offer_id,
+                changes={
+                    "shop_id": {"new": shop_id},
+                    "offer_id": {"new": offer_id},
+                    "mode": {"new": mode},
+                },
+                ip_address=http_request.client.host if http_request.client else None,
+                user_agent=http_request.headers.get("user-agent"),
+                request_id=getattr(http_request.state, 'trace_id', None)
+            )
 
         return result
 
@@ -104,8 +127,9 @@ async def get_listing_status(
 
 @router.post("/listings/products/{offer_id}/price")
 async def update_product_price(
+    http_request: Request,
     offer_id: str,
-    request: Dict[str, Any],
+    price_data: Dict[str, Any],
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(require_role("operator"))
 ):
@@ -115,15 +139,15 @@ async def update_product_price(
     可以更新售价、原价、最低价等
     """
     try:
-        shop_id = request.get("shop_id")
+        shop_id = price_data.get("shop_id")
         if not shop_id:
             raise HTTPException(status_code=400, detail="shop_id is required")
 
-        price = request.get("price")
-        old_price = request.get("old_price")
-        min_price = request.get("min_price")
-        currency_code = request.get("currency_code", "RUB")
-        auto_action_enabled = request.get("auto_action_enabled", False)
+        price = price_data.get("price")
+        old_price = price_data.get("old_price")
+        min_price = price_data.get("min_price")
+        currency_code = price_data.get("currency_code", "RUB")
+        auto_action_enabled = price_data.get("auto_action_enabled", False)
 
         if price is None:
             raise HTTPException(status_code=400, detail="price is required")
@@ -141,6 +165,28 @@ async def update_product_price(
             auto_action_enabled=auto_action_enabled
         )
 
+        # 记录更新价格审计日志
+        if result.get("success"):
+            await AuditService.log_action(
+                db=db,
+                user_id=current_user.id,
+                username=current_user.username,
+                module="ozon",
+                action="update",
+                action_display="更新商品价格",
+                table_name="ozon_products",
+                record_id=offer_id,
+                changes={
+                    "shop_id": {"new": shop_id},
+                    "price": {"new": price},
+                    "old_price": {"new": old_price},
+                    "min_price": {"new": min_price},
+                },
+                ip_address=http_request.client.host if http_request.client else None,
+                user_agent=http_request.headers.get("user-agent"),
+                request_id=getattr(http_request.state, 'trace_id', None)
+            )
+
         return result
 
     except Exception as e:
@@ -153,8 +199,9 @@ async def update_product_price(
 
 @router.post("/listings/products/{offer_id}/stock")
 async def update_product_stock(
+    http_request: Request,
     offer_id: str,
-    request: Dict[str, Any],
+    stock_data: Dict[str, Any],
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(require_role("operator"))
 ):
@@ -164,13 +211,13 @@ async def update_product_stock(
     更新指定仓库的库存数量
     """
     try:
-        shop_id = request.get("shop_id")
+        shop_id = stock_data.get("shop_id")
         if not shop_id:
             raise HTTPException(status_code=400, detail="shop_id is required")
 
-        stock = request.get("stock")
-        warehouse_id = request.get("warehouse_id", 1)
-        product_id = request.get("product_id")
+        stock = stock_data.get("stock")
+        warehouse_id = stock_data.get("warehouse_id", 1)
+        product_id = stock_data.get("product_id")
 
         if stock is None:
             raise HTTPException(status_code=400, detail="stock is required")
@@ -186,6 +233,27 @@ async def update_product_stock(
             product_id=product_id
         )
 
+        # 记录更新库存审计日志
+        if result.get("success"):
+            await AuditService.log_action(
+                db=db,
+                user_id=current_user.id,
+                username=current_user.username,
+                module="ozon",
+                action="update",
+                action_display="更新商品库存",
+                table_name="ozon_products",
+                record_id=offer_id,
+                changes={
+                    "shop_id": {"new": shop_id},
+                    "stock": {"new": stock},
+                    "warehouse_id": {"new": warehouse_id},
+                },
+                ip_address=http_request.client.host if http_request.client else None,
+                user_agent=http_request.headers.get("user-agent"),
+                request_id=getattr(http_request.state, 'trace_id', None)
+            )
+
         return result
 
     except Exception as e:
@@ -198,7 +266,8 @@ async def update_product_stock(
 
 @router.post("/listings/products/unarchive")
 async def unarchive_product(
-    request: Dict[str, Any],
+    http_request: Request,
+    unarchive_data: Dict[str, Any],
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(require_role("operator"))
 ):
@@ -208,8 +277,8 @@ async def unarchive_product(
     将已下架/归档的商品重新激活
     """
     try:
-        shop_id = request.get("shop_id")
-        product_id = request.get("product_id")
+        shop_id = unarchive_data.get("shop_id")
+        product_id = unarchive_data.get("product_id")
 
         if not shop_id or not product_id:
             raise HTTPException(status_code=400, detail="shop_id and product_id are required")
@@ -232,6 +301,26 @@ async def unarchive_product(
                 product.ozon_archived = False
                 product.status = "on_sale"  # 重新设置为在售状态
                 await db.commit()
+
+            # 记录取消归档审计日志
+            await AuditService.log_action(
+                db=db,
+                user_id=current_user.id,
+                username=current_user.username,
+                module="ozon",
+                action="update",
+                action_display="取消归档商品",
+                table_name="ozon_products",
+                record_id=str(product_id),
+                changes={
+                    "shop_id": {"new": shop_id},
+                    "ozon_archived": {"old": True, "new": False},
+                    "status": {"new": "on_sale"},
+                },
+                ip_address=http_request.client.host if http_request.client else None,
+                user_agent=http_request.headers.get("user-agent"),
+                request_id=getattr(http_request.state, 'trace_id', None)
+            )
 
             return {
                 "success": True,

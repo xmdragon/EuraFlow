@@ -1,7 +1,7 @@
 """
 选品助手API路由
 """
-from fastapi import APIRouter, Depends, HTTPException, Query, File, UploadFile, Form, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, File, UploadFile, Form, BackgroundTasks, Request
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -19,6 +19,7 @@ import re
 from ef_core.database import get_async_session
 from ef_core.api.auth import get_current_user, get_current_user_from_api_key, get_current_user_flexible
 from ef_core.models.users import User
+from ef_core.services.audit_service import AuditService
 from ..services.product_selection_service import ProductSelectionService
 from ..models.product_selection import ProductSelectionItem, ImportHistory
 from ..services.sync_state_manager import get_sync_state_manager
@@ -182,6 +183,7 @@ class BatchDeleteResponse(BaseModel):
 # API 端点
 @router.post("/import", response_model=ImportResponse)
 async def import_products(
+    request: Request,
     file: UploadFile = File(...),
     strategy: str = Form('update'),
     shop_id: int = Form(...),  # 必须明确指定店铺ID
@@ -229,6 +231,28 @@ async def import_products(
             )
 
             if result['success']:
+                # 记录导入选品数据审计日志
+                await AuditService.log_action(
+                    db=db,
+                    user_id=current_user.id,
+                    username=current_user.username,
+                    module="ozon",
+                    action="create",
+                    action_display="导入选品数据",
+                    table_name="product_selection_items",
+                    record_id=str(result.get('import_id', '')),
+                    changes={
+                        "file_name": {"new": file.filename},
+                        "strategy": {"new": strategy},
+                        "shop_id": {"new": shop_id},
+                        "total_rows": {"new": result.get('total_rows', 0)},
+                        "success_rows": {"new": result.get('success_rows', 0)},
+                        "failed_rows": {"new": result.get('failed_rows', 0)},
+                    },
+                    ip_address=request.client.host if request.client else None,
+                    user_agent=request.headers.get("user-agent"),
+                    request_id=getattr(request.state, 'trace_id', None)
+                )
                 return ImportResponse(**result)
             else:
                 raise HTTPException(status_code=400, detail=result.get('error', '导入失败'))
@@ -444,7 +468,8 @@ async def get_import_history(
 
 @router.post("/products/mark-as-read", response_model=MarkAsReadResponse)
 async def mark_products_as_read(
-    request: MarkAsReadRequest,
+    http_request: Request,
+    mark_data: MarkAsReadRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session)
 ):
@@ -452,7 +477,7 @@ async def mark_products_as_read(
     批量标记商品为已读
 
     Args:
-        request: 包含商品ID列表的请求
+        mark_data: 包含商品ID列表的请求
     """
     try:
         from sqlalchemy import update
@@ -461,7 +486,7 @@ async def mark_products_as_read(
         result = await db.execute(
             update(ProductSelectionItem)
             .where(
-                ProductSelectionItem.id.in_(request.product_ids),
+                ProductSelectionItem.id.in_(mark_data.product_ids),
                 ProductSelectionItem.user_id == current_user.id
             )
             .values(
@@ -474,6 +499,25 @@ async def mark_products_as_read(
         marked_count = result.rowcount
 
         logger.info(f"用户 {current_user.id} 标记了 {marked_count} 个商品为已读")
+
+        # 记录标记已读审计日志
+        await AuditService.log_action(
+            db=db,
+            user_id=current_user.id,
+            username=current_user.username,
+            module="ozon",
+            action="update",
+            action_display="标记选品已读",
+            table_name="product_selection_items",
+            record_id=",".join(str(pid) for pid in mark_data.product_ids[:10]),  # 最多记录前10个ID
+            changes={
+                "marked_count": {"new": marked_count},
+                "product_ids_count": {"new": len(mark_data.product_ids)},
+            },
+            ip_address=http_request.client.host if http_request.client else None,
+            user_agent=http_request.headers.get("user-agent"),
+            request_id=getattr(http_request.state, 'trace_id', None)
+        )
 
         return MarkAsReadResponse(
             success=True,
@@ -489,6 +533,7 @@ async def mark_products_as_read(
 
 @router.delete("/batch/{batch_id}")
 async def delete_batch(
+    request: Request,
     batch_id: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session)
@@ -513,6 +558,23 @@ async def delete_batch(
         if not result['success']:
             raise HTTPException(status_code=404, detail=result.get('error', '删除失败'))
 
+        # 记录删除批次审计日志
+        await AuditService.log_delete(
+            db=db,
+            user_id=current_user.id,
+            username=current_user.username,
+            module="ozon",
+            table_name="product_selection_items",
+            record_id=str(batch_id),
+            deleted_data={
+                "batch_id": batch_id,
+                "deleted_products": result.get('deleted_products', 0),
+            },
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            request_id=getattr(request.state, 'trace_id', None)
+        )
+
         return {
             "success": True,
             "message": result.get('message', '批次删除完成'),
@@ -531,7 +593,8 @@ async def delete_batch(
 
 @router.post("/batches/delete", response_model=BatchDeleteResponse)
 async def delete_batches(
-    request: BatchDeleteRequest,
+    http_request: Request,
+    delete_data: BatchDeleteRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session)
 ):
@@ -539,7 +602,7 @@ async def delete_batches(
     批量删除多个批次的数据
 
     Args:
-        request: 包含批次ID列表的请求
+        delete_data: 包含批次ID列表的请求
 
     Returns:
         批量删除结果
@@ -548,12 +611,30 @@ async def delete_batches(
         service = ProductSelectionService()
         result = await service.delete_batches(
             db=db,
-            batch_ids=request.batch_ids,
+            batch_ids=delete_data.batch_ids,
             user_id=current_user.id
         )
 
         if not result['success']:
             raise HTTPException(status_code=400, detail=result.get('error', '批量删除失败'))
+
+        # 记录批量删除批次审计日志
+        await AuditService.log_delete(
+            db=db,
+            user_id=current_user.id,
+            username=current_user.username,
+            module="ozon",
+            table_name="product_selection_items",
+            record_id=",".join(str(bid) for bid in delete_data.batch_ids[:10]),
+            deleted_data={
+                "batch_ids": delete_data.batch_ids,
+                "deleted_batches": result.get('deleted_batches', 0),
+                "deleted_products": result.get('deleted_products', 0),
+            },
+            ip_address=http_request.client.host if http_request.client else None,
+            user_agent=http_request.headers.get("user-agent"),
+            request_id=getattr(http_request.state, 'trace_id', None)
+        )
 
         return BatchDeleteResponse(
             success=True,
@@ -565,13 +646,14 @@ async def delete_batches(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error deleting batches {request.batch_ids}: {e}", exc_info=True)
+        logger.error(f"Error deleting batches {delete_data.batch_ids}: {e}", exc_info=True)
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"批量删除失败: {str(e)}")
 
 
 @router.post("/clear-all-data")
 async def clear_all_data(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session)
 ):
@@ -581,6 +663,24 @@ async def clear_all_data(
     try:
         service = ProductSelectionService()
         result = await service.clear_user_data(db, user_id=current_user.id)
+
+        # 记录清空选品数据审计日志（危险操作）
+        await AuditService.log_delete(
+            db=db,
+            user_id=current_user.id,
+            username=current_user.username,
+            module="ozon",
+            table_name="product_selection_items",
+            record_id="ALL",
+            deleted_data={
+                "action": "clear_all_data",
+                "deleted_count": result.get('deleted_count', 0),
+            },
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            request_id=getattr(request.state, 'trace_id', None),
+            notes="危险操作：清空所有选品数据"
+        )
 
         return {
             "success": True,
@@ -595,13 +695,23 @@ async def clear_all_data(
 
 @router.post("/clear-all-competitor-data")
 async def clear_all_competitor_data(
+    request: Request,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
     清除所有产品的竞争者数据
     """
     try:
-        from sqlalchemy import update
+        from sqlalchemy import update, func
+
+        # 获取受影响的记录数
+        count_result = await db.execute(
+            select(func.count()).select_from(ProductSelectionItem).where(
+                ProductSelectionItem.competitor_count.isnot(None)
+            )
+        )
+        affected_count = count_result.scalar() or 0
 
         await db.execute(
             update(ProductSelectionItem)
@@ -613,6 +723,24 @@ async def clear_all_competitor_data(
             )
         )
         await db.commit()
+
+        # 记录清空竞品数据审计日志（危险操作）
+        await AuditService.log_delete(
+            db=db,
+            user_id=current_user.id,
+            username=current_user.username,
+            module="ozon",
+            table_name="product_selection_items",
+            record_id="ALL_COMPETITOR",
+            deleted_data={
+                "action": "clear_all_competitor_data",
+                "affected_count": affected_count,
+            },
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            request_id=getattr(request.state, 'trace_id', None),
+            notes="危险操作：清空所有竞品数据"
+        )
 
         return {
             "success": True,
@@ -1015,7 +1143,8 @@ async def get_product_detail(
 
 @router.post("/upload", response_model=ProductsUploadResponse)
 async def upload_products(
-    request: ProductsUploadRequest,
+    http_request: Request,
+    upload_data: ProductsUploadRequest,
     db: AsyncSession = Depends(get_async_session),
     api_key_user: Optional[User] = Depends(get_current_user_from_api_key)
 ):
@@ -1039,7 +1168,7 @@ async def upload_products(
         )
 
     # 检查数据量
-    if len(request.products) > 1000:
+    if len(upload_data.products) > 1000:
         raise HTTPException(
             status_code=400,
             detail={
@@ -1048,7 +1177,7 @@ async def upload_products(
             }
         )
 
-    if len(request.products) == 0:
+    if len(upload_data.products) == 0:
         raise HTTPException(
             status_code=400,
             detail={
@@ -1068,7 +1197,7 @@ async def upload_products(
 
         # 转换数据格式并批量处理
         batch_items = []
-        for idx, product in enumerate(request.products):
+        for idx, product in enumerate(upload_data.products):
             try:
                 # 转换为内部数据格式
                 cleaned_data = {
@@ -1237,8 +1366,8 @@ async def upload_products(
             import_time_str = datetime.now().strftime('%Y%m%d_%H%M%S')
 
             # 使用自定义批次名或默认名称
-            if request.batch_name:
-                file_name = f"自动采集 - {request.batch_name}"
+            if upload_data.batch_name:
+                file_name = f"自动采集 - {upload_data.batch_name}"
             else:
                 file_name = f"浏览器插件导入 - {import_time_str}"
 
@@ -1248,7 +1377,7 @@ async def upload_products(
                 file_size=0,
                 imported_by=api_key_user.id,
                 import_strategy="update",
-                total_rows=len(request.products),
+                total_rows=len(upload_data.products),
                 success_rows=result['success'],
                 failed_rows=failed_count,
                 updated_rows=result['updated'],
@@ -1257,8 +1386,8 @@ async def upload_products(
                 import_log={
                     "source": "browser_extension",
                     "api_key_user_id": api_key_user.id,
-                    "batch_name": request.batch_name,
-                    "source_id": request.source_id
+                    "batch_name": upload_data.batch_name,
+                    "source_id": upload_data.source_id
                 },
                 error_details=errors[:100] if errors else []
             )
@@ -1285,12 +1414,34 @@ async def upload_products(
 
         logger.info(
             f"API Key批量上传完成: user_id={api_key_user.id}, "
-            f"total={len(request.products)}, success={success_count}, failed={failed_count}"
+            f"total={len(upload_data.products)}, success={success_count}, failed={failed_count}"
+        )
+
+        # 记录API上传选品数据审计日志
+        await AuditService.log_action(
+            db=db,
+            user_id=api_key_user.id,
+            username=api_key_user.username,
+            module="ozon",
+            action="create",
+            action_display="API上传选品数据",
+            table_name="product_selection_items",
+            record_id=str(import_history.id) if batch_items else "",
+            changes={
+                "source": {"new": "browser_extension"},
+                "batch_name": {"new": upload_data.batch_name or "浏览器插件导入"},
+                "total_products": {"new": len(upload_data.products)},
+                "success_count": {"new": success_count},
+                "failed_count": {"new": failed_count},
+            },
+            ip_address=http_request.client.host if http_request.client else None,
+            user_agent=http_request.headers.get("user-agent"),
+            request_id=getattr(http_request.state, 'trace_id', None)
         )
 
         return ProductsUploadResponse(
             success=True,
-            total=len(request.products),
+            total=len(upload_data.products),
             success_count=success_count,
             failed_count=failed_count,
             errors=errors[:10] if errors else None  # 只返回前10个错误

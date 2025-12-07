@@ -62,7 +62,37 @@ async def setup(hooks) -> None:
     # 配置通过 Web UI 修改后由 Celery Beat 动态加载
     async def database_backup_task(**kwargs):
         """Celery Beat 定时任务：数据库备份"""
-        return await backup_service.backup_database({})
+        from ef_core.tasks.task_logger import update_task_result, record_task_error
+
+        try:
+            result = await backup_service.backup_database({})
+
+            if result.get("success"):
+                data = result.get("data", {})
+                update_task_result(
+                    task_name="ef.system.database_backup",
+                    records_processed=1,
+                    records_updated=1 if data.get("s3_uploaded") else 0,
+                    extra_data={
+                        "backup_file": data.get("backup_file"),
+                        "file_size_mb": data.get("file_size_mb"),
+                        "s3_uploaded": data.get("s3_uploaded")
+                    }
+                )
+            else:
+                record_task_error(
+                    task_name="ef.system.database_backup",
+                    error_message=result.get("message", "Unknown error"),
+                    extra_data={"error_code": result.get("error")}
+                )
+
+            return result
+        except Exception as e:
+            record_task_error(
+                task_name="ef.system.database_backup",
+                error_message=str(e)
+            )
+            raise
 
     await hooks.register_cron(
         name="ef.system.database_backup",

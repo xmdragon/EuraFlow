@@ -4,12 +4,13 @@
 """
 from decimal import Decimal
 from typing import Optional
-from fastapi import APIRouter, Depends, Query, Body
+from fastapi import APIRouter, Depends, Query, Body, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ef_core.database import get_async_session
 from ef_core.services.exchange_rate_service import ExchangeRateService
+from ef_core.services.audit_service import AuditService
 from ef_core.utils.logger import get_logger
 from ef_core.middleware.auth import require_role
 from ef_core.models.users import User
@@ -83,7 +84,8 @@ class TestConnectionRequest(BaseModel):
 
 @router.post("/config", response_model=ConfigureAPIResponse)
 async def configure_api(
-    request: ConfigureAPIRequest,
+    http_request: Request,
+    config_data: ConfigureAPIRequest,
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(require_role("operator"))
 ):
@@ -94,10 +96,31 @@ async def configure_api(
 
     config = await service.configure_api(
         db=db,
-        api_key=request.api_key,
-        api_provider=request.api_provider,
-        base_currency=request.base_currency,
-        is_enabled=request.is_enabled
+        api_key=config_data.api_key,
+        api_provider=config_data.api_provider,
+        base_currency=config_data.base_currency,
+        is_enabled=config_data.is_enabled
+    )
+
+    # 记录配置汇率API审计日志
+    await AuditService.log_action(
+        db=db,
+        user_id=current_user.id,
+        username=current_user.username,
+        module="system",
+        action="update",
+        action_display="配置汇率API",
+        table_name="exchange_rate_configs",
+        record_id=str(config.id),
+        changes={
+            "api_provider": {"new": config_data.api_provider},
+            "base_currency": {"new": config_data.base_currency},
+            "is_enabled": {"new": config_data.is_enabled},
+            "api_key": {"new": "[已脱敏]"},
+        },
+        ip_address=http_request.client.host if http_request.client else None,
+        user_agent=http_request.headers.get("user-agent"),
+        request_id=getattr(http_request.state, 'trace_id', None)
     )
 
     return ConfigureAPIResponse(
@@ -181,6 +204,7 @@ async def convert(
 
 @router.post("/refresh")
 async def refresh_rate(
+    request: Request,
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(require_role("operator"))
 ):
@@ -189,6 +213,26 @@ async def refresh_rate(
     """
     service = ExchangeRateService()
     result = await service.refresh_rates()
+
+    # 记录刷新汇率审计日志
+    await AuditService.log_action(
+        db=db,
+        user_id=current_user.id,
+        username=current_user.username,
+        module="system",
+        action="update",
+        action_display="刷新汇率",
+        table_name="exchange_rates",
+        record_id="manual_refresh",
+        changes={
+            "success": {"new": result.get("success", False)},
+            "rates_count": {"new": len(result.get("rates", {}))},
+        },
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+        request_id=getattr(request.state, 'trace_id', None)
+    )
+
     return result
 
 

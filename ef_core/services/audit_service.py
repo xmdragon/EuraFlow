@@ -56,6 +56,45 @@ class AuditService:
     """
 
     @staticmethod
+    def _is_empty(value: Any) -> bool:
+        """判断值是否为空（null、None、空字符串）"""
+        return value is None or value == '' or value == []
+
+    @staticmethod
+    def _filter_changes(changes: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """
+        过滤无效变更，移除以下情况：
+        1. old 和 new 都为空值
+        2. old 和 new 值相同
+        """
+        if not changes:
+            return None
+
+        filtered = {}
+        for field, value in changes.items():
+            # 处理 old/new 格式的变更
+            if isinstance(value, dict) and 'old' in value and 'new' in value:
+                old_val = value.get('old')
+                new_val = value.get('new')
+
+                # 跳过：都是空值
+                if AuditService._is_empty(old_val) and AuditService._is_empty(new_val):
+                    continue
+
+                # 跳过：值相同
+                if old_val == new_val:
+                    continue
+
+                filtered[field] = value
+            else:
+                # 简单值：跳过空值
+                if AuditService._is_empty(value):
+                    continue
+                filtered[field] = value
+
+        return filtered if filtered else None
+
+    @staticmethod
     async def log_action(
         db: AsyncSession,
         user_id: int,
@@ -70,7 +109,7 @@ class AuditService:
         user_agent: Optional[str] = None,
         request_id: Optional[str] = None,
         notes: Optional[str] = None,
-    ) -> AuditLog:
+    ) -> Optional[AuditLog]:
         """
         通用操作日志记录
 
@@ -90,9 +129,19 @@ class AuditService:
             notes: 备注信息
 
         Returns:
-            AuditLog: 审计日志记录
+            AuditLog: 审计日志记录，如果没有有效变更则返回 None
         """
         try:
+            # 过滤无效变更
+            filtered_changes = AuditService._filter_changes(changes)
+
+            # 如果是 update 操作且没有有效变更，跳过记录
+            if action == 'update' and not filtered_changes:
+                logger.debug(
+                    f"跳过无效变更日志: user={username}, action={action_display}, record={record_id}"
+                )
+                return None
+
             audit_log = AuditLog(
                 user_id=user_id,
                 username=username,
@@ -101,7 +150,7 @@ class AuditService:
                 action_display=action_display,
                 table_name=table_name,
                 record_id=record_id,
-                changes=changes,
+                changes=filtered_changes,
                 ip_address=ip_address,
                 user_agent=user_agent,
                 request_id=request_id,
@@ -179,7 +228,6 @@ class AuditService:
                 "old": print_count - 1,
                 "new": print_count,
             },
-            "is_reprint": is_reprint,
         }
 
         return await AuditService.log_action(

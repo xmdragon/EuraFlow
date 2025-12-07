@@ -4,13 +4,14 @@
 from typing import Dict, Any
 from pydantic import BaseModel, Field
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ef_core.database import get_async_session
 from ef_core.models.users import User, UserSettings
 from ef_core.api.auth import get_current_user_flexible
+from ef_core.services.audit_service import AuditService
 from ef_core.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -112,6 +113,7 @@ async def get_settings(
 
 @router.put("", response_model=UserSettingsResponse)
 async def update_settings(
+    request: Request,
     settings_data: UserSettingsRequest,
     current_user: User = Depends(get_current_user_flexible),
     session: AsyncSession = Depends(get_async_session)
@@ -130,6 +132,7 @@ async def update_settings(
         settings = result.scalar_one_or_none()
 
         settings_dict = settings_data.dict()
+        is_create = settings is None
 
         if not settings:
             # 创建新设置记录
@@ -143,6 +146,26 @@ async def update_settings(
 
         await session.commit()
         await session.refresh(settings)
+
+        # 记录更新用户设置审计日志
+        await AuditService.log_action(
+            db=session,
+            user_id=current_user.id,
+            username=current_user.username,
+            module="user",
+            action="create" if is_create else "update",
+            action_display="创建用户设置" if is_create else "更新用户设置",
+            table_name="user_settings",
+            record_id=str(settings.id),
+            changes={
+                "language": {"new": settings_data.display.language},
+                "timezone": {"new": settings_data.display.timezone},
+                "currency": {"new": settings_data.display.currency},
+            },
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            request_id=getattr(request.state, 'trace_id', None)
+        )
 
         # 返回更新后的设置
         settings_dict = settings.to_dict()
@@ -162,6 +185,7 @@ async def update_settings(
 
 @router.delete("", status_code=status.HTTP_204_NO_CONTENT)
 async def reset_settings(
+    request: Request,
     current_user: User = Depends(get_current_user_flexible),
     session: AsyncSession = Depends(get_async_session)
 ):
@@ -178,9 +202,24 @@ async def reset_settings(
         settings = result.scalar_one_or_none()
 
         if settings:
+            settings_id = settings.id
             await session.delete(settings)
             await session.commit()
             logger.info(f"重置用户设置: user_id={current_user.id}")
+
+            # 记录重置用户设置审计日志
+            await AuditService.log_delete(
+                db=session,
+                user_id=current_user.id,
+                username=current_user.username,
+                module="user",
+                table_name="user_settings",
+                record_id=str(settings_id),
+                deleted_data={"action": "reset_to_default"},
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent"),
+                request_id=getattr(request.state, 'trace_id', None)
+            )
 
         return None
 
