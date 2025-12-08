@@ -698,18 +698,6 @@ const OrderReport: React.FC = () => {
           <div className={styles.stickyHeader}>
           <Row gutter={12} className={styles.filterRow} align="middle">
             <Col>
-              <Select
-                value={selectedMonth}
-                onChange={(value) => {
-                  setSelectedMonth(value);
-                  setPage(1);
-                  setAllLoadedData([]);
-                }}
-                style={{ minWidth: 130 }}
-                options={generateMonthOptions()}
-              />
-            </Col>
-            <Col>
               <ShopSelectorWithLabel
                 value={selectedShop}
                 onChange={(value) => {
@@ -720,6 +708,18 @@ const OrderReport: React.FC = () => {
                 placeholder="全部店铺"
                 className={styles.shopSelector}
                 showAllOption={true}
+              />
+            </Col>
+            <Col>
+              <Select
+                value={selectedMonth}
+                onChange={(value) => {
+                  setSelectedMonth(value);
+                  setPage(1);
+                  setAllLoadedData([]);
+                }}
+                style={{ minWidth: 130 }}
+                options={generateMonthOptions()}
               />
             </Col>
             <Col>
