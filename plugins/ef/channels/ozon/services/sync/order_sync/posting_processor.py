@@ -322,6 +322,8 @@ class PostingProcessor:
         skus_with_purchase: Set[int]
     ) -> None:
         """更新反范式化字段（快速版本，使用预查询的采购信息）"""
+        from decimal import Decimal
+
         products = posting_data.get("products", [])
         if not products:
             return
@@ -332,6 +334,17 @@ class PostingProcessor:
             if p.get("sku") is not None
         ))
         posting.product_skus = skus if skus else None
+
+        # 计算 order_total_price（从 products 数组计算）
+        total_price = Decimal('0')
+        for p in products:
+            try:
+                price = Decimal(str(p.get("price", 0)))
+                quantity = int(p.get("quantity", 1))
+                total_price += price * quantity
+            except (ValueError, TypeError, KeyError):
+                pass
+        posting.order_total_price = total_price
 
         # 计算 has_purchase_info
         if skus:
@@ -352,6 +365,8 @@ class PostingProcessor:
         shop_id: int
     ) -> None:
         """更新反范式化字段（单条处理版本）"""
+        from decimal import Decimal
+
         products = posting_data.get("products", [])
         if not products:
             return
@@ -362,6 +377,17 @@ class PostingProcessor:
             if p.get("sku") is not None
         ))
         posting.product_skus = skus if skus else None
+
+        # 计算 order_total_price（从 products 数组计算）
+        total_price = Decimal('0')
+        for p in products:
+            try:
+                price = Decimal(str(p.get("price", 0)))
+                quantity = int(p.get("quantity", 1))
+                total_price += price * quantity
+            except (ValueError, TypeError, KeyError):
+                pass
+        posting.order_total_price = total_price
 
         # 计算 has_purchase_info
         if skus:
