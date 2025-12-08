@@ -297,6 +297,7 @@ async def get_posting_report(
     sort_by: Optional[str] = Query(None, description="排序字段：profit_rate"),
     sort_order: str = Query("desc", description="排序方向：asc或desc"),
     posting_number: Optional[str] = Query(None, description="货件编号（支持通配符%）"),
+    no_commission: bool = Query(False, description="筛选无Ozon佣金的订单"),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
@@ -371,6 +372,13 @@ async def get_posting_report(
                     conditions.append(OzonPosting.posting_number.like(posting_number_value))
                 else:
                     conditions.append(OzonPosting.posting_number == posting_number_value)
+
+        # 无Ozon佣金过滤
+        if no_commission:
+            conditions.append(or_(
+                OzonPosting.ozon_commission_cny == None,
+                OzonPosting.ozon_commission_cny == 0
+            ))
 
         # 查询总数（用于分页，无需 JOIN）
         count_query = select(func.count(OzonPosting.id)).where(and_(*conditions))

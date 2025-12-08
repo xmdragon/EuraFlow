@@ -32,6 +32,7 @@ import {
   Progress,
   App,
   Modal,
+  Checkbox,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
@@ -202,6 +203,7 @@ const OrderReport: React.FC = () => {
     "delivered",
   );
   const [postingNumber, setPostingNumber] = useState<string>(""); // posting_number筛选
+  const [noCommissionFilter, setNoCommissionFilter] = useState<boolean>(false); // 无Ozon佣金筛选
   const [activeTab, setActiveTab] = useState<string>("summary");
 
   // 分页状态（用于无限滚动）
@@ -244,6 +246,7 @@ const OrderReport: React.FC = () => {
       selectedShop,
       statusFilter,
       postingNumber,
+      noCommissionFilter,
       page,
       pageSize,
       sortBy,
@@ -266,6 +269,7 @@ const OrderReport: React.FC = () => {
         sortBy,
         sortOrder,
         processedPostingNumber,
+        noCommissionFilter,
       ) as PostingReportResponse;
     },
     enabled: activeTab === "details",
@@ -692,74 +696,76 @@ const OrderReport: React.FC = () => {
         <div className={styles.contentContainer}>
           {/* 筛选区域（sticky固定） */}
           <div className={styles.stickyHeader}>
-          <Row gutter={16} className={styles.filterRow} align="middle">
+          <Row gutter={12} className={styles.filterRow} align="middle">
             <Col>
-              <Space>
-                <span>选择月份：</span>
-                <Select
-                  value={selectedMonth}
-                  onChange={(value) => {
-                    setSelectedMonth(value);
-                    setPage(1);
-                    setAllLoadedData([]);
-                  }}
-                  style={{ minWidth: 140 }}
-                  options={generateMonthOptions()}
-                />
-              </Space>
+              <Select
+                value={selectedMonth}
+                onChange={(value) => {
+                  setSelectedMonth(value);
+                  setPage(1);
+                  setAllLoadedData([]);
+                }}
+                style={{ minWidth: 130 }}
+                options={generateMonthOptions()}
+              />
             </Col>
             <Col>
               <ShopSelectorWithLabel
-                label="选择店铺"
                 value={selectedShop}
                 onChange={(value) => {
                   setSelectedShop(value as number | null);
                   setPage(1);
                   setAllLoadedData([]);
                 }}
-                placeholder="请选择店铺"
+                placeholder="全部店铺"
                 className={styles.shopSelector}
                 showAllOption={true}
               />
             </Col>
             <Col>
-              <Space>
-                <span>订单状态：</span>
-                <Select
-                  value={statusFilter}
-                  onChange={(value) => {
-                    setStatusFilter(value);
-                    setPage(1);
-                    setAllLoadedData([]);
-                  }}
-                  style={{ minWidth: 120 }}
-                >
-                  <Option value="delivered">已签收</Option>
-                  <Option value="placed">已下订</Option>
-                </Select>
-              </Space>
+              <Select
+                value={statusFilter}
+                onChange={(value) => {
+                  setStatusFilter(value);
+                  setPage(1);
+                  setAllLoadedData([]);
+                }}
+                style={{ minWidth: 100 }}
+              >
+                <Option value="delivered">已签收</Option>
+                <Option value="placed">已下订</Option>
+              </Select>
             </Col>
             <Col>
-              <Space>
-                <span>货件编号：</span>
-                <Input
-                  value={postingNumber}
-                  onChange={(e) => setPostingNumber(e.target.value)}
-                  placeholder="输入货件编号"
-                  style={{ width: 200 }}
-                  allowClear
-                  onPressEnter={async () => {
-                    setPage(1);
-                    if (activeTab === "details") {
-                      const result = await refetchPostings();
-                      if (result.data?.data) {
-                        setAllLoadedData(result.data.data);
-                        setHasMore(1 < (result.data.total_pages || 1));
-                      }
+              <Input
+                value={postingNumber}
+                onChange={(e) => setPostingNumber(e.target.value)}
+                placeholder="货件编号"
+                style={{ width: 180 }}
+                allowClear
+                onPressEnter={async () => {
+                  setPage(1);
+                  if (activeTab === "details") {
+                    const result = await refetchPostings();
+                    if (result.data?.data) {
+                      setAllLoadedData(result.data.data);
+                      setHasMore(1 < (result.data.total_pages || 1));
                     }
-                  }}
-                />
-              </Space>
+                  }
+                }}
+              />
+            </Col>
+            <Col>
+              <Checkbox
+                checked={noCommissionFilter}
+                onChange={(e) => {
+                  setNoCommissionFilter(e.target.checked);
+                  setPage(1);
+                  setAllLoadedData([]);
+                }}
+              >
+                无Ozon佣金
+              </Checkbox>
             </Col>
             <Col>
               <Button
@@ -767,7 +773,6 @@ const OrderReport: React.FC = () => {
                 onClick={async () => {
                   setPage(1);
                   if (activeTab === "details") {
-                    // 使用 await refetch 确保数据更新后再设置
                     const result = await refetchPostings();
                     if (result.data?.data) {
                       setAllLoadedData(result.data.data);
@@ -782,7 +787,7 @@ const OrderReport: React.FC = () => {
               </Button>
             </Col>
             <Col>
-              <Tooltip title="同步已签收但佣金为0的订单">
+              <Tooltip title="同步最近7天签收但未同步财务的订单">
                 <Button
                   type="default"
                   onClick={handleBatchSync}

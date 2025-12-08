@@ -69,11 +69,12 @@ class OzonFinanceSyncService:
 
         db_manager = get_task_db_manager()
         async with db_manager.get_session() as session:
-            # 1. 查询最近7天内签收的订单
+            # 1. 查询最近7天内签收且未同步财务的订单
             postings_result = await session.execute(
                 select(OzonPosting)
                 .where(OzonPosting.status == 'delivered')
                 .where(OzonPosting.delivered_at >= date_from)
+                .where(OzonPosting.finance_synced_at == None)  # 只处理未同步的
                 .where(OzonPosting.posting_number != None)
                 .where(OzonPosting.posting_number != '')
                 .order_by(OzonPosting.delivered_at.desc())
@@ -81,10 +82,10 @@ class OzonFinanceSyncService:
             postings = postings_result.scalars().all()
 
             if not postings:
-                logger.info(f"No postings delivered in the last {SYNC_DAYS} days")
+                logger.info(f"No postings need finance sync in the last {SYNC_DAYS} days")
                 return {
                     **stats,
-                    "message": f"最近{SYNC_DAYS}天内没有签收的订单"
+                    "message": f"最近{SYNC_DAYS}天内没有需要同步的订单（已全部同步）"
                 }
 
             logger.info(f"Found {len(postings)} postings delivered in the last {SYNC_DAYS} days")

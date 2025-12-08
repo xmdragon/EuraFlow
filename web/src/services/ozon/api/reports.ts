@@ -33,6 +33,7 @@ export const getPostingReport = async (
   sortBy?: string,
   sortOrder: "asc" | "desc" = "desc",
   postingNumber?: string,
+  noCommission?: boolean,
 ): Promise<unknown> => {
   const params = new URLSearchParams({
     month,
@@ -49,6 +50,9 @@ export const getPostingReport = async (
   }
   if (postingNumber) {
     params.append("posting_number", postingNumber);
+  }
+  if (noCommission) {
+    params.append("no_commission", "true");
   }
   const response = await apiClient.get(
     `/ozon/reports/postings?${params.toString()}`,
