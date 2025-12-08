@@ -20,11 +20,6 @@ from .batch_sync_task import (
     batch_sync_category_attributes_task
 )
 
-from .scheduled_sync_task import (
-    scheduled_category_sync,
-    scheduled_attributes_sync
-)
-
 from .batch_stock_update_task import (
     batch_update_stocks_task
 )
@@ -59,8 +54,6 @@ __all__ = [
     "prefetch_labels_async",
     "cleanup_labels_async",
     "batch_sync_category_attributes_task",
-    "scheduled_category_sync",
-    "scheduled_attributes_sync",
     "batch_update_stocks_task",
     "batch_update_prices_task",
     "batch_finance_sync_task",
