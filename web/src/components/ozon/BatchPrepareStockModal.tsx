@@ -182,6 +182,21 @@ const BatchPrepareStockModal: React.FC<BatchPrepareStockModalProps> = ({
             updated.sourcePlatform = updated.sourcePlatform.filter((p) => p !== '库存');
           }
 
+          // 如果只有1个订单，且填写增加库存数量大于订单需要，自动添加"发X库存Y"备注
+          if (field === 'addStockQuantity' && skuGroup?.postings.length === 1) {
+            const addQty = Number(value) || 0;
+            const orderQty = item.orderQuantity;
+            if (addQty > orderQty) {
+              const stockQty = addQty - orderQty;
+              updated.notes = `发${orderQty}库存${stockQty}`;
+            } else {
+              // 数量不超过订单需要时，清空自动生成的备注（如果是自动生成的格式）
+              if (/^发\d+库存\d+$/.test(item.notes)) {
+                updated.notes = '';
+              }
+            }
+          }
+
           return updated;
         }
         return item;

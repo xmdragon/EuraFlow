@@ -20,6 +20,7 @@ import {
   CheckOutlined,
   CloseOutlined,
   CloseCircleOutlined,
+  KeyOutlined,
 } from "@ant-design/icons";
 import {
   Layout,
@@ -43,6 +44,7 @@ const FinanceCalculator = lazyWithRetry(() => import("./finance"));
 const OzonManagement = lazyWithRetry(() => import("./ozon"));
 const SystemManagement = lazyWithRetry(() => import("./system"));
 const Profile = lazyWithRetry(() => import("./Profile"));
+const ApiKeys = lazyWithRetry(() => import("./ApiKeys"));
 const UserManagement = lazyWithRetry(() => import("./UserManagement"));
 
 import styles from "./Dashboard.module.scss";
@@ -151,6 +153,12 @@ const Dashboard: React.FC = () => {
       icon: <UserOutlined />,
       label: "个人资料",
       onClick: () => navigate("/dashboard/profile"),
+    },
+    {
+      key: "api-keys",
+      icon: <KeyOutlined />,
+      label: "API KEY",
+      onClick: () => navigate("/dashboard/api-keys"),
     },
     { type: "divider" as const },
     {
@@ -407,34 +415,6 @@ const Dashboard: React.FC = () => {
           {collapsed ? "EF" : "EuraFlow"}
         </div>
 
-        <div
-          className={
-            collapsed ? styles.userProfileCollapsed : styles.userProfile
-          }
-        >
-          <Dropdown
-            menu={{ items: userMenuItems }}
-            placement="bottomRight"
-            arrow
-            trigger={["click"]}
-          >
-            <div className={styles.userInfo}>
-              <Avatar
-                className={styles.userAvatar}
-                size={collapsed ? 36 : 40}
-                icon={<UserOutlined />}
-              />
-              {!collapsed && (
-                <div className={styles.userDetails}>
-                  <p className={styles.username}>
-                    {user?.username || "未设置"}
-                  </p>
-                </div>
-              )}
-            </div>
-          </Dropdown>
-        </div>
-
         <Menu
           theme="dark"
           mode="inline"
@@ -470,12 +450,14 @@ const Dashboard: React.FC = () => {
                       removeQuickMenu={removeQuickMenu}
                       navigate={navigate}
                       iconMap={iconMap}
+                      userMenuItems={userMenuItems}
                     />
                   }
                 />
                 <Route path="/ozon/*" element={<OzonManagement />} />
                 <Route path="/finance" element={<FinanceCalculator />} />
                 <Route path="/profile" element={<Profile />} />
+                <Route path="/api-keys" element={<ApiKeys />} />
                 {/* 系统管理路由 - 管理员和操作员都可以访问 */}
                 {(user?.role === "admin" || user?.role === "operator") && (
                   <Route path="/system/*" element={<SystemManagement />} />
@@ -502,6 +484,7 @@ interface DashboardHomeProps {
   removeQuickMenu: (key: string) => void;
   navigate: (path: string) => void;
   iconMap: Record<string, React.ReactNode>;
+  userMenuItems: Array<{ key: string; icon?: React.ReactNode; label: string; onClick?: () => void; type?: "divider" }>;
 }
 
 const DashboardHome: React.FC<DashboardHomeProps> = ({
@@ -510,9 +493,27 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({
   removeQuickMenu,
   navigate,
   iconMap,
+  userMenuItems,
 }) => {
   return (
     <div className={styles.pageWrapper}>
+      {/* 用户信息在右上角 */}
+      <div className={styles.header}>
+        <Dropdown
+          menu={{ items: userMenuItems }}
+          placement="bottomRight"
+          arrow
+          trigger={["click"]}
+        >
+          <div className={styles.headerUserInfo}>
+            <span className={styles.headerUsername}>
+              {user?.username || "未设置"}
+            </span>
+            <Avatar size={32} icon={<UserOutlined />} />
+          </div>
+        </Dropdown>
+      </div>
+
       <PageTitle icon={<DashboardOutlined />} title="系统状态" />
 
       <Title level={2} className={styles.welcomeTitle}>

@@ -566,7 +566,8 @@ async def search_posting_by_tracking(
     offset: int = Query(0, ge=0, description="分页偏移量"),
     limit: int = Query(20, ge=1, le=100, description="每页数量，默认20"),
     print_status: Optional[str] = Query(None, description="打印状态过滤：all(全部)/printed(已打印)/unprinted(未打印)"),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
 ):
     """
     根据追踪号码/国内单号/货件编号查询货件（精确匹配，智能识别）
@@ -582,6 +583,15 @@ async def search_posting_by_tracking(
     from ...models import OzonShipmentPackage
 
     try:
+        # 权限过滤：获取用户授权的店铺列表
+        try:
+            allowed_shop_ids = await filter_by_shop_permission(current_user, db, None)
+        except PermissionError as e:
+            raise HTTPException(status_code=403, detail=str(e))
+
+        # 构建店铺权限过滤条件
+        shop_filter = build_shop_filter_condition(OzonPosting, allowed_shop_ids)
+
         # 统一转大写，兼容OZON单号和国内单号（Posting Number包含数字和连字符，不受影响）
         search_value = tracking_number.strip().upper()
         postings = []
@@ -596,22 +606,25 @@ async def search_posting_by_tracking(
                 # 数字-数字格式，使用右匹配
                 search_pattern = search_value + '-%'
                 logger.info(f"识别为货件编号（右匹配）: {search_pattern}")
-                result = await db.execute(
+                query = (
                     select(OzonPosting)
                     .options(
                         selectinload(OzonPosting.packages),
                         selectinload(OzonPosting.domestic_trackings)
                     )
                     .where(OzonPosting.posting_number.like(search_pattern))
-                    .limit(1)  # 只返回第一个匹配的结果
                 )
+                # 应用店铺权限过滤
+                if shop_filter is not True:
+                    query = query.where(shop_filter)
+                result = await db.execute(query.limit(1))
                 posting = result.scalar_one_or_none()
                 if posting:
                     postings = [posting]
             else:
                 # 完整的货件编号，精确匹配
                 logger.info(f"识别为货件编号（精确匹配）: {search_value}")
-                result = await db.execute(
+                query = (
                     select(OzonPosting)
                     .options(
                         selectinload(OzonPosting.packages),
@@ -619,6 +632,10 @@ async def search_posting_by_tracking(
                     )
                     .where(OzonPosting.posting_number == search_value)
                 )
+                # 应用店铺权限过滤
+                if shop_filter is not True:
+                    query = query.where(shop_filter)
+                result = await db.execute(query)
                 posting = result.scalar_one_or_none()
                 if posting:
                     postings = [posting]
@@ -635,7 +652,7 @@ async def search_posting_by_tracking(
             if package:
                 logger.info(f"找到包裹，posting_id: {package.posting_id}")
                 # 通过package.posting_id查询posting
-                result = await db.execute(
+                query = (
                     select(OzonPosting)
                     .options(
                         selectinload(OzonPosting.packages),
@@ -643,13 +660,17 @@ async def search_posting_by_tracking(
                     )
                     .where(OzonPosting.id == package.posting_id)
                 )
+                # 应用店铺权限过滤
+                if shop_filter is not True:
+                    query = query.where(shop_filter)
+                result = await db.execute(query)
                 posting = result.scalar_one_or_none()
                 if posting:
                     postings = [posting]
             else:
                 logger.warning(f"未找到包裹，尝试从raw_payload查询: {search_value}")
                 # 如果packages表中没有，尝试从raw_payload查询
-                result = await db.execute(
+                query = (
                     select(OzonPosting)
                     .options(
                         selectinload(OzonPosting.packages),
@@ -657,6 +678,10 @@ async def search_posting_by_tracking(
                     )
                     .where(OzonPosting.raw_payload['tracking_number'].astext == search_value)
                 )
+                # 应用店铺权限过滤
+                if shop_filter is not True:
+                    query = query.where(shop_filter)
+                result = await db.execute(query)
                 posting = result.scalar_one_or_none()
                 if posting:
                     postings = [posting]
@@ -676,6 +701,10 @@ async def search_posting_by_tracking(
                 OzonDomesticTracking.tracking_number == search_value,
                 OzonPosting.in_process_at >= time_threshold
             ]
+
+            # 应用店铺权限过滤
+            if shop_filter is not True:
+                base_conditions.append(shop_filter)
 
             # 添加打印状态过滤条件
             # 打包流程状态：awaiting_stock -> allocating -> allocated -> tracking_confirmed -> printed

@@ -56,3 +56,8 @@ html, body {
 .ant-card .ant-card-body {
   padding: 4px !important;
 }
+
+/* Alert with description 紧凑 padding */
+.ant-alert-with-description {
+  padding: 10px 12px !important;
+}

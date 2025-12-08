@@ -8,7 +8,6 @@ import React from 'react';
 
 import styles from './SystemConfiguration.module.scss';
 
-import ApiKeysTab from './components/ApiKeysTab';
 import ConfigGuideTab from './components/ConfigGuideTab';
 import GlobalSettingsTab from './components/GlobalSettingsTab';
 import OzonShopTab from './components/OzonShopTab';
@@ -39,12 +38,6 @@ const SystemConfiguration: React.FC = () => {
       label: '🔌 第三方服务',
       children: <ThirdPartyServicesTab />,
       visible: !isOperator, // 操作员不可见
-    },
-    {
-      key: 'api-keys',
-      label: '🔑 API密钥',
-      children: <ApiKeysTab />,
-      visible: true, // 所有角色可见
     },
     {
       key: 'guide',

@@ -9,11 +9,14 @@ from datetime import datetime
 import logging
 
 from ef_core.database import get_async_session
+from ef_core.models.users import User
+from ef_core.api.auth import get_current_user_flexible
 from ..models.finance import OzonFinanceTransaction
 from ..models.global_settings import OzonGlobalSetting
 from ..models.orders import OzonPosting
 from ..utils.datetime_utils import parse_date_with_timezone, get_global_timezone
 from ..services.finance_translations import translate_operation_type_name
+from .permissions import filter_by_shop_permission, build_shop_filter_condition
 from pydantic import BaseModel, Field
 
 router = APIRouter(tags=["ozon-finance"])
@@ -99,7 +102,8 @@ async def get_finance_transactions(
     posting_status: Optional[str] = Query(None, description="订单状态: awaiting_deliver/delivered"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(100, ge=1, le=1000, description="每页数量"),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
 ):
     """
     获取财务交易列表
@@ -112,15 +116,22 @@ async def get_finance_transactions(
     - 店铺ID（可选，不传时查询所有店铺）
     """
     try:
+        # 权限过滤：获取用户授权的店铺列表
+        try:
+            allowed_shop_ids = await filter_by_shop_permission(current_user, db, shop_id)
+        except PermissionError as e:
+            raise HTTPException(status_code=403, detail=str(e))
+
         # 获取全局时区设置（用于日期过滤）
         global_timezone = await get_global_timezone(db)
 
         # 构建查询条件
         conditions = []
 
-        # 店铺ID筛选（可选）
-        if shop_id is not None:
-            conditions.append(OzonFinanceTransaction.shop_id == shop_id)
+        # 应用店铺权限过滤
+        shop_filter = build_shop_filter_condition(OzonFinanceTransaction, allowed_shop_ids)
+        if shop_filter is not True:
+            conditions.append(shop_filter)
 
         # 日期范围筛选（按全局时区解析）
         if date_from:
@@ -304,7 +315,8 @@ async def get_finance_transactions_summary(
     date_to: Optional[str] = Query(None, description="结束日期 (YYYY-MM-DD)"),
     transaction_type: Optional[str] = Query(None, description="交易类型"),
     posting_status: Optional[str] = Query(None, description="订单状态: awaiting_deliver/delivered"),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
 ):
     """
     获取财务交易汇总数据
@@ -313,15 +325,22 @@ async def get_finance_transactions_summary(
     支持查询所有店铺（不传 shop_id）
     """
     try:
+        # 权限过滤：获取用户授权的店铺列表
+        try:
+            allowed_shop_ids = await filter_by_shop_permission(current_user, db, shop_id)
+        except PermissionError as e:
+            raise HTTPException(status_code=403, detail=str(e))
+
         # 获取全局时区设置（用于日期过滤）
         global_timezone = await get_global_timezone(db)
 
         # 构建查询条件
         conditions = []
 
-        # 店铺ID筛选（可选）
-        if shop_id is not None:
-            conditions.append(OzonFinanceTransaction.shop_id == shop_id)
+        # 应用店铺权限过滤
+        shop_filter = build_shop_filter_condition(OzonFinanceTransaction, allowed_shop_ids)
+        if shop_filter is not True:
+            conditions.append(shop_filter)
 
         if date_from:
             date_from_obj = parse_date_with_timezone(date_from, global_timezone)
@@ -401,7 +420,8 @@ async def get_finance_transactions_daily_summary(
     posting_status: Optional[str] = Query(None, description="订单状态: awaiting_deliver/delivered"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(100, ge=1, le=1000, description="每页数量"),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
 ):
     """
     获取财务交易按日期汇总
@@ -410,15 +430,22 @@ async def get_finance_transactions_daily_summary(
     支持查询所有店铺（不传 shop_id）
     """
     try:
+        # 权限过滤：获取用户授权的店铺列表
+        try:
+            allowed_shop_ids = await filter_by_shop_permission(current_user, db, shop_id)
+        except PermissionError as e:
+            raise HTTPException(status_code=403, detail=str(e))
+
         # 获取全局时区设置（用于日期过滤）
         global_timezone = await get_global_timezone(db)
 
         # 构建查询条件
         conditions = []
 
-        # 店铺ID筛选（可选）
-        if shop_id is not None:
-            conditions.append(OzonFinanceTransaction.shop_id == shop_id)
+        # 应用店铺权限过滤
+        shop_filter = build_shop_filter_condition(OzonFinanceTransaction, allowed_shop_ids)
+        if shop_filter is not True:
+            conditions.append(shop_filter)
 
         # 日期范围筛选（按全局时区解析）
         if date_from:

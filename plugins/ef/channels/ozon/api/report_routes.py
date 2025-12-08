@@ -12,8 +12,11 @@ import logging
 import calendar
 
 from ef_core.database import get_async_session
+from ef_core.models.users import User
+from ef_core.api.auth import get_current_user_flexible
 from ..models import OzonPosting, OzonProduct, OzonShop, OzonGlobalSetting
 from ..utils.datetime_utils import utcnow, get_global_timezone
+from .permissions import filter_by_shop_permission, build_shop_filter_condition
 
 router = APIRouter(tags=["ozon-reports"])
 logger = logging.getLogger(__name__)
@@ -23,7 +26,8 @@ logger = logging.getLogger(__name__)
 async def get_order_report(
     month: str = Query(..., description="月份，格式：YYYY-MM"),
     shop_ids: Optional[str] = Query(None, description="店铺ID列表，逗号分隔"),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
 ):
     """
     获取订单报表数据
@@ -40,6 +44,12 @@ async def get_order_report(
     import calendar
 
     try:
+        # 权限过滤：获取用户授权的店铺列表
+        try:
+            allowed_shop_ids = await filter_by_shop_permission(current_user, db, None)
+        except PermissionError as e:
+            raise HTTPException(status_code=403, detail=str(e))
+
         # 获取全局时区设置
         global_timezone = await get_global_timezone(db)
         from zoneinfo import ZoneInfo
@@ -71,10 +81,19 @@ async def get_order_report(
             ])
         ]
 
-        # 如果指定了店铺ID
+        # 应用店铺权限过滤
+        shop_filter = build_shop_filter_condition(OzonPosting, allowed_shop_ids)
+        if shop_filter is not True:
+            conditions.append(shop_filter)
+
+        # 如果指定了店铺ID（需要验证在授权范围内）
         if shop_ids:
             shop_id_list = [int(sid) for sid in shop_ids.split(",")]
-            conditions.append(OzonPosting.shop_id.in_(shop_id_list))
+            # 如果有权限限制，取交集
+            if allowed_shop_ids is not None:
+                shop_id_list = [sid for sid in shop_id_list if sid in allowed_shop_ids]
+            if shop_id_list:
+                conditions.append(OzonPosting.shop_id.in_(shop_id_list))
 
         # 查询 posting 数据（无需 JOIN OzonOrder）
         from sqlalchemy.orm import selectinload
@@ -181,7 +200,8 @@ async def get_order_report(
 async def export_order_report(
     month: str = Query(..., description="月份，格式：YYYY-MM"),
     shop_ids: Optional[str] = Query(None, description="店铺ID列表，逗号分隔"),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
 ):
     """
     导出订单报表为Excel文件
@@ -198,8 +218,8 @@ async def export_order_report(
     from io import BytesIO
 
     try:
-        # 获取报表数据
-        report = await get_order_report(month, shop_ids, db)
+        # 获取报表数据（传递current_user进行权限校验）
+        report = await get_order_report(month, shop_ids, db, current_user)
 
         # 创建DataFrame
         df = pd.DataFrame(report["data"])
@@ -298,7 +318,8 @@ async def get_posting_report(
     sort_order: str = Query("desc", description="排序方向：asc或desc"),
     posting_number: Optional[str] = Query(None, description="货件编号（支持通配符%）"),
     no_commission: bool = Query(False, description="筛选无Ozon佣金的订单"),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
 ):
     """
     获取Posting级别的订单报表数据（支持分页和排序）
@@ -324,6 +345,12 @@ async def get_posting_report(
     import calendar
 
     try:
+        # 权限过滤：获取用户授权的店铺列表
+        try:
+            allowed_shop_ids = await filter_by_shop_permission(current_user, db, None)
+        except PermissionError as e:
+            raise HTTPException(status_code=403, detail=str(e))
+
         # 获取全局时区设置
         global_timezone = await get_global_timezone(db)
         from zoneinfo import ZoneInfo
@@ -349,6 +376,11 @@ async def get_posting_report(
             OzonPosting.in_process_at <= end_date,
         ]
 
+        # 应用店铺权限过滤
+        shop_filter = build_shop_filter_condition(OzonPosting, allowed_shop_ids)
+        if shop_filter is not True:
+            conditions.append(shop_filter)
+
         # 状态过滤逻辑
         if status_filter == 'delivered':
             conditions.append(OzonPosting.status == 'delivered')
@@ -359,10 +391,14 @@ async def get_posting_report(
         else:
             raise HTTPException(status_code=400, detail=f"无效的status_filter: {status_filter}")
 
-        # 如果指定了店铺ID（使用 OzonPosting.shop_id）
+        # 如果指定了店铺ID（需要验证在授权范围内）
         if shop_ids:
             shop_id_list = [int(sid) for sid in shop_ids.split(",")]
-            conditions.append(OzonPosting.shop_id.in_(shop_id_list))
+            # 如果有权限限制，取交集
+            if allowed_shop_ids is not None:
+                shop_id_list = [sid for sid in shop_id_list if sid in allowed_shop_ids]
+            if shop_id_list:
+                conditions.append(OzonPosting.shop_id.in_(shop_id_list))
 
         # 货件编号过滤（支持通配符）
         if posting_number:
@@ -500,7 +536,8 @@ async def get_report_summary(
     month: str = Query(..., description="月份，格式：YYYY-MM"),
     shop_ids: Optional[str] = Query(None, description="店铺ID列表，逗号分隔"),
     status_filter: str = Query("delivered", description="状态过滤：delivered(已签收) 或 placed(已下订)"),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
 ):
     """
     获取报表汇总数据（用于图表展示）
@@ -526,6 +563,12 @@ async def get_report_summary(
     from datetime import timedelta
 
     try:
+        # 权限过滤：获取用户授权的店铺列表
+        try:
+            allowed_shop_ids = await filter_by_shop_permission(current_user, db, None)
+        except PermissionError as e:
+            raise HTTPException(status_code=403, detail=str(e))
+
         # 获取全局时区设置
         global_timezone = await get_global_timezone(db)
         tz = ZoneInfo(global_timezone)
@@ -575,10 +618,15 @@ async def get_report_summary(
         else:
             status_conditions = []
 
-        # 店铺过滤
-        shop_id_list = None
+        # 店铺过滤：结合权限和请求参数
+        shop_id_list = allowed_shop_ids  # 默认使用权限限制的店铺
         if shop_ids:
-            shop_id_list = [int(sid) for sid in shop_ids.split(",")]
+            requested_shop_ids = [int(sid) for sid in shop_ids.split(",")]
+            # 如果有权限限制，取交集
+            if allowed_shop_ids is not None:
+                shop_id_list = [sid for sid in requested_shop_ids if sid in allowed_shop_ids]
+            else:
+                shop_id_list = requested_shop_ids
 
         # ========== 1. 使用 SQL 聚合计算主要统计数据 ==========
         # 销售额使用 order_total_price，取消订单不计销售额
@@ -593,7 +641,8 @@ async def get_report_summary(
             OzonPosting.in_process_at <= end_date,
         ] + status_conditions
 
-        if shop_id_list:
+        # 应用店铺权限过滤
+        if shop_id_list is not None:
             conditions.append(OzonPosting.shop_id.in_(shop_id_list))
 
         totals_query = select(
@@ -627,7 +676,8 @@ async def get_report_summary(
             OzonPosting.in_process_at <= prev_end_date,
         ] + status_conditions
 
-        if shop_id_list:
+        # 应用店铺权限过滤
+        if shop_id_list is not None:
             prev_conditions.append(OzonPosting.shop_id.in_(shop_id_list))
 
         prev_totals_query = select(
@@ -1007,7 +1057,8 @@ async def get_batch_finance_sync_progress(task_id: str):
 @router.get("/reports/postings/{posting_number}")
 async def get_posting_detail(
     posting_number: str,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
 ):
     """
     获取单个货件详情（含商品信息）
@@ -1025,6 +1076,12 @@ async def get_posting_detail(
     from ..utils.serialization import format_currency
 
     try:
+        # 权限过滤：获取用户授权的店铺列表
+        try:
+            allowed_shop_ids = await filter_by_shop_permission(current_user, db, None)
+        except PermissionError as e:
+            raise HTTPException(status_code=403, detail=str(e))
+
         # 查询 posting 及关联数据（无需 JOIN OzonOrder）
         query = select(
             OzonPosting,
@@ -1042,6 +1099,10 @@ async def get_posting_detail(
             raise HTTPException(status_code=404, detail=f"货件 {posting_number} 不存在")
 
         posting, shop_name = row
+
+        # 验证用户是否有权访问该货件的店铺
+        if allowed_shop_ids is not None and posting.shop_id not in allowed_shop_ids:
+            raise HTTPException(status_code=403, detail="无权访问该货件")
 
         # 从 raw_payload 提取商品列表
         products_list = []

@@ -389,6 +389,7 @@ class OzonPosting(Base):
             'ozon_commission_cny': str(self.ozon_commission_cny) if self.ozon_commission_cny else None,
             'profit': str(self.profit) if self.profit else None,
             'profit_rate': str(self.profit_rate) if self.profit_rate else None,
+            'package_weight': self.package_weight,
             'packages': packages,
             'products': items,
         }]
