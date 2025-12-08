@@ -522,7 +522,7 @@ const OrderReport: React.FC = () => {
     // 1. 店铺名称（显示第一个单词，完整名称用 Tooltip）
     {
       title: "店铺",
-      width: 160,
+      width: 100,
       render: (_, row) => {
         const shopName = row.shop_name || '-';
         const firstWord = shopName.split(' ')[0] || shopName;
@@ -538,7 +538,7 @@ const OrderReport: React.FC = () => {
     // 2. 货件编号（可点击查看详情）
     {
       title: "货件编号",
-      width: 180,
+      width: 150,
       render: (_, row) => (
         <div className={styles.postingNumberContainer}>
           <span
@@ -557,52 +557,68 @@ const OrderReport: React.FC = () => {
         </div>
       ),
     },
+    // 3. 状态
+    {
+      title: "状态",
+      width: 70,
+      render: (_, row) => {
+        const config = statusConfig[row.status] || { label: row.status, color: '#999', bgColor: '#f5f5f5' };
+        return (
+          <span
+            className={styles.statusTag}
+            style={{ color: config.color, backgroundColor: config.bgColor }}
+          >
+            {config.label}
+          </span>
+        );
+      },
+    },
     // 4. 订单金额
     {
       title: "订单金额",
-      width: 100,
+      width: 80,
       align: "right",
       render: (_, row) => row.order_amount,
     },
-    // 6. 进货金额
+    // 5. 进货金额
     {
       title: "进货金额",
-      width: 100,
+      width: 80,
       align: "right",
       render: (_, row) => row.purchase_price || "-",
     },
-    // 7. Ozon佣金
+    // 6. Ozon佣金
     {
       title: "Ozon佣金",
-      width: 100,
+      width: 80,
       align: "right",
       render: (_, row) => row.ozon_commission_cny || "-",
     },
-    // 8. 国际物流
+    // 7. 国际物流
     {
       title: "国际物流",
-      width: 100,
+      width: 80,
       align: "right",
       render: (_, row) => row.international_logistics_fee_cny || "-",
     },
-    // 9. 尾程派送
+    // 8. 尾程派送
     {
       title: "尾程派送",
-      width: 100,
+      width: 80,
       align: "right",
       render: (_, row) => row.last_mile_delivery_fee_cny || "-",
     },
-    // 10. 打包费用
+    // 9. 打包费用
     {
       title: "打包费用",
-      width: 100,
+      width: 80,
       align: "right",
       render: (_, row) => row.material_cost || "-",
     },
-    // 11. 利润金额
+    // 10. 利润金额
     {
       title: "利润金额",
-      width: 100,
+      width: 80,
       align: "right",
       render: (_, row) => {
         const profit = parseFloat(row.profit || "0");
@@ -615,7 +631,7 @@ const OrderReport: React.FC = () => {
         );
       },
     },
-    // 12. 利润比率（带排序）
+    // 11. 利润比率（带排序）
     {
       title: () => (
         <div className={styles.profitRateHeader}>
@@ -642,7 +658,7 @@ const OrderReport: React.FC = () => {
           </span>
         </div>
       ),
-      width: 100,
+      width: 80,
       align: "right",
       render: (_, row) => {
         const profitRate = row.profit_rate;
@@ -655,10 +671,10 @@ const OrderReport: React.FC = () => {
         );
       },
     },
-    // 11. 订单日期（放最后）
+    // 12. 订单日期
     {
       title: "订单日期",
-      width: 70,
+      width: 65,
       render: (_, row) => (
         <Tooltip title={formatDate(row.created_at, "YYYY-MM-DD HH:mm")}>
           <div className={styles.date} style={{ cursor: 'help' }}>
@@ -667,10 +683,10 @@ const OrderReport: React.FC = () => {
         </Tooltip>
       ),
     },
-    // 12. 签收日期（放最后）
+    // 13. 签收日期
     {
       title: "签收日期",
-      width: 70,
+      width: 65,
       render: (_, row) => (
         row.delivered_at ? (
           <Tooltip title={formatDate(row.delivered_at, "YYYY-MM-DD HH:mm")}>
