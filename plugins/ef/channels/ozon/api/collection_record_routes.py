@@ -77,7 +77,7 @@ class RecordResponse(BaseModel):
     source_product_id: Optional[str]
     product_data: dict[str, Any]
     listing_status: Optional[str]
-    listing_task_id: Optional[str]
+    listing_task_count: Optional[int]
     listing_error_message: Optional[str]
     is_read: bool
     created_at: str
@@ -233,12 +233,11 @@ async def follow_pdp_listing(
     from ..tasks.collection_listing_tasks import process_follow_pdp_listing
     task = process_follow_pdp_listing.delay(record.id)
 
-    # 保存 Celery task_id
+    # 更新状态为 pending（任务数量在任务完成后更新）
     await CollectionRecordService.update_listing_status(
         db=db,
         record_id=record.id,
-        listing_status="pending",
-        listing_task_id=task.id
+        listing_status="pending"
     )
 
     return {
@@ -296,7 +295,7 @@ async def get_records(
             "product_data": r.product_data,
             "listing_request_payload": r.listing_request_payload,
             "listing_status": r.listing_status,
-            "listing_task_id": r.listing_task_id,
+            "listing_task_count": r.listing_task_count,
             "listing_error_message": r.listing_error_message,
             "is_read": r.is_read,
             "created_at": r.created_at.isoformat(),
@@ -455,7 +454,7 @@ async def get_record(
             "product_data": record.product_data,
             "listing_request_payload": record.listing_request_payload,
             "listing_status": record.listing_status,
-            "listing_task_id": record.listing_task_id,
+            "listing_task_count": record.listing_task_count,
             "listing_error_message": record.listing_error_message,
             "is_read": record.is_read,
             "created_at": record.created_at.isoformat(),

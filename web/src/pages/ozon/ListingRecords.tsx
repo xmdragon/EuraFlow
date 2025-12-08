@@ -83,7 +83,7 @@ interface ListingRecord {
     [key: string]: unknown;
   };
   listing_status: string | null;
-  listing_task_id: string | null;
+  listing_task_count: number | null;
   listing_error_message: string | null;
   created_at: string;
   updated_at: string;

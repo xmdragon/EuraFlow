@@ -283,9 +283,8 @@ def process_follow_pdp_listing(record_id: int) -> dict:
             # 6. 更新记录状态
             record.listing_status = "success"
             record.listing_error_message = None
-            # 保存所有任务ID（逗号分隔）
-            if task_ids:
-                record.listing_task_id = ",".join(task_ids)
+            # 保存任务数量
+            record.listing_task_count = len(task_ids)
             db.commit()
 
             logger.info(f"[CollectionListing] 上架任务创建成功 record_id={record_id}, task_count={len(task_ids)}")

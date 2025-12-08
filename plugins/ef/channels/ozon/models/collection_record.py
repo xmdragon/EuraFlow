@@ -68,10 +68,10 @@ class OzonProductCollectionRecord(Base):
         nullable=True,
         comment="发送给 OZON API 的上架请求数据"
     )
-    listing_task_id = Column(
-        String(500),
+    listing_task_count = Column(
+        Integer,
         nullable=True,
-        comment="Celery 任务 ID（多变体时逗号分隔）"
+        comment="Celery 任务数量（变体数）"
     )
     listing_status = Column(
         String(50),

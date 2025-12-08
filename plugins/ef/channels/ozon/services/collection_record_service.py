@@ -64,7 +64,7 @@ class CollectionRecordService:
         db: AsyncSession,
         record_id: int,
         listing_status: str,
-        listing_task_id: Optional[str] = None,
+        listing_task_count: Optional[int] = None,
         listing_product_id: Optional[int] = None,
         listing_error_message: Optional[str] = None,
         listing_request_payload: Optional[dict] = None
@@ -75,7 +75,7 @@ class CollectionRecordService:
             db: 数据库会话
             record_id: 采集记录ID
             listing_status: 上架状态
-            listing_task_id: OZON任务ID
+            listing_task_count: 任务数量（变体数）
             listing_product_id: 关联的正式商品ID
             listing_error_message: 错误信息
             listing_request_payload: 上架请求数据
@@ -90,8 +90,8 @@ class CollectionRecordService:
         record = result.scalar_one()
 
         record.listing_status = listing_status
-        if listing_task_id:
-            record.listing_task_id = listing_task_id
+        if listing_task_count is not None:
+            record.listing_task_count = listing_task_count
         if listing_product_id:
             record.listing_product_id = listing_product_id
         if listing_error_message:
