@@ -522,7 +522,7 @@ const OrderReport: React.FC = () => {
     // 1. 店铺名称（显示第一个单词，完整名称用 Tooltip）
     {
       title: "店铺",
-      width: 100,
+      width: 120,
       render: (_, row) => {
         const shopName = row.shop_name || '-';
         const firstWord = shopName.split(' ')[0] || shopName;
@@ -562,13 +562,22 @@ const OrderReport: React.FC = () => {
       title: "状态",
       width: 70,
       render: (_, row) => {
-        const config = statusConfig[row.status] || { label: row.status, color: '#999', bgColor: '#f5f5f5' };
+        const config = statusConfig[row.status];
+        // Ant Design 颜色名转换为实际颜色
+        const colorMap: Record<string, { text: string; bg: string }> = {
+          success: { text: '#52c41a', bg: '#f6ffed' },
+          error: { text: '#ff4d4f', bg: '#fff2f0' },
+          processing: { text: '#1890ff', bg: '#e6f7ff' },
+          warning: { text: '#faad14', bg: '#fffbe6' },
+          cyan: { text: '#13c2c2', bg: '#e6fffb' },
+        };
+        const colors = config ? colorMap[config.color] || { text: '#999', bg: '#f5f5f5' } : { text: '#999', bg: '#f5f5f5' };
         return (
           <span
             className={styles.statusTag}
-            style={{ color: config.color, backgroundColor: config.bgColor }}
+            style={{ color: colors.text, backgroundColor: colors.bg }}
           >
-            {config.label}
+            {config?.text || row.status}
           </span>
         );
       },

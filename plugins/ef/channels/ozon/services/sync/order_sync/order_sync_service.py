@@ -2,6 +2,7 @@
 订单同步服务
 
 订单同步的主入口，负责协调各个组件完成同步流程。
+优化版本：使用批量处理减少数据库查询次数。
 """
 
 from typing import Dict, Any, Set
@@ -59,7 +60,7 @@ class OrderSyncService:
         db: AsyncSession,
         task_id: str
     ) -> Dict[str, Any]:
-        """增量同步订单 - 最近7天"""
+        """增量同步订单 - 最近6小时"""
         try:
             # 初始化任务状态
             self.task_manager.create_task(
@@ -76,19 +77,37 @@ class OrderSyncService:
             self.task_manager.update_progress(task_id, 5, "正在连接Ozon API...")
 
             total_synced = 0
-            synced_order_ids: Set[str] = set()
+            synced_posting_numbers: Set[str] = set()
+            batch_count = 0
 
             self.task_manager.update_progress(task_id, 5, "正在同步订单...")
 
             async for items, has_next in self.fetcher.fetch_orders_incremental(client):
-                total_synced = await self._process_orders_batch(
-                    db=db,
-                    shop_id=shop_id,
-                    task_id=task_id,
-                    items=items,
-                    synced_order_ids=synced_order_ids,
-                    total_synced=total_synced,
-                )
+                batch_count += 1
+
+                # 过滤已同步的 posting
+                new_items = []
+                for item in items:
+                    posting_number = item.get("posting_number", "")
+                    if posting_number and posting_number not in synced_posting_numbers:
+                        synced_posting_numbers.add(posting_number)
+                        new_items.append(item)
+
+                if new_items:
+                    # 更新进度
+                    self.task_manager.update_progress(
+                        task_id,
+                        min(5 + (85 * batch_count / 10), 90),
+                        f"正在批量同步第 {batch_count} 批订单（{len(new_items)} 个）..."
+                    )
+
+                    # 使用批量处理方法
+                    synced = await self.posting_processor.sync_postings_batch(
+                        db=db,
+                        items=new_items,
+                        shop=shop
+                    )
+                    total_synced += synced
 
                 # 每批次提交一次
                 await db.commit()
@@ -136,18 +155,37 @@ class OrderSyncService:
             self.task_manager.update_progress(task_id, 10, "正在获取所有历史订单...")
 
             total_synced = 0
-            synced_order_ids: Set[str] = set()
+            synced_posting_numbers: Set[str] = set()
+            batch_count = 0
 
             async for items, has_next in self.fetcher.fetch_orders_full(client):
-                total_synced = await self._process_orders_batch(
-                    db=db,
-                    shop_id=shop_id,
-                    task_id=task_id,
-                    items=items,
-                    synced_order_ids=synced_order_ids,
-                    total_synced=total_synced,
-                    mode="full",
-                )
+                batch_count += 1
+
+                # 过滤已同步的 posting
+                new_items = []
+                for item in items:
+                    posting_number = item.get("posting_number", "")
+                    if posting_number and posting_number not in synced_posting_numbers:
+                        synced_posting_numbers.add(posting_number)
+                        new_items.append(item)
+
+                if new_items:
+                    # 更新进度（全量同步估算进度）
+                    estimated_total = max(50, batch_count * 1.5)
+                    progress = 10 + (80 * batch_count / estimated_total)
+                    self.task_manager.update_progress(
+                        task_id,
+                        min(int(progress), 90),
+                        f"正在批量同步第 {batch_count} 批订单（{len(new_items)} 个）..."
+                    )
+
+                    # 使用批量处理方法
+                    synced = await self.posting_processor.sync_postings_batch(
+                        db=db,
+                        items=new_items,
+                        shop=shop
+                    )
+                    total_synced += synced
 
                 # 每批次提交一次
                 await db.commit()
@@ -185,56 +223,3 @@ class OrderSyncService:
 
         client = OzonAPIClient(shop.client_id, shop.api_key_enc)
         return shop, client
-
-    async def _process_orders_batch(
-        self,
-        db: AsyncSession,
-        shop_id: int,
-        task_id: str,
-        items: list,
-        synced_order_ids: Set[str],
-        total_synced: int,
-        mode: str = "incremental",
-    ) -> int:
-        """
-        处理一批订单（直接同步为 Posting，不再创建 OzonOrder）
-
-        Returns:
-            更新后的 total_synced
-        """
-        for idx, item in enumerate(items):
-            posting_number = item.get("posting_number", "")
-            ozon_order_id = str(item.get("order_id", ""))
-
-            # 使用 posting_number 去重（更准确）
-            if posting_number in synced_order_ids:
-                logger.debug(f"Posting {posting_number} already synced, skipping")
-                continue
-
-            synced_order_ids.add(posting_number)
-
-            # 更新进度
-            current_count = total_synced + idx + 1
-            if mode == "full":
-                estimated_total = max(500, current_count * 1.1) if current_count > 500 else 500
-                progress = 10 + (80 * current_count / estimated_total)
-            else:
-                progress = 5 + (85 * current_count / max(len(synced_order_ids), 1))
-
-            self.task_manager.update_progress(
-                task_id,
-                min(int(progress), 90),
-                f"正在同步订单 {posting_number}..."
-            )
-
-            # 直接同步 posting 信息（不再创建 OzonOrder）
-            await self.posting_processor.sync_posting(
-                db=db,
-                posting_data=item,
-                shop_id=shop_id,
-                ozon_order_id=ozon_order_id
-            )
-
-            total_synced += 1
-
-        return total_synced
