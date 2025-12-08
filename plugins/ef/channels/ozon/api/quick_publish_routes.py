@@ -45,9 +45,9 @@ class QuickPublishVariantDTO(BaseModel):
     name: str = Field(..., description="商品名称（中文，后端会翻译成俄文）", min_length=1, max_length=500)
     sku: str = Field(..., description="OZON SKU", min_length=1, max_length=50)
     offer_id: str = Field(..., description="商家SKU", min_length=1, max_length=50)
-    price: Decimal = Field(..., gt=0, description="销售价格（分）")
+    price: Decimal = Field(..., gt=0, description="销售价格（元）")
     stock: int = Field(..., ge=0, description="库存数量")
-    old_price: Optional[Decimal] = Field(None, gt=0, description="原价（分）")
+    old_price: Optional[Decimal] = Field(None, gt=0, description="原价（元）")
     primary_image: Optional[str] = Field(None, description="变体主图URL（单个图片）")
     images: Optional[List[str]] = Field(default=None, max_length=29, description="变体独立的附加图片URL列表（最多29张，不同变体可能有不同的附加图）")
 

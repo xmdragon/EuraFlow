@@ -359,10 +359,13 @@ async def get_category_attributes(
 
                 from plugins.ef.channels.ozon.models.listing import OzonAttributeDictionaryValue
 
-                # 查询字典值数量
+                # 查询字典值数量（排除废弃的）
                 count_result = await db.scalar(
                     select(func.count()).select_from(OzonAttributeDictionaryValue)
-                    .where(OzonAttributeDictionaryValue.dictionary_id == attr.dictionary_id)
+                    .where(
+                        OzonAttributeDictionaryValue.dictionary_id == attr.dictionary_id,
+                        OzonAttributeDictionaryValue.is_deprecated == False
+                    )
                 )
                 dict_value_count = count_result or 0
                 attr_dict["dictionary_value_count"] = dict_value_count
@@ -374,11 +377,14 @@ async def get_category_attributes(
                 should_preload = dict_value_count <= 100 or (is_common_field and dict_value_count <= 2000)
 
                 if should_preload:
-                    # 预加载字典值（常用字段最多2000条，普通字段最多100条）
+                    # 预加载字典值（常用字段最多2000条，普通字段最多100条，排除废弃的）
                     limit = 2000 if is_common_field else 100
                     dict_values_result = await db.execute(
                         select(OzonAttributeDictionaryValue)
-                        .where(OzonAttributeDictionaryValue.dictionary_id == attr.dictionary_id)
+                        .where(
+                            OzonAttributeDictionaryValue.dictionary_id == attr.dictionary_id,
+                            OzonAttributeDictionaryValue.is_deprecated == False
+                        )
                         .order_by(OzonAttributeDictionaryValue.value)
                         .limit(limit)
                     )
@@ -981,13 +987,14 @@ async def sync_single_category_attributes(
         # 2. 如果需要，同步特征值指南
         synced_values = 0
         if sync_dictionary_values:
-            # 直接查询 attribute_id 和 dictionary_id，避免 ORM 对象懒加载问题
+            # 直接查询 attribute_id 和 dictionary_id，避免 ORM 对象懒加载问题（排除废弃的特征）
             from ...models.listing import OzonCategoryAttribute
             attrs_result = await db.execute(
                 select(OzonCategoryAttribute.attribute_id, OzonCategoryAttribute.dictionary_id)
                 .where(
                     OzonCategoryAttribute.category_id == category_id,
-                    OzonCategoryAttribute.dictionary_id.isnot(None)
+                    OzonCategoryAttribute.dictionary_id.isnot(None),
+                    OzonCategoryAttribute.is_deprecated == False
                 )
             )
             attrs_to_sync = list(attrs_result.all())

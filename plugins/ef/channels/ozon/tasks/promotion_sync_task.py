@@ -23,20 +23,98 @@ async def sync_all_promotions(**kwargs) -> Dict[str, Any]:
     """
     同步所有店铺的促销活动和商品
 
-    执行步骤：
-    1. 同步所有店铺的活动清单
-    2. 同步每个活动的候选商品
-    3. 同步每个活动的参与商品
-    4. 对开启自动取消的活动执行自动取消逻辑
+    支持两种执行模式（通过环境变量 EF__USE_ARQ_DISPATCHER 控制）：
+    - False（默认）: 串行模式，在当前进程中逐个同步店铺
+    - True: 派发模式，将店铺级任务派发到 ARQ Worker 并行执行
 
     Returns:
         同步结果统计
     """
-    logger.info("Starting promotion sync task")
+    import os
+
+    use_arq = os.getenv("EF__USE_ARQ_DISPATCHER", "false").lower() == "true"
+
+    if use_arq:
+        return await _sync_all_promotions_dispatch()
+    else:
+        return await _sync_all_promotions_serial()
+
+
+async def _sync_all_promotions_dispatch() -> Dict[str, Any]:
+    """
+    促销同步派发模式：将店铺级任务派发到 ARQ Worker 并行执行
+    """
+    from ef_core.tasks.task_logger import update_task_result, record_task_error
+    from ef_core.tasks.arq_tasks import enqueue_batch
+
+    logger.info("Starting promotion sync dispatcher")
+
+    try:
+        db_manager = get_task_db_manager()
+
+        async with db_manager.get_session() as db:
+            # 获取所有活跃店铺 ID
+            stmt = select(OzonShop.id).where(OzonShop.status == "active")
+            result = await db.execute(stmt)
+            shop_ids = [row[0] for row in result.fetchall()]
+
+        if not shop_ids:
+            logger.info("No active shops found, skipping promotion sync")
+            update_task_result(
+                task_name="ef.ozon.promotions.sync",
+                records_processed=0,
+                extra_data={"mode": "dispatch", "shops_dispatched": 0}
+            )
+            return {"mode": "dispatch", "shops_dispatched": 0}
+
+        # 批量派发到 ARQ 队列
+        job_ids = await enqueue_batch(
+            "sync_shop_promotions",
+            shop_ids,
+            key_param="shop_id"
+        )
+
+        logger.info(
+            f"Promotion sync dispatcher completed: dispatched {len(job_ids)} shop tasks to ARQ"
+        )
+
+        # 记录派发结果
+        update_task_result(
+            task_name="ef.ozon.promotions.sync",
+            records_processed=len(job_ids),
+            extra_data={
+                "mode": "dispatch",
+                "shops_dispatched": len(job_ids),
+                "job_ids": job_ids[:10]
+            }
+        )
+
+        return {
+            "mode": "dispatch",
+            "shops_dispatched": len(job_ids),
+            "job_ids": job_ids[:10]
+        }
+
+    except Exception as e:
+        logger.error(f"Error in promotion sync dispatcher: {e}", exc_info=True)
+        record_task_error(
+            task_name="ef.ozon.promotions.sync",
+            error_message=str(e),
+            extra_data={"mode": "dispatch"}
+        )
+        raise
+
+
+async def _sync_all_promotions_serial() -> Dict[str, Any]:
+    """
+    促销同步串行模式（原始实现）：在当前进程中逐个同步店铺
+    """
+    logger.info("Starting promotion sync task (serial mode)")
 
     start_time = datetime.utcnow()
     results = {
         "started_at": start_time.isoformat() + "Z",
+        "mode": "serial",
         "shops_processed": 0,
         "actions_synced": 0,
         "candidates_synced": 0,
@@ -103,6 +181,7 @@ async def sync_all_promotions(**kwargs) -> Dict[str, Any]:
                 records_processed=results["actions_synced"] + results["products_synced"],
                 records_updated=results["products_synced"],
                 extra_data={
+                    "mode": "serial",
                     "shops_processed": results["shops_processed"],
                     "actions_synced": results["actions_synced"],
                     "candidates_synced": results["candidates_synced"],
@@ -125,7 +204,7 @@ async def sync_all_promotions(**kwargs) -> Dict[str, Any]:
             task_name="ef.ozon.promotions.sync",
             error_message=str(e),
             records_processed=results["actions_synced"],
-            extra_data={"shops_processed": results["shops_processed"]}
+            extra_data={"mode": "serial", "shops_processed": results["shops_processed"]}
         )
         raise
 

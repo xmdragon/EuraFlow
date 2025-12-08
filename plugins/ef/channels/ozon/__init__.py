@@ -690,15 +690,94 @@ async def setup(hooks) -> None:
 
         # 2. OZON财务费用同步
         async def ozon_finance_sync_task(**kwargs):
-            """OZON财务费用同步定时任务"""
-            from plugins.ef.system.sync_service.services.handler_registry import get_registry
-            registry = get_registry()
-            handler = registry.get_handler("ozon_finance_sync")
-            if handler:
-                return await handler({})
+            """
+            OZON财务费用同步定时任务
+
+            支持两种执行模式（通过环境变量 EF__USE_ARQ_DISPATCHER 控制）：
+            - False（默认）: 串行模式，在当前进程中批量查询和处理
+            - True: 派发模式，将店铺级任务派发到 ARQ Worker 并行执行
+            """
+            import os
+            use_arq = os.getenv("EF__USE_ARQ_DISPATCHER", "false").lower() == "true"
+
+            if use_arq:
+                return await _ozon_finance_sync_task_dispatch()
             else:
-                logger.warning("ozon_finance_sync handler not found")
-                return {}
+                # 原始串行模式
+                from plugins.ef.system.sync_service.services.handler_registry import get_registry
+                registry = get_registry()
+                handler = registry.get_handler("ozon_finance_sync")
+                if handler:
+                    return await handler({})
+                else:
+                    logger.warning("ozon_finance_sync handler not found")
+                    return {}
+
+        async def _ozon_finance_sync_task_dispatch():
+            """财务费用同步派发模式"""
+            from ef_core.tasks.task_logger import update_task_result, record_task_error
+            from ef_core.tasks.arq_tasks import enqueue_batch
+            from ef_core.database import get_task_db_manager
+            from .models import OzonShop
+            from sqlalchemy import select
+
+            logger.info("Starting OZON finance sync dispatcher")
+
+            try:
+                db_manager = get_task_db_manager()
+
+                async with db_manager.get_session() as db:
+                    # 获取所有活跃店铺 ID
+                    result = await db.execute(
+                        select(OzonShop.id).where(OzonShop.status == "active")
+                    )
+                    shop_ids = [row[0] for row in result.fetchall()]
+
+                if not shop_ids:
+                    logger.info("No active shops found, skipping finance sync")
+                    update_task_result(
+                        task_name="ef.ozon.finance.sync",
+                        records_processed=0,
+                        extra_data={"mode": "dispatch", "shops_dispatched": 0}
+                    )
+                    return {"mode": "dispatch", "shops_dispatched": 0}
+
+                # 批量派发到 ARQ 队列
+                job_ids = await enqueue_batch(
+                    "sync_shop_finance",
+                    shop_ids,
+                    key_param="shop_id"
+                )
+
+                logger.info(
+                    f"OZON finance sync dispatcher completed: dispatched {len(job_ids)} shop tasks to ARQ"
+                )
+
+                # 记录派发结果
+                update_task_result(
+                    task_name="ef.ozon.finance.sync",
+                    records_processed=len(job_ids),
+                    extra_data={
+                        "mode": "dispatch",
+                        "shops_dispatched": len(job_ids),
+                        "job_ids": job_ids[:10]
+                    }
+                )
+
+                return {
+                    "mode": "dispatch",
+                    "shops_dispatched": len(job_ids),
+                    "job_ids": job_ids[:10]
+                }
+
+            except Exception as e:
+                logger.error(f"Error in OZON finance sync dispatcher: {e}", exc_info=True)
+                record_task_error(
+                    task_name="ef.ozon.finance.sync",
+                    error_message=str(e),
+                    extra_data={"mode": "dispatch"}
+                )
+                raise
 
         # 3. OZON财务交易同步
         async def ozon_finance_transactions_task(**kwargs):
@@ -745,19 +824,19 @@ async def setup(hooks) -> None:
 
     # 注册类目同步定时任务
     try:
-        # 注册类目树同步（每周二凌晨5:00北京时间 = 每周一晚上21:00 UTC）
+        # 注册类目树同步（每周二凌晨2:00北京时间 = 每周一晚上18:00 UTC）
         await hooks.register_cron(
             name="ef.ozon.category.sync",
-            cron="0 21 * * 1",
+            cron="0 18 * * 1",
             task=category_sync_task,
             display_name="OZON 类目树同步",
             description="同步 OZON 平台的商品类目树结构"
         )
 
-        # 注册类目特征同步（每周二凌晨5:30北京时间 = 每周一晚上21:30 UTC）
+        # 注册类目特征同步（每周二凌晨2:30北京时间 = 每周一晚上18:30 UTC）
         await hooks.register_cron(
             name="ef.ozon.attributes.sync",
-            cron="30 21 * * 1",
+            cron="30 18 * * 1",
             task=attributes_sync_task,
             display_name="OZON 类目特征同步",
             description="同步 OZON 平台的类目属性和特征"
@@ -903,6 +982,88 @@ async def setup(hooks) -> None:
 async def pull_products_task(**kwargs) -> None:
     """
     拉取 Ozon 商品的定时任务（每小时第50分钟，同步最近6小时）
+
+    支持两种执行模式（通过环境变量 EF__USE_ARQ_DISPATCHER 控制）：
+    - False（默认）: 串行模式，在当前进程中逐个同步店铺
+    - True: 派发模式，将店铺级任务派发到 ARQ Worker 并行执行
+    """
+    import os
+
+    use_arq = os.getenv("EF__USE_ARQ_DISPATCHER", "false").lower() == "true"
+
+    if use_arq:
+        await _pull_products_task_dispatch()
+    else:
+        await _pull_products_task_serial()
+
+
+async def _pull_products_task_dispatch() -> None:
+    """
+    商品同步派发模式：将店铺级任务派发到 ARQ Worker 并行执行
+    """
+    from ef_core.tasks.task_logger import update_task_result, record_task_error
+    from ef_core.tasks.arq_tasks import enqueue_batch
+
+    try:
+        from ef_core.database import get_task_db_manager
+        from .models import OzonShop
+        from sqlalchemy import select
+
+        current_time = datetime.now(UTC)
+        logger.info(f"[{current_time.isoformat()}] Starting OZON product sync dispatcher...")
+
+        db_manager = get_task_db_manager()
+
+        async with db_manager.get_session() as db:
+            # 获取所有活跃店铺 ID
+            result = await db.execute(
+                select(OzonShop.id).where(OzonShop.status == "active")
+            )
+            shop_ids = [row[0] for row in result.fetchall()]
+
+        if not shop_ids:
+            logger.info("No active shops found, skipping product sync")
+            update_task_result(
+                task_name="ef.ozon.products.pull",
+                records_processed=0,
+                extra_data={"mode": "dispatch", "shops_dispatched": 0}
+            )
+            return
+
+        # 批量派发到 ARQ 队列
+        job_ids = await enqueue_batch(
+            "sync_shop_products",
+            shop_ids,
+            key_param="shop_id"
+        )
+
+        logger.info(
+            f"OZON product sync dispatcher completed: dispatched {len(job_ids)} shop tasks to ARQ"
+        )
+
+        # 记录派发结果
+        update_task_result(
+            task_name="ef.ozon.products.pull",
+            records_processed=len(job_ids),
+            extra_data={
+                "mode": "dispatch",
+                "shops_dispatched": len(job_ids),
+                "job_ids": job_ids[:10]
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error in OZON product sync dispatcher: {e}", exc_info=True)
+        record_task_error(
+            task_name="ef.ozon.products.pull",
+            error_message=str(e),
+            extra_data={"mode": "dispatch"}
+        )
+
+
+async def _pull_products_task_serial() -> None:
+    """
+    商品同步串行模式（原始实现）：在当前进程中逐个同步店铺
     """
     from ef_core.tasks.task_logger import update_task_result, record_task_error
 
@@ -918,7 +1079,7 @@ async def pull_products_task(**kwargs) -> None:
         import uuid
 
         current_time = datetime.now(UTC)
-        logger.info(f"[{current_time.isoformat()}] Starting OZON product sync task...")
+        logger.info(f"[{current_time.isoformat()}] Starting OZON product sync task (serial mode)...")
 
         db_manager = get_task_db_manager()
 
@@ -976,6 +1137,7 @@ async def pull_products_task(**kwargs) -> None:
             records_processed=total_products_synced,
             records_updated=total_products_synced,
             extra_data={
+                "mode": "serial",
                 "shops_processed": shops_processed,
                 "errors": errors[:5] if errors else None
             }
@@ -987,13 +1149,101 @@ async def pull_products_task(**kwargs) -> None:
             task_name="ef.ozon.products.pull",
             error_message=str(e),
             records_processed=total_products_synced,
-            extra_data={"shops_processed": shops_processed}
+            extra_data={"mode": "serial", "shops_processed": shops_processed}
         )
 
 
 async def pull_orders_task(**kwargs) -> None:
     """
     拉取 Ozon 订单的定时任务（每小时第15分钟，同步最近6小时）
+
+    支持两种执行模式（通过环境变量 EF__USE_ARQ_DISPATCHER 控制）：
+    - False（默认）: 串行模式，在当前进程中逐个同步店铺
+    - True: 派发模式，将店铺级任务派发到 ARQ Worker 并行执行
+    """
+    import os
+
+    use_arq = os.getenv("EF__USE_ARQ_DISPATCHER", "false").lower() == "true"
+
+    if use_arq:
+        await _pull_orders_task_dispatch()
+    else:
+        await _pull_orders_task_serial()
+
+
+async def _pull_orders_task_dispatch() -> None:
+    """
+    订单同步派发模式：将店铺级任务派发到 ARQ Worker 并行执行
+
+    Celery Beat 触发此任务，任务本身非常轻量（< 1秒），
+    只负责查询活跃店铺列表并批量派发到 ARQ 队列。
+    实际同步工作由 ARQ Worker 并行完成。
+    """
+    from ef_core.tasks.task_logger import update_task_result, record_task_error
+    from ef_core.tasks.arq_tasks import enqueue_batch
+
+    try:
+        from ef_core.database import get_task_db_manager
+        from .models import OzonShop
+        from sqlalchemy import select
+
+        current_time = datetime.now(UTC)
+        logger.info(f"[{current_time.isoformat()}] Starting OZON order sync dispatcher...")
+
+        db_manager = get_task_db_manager()
+
+        async with db_manager.get_session() as db:
+            # 获取所有活跃店铺 ID
+            result = await db.execute(
+                select(OzonShop.id).where(OzonShop.status == "active")
+            )
+            shop_ids = [row[0] for row in result.fetchall()]
+
+        if not shop_ids:
+            logger.info("No active shops found, skipping order sync")
+            update_task_result(
+                task_name="ef.ozon.orders.pull",
+                records_processed=0,
+                extra_data={"mode": "dispatch", "shops_dispatched": 0}
+            )
+            return
+
+        # 批量派发到 ARQ 队列
+        job_ids = await enqueue_batch(
+            "sync_shop_orders",
+            shop_ids,
+            key_param="shop_id"
+        )
+
+        logger.info(
+            f"OZON order sync dispatcher completed: dispatched {len(job_ids)} shop tasks to ARQ"
+        )
+
+        # 记录派发结果
+        update_task_result(
+            task_name="ef.ozon.orders.pull",
+            records_processed=len(job_ids),
+            extra_data={
+                "mode": "dispatch",
+                "shops_dispatched": len(job_ids),
+                "job_ids": job_ids[:10]  # 只记录前10个
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error in OZON order sync dispatcher: {e}", exc_info=True)
+        record_task_error(
+            task_name="ef.ozon.orders.pull",
+            error_message=str(e),
+            extra_data={"mode": "dispatch"}
+        )
+
+
+async def _pull_orders_task_serial() -> None:
+    """
+    订单同步串行模式（原始实现）：在当前进程中逐个同步店铺
+
+    适用于店铺数量较少或不想使用 ARQ 的场景。
     """
     from ef_core.tasks.task_logger import update_task_result, record_task_error
 
@@ -1009,7 +1259,7 @@ async def pull_orders_task(**kwargs) -> None:
         import uuid
 
         current_time = datetime.now(UTC)
-        logger.info(f"[{current_time.isoformat()}] Starting OZON order sync task...")
+        logger.info(f"[{current_time.isoformat()}] Starting OZON order sync task (serial mode)...")
 
         db_manager = get_task_db_manager()
 
@@ -1070,6 +1320,7 @@ async def pull_orders_task(**kwargs) -> None:
             records_processed=total_orders_synced,
             records_updated=total_orders_synced,
             extra_data={
+                "mode": "serial",
                 "shops_processed": shops_processed,
                 "errors": errors[:5] if errors else None
             }
@@ -1081,13 +1332,95 @@ async def pull_orders_task(**kwargs) -> None:
             task_name="ef.ozon.orders.pull",
             error_message=str(e),
             records_processed=total_orders_synced,
-            extra_data={"shops_processed": shops_processed}
+            extra_data={"mode": "serial", "shops_processed": shops_processed}
         )
 
 
 async def sync_inventory_task(**kwargs) -> None:
     """
     同步库存的定时任务
+
+    支持两种执行模式（通过环境变量 EF__USE_ARQ_DISPATCHER 控制）：
+    - False（默认）: 串行模式，在当前进程中逐个同步店铺
+    - True: 派发模式，将店铺级任务派发到 ARQ Worker 并行执行
+    """
+    import os
+
+    use_arq = os.getenv("EF__USE_ARQ_DISPATCHER", "false").lower() == "true"
+
+    if use_arq:
+        await _sync_inventory_task_dispatch()
+    else:
+        await _sync_inventory_task_serial()
+
+
+async def _sync_inventory_task_dispatch() -> None:
+    """
+    库存同步派发模式：将店铺级任务派发到 ARQ Worker 并行执行
+    """
+    from ef_core.tasks.task_logger import update_task_result, record_task_error
+    from ef_core.tasks.arq_tasks import enqueue_batch
+
+    try:
+        from ef_core.database import get_task_db_manager
+        from .models import OzonShop
+        from sqlalchemy import select
+
+        current_time = datetime.now(UTC)
+        logger.info(f"[{current_time.isoformat()}] Starting OZON inventory sync dispatcher...")
+
+        db_manager = get_task_db_manager()
+
+        async with db_manager.get_session() as db:
+            # 获取所有活跃店铺 ID
+            result = await db.execute(
+                select(OzonShop.id).where(OzonShop.status == "active")
+            )
+            shop_ids = [row[0] for row in result.fetchall()]
+
+        if not shop_ids:
+            logger.info("No active shops found, skipping inventory sync")
+            update_task_result(
+                task_name="ef.ozon.inventory.sync",
+                records_processed=0,
+                extra_data={"mode": "dispatch", "shops_dispatched": 0}
+            )
+            return
+
+        # 批量派发到 ARQ 队列
+        job_ids = await enqueue_batch(
+            "sync_shop_inventory",
+            shop_ids,
+            key_param="shop_id"
+        )
+
+        logger.info(
+            f"OZON inventory sync dispatcher completed: dispatched {len(job_ids)} shop tasks to ARQ"
+        )
+
+        # 记录派发结果
+        update_task_result(
+            task_name="ef.ozon.inventory.sync",
+            records_processed=len(job_ids),
+            extra_data={
+                "mode": "dispatch",
+                "shops_dispatched": len(job_ids),
+                "job_ids": job_ids[:10]
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error in OZON inventory sync dispatcher: {e}", exc_info=True)
+        record_task_error(
+            task_name="ef.ozon.inventory.sync",
+            error_message=str(e),
+            extra_data={"mode": "dispatch"}
+        )
+
+
+async def _sync_inventory_task_serial() -> None:
+    """
+    库存同步串行模式（原始实现）：在当前进程中逐个同步店铺
     """
     from ef_core.tasks.task_logger import update_task_result, record_task_error
 
@@ -1102,7 +1435,7 @@ async def sync_inventory_task(**kwargs) -> None:
         from sqlalchemy import select
 
         current_time = datetime.now(UTC)
-        logger.info(f"[{current_time.isoformat()}] Syncing inventory to Ozon...")
+        logger.info(f"[{current_time.isoformat()}] Syncing inventory to Ozon (serial mode)...")
 
         # 获取所有活跃店铺
         db_manager = get_task_db_manager()
@@ -1196,6 +1529,7 @@ async def sync_inventory_task(**kwargs) -> None:
             records_processed=total_products_synced,
             records_updated=total_products_synced,
             extra_data={
+                "mode": "serial",
                 "shops_processed": shops_processed,
                 "errors": errors[:5] if errors else None
             }
@@ -1207,7 +1541,7 @@ async def sync_inventory_task(**kwargs) -> None:
             task_name="ef.ozon.inventory.sync",
             error_message=str(e),
             records_processed=total_products_synced,
-            extra_data={"shops_processed": shops_processed}
+            extra_data={"mode": "serial", "shops_processed": shops_processed}
         )
 
 

@@ -608,8 +608,19 @@ def _initialize_plugins_for_celery():
                 # 重要：清理事件循环引用，避免后续冲突
                 asyncio.set_event_loop(None)
         else:
-            # 没有运行中的事件循环，使用 asyncio.run()（Python 3.7+ 推荐方式）
-            task_registry = asyncio.run(async_init())
+            # 没有运行中的事件循环
+            # 创建新的事件循环但不在结束后清除，以便 ARQ 等其他组件可以使用
+            # 注意：asyncio.run() 会在结束后关闭事件循环，导致后续 get_event_loop() 失败
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                task_registry = loop.run_until_complete(async_init())
+            finally:
+                # 关闭事件循环但创建一个新的空循环供后续使用
+                loop.close()
+                # 创建新的事件循环供其他组件（如 ARQ）使用
+                new_loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(new_loop)
 
         logger.info(f"✅ Celery plugin initialization completed, registered {len(task_registry.registered_tasks)} tasks")
 

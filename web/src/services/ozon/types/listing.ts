@@ -104,6 +104,8 @@ export interface CreateProductRequest {
   purchase_url?: string;
   suggested_purchase_price?: number;
   purchase_note?: string;
+  // 来源采集记录ID（编辑上架时传递）
+  source_record_id?: number;
 }
 
 /**

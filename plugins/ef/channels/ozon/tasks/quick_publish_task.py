@@ -411,10 +411,14 @@ def create_product_task(self, prev_result: Dict, dto_dict: Dict, user_id: int, s
         logger.info(f"[Step 2] Shop info: shop_id={shop.id}, client_id={shop.client_id}")
 
         # 构建完整商品数据（/v3/product/import API）
+        # 价格单位：元（OZON API 直接使用货币基本单位，不需要转换）
+        price = dto_dict.get("price", "0")
+        logger.info(f"[Step 2] 输入价格: price={price}, old_price={dto_dict.get('old_price')}")
+
         product_item = {
             "offer_id": dto_dict["offer_id"],
             "name": dto_dict.get("name", ""),
-            "price": str(dto_dict.get("price", "0")),
+            "price": str(price),  # 直接使用元
             "currency_code": dto_dict.get("currency_code", "CNY"),
             "vat": dto_dict.get("vat", "0"),
         }
@@ -463,13 +467,14 @@ def create_product_task(self, prev_result: Dict, dto_dict: Dict, user_id: int, s
         raw_attributes = dto_dict.get("attributes", [])
         formatted_attributes = []
 
-        # 预先查询该类目的所有属性，用于 name -> attribute_id 映射
+        # 预先查询该类目的所有属性，用于 name -> attribute_id 映射（排除废弃的）
         from ..models.listing import OzonCategoryAttribute
         SessionLocal = get_sync_db_session()
         attr_name_to_id = {}
         with SessionLocal() as db:
             category_attrs = db.query(OzonCategoryAttribute).filter(
-                OzonCategoryAttribute.category_id == category_id
+                OzonCategoryAttribute.category_id == category_id,
+                OzonCategoryAttribute.is_deprecated == False
             ).all()
             for ca in category_attrs:
                 # 支持中文名和俄文名查找
@@ -611,8 +616,7 @@ def upload_images_to_storage_task(self, dto_dict: Dict, shop_id: int, parent_tas
 
     图片来源可能是：
     1. 已中转的图床 URL（直接使用，无需处理）
-    2. Base64 数据（浏览器扩展预下载，直接上传到图床）
-    3. OZON CDN URL（需要下载并上传，但可能因 403 失败）
+    2. OZON CDN URL（需要下载并上传）
     """
     # 构建图片列表：主图在前，附图在后
     # dto_dict 结构: primary_image (主图), images (变体独立的附图数组)

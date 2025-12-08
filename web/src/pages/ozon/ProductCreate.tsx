@@ -524,6 +524,8 @@ const ProductCreate: React.FC = () => {
   const collectionRecordRestoredRef = useRef(false);
   // 保存待匹配的俄文类目名称（等店铺选择后再匹配）
   const [pendingCategoryTypeRu, setPendingCategoryTypeRu] = useState<string | null>(null);
+  // 保存来源采集记录ID（编辑上架时使用）
+  const [sourceRecordId, setSourceRecordId] = useState<number | null>(null);
 
   // 第一步：恢复表单数据，提取待匹配的类目名称
   useEffect(() => {
@@ -563,6 +565,11 @@ const ProductCreate: React.FC = () => {
         // 保存待匹配的类目名称（等店铺选择后再匹配）
         if (categoryTypeRu) {
           setPendingCategoryTypeRu(categoryTypeRu);
+        }
+
+        // 保存来源采集记录ID（编辑上架时需要）
+        if (state.sourceRecordId) {
+          setSourceRecordId(state.sourceRecordId);
         }
       } catch (error) {
         loggers.ozon.error('[CollectionRecord] 恢复数据失败', error);
@@ -885,10 +892,13 @@ const ProductCreate: React.FC = () => {
         dimension_unit: 'mm',
         weight_unit: 'g',
         vat: values.vat || '0',
+        currency_code: 'CNY',  // 跨境店铺使用人民币
         // 采购信息（仅保存到本地，不提交OZON）
         purchase_url: allFormValues.purchase_url || undefined,
         suggested_purchase_price: allFormValues.suggested_purchase_price || undefined,
         purchase_note: allFormValues.purchase_note || undefined,
+        // 来源采集记录ID（编辑上架时传递）
+        source_record_id: sourceRecordId || undefined,
       });
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : '操作失败';

@@ -146,14 +146,13 @@ class CatalogService:
             await self.db.commit()
 
             # 标记废弃的类目（未在本次同步中更新的类目）
-            from sqlalchemy import update
-            result = await self.db.execute(
+            deprecated_result = await self.db.execute(
                 update(OzonCategory)
                 .where(OzonCategory.last_updated_at < sync_start_time)
                 .where(OzonCategory.is_deprecated == False)
                 .values(is_deprecated=True)
             )
-            deprecated_count = result.rowcount
+            deprecated_count = deprecated_result.rowcount
             await self.db.commit()
 
             if deprecated_count > 0:
@@ -333,29 +332,46 @@ class CatalogService:
             同步结果
         """
         try:
-            # 检查缓存
+            from datetime import timedelta
+            from sqlalchemy import func as sql_func
+
+            # 检查缓存：8 天时间窗口
             needs_ru_sync = False
+            sync_start_time = datetime.now(timezone.utc)
+
             if not force_refresh:
                 cached_result = await self.db.execute(
                     select(OzonCategoryAttribute).where(
-                        OzonCategoryAttribute.category_id == category_id
+                        and_(
+                            OzonCategoryAttribute.category_id == category_id,
+                            OzonCategoryAttribute.is_deprecated == False
+                        )
                     )
                 )
                 cached_attrs = cached_result.scalars().all()
                 cached_count = len(cached_attrs)
+
                 if cached_count > 0:
-                    # 检查是否缺少俄文名称
-                    missing_ru = sum(1 for attr in cached_attrs if not attr.name_ru)
-                    if missing_ru > 0:
-                        # 需要补充俄文同步
-                        needs_ru_sync = True
-                        logger.info(
-                            f"Category {category_id} has {cached_count} attrs but {missing_ru} missing name_ru, "
-                            f"will sync Russian only"
-                        )
+                    # 检查最近 8 天内是否已同步过（基于 cached_at）
+                    cache_window = datetime.now(timezone.utc) - timedelta(days=8)
+                    recent_count = sum(1 for attr in cached_attrs if attr.cached_at and attr.cached_at >= cache_window)
+
+                    if recent_count == cached_count:
+                        # 所有特征都在 8 天内同步过
+                        missing_ru = sum(1 for attr in cached_attrs if not attr.name_ru)
+                        if missing_ru > 0:
+                            # 需要补充俄文同步
+                            needs_ru_sync = True
+                            logger.info(
+                                f"Category {category_id} has {cached_count} attrs but {missing_ru} missing name_ru, "
+                                f"will sync Russian only"
+                            )
+                        else:
+                            logger.info(f"Category {category_id} attributes cached ({cached_count}, all within 8 days), skipping")
+                            return {"success": True, "cached": True, "count": cached_count}
                     else:
-                        logger.info(f"Category {category_id} attributes cached ({cached_count}), skipping")
-                        return {"success": True, "cached": True, "count": cached_count}
+                        # 有过期特征，需要完整同步
+                        logger.info(f"Category {category_id} has {cached_count - recent_count} expired attrs, need full sync")
 
             # 查询类目信息（获取parent_id作为description_category_id）
             cat_stmt = select(OzonCategory).where(OzonCategory.category_id == category_id)
@@ -432,6 +448,22 @@ class CatalogService:
                 )
             )
 
+            # 第四步：标记废弃的特征（本次同步未更新的）
+            deprecated_result = await self.db.execute(
+                update(OzonCategoryAttribute)
+                .where(
+                    and_(
+                        OzonCategoryAttribute.category_id == category_id,
+                        OzonCategoryAttribute.cached_at < sync_start_time,
+                        OzonCategoryAttribute.is_deprecated == False
+                    )
+                )
+                .values(is_deprecated=True)
+            )
+            deprecated_count = deprecated_result.rowcount
+            if deprecated_count > 0:
+                logger.info(f"Marked {deprecated_count} attributes as deprecated for category {category_id}")
+
             # 注意：不在这里commit，由外层调用者统一commit
             # await self.db.flush()
 
@@ -440,6 +472,7 @@ class CatalogService:
             return {
                 "success": True,
                 "synced_count": synced_count,
+                "deprecated_count": deprecated_count,
                 "cached": False
             }
 
@@ -474,6 +507,9 @@ class CatalogService:
 
         if existing:
             # 更新现有属性
+            existing.cached_at = datetime.now(timezone.utc)  # 更新缓存时间
+            existing.is_deprecated = False  # 重新激活（如果之前被标记为废弃）
+
             if language == "zh":
                 existing.name_zh = name
                 existing.description_zh = description
@@ -571,15 +607,19 @@ class CatalogService:
 
             dictionary_id = attr.dictionary_id
 
-            # 检查缓存：使用时间窗口策略，同一字典在 24 小时内只同步一次
-            # 但不同类目的字典值会合并（UPSERT），确保数据完整性
+            # 记录同步开始时间（用于标记废弃的字典值）
+            sync_start_time = datetime.now(timezone.utc)
+            synced_count = 0
+
+            # 检查缓存：使用时间窗口策略，同一字典在 8 天内只同步一次
+            # 字典值不会频繁变化，每周同步一次足够（周一 18:30 UTC）
             skip_chinese_sync = False
             if not force_refresh:
                 from sqlalchemy import func as sql_func
                 from datetime import timedelta
 
-                # 检查最近 24 小时内是否已同步过此字典
-                cache_window = datetime.now(timezone.utc) - timedelta(hours=24)
+                # 检查最近 8 天内是否已同步过此字典
+                cache_window = datetime.now(timezone.utc) - timedelta(days=8)
                 recent_sync_count = await self.db.scalar(
                     select(sql_func.count(OzonAttributeDictionaryValue.id)).where(
                         and_(
@@ -590,7 +630,7 @@ class CatalogService:
                 )
 
                 if recent_sync_count and recent_sync_count > 0:
-                    # 24小时内已同步，检查是否有俄文缺失
+                    # 8天内已同步，检查是否有俄文缺失
                     missing_ru_count = await self.db.scalar(
                         select(sql_func.count(OzonAttributeDictionaryValue.id)).where(
                             and_(
@@ -615,12 +655,11 @@ class CatalogService:
                         )
                         logger.info(f"Dictionary {dictionary_id} recently synced ({cached_count} values), skipping")
                         return {"success": True, "cached": True, "count": cached_count}
-                # 如果超过24小时或从未同步，继续同步（会合并新值）
+                # 如果超过8天或从未同步，继续同步（会合并新值）
 
             # 第一步：同步中文字典值（如果需要跳过则直接进入俄文同步）
             if not skip_chinese_sync:
                 logger.info(f"Step 1/2: Syncing Chinese dictionary values for dict {dictionary_id}...")
-                synced_count = 0
                 last_value_id = 0
                 has_more = True
 
@@ -694,6 +733,23 @@ class CatalogService:
                     info=func.coalesce(OzonAttributeDictionaryValue.info_zh, OzonAttributeDictionaryValue.info_ru)
                 )
             )
+
+            # 第四步：标记废弃的字典值（本次同步未更新的）
+            deprecated_result = await self.db.execute(
+                update(OzonAttributeDictionaryValue)
+                .where(
+                    and_(
+                        OzonAttributeDictionaryValue.dictionary_id == dictionary_id,
+                        OzonAttributeDictionaryValue.cached_at < sync_start_time,
+                        OzonAttributeDictionaryValue.is_deprecated == False
+                    )
+                )
+                .values(is_deprecated=True)
+            )
+            deprecated_count = deprecated_result.rowcount
+            if deprecated_count > 0:
+                logger.info(f"Marked {deprecated_count} dictionary values as deprecated for dict {dictionary_id}")
+
             await self.db.flush()
 
             logger.info(f"Bilingual sync completed: {synced_count} values for dictionary {dictionary_id}")
@@ -701,6 +757,7 @@ class CatalogService:
             return {
                 "success": True,
                 "synced_count": synced_count,
+                "deprecated_count": deprecated_count,
                 "cached": False
             }
 
@@ -735,6 +792,9 @@ class CatalogService:
 
         if existing:
             # 更新现有字典值
+            existing.cached_at = datetime.now(timezone.utc)  # 更新缓存时间
+            existing.is_deprecated = False  # 重新激活（如果之前被标记为废弃）
+
             if language == "zh":
                 existing.value_zh = value_text
                 existing.info_zh = info_text
@@ -743,8 +803,6 @@ class CatalogService:
             elif language == "ru":
                 existing.value_ru = value_text
                 existing.info_ru = info_text
-            # 更新缓存时间戳
-            existing.cached_at = datetime.now(timezone.utc)
         else:
             # 创建新字典值（仅在中文同步时创建）
             if language == "zh":
@@ -979,7 +1037,10 @@ class CatalogService:
             属性列表
         """
         stmt = select(OzonCategoryAttribute).where(
-            OzonCategoryAttribute.category_id == category_id
+            and_(
+                OzonCategoryAttribute.category_id == category_id,
+                OzonCategoryAttribute.is_deprecated == False  # 排除废弃的特征
+            )
         )
 
         if required_only:
@@ -1073,9 +1134,12 @@ class CatalogService:
             logger.warning(f"Attribute {attribute_id} not found or no dictionary_id")
             return []
 
-        # 从本地数据库查询字典值
+        # 从本地数据库查询字典值（排除废弃的）
         stmt = select(OzonAttributeDictionaryValue).where(
-            OzonAttributeDictionaryValue.dictionary_id == attr.dictionary_id
+            and_(
+                OzonAttributeDictionaryValue.dictionary_id == attr.dictionary_id,
+                OzonAttributeDictionaryValue.is_deprecated == False  # 排除废弃的字典值
+            )
         ).limit(limit)
 
         result = await self.db.execute(stmt)
@@ -1213,13 +1277,14 @@ async def match_attribute_values(
         if not attr_value:
             continue
 
-        # 1. 根据 name（俄文）查找 attribute_id
+        # 1. 根据 name（俄文）查找 attribute_id（排除废弃的）
         # 采集的 name 是俄文，匹配 name_ru
         attr_def = await db.scalar(
             select(OzonCategoryAttribute).where(
                 and_(
                     OzonCategoryAttribute.category_id == category_id,
-                    OzonCategoryAttribute.name_ru == attr_name
+                    OzonCategoryAttribute.name_ru == attr_name,
+                    OzonCategoryAttribute.is_deprecated == False
                 )
             )
         )
@@ -1230,7 +1295,8 @@ async def match_attribute_values(
                 select(OzonCategoryAttribute).where(
                     and_(
                         OzonCategoryAttribute.category_id == category_id,
-                        OzonCategoryAttribute.name_ru.ilike(f"%{attr_name}%")
+                        OzonCategoryAttribute.name_ru.ilike(f"%{attr_name}%"),
+                        OzonCategoryAttribute.is_deprecated == False
                     )
                 )
             )
@@ -1249,11 +1315,12 @@ async def match_attribute_values(
 
             matched_values = []
             for value_text in value_texts:
-                # 精确匹配字典值（优先匹配中文 value，其次俄文 value_ru）
+                # 精确匹配字典值（优先匹配中文 value，其次俄文 value_ru，排除废弃的）
                 dict_value = await db.scalar(
                     select(OzonAttributeDictionaryValue).where(
                         and_(
                             OzonAttributeDictionaryValue.dictionary_id == dictionary_id,
+                            OzonAttributeDictionaryValue.is_deprecated == False,
                             or_(
                                 OzonAttributeDictionaryValue.value == value_text,
                                 OzonAttributeDictionaryValue.value_zh == value_text,

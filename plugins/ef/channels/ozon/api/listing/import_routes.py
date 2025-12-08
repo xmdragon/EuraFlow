@@ -347,6 +347,81 @@ async def create_product(
 
         logger.info(f"Product created and submitted to OZON: offer_id={offer_id}, id={product.id}, task_id={task_id}")
 
+        # 创建或更新上架记录
+        from ...models.collection_record import OzonProductCollectionRecord
+
+        source_record_id = request.get("source_record_id")
+
+        if source_record_id:
+            # 编辑上架：更新原采集记录
+            collection_record = await db.scalar(
+                select(OzonProductCollectionRecord).where(
+                    OzonProductCollectionRecord.id == source_record_id
+                )
+            )
+            if collection_record:
+                collection_record.listing_status = "success"
+                collection_record.listing_source = "edit"
+                collection_record.listing_product_id = product.id
+                collection_record.listing_at = datetime.utcnow()
+                collection_record.listing_error_message = None
+                logger.info(f"Updated collection record {source_record_id} as edit listing")
+        else:
+            # 手动上架：创建新的上架记录，包含提交到 OZON API 的所有字段
+            new_record = OzonProductCollectionRecord(
+                user_id=current_user.id,
+                shop_id=shop_id,
+                collection_type="follow_pdp",  # 复用类型，通过 listing_source 区分
+                source_url="",  # 手动上架没有来源URL
+                product_data={
+                    # 基本信息
+                    "title": title,
+                    "offer_id": offer_id,
+                    "description": request.get("description"),
+                    "barcode": request.get("barcode"),
+                    # 价格信息
+                    "price": float(request["price"]) if request.get("price") else None,
+                    "old_price": float(request["old_price"]) if request.get("old_price") else None,
+                    "premium_price": float(request["premium_price"]) if request.get("premium_price") else None,
+                    "currency_code": request.get("currency_code", "RUB"),
+                    "vat": request.get("vat", "0"),
+                    # 类目信息
+                    "category_id": category_id,
+                    "type_id": type_id,
+                    "description_category_id": description_category_id,
+                    # 媒体资源
+                    "images": request.get("images", []),
+                    "images360": request.get("images360"),
+                    "color_image": request.get("color_image"),
+                    "videos": request.get("videos", []),
+                    "pdf_list": request.get("pdf_list"),
+                    # 尺寸和重量
+                    "height": request.get("height"),
+                    "width": request.get("width"),
+                    "depth": request.get("depth"),
+                    "dimension_unit": request.get("dimension_unit", "mm"),
+                    "weight": request.get("weight"),
+                    "weight_unit": request.get("weight_unit", "g"),
+                    # 属性和变体
+                    "attributes": attributes,
+                    "variants": request.get("variants"),
+                    # 促销活动
+                    "promotions": request.get("promotions"),
+                    # 采购信息
+                    "purchase_url": request.get("purchase_url"),
+                    "suggested_purchase_price": float(request["suggested_purchase_price"]) if request.get("suggested_purchase_price") else None,
+                    "purchase_note": request.get("purchase_note"),
+                },
+                listing_status="success",
+                listing_source="manual",
+                listing_product_id=product.id,
+                listing_at=datetime.utcnow(),
+            )
+            db.add(new_record)
+            logger.info(f"Created new collection record for manual listing: offer_id={offer_id}")
+
+        await db.commit()
+
         return {
             "success": True,
             "data": {

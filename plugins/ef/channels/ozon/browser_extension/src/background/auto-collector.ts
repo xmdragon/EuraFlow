@@ -276,11 +276,15 @@ class AutoCollector {
       this.state.processedSources++;
 
     } catch (error: any) {
-      console.error(`[AutoCollector] 采集错误 (ID: ${source.id}):`, error.message);
-      this.state.errors.push(error.message);
-
-      // 更新状态为"失败"
-      await this.updateSourceStatus(source.id, 'failed', 0, error.message);
+      // 如果是手动停止导致的错误，记录为完成
+      if (this.stopRequested) {
+        console.log(`[AutoCollector] 采集已停止 (ID: ${source.id})`);
+        await this.updateSourceStatus(source.id, 'completed', 0);
+      } else {
+        console.error(`[AutoCollector] 采集错误 (ID: ${source.id}):`, error.message);
+        this.state.errors.push(error.message);
+        await this.updateSourceStatus(source.id, 'failed', 0, error.message);
+      }
 
     } finally {
       // 关闭标签页（根据配置）

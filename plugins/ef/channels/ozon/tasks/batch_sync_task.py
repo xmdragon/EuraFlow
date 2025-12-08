@@ -219,10 +219,34 @@ async def _sync_category_tree_async(
                 f"deprecated={result.get('deprecated_categories')}"
             )
 
+            # 更新进度状态为已完成
+            _redis_client.setex(
+                progress_key,
+                300,  # 完成后保留5分钟
+                json.dumps({
+                    'status': 'completed',
+                    'processed_categories': result.get('total_categories', 0),
+                    'total_categories': result.get('total_categories', 0),
+                    'current_category': '同步完成',
+                    'percent': 100,
+                    'result': result
+                })
+            )
+
             return result
 
     except Exception as e:
         logger.error(f"Category tree sync task failed: {e}", exc_info=True)
+        # 更新进度状态为失败
+        _redis_client.setex(
+            progress_key,
+            300,  # 保留5分钟
+            json.dumps({
+                'status': 'failed',
+                'error': str(e),
+                'current_category': '同步失败'
+            })
+        )
         return {
             "success": False,
             "error": str(e)
@@ -331,10 +355,36 @@ async def _batch_sync_async(
                 f"synced_values={result.get('synced_values')}"
             )
 
+            # 更新进度状态为已完成
+            _redis_client.setex(
+                progress_key,
+                300,  # 完成后保留5分钟
+                json.dumps({
+                    'status': 'completed',
+                    'synced_categories': result.get('synced_categories', 0),
+                    'total_categories': result.get('total_categories', 0),
+                    'synced_attributes': result.get('synced_attributes', 0),
+                    'synced_values': result.get('synced_values', 0),
+                    'current_category': '同步完成',
+                    'percent': 100,
+                    'result': result
+                })
+            )
+
             return result
 
     except Exception as e:
         logger.error(f"Batch sync task failed: {e}", exc_info=True)
+        # 更新进度状态为失败
+        _redis_client.setex(
+            progress_key,
+            300,  # 保留5分钟
+            json.dumps({
+                'status': 'failed',
+                'error': str(e),
+                'current_category': '同步失败'
+            })
+        )
         return {
             "success": False,
             "error": str(e)

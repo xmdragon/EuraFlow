@@ -1,6 +1,6 @@
 /**
  * 全局通知工具
- * 统一的通知系统，右下角弹出,10秒后自动消失
+ * 统一的通知系统，右下角弹出,5秒后自动淡出
  *
  * ⚠️ Ant Design 5.x 注意事项：
  * - 需要在 App.tsx 中初始化全局notification实例
@@ -30,7 +30,9 @@ const getNotification = () => {
 const notificationStyle = {
   width: 'auto',
   minWidth: 200,
+  maxWidth: 500,
   padding: 10,
+  whiteSpace: 'nowrap' as const,
 };
 
 /**
@@ -43,7 +45,7 @@ export const notifySuccess = (message: string, description?: string) => {
       message,
       description,
       placement: 'bottomRight',
-      duration: 10,
+      duration: 5,
       style: notificationStyle,
     });
   }
@@ -59,7 +61,7 @@ export const notifyError = (message: string, description?: string) => {
       message,
       description,
       placement: 'bottomRight',
-      duration: 10,
+      duration: 5,
       style: notificationStyle,
     });
   }
@@ -75,7 +77,7 @@ export const notifyWarning = (message: string, description?: string) => {
       message,
       description,
       placement: 'bottomRight',
-      duration: 10,
+      duration: 5,
       style: notificationStyle,
     });
   }
@@ -91,7 +93,7 @@ export const notifyInfo = (message: string, description?: string) => {
       message,
       description,
       placement: 'bottomRight',
-      duration: 10,
+      duration: 5,
       style: notificationStyle,
     });
   }
@@ -106,7 +108,7 @@ export const notify = (config: ArgsProps) => {
     notification.open({
       ...config,
       placement: config.placement || 'bottomRight',
-      duration: config.duration !== undefined ? config.duration : 10,
+      duration: config.duration !== undefined ? config.duration : 5,
       style: { ...notificationStyle, ...config.style },
     });
   }

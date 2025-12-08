@@ -418,10 +418,9 @@ export const useProductSelection = (): UseProductSelectionReturn => {
     }
 
     return allProducts.filter((product) => {
-      const currentPriceRMB = product.current_price / 100;
-      const competitorPriceRMB = product.competitor_min_price
-        ? product.competitor_min_price / 100
-        : null;
+      // 价格单位已经是元，不需要转换
+      const currentPriceRMB = product.current_price;
+      const competitorPriceRMB = product.competitor_min_price || null;
       const priceRMB = competitorPriceRMB
         ? Math.min(currentPriceRMB, competitorPriceRMB)
         : currentPriceRMB;

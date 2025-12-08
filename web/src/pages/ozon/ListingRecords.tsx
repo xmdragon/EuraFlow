@@ -107,12 +107,6 @@ const getImageUrl = (
   return undefined;
 };
 
-// 截断标题的辅助函数
-const truncateTitle = (title: string | undefined, maxLength: number = 50): string => {
-  if (!title) return '-';
-  if (title.length <= maxLength) return title;
-  return title.slice(0, maxLength) + '...';
-};
 
 const ListingRecords: React.FC = () => {
   const { modal } = App.useApp();
@@ -316,35 +310,15 @@ const ListingRecords: React.FC = () => {
       },
     },
     {
-      title: '商品标题',
+      title: '货号',
       dataIndex: 'product_data',
-      key: 'title',
-      render: (product_data: ListingRecord['product_data']) => {
-        const title = product_data?.title || '';
-        const titleCn = product_data?.title_cn || '';
-        const needTitleTooltip = title.length > 50;
-        const needTitleCnTooltip = titleCn.length > 50;
-
-        return (
-          <div>
-            {needTitleTooltip ? (
-              <Tooltip title={title}>
-                <div>{truncateTitle(title)}</div>
-              </Tooltip>
-            ) : (
-              <div>{title || '-'}</div>
-            )}
-            {titleCn && (
-              needTitleCnTooltip ? (
-                <Tooltip title={titleCn}>
-                  <div style={{ color: '#999', fontSize: 12 }}>{truncateTitle(titleCn)}</div>
-                </Tooltip>
-              ) : (
-                <div style={{ color: '#999', fontSize: 12 }}>{titleCn}</div>
-              )
-            )}
-          </div>
-        );
+      key: 'offer_id',
+      width: 150,
+      render: (product_data: ListingRecord['product_data'], record: ListingRecord) => {
+        // 优先从 listing_request_payload 获取 offer_id
+        const payload = (record as unknown as { listing_request_payload?: { variants?: { offer_id?: string }[] } }).listing_request_payload;
+        const offerId = payload?.variants?.[0]?.offer_id || product_data?.offer_id || '-';
+        return <Text copyable={{ text: offerId }}>{offerId}</Text>;
       },
     },
     {
@@ -365,19 +339,32 @@ const ListingRecords: React.FC = () => {
       render: renderStatusTag,
     },
     {
-      title: '错误信息',
-      dataIndex: 'listing_error_message',
-      key: 'listing_error_message',
-      width: 150,
-      render: (error: string | null) => {
-        if (!error) return '-';
-        return error.length > 30 ? (
-          <Tooltip title={error}>
-            <span style={{ color: '#ff4d4f' }}>{error.slice(0, 30)}...</span>
-          </Tooltip>
-        ) : (
-          <span style={{ color: '#ff4d4f' }}>{error}</span>
-        );
+      title: '上架方式',
+      dataIndex: 'listing_source',
+      key: 'listing_source',
+      width: 100,
+      render: (_: unknown, record: ListingRecord) => {
+        // 根据记录数据推断上架方式
+        const extRecord = record as unknown as { listing_source?: string; last_edited_at?: string };
+
+        // 如果有明确的 listing_source 字段
+        if (extRecord.listing_source) {
+          const sourceConfig: Record<string, { color: string; text: string }> = {
+            follow: { color: 'blue', text: '跟卖上架' },
+            manual: { color: 'green', text: '手动上架' },
+            edit: { color: 'orange', text: '编辑上架' },
+          };
+          const config = sourceConfig[extRecord.listing_source] || { color: 'default', text: extRecord.listing_source };
+          return <Tag color={config.color}>{config.text}</Tag>;
+        }
+
+        // 否则根据是否有编辑记录推断
+        if (extRecord.last_edited_at) {
+          return <Tag color="orange">编辑上架</Tag>;
+        }
+
+        // 默认为跟卖上架
+        return <Tag color="blue">跟卖上架</Tag>;
       },
     },
     {

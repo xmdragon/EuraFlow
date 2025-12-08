@@ -124,8 +124,6 @@ class PromoAutoAddCleaner {
    * 清理单个店铺
    */
   private async cleanShop(shop: Shop): Promise<void> {
-    console.log(`[PromoAutoAddCleaner] 处理店铺: ${shop.display_name} (${shop.client_id})`);
-
     try {
       // 1. 先切换到目标店铺（设置 cookie）
       await this.switchToShop(shop.client_id);
@@ -145,27 +143,28 @@ class PromoAutoAddCleaner {
           return p.dateToNextAutoAdd && count > 0;
         });
 
-        if (!activePromotions.length) {
-          console.log(`[PromoAutoAddCleaner] 店铺 ${shop.display_name} 没有待处理的活动`);
-          return;
-        }
-
-        console.log(`[PromoAutoAddCleaner] 店铺 ${shop.display_name} 有 ${activePromotions.length} 个待处理活动`);
-
-        // 5. 处理每个活动
+        // 5. 处理每个活动并统计删除数量
+        let totalDeleted = 0;
         for (const promo of activePromotions) {
-          await this.cleanPromotion(tabId, promo);
+          const deleted = await this.cleanPromotion(tabId, promo);
+          totalDeleted += deleted;
         }
+
+        // 6. 输出合并日志
+        const resultText = totalDeleted > 0
+          ? `从促销活动移除 ${totalDeleted} 个商品`
+          : '没有需要移除促销活动的商品';
+        console.log(`[PromoAutoAddCleaner] ${shop.display_name}: 获取到 ${promotions.length} 个促销活动，${resultText}`);
 
       } finally {
-        // 6. 如果是新创建的标签页，关闭它
+        // 7. 如果是新创建的标签页，关闭它
         if (shouldClose) {
           await this.closeTab(tabId);
         }
       }
 
     } catch (error) {
-      console.error(`[PromoAutoAddCleaner] 店铺 ${shop.display_name} 处理失败:`, error);
+      console.error(`[PromoAutoAddCleaner] ${shop.display_name}: 处理失败`, error);
     }
   }
 
@@ -260,57 +259,54 @@ class PromoAutoAddCleaner {
    * 在页面上下文中执行，解析 highlightList.originalHighlights
    */
   private async fetchPromotions(tabId: number): Promise<PromotionHighlight[]> {
-    // 强制完整刷新：先导航到空白页，再导航到目标页（避免 SPA 路由不重新执行 script）
-    await chrome.tabs.update(tabId, { url: 'about:blank' });
-    await this.sleep(100);
+    // 强制硬刷新：先导航到目标页，再用 bypassCache 强制刷新（确保 cookie 生效）
     await chrome.tabs.update(tabId, { url: 'https://seller.ozon.ru/app/highlights/list' });
     await this.waitForTabLoad(tabId);
+    // 硬刷新确保使用新 cookie
+    await chrome.tabs.reload(tabId, { bypassCache: true });
+    await this.waitForTabLoad(tabId);
 
-    // 在页面主世界中轮询等待数据就绪（必须用 MAIN world 才能访问 __MODULE_STATE__）
+    // 直接从页面 script 标签提取数据
     const results = await chrome.scripting.executeScript({
       target: { tabId },
       world: 'MAIN',
-      func: async () => {
-        const maxAttempts = 20;
-        const interval = 500;
-
-        for (let i = 0; i < maxAttempts; i++) {
-          const win = window as any;
-          const highlights = win.__MODULE_STATE__?.highlights?.highlightsModule?.highlightList?.originalHighlights;
-          if (highlights && highlights.length > 0) {
-            console.log(`[PromoAutoAddCleaner] 第 ${i + 1} 次尝试获取到 ${highlights.length} 个促销数据`);
-            return highlights;
+      func: () => {
+        const scripts = document.querySelectorAll('script');
+        for (const script of scripts) {
+          const text = script.textContent || '';
+          if (text.includes('"originalHighlights"') && text.includes('"highlightsModule"')) {
+            const match = text.match(/"originalHighlights":\s*(\[[\s\S]*?\])(?=,\s*"highlights":)/);
+            if (match) {
+              try {
+                const highlights = JSON.parse(match[1]);
+                if (highlights && highlights.length > 0) {
+                  return highlights;
+                }
+              } catch {
+                // JSON 解析失败，继续查找
+              }
+            }
           }
-          await new Promise(r => setTimeout(r, interval));
         }
-
-        console.log('[PromoAutoAddCleaner] 轮询超时，未找到促销数据');
         return [];
       }
     });
 
-    if (results && results[0]?.result) {
-      const promotions = results[0].result as PromotionHighlight[];
-      console.log(`[PromoAutoAddCleaner] 获取到 ${promotions.length} 个促销活动`);
-      return promotions;
-    }
-
-    return [];
+    return (results && results[0]?.result) ? results[0].result as PromotionHighlight[] : [];
   }
 
   /**
    * 清理单个促销活动
+   * @returns 删除的商品数量
    */
   private async cleanPromotion(
     tabId: number,
     promo: PromotionHighlight
-  ): Promise<void> {
+  ): Promise<number> {
     const autoAddDate = promo.dateToNextAutoAdd!;
     const totalCount = typeof promo.nextAutoAddProductAutoCount === 'string'
       ? parseInt(promo.nextAutoAddProductAutoCount, 10)
       : promo.nextAutoAddProductAutoCount;
-
-    console.log(`[PromoAutoAddCleaner] 处理活动 ${promo.id}: ${totalCount} 个待拉入商品`);
 
     // 1. 分页获取所有商品
     const allProductIds: string[] = [];
@@ -327,13 +323,12 @@ class PromoAutoAddCleaner {
     }
 
     if (!allProductIds.length) {
-      console.log(`[PromoAutoAddCleaner] 活动 ${promo.id} 没有商品需要删除`);
-      return;
+      return 0;
     }
 
     // 2. 删除商品
     await this.deleteProducts(tabId, promo.id, allProductIds, autoAddDate);
-    console.log(`[PromoAutoAddCleaner] 活动 ${promo.id}: 已删除 ${allProductIds.length} 个商品`);
+    return allProductIds.length;
   }
 
   /**

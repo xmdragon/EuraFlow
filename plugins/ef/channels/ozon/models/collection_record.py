@@ -93,6 +93,11 @@ class OzonProductCollectionRecord(Base):
         nullable=True,
         comment="上架时间（UTC）"
     )
+    listing_source = Column(
+        String(20),
+        nullable=True,
+        comment="上架方式：follow（跟卖上架）| manual（手动上架）| edit（编辑上架）"
+    )
 
     # 状态管理
     is_read = Column(

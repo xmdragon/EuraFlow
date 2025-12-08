@@ -86,8 +86,9 @@ def process_follow_pdp_listing(record_id: int) -> dict:
             logger.error(f"[CollectionListing] 记录不存在 record_id={record_id}")
             return {"success": False, "error": "记录不存在"}
 
-        # 更新状态为 processing
+        # 更新状态为 processing，设置上架方式为跟卖上架
         record.listing_status = "processing"
+        record.listing_source = "follow"
         db.commit()
 
         try:
@@ -212,11 +213,10 @@ def process_follow_pdp_listing(record_id: int) -> dict:
                                 image_urls.append(primary_image)
                                 logger.info(f"[CollectionListing] 使用 primary_image 作为唯一图片: {primary_image[:50]}...")
 
-                        # 价格转换：浏览器扩展传入的是分，需要转换为元
-                        price_fen = variant.get("price", 0) or 0
-                        price_yuan = Decimal(str(price_fen)) / 100  # 分 → 元
-                        old_price_fen = variant.get("old_price")
-                        old_price_yuan = Decimal(str(old_price_fen)) / 100 if old_price_fen else None
+                        # 价格单位：浏览器扩展传入的已经是元
+                        price_yuan = Decimal(str(variant.get("price", 0) or 0))
+                        old_price = variant.get("old_price")
+                        old_price_yuan = Decimal(str(old_price)) if old_price else None
 
                         # 构建完整商品数据（用于 /v3/product/import API）
                         variant_dto = {

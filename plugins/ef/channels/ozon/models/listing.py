@@ -112,6 +112,9 @@ class OzonCategoryAttribute(Base):
     # 缓存信息
     cached_at = Column(DateTime(timezone=True), default=utcnow)
 
+    # 废弃标记
+    is_deprecated = Column(Boolean, default=False, comment="是否已废弃（OZON平台已移除此特征）")
+
     # 关系
     category = relationship("OzonCategory", back_populates="attributes")
     dictionary_values = relationship("OzonAttributeDictionaryValue", foreign_keys="[OzonAttributeDictionaryValue.dictionary_id]",
@@ -148,6 +151,9 @@ class OzonAttributeDictionaryValue(Base):
 
     # 缓存信息
     cached_at = Column(DateTime(timezone=True), default=utcnow)
+
+    # 废弃标记
+    is_deprecated = Column(Boolean, default=False, comment="是否已废弃（OZON平台已移除此字典值）")
 
     __table_args__ = (
         UniqueConstraint("dictionary_id", "value_id", name="uq_ozon_dict_values"),
