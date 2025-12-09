@@ -4,10 +4,10 @@
 
 ## 快速索引
 
-共 **67** 张表，分为以下类别：
+共 **66** 张表，分为以下类别：
 
-- [核心表](#core) (15 张)
-- [OZON 插件表](#ozon) (50 张)
+- [核心表](#core) (17 张)
+- [OZON 插件表](#ozon) (47 张)
 - [系统插件表](#system) (2 张)
 
 ## 核心表 {core}
@@ -31,12 +31,22 @@ ef_core 基础数据模型
 | exchange_rates | 汇率缓存表 - 存储历史汇率数据 | [查看](./core/exchange_rates.md) |
 | inventories | 库存表 | [查看](./core/inventories.md) |
 | listings | 商品价格表 | [查看](./core/listings.md) |
+| manager_levels | 管理员级别模型
+
+用于定义不同级别的管理员配额限制，包括：
+- 子账号数量限额
+- 店铺数量限... | [查看](./core/manager_levels.md) |
 | order_items | 订单行项目表 - 按照 PRD § 3.2 | [查看](./core/order_items.md) |
 | orders | 订单表 - 严格按照 PRD 定义 | [查看](./core/orders.md) |
 | packages | 包裹信息表 | [查看](./core/packages.md) |
 | refunds | 退款表（只读） | [查看](./core/refunds.md) |
 | returns | 退货表（只读） | [查看](./core/returns.md) |
 | shipments | 发运表 | [查看](./core/shipments.md) |
+| user_login_sessions | 用户登录会话模型
+
+用于实现单设备登录限制：
+- 每次登录生成唯一会话令牌
+- 新设备登录时使... | [查看](./core/user_login_sessions.md) |
 | user_settings | 用户设置模型 | [查看](./core/user_settings.md) |
 | users | 用户模型 | [查看](./core/users.md) |
 
@@ -70,9 +80,8 @@ OZON 渠道插件数据模型
 | ozon_finance_transactions | OZON 财务交易记录表（扁平化存储） | [查看](./ozon/ozon_finance_transactions.md) |
 | ozon_global_settings | Ozon全局设置模型 | [查看](./ozon/ozon_global_settings.md) |
 | ozon_inventory_snapshots | 库存快照（用于对账） | [查看](./ozon/ozon_inventory_snapshots.md) |
+| ozon_invoice_payments | OZON 账单付款记录 | [查看](./ozon/ozon_invoice_payments.md) |
 | ozon_media_import_logs | OZON媒体导入日志表 | [查看](./ozon/ozon_media_import_logs.md) |
-| ozon_order_items | 订单商品明细 | [查看](./ozon/ozon_order_items.md) |
-| ozon_orders | Ozon 订单表 | [查看](./ozon/ozon_orders.md) |
 | ozon_outbox_events | Outbox 模式事件表（保证分布式事务） | [查看](./ozon/ozon_outbox_events.md) |
 | ozon_postings | Ozon 发货单（Posting维度） | [查看](./ozon/ozon_postings.md) |
 | ozon_price_update_logs | OZON价格更新日志表 | [查看](./ozon/ozon_price_update_logs.md) |

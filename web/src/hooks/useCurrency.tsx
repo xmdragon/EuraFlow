@@ -1,17 +1,13 @@
 import { useCallback } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useAuth } from './useAuth';
 
 import { getCurrencySymbol, formatCurrency as formatCurrencyUtil } from '../utils/currency';
-
-interface UserSettings {
-  display: {
-    currency: string;
-  };
-}
 
 /**
  * 货币 Hook
  * 统一管理货币设置和格式化
+ *
+ * 数据来源：从 useAuth 获取（/me 接口已合并返回 settings）
  *
  * @example
  * ```typescript
@@ -25,20 +21,7 @@ interface UserSettings {
  * ```
  */
 export const useCurrency = () => {
-  const { data: settings } = useQuery<UserSettings>({
-    queryKey: ['userSettings'],
-    queryFn: async () => {
-      const response = await fetch('/api/ef/v1/settings', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-        },
-      });
-      if (!response.ok) throw new Error('获取用户设置失败');
-      return response.json();
-    },
-    staleTime: 5 * 60 * 1000, // 5分钟缓存
-    retry: 1,
-  });
+  const { settings } = useAuth();
 
   // 默认 CNY（人民币）
   const currency = settings?.display?.currency || 'CNY';

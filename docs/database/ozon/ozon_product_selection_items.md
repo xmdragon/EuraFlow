@@ -20,8 +20,8 @@
 | category_link | Text | YES | - | 类目链接 |
 | brand | String(200) | YES | - | 品牌 |
 | brand_normalized | String(200) | YES | - | 标准化品牌名 |
-| current_price | Numeric(18, 2) | YES | - | 当前价格(RMB分) |
-| original_price | Numeric(18, 2) | YES | - | 原价(RMB分) |
+| current_price | Numeric(18, 2) | YES | - | 当前价格(RMB元) |
+| original_price | Numeric(18, 2) | YES | - | 原价(RMB元) |
 | rfbs_commission_low | Numeric(5, 2) | YES | - | rFBS(<=1500₽)佣金率 |
 | rfbs_commission_mid | Numeric(5, 2) | YES | - | rFBS(1501-5000₽)佣金率 |
 | rfbs_commission_high | Numeric(5, 2) | YES | - | rFBS(>5000₽)佣金率 |
@@ -35,8 +35,8 @@
 | sales_dynamic_percent | Numeric(10, 2) | YES | - | 销售动态(%) |
 | conversion_rate | Numeric(5, 2) | YES | - | 成交率(%) |
 | competitor_count | Integer | YES | 0 | 跟卖者数量 |
-| competitor_min_price | Numeric(18, 2) | YES | - | 跟卖最低价(RMB分) |
-| market_min_price | Numeric(18, 2) | YES | - | 市场最低价(RMB分) |
+| competitor_min_price | Numeric(18, 2) | YES | - | 跟卖最低价(RMB元) |
+| market_min_price | Numeric(18, 2) | YES | - | 市场最低价(RMB元) |
 | price_index | Numeric(10, 2) | YES | - | 价格指数 |
 | package_weight | Integer | YES | - | 包装重量(克) |
 | package_volume | Numeric(10, 2) | YES | - | 包装体积(升) |

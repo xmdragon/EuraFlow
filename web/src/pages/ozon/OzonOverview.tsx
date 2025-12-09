@@ -24,7 +24,7 @@ import {
 } from 'recharts';
 
 import ShopSelectorWithLabel from '../../components/ozon/ShopSelectorWithLabel';
-import { getShops, getStatistics, getDailyPostingStats, getDailyRevenueStats } from '@/services/ozon';
+import { getShops, getStatistics, getDailyStats } from '@/services/ozon';
 
 import styles from './OzonOverview.module.scss';
 
@@ -117,23 +117,10 @@ const OzonOverview: React.FC = () => {
     }
   }, [timeRangeType, customDateRange]);
 
-  // 获取每日posting统计
+  // 获取每日统计数据（合并 posting 数量和销售额）
   const { data: dailyStatsData, isLoading: isDailyStatsLoading } = useQuery({
-    queryKey: ['ozon', 'daily-posting-stats', debouncedShop, dateRangeParams],
-    queryFn: () => getDailyPostingStats(
-      debouncedShop,
-      dateRangeParams.rangeType,
-      dateRangeParams.startDate,
-      dateRangeParams.endDate
-    ),
-    enabled: shouldFetchData,
-    staleTime: 5 * 60 * 1000, // 5分钟内不重新请求
-  });
-
-  // 获取每日销售额统计
-  const { data: dailyRevenueData, isLoading: isDailyRevenueLoading } = useQuery({
-    queryKey: ['ozon', 'daily-revenue-stats', debouncedShop, dateRangeParams],
-    queryFn: () => getDailyRevenueStats(
+    queryKey: ['ozon', 'daily-stats', debouncedShop, dateRangeParams],
+    queryFn: () => getDailyStats(
       debouncedShop,
       dateRangeParams.rangeType,
       dateRangeParams.startDate,
@@ -176,7 +163,7 @@ const OzonOverview: React.FC = () => {
     return `总计 (${startDate} ~ ${endDate})`;
   }, [dailyStatsData]);
 
-  // 转换图表数据 - Recharts格式
+  // 转换图表数据 - Recharts格式（posting 数量）
   const chartData = useMemo(() => {
     if (!dailyStatsData) return [];
 
@@ -189,13 +176,13 @@ const OzonOverview: React.FC = () => {
         // 汇总模式：计算所有店铺的总和
         let total = 0;
         dailyStatsData.shops.forEach((shop) => {
-          total += dailyStatsData.data[date]?.[shop] || 0;
+          total += dailyStatsData.counts[date]?.[shop] || 0;
         });
         dayData[dateRangeLabel] = total;
       } else {
         // 单店模式：显示各店铺独立数据
         dailyStatsData.shops.forEach((shop) => {
-          dayData[shop] = dailyStatsData.data[date]?.[shop] || 0;
+          dayData[shop] = dailyStatsData.counts[date]?.[shop] || 0;
         });
       }
 
@@ -203,13 +190,11 @@ const OzonOverview: React.FC = () => {
     });
   }, [dailyStatsData, displayMode, selectedShop, dateRangeLabel]);
 
-  // 转换销售额图表数据 - Recharts格式（支持货币转换）
+  // 转换销售额图表数据 - Recharts格式（使用合并 API 的 revenue 字段）
   const revenueChartData = useMemo(() => {
-    if (!dailyRevenueData) return [];
+    if (!dailyStatsData) return [];
 
-    // TODO: 如果用户货币是CNY，这里需要获取汇率进行转换
-    // 目前直接使用RUB显示
-    return dailyRevenueData.dates.map((date) => {
+    return dailyStatsData.dates.map((date) => {
       // 将日期格式从 YYYY-MM-DD 转换为 MM-DD
       const displayDate = dayjs(date).format('MM-DD');
       const dayData: Record<string, string | number> = { date: displayDate };
@@ -217,22 +202,22 @@ const OzonOverview: React.FC = () => {
       if (displayMode === 'total' && !selectedShop) {
         // 汇总模式：计算所有店铺的总和
         let total = 0;
-        dailyRevenueData.shops.forEach((shop) => {
-          const value = dailyRevenueData.data[date]?.[shop];
+        dailyStatsData.shops.forEach((shop) => {
+          const value = dailyStatsData.revenue[date]?.[shop];
           total += parseFloat(value || '0');
         });
         dayData[dateRangeLabel] = total;
       } else {
         // 单店模式：显示各店铺独立数据
-        dailyRevenueData.shops.forEach((shop) => {
-          const value = dailyRevenueData.data[date]?.[shop];
+        dailyStatsData.shops.forEach((shop) => {
+          const value = dailyStatsData.revenue[date]?.[shop];
           dayData[shop] = parseFloat(value || '0');
         });
       }
 
       return dayData;
     });
-  }, [dailyRevenueData, displayMode, selectedShop, dateRangeLabel]);
+  }, [dailyStatsData, displayMode, selectedShop, dateRangeLabel]);
 
   // Tooltip 样式常量（避免每次渲染创建新对象）
   const tooltipStyle = useMemo(() => ({
@@ -467,7 +452,7 @@ const OzonOverview: React.FC = () => {
 
         {/* 概览统计 */}
         <Row gutter={8} className={styles.statsRow} align="middle">
-          <Col flex="auto">
+          <Col span={6}>
             <Card>
               <Statistic
                 title={selectedShop ? shops?.data?.find((s: { id: number; shop_name: string }) => s.id === selectedShop)?.shop_name : '店铺数'}
@@ -487,8 +472,8 @@ const OzonOverview: React.FC = () => {
               />
             </Card>
           </Col>
-          <Col flex="160px">
-            <Card className={styles.fixedWidthCard}>
+          <Col span={6}>
+            <Card>
               <Statistic
                 title="总商品数"
                 value={stats.products.total}
@@ -496,8 +481,8 @@ const OzonOverview: React.FC = () => {
               />
             </Card>
           </Col>
-          <Col flex="160px">
-            <Card className={styles.fixedWidthCard}>
+          <Col span={6}>
+            <Card>
               <Statistic
                 title="待处理订单"
                 value={stats.orders.pending}
@@ -505,8 +490,8 @@ const OzonOverview: React.FC = () => {
               />
             </Card>
           </Col>
-          <Col flex="160px">
-            <Card className={styles.fixedWidthCard}>
+          <Col span={6}>
+            <Card>
               <Statistic
                 title="昨日销售额"
                 value={parseFloat(stats.revenue.yesterday.toString())}
@@ -637,7 +622,7 @@ const OzonOverview: React.FC = () => {
           }
           className={styles.chartCard}
         >
-          {isDailyRevenueLoading ? (
+          {isDailyStatsLoading ? (
             <div className={styles.chartLoading}>
               <Spin size="large" />
             </div>
@@ -666,7 +651,7 @@ const OzonOverview: React.FC = () => {
                   />
                 ) : (
                   // 单店模式：显示各店铺的柱（多种颜色）
-                  dailyRevenueData?.shops.map((shop, index) => (
+                  dailyStatsData?.shops.map((shop, index) => (
                     <Bar
                       key={shop}
                       dataKey={shop}

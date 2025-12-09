@@ -35,6 +35,7 @@
 | max_value | Numeric(18, 4) | YES | - | - |
 | max_value_count | Integer | YES | - | 多值属性的最大值数量 |
 | cached_at | DateTime | YES | utcnow | - |
+| is_deprecated | Boolean | YES | False | 是否已废弃（OZON平台已移除此特征） |
 
 ## 索引
 

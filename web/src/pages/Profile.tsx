@@ -1,6 +1,7 @@
-import { KeyOutlined, UserOutlined } from '@ant-design/icons';
-import { Form, Input, Button, Card, Space, Typography } from 'antd';
-import React, { useState } from 'react';
+import { KeyOutlined, SettingOutlined, UserOutlined } from '@ant-design/icons';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Form, Input, Button, Card, Space, Typography, Radio, Spin } from 'antd';
+import React, { useState, useEffect } from 'react';
 
 import styles from './Profile.module.scss';
 
@@ -17,10 +18,63 @@ interface ChangePasswordData {
   confirm_password: string;
 }
 
+interface UserSettings {
+  notifications: {
+    email: boolean;
+    browser: boolean;
+    order_updates: boolean;
+    price_alerts: boolean;
+    inventory_alerts: boolean;
+  };
+  display: {
+    language: string;
+    timezone: string;
+    currency: string;
+    date_format: string;
+    shop_name_format: 'ru' | 'cn' | 'both';
+  };
+  sync: {
+    auto_sync: boolean;
+    sync_interval: number;
+    sync_on_login: boolean;
+  };
+  security: {
+    two_factor_auth: boolean;
+    session_timeout: number;
+  };
+}
+
 const Profile: React.FC = () => {
-  const { user } = useAuth();
+  const { user, settings, isLoading } = useAuth();
   const [passwordForm] = Form.useForm();
+  const [settingsForm] = Form.useForm();
   const [changingPassword, setChangingPassword] = useState(false);
+  const queryClient = useQueryClient();
+
+  // 更新用户设置（仍然调用 PUT /settings，但刷新 currentUser 缓存）
+  const updateSettingsMutation = useMutation({
+    mutationFn: async (data: UserSettings) => {
+      const response = await axios.put('/api/ef/v1/settings', data);
+      return response.data;
+    },
+    onSuccess: () => {
+      // 刷新 currentUser 缓存（/me 接口已合并返回 settings）
+      queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+      notifySuccess('保存成功', '显示设置已更新');
+    },
+    onError: () => {
+      notifyError('保存失败', '保存显示设置失败');
+    },
+  });
+
+  // 当设置加载完成后，更新表单
+  useEffect(() => {
+    if (settings) {
+      settingsForm.setFieldsValue({
+        shop_name_format: settings.display.shop_name_format,
+      });
+    }
+  }, [settings, settingsForm]);
 
   // 修改密码
   const handleChangePassword = async (values: ChangePasswordData) => {
@@ -43,6 +97,19 @@ const Profile: React.FC = () => {
     } finally {
       setChangingPassword(false);
     }
+  };
+
+  // 保存显示设置
+  const handleSaveSettings = (values: { shop_name_format: 'ru' | 'cn' | 'both' }) => {
+    if (!settings) return;
+
+    updateSettingsMutation.mutate({
+      ...settings,
+      display: {
+        ...settings.display,
+        shop_name_format: values.shop_name_format,
+      },
+    });
   };
 
   return (
@@ -85,6 +152,47 @@ const Profile: React.FC = () => {
               {new Date(user?.created_at || '').toLocaleString('zh-CN')}
             </div>
           </div>
+        </Card>
+
+        <Card
+          title={
+            <Space>
+              <SettingOutlined />
+              <span>显示设置</span>
+            </Space>
+          }
+          bordered={false}
+          className={styles.card}
+        >
+          {isLoading ? (
+            <Spin />
+          ) : (
+            <Form form={settingsForm} layout="vertical" onFinish={handleSaveSettings}>
+              <Form.Item
+                label="店铺名称显示格式"
+                name="shop_name_format"
+                extra="选择店铺名称在系统中的显示方式"
+              >
+                <Radio.Group>
+                  <Space direction="vertical">
+                    <Radio value="ru">仅显示俄文名称</Radio>
+                    <Radio value="cn">仅显示中文名称</Radio>
+                    <Radio value="both">显示俄文【中文】</Radio>
+                  </Space>
+                </Radio.Group>
+              </Form.Item>
+
+              <Form.Item>
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  loading={updateSettingsMutation.isPending}
+                >
+                  保存设置
+                </Button>
+              </Form.Item>
+            </Form>
+          )}
         </Card>
 
         <Card title="修改密码" bordered={false} className={styles.card}>

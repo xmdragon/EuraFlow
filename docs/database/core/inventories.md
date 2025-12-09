@@ -17,6 +17,7 @@
 | threshold | CheckConstraint(threshold >= 0) | NO | 0 | 安全库存阈值 |
 | unit_price | Numeric(18, 4) | YES | - | 采购单价（每件商品采购价格） |
 | notes | String(500) | YES | - | 备注 |
+| source_platform | JSONB | YES | - | 采购平台来源（如：['1688', '拼多多']） |
 | updated_at | DateTime | NO | server: now() | 最后更新时间 |
 
 ## 索引

@@ -14,6 +14,10 @@
 | service_key | String(100) | NO | - | 服务唯一标识 |
 | service_name | String(200) | NO | - | 服务显示名称 |
 | service_description | Text | YES | - | 服务功能说明 |
+| celery_task_name | String(200) | YES | - | Celery任务名（如 ef.ozon.orders.pull） |
+| plugin_name | String(100) | YES | - | 所属插件标识 |
+| source | String(20) | YES | 'code' | 配置来源: code=代码注册 | manual=手动添加 |
+| is_deleted | Boolean | YES | False | 是否已从代码中移除（软删除） |
 | service_type | String(20) | NO | 'interval' | 调度类型: cron定时 | interval周期 |
 | schedule_config | String(200) | NO | - | 调度配置：cron表达式或间隔秒数 |
 | is_enabled | Boolean | NO | True | 启用开关 |
@@ -31,3 +35,4 @@
 
 - `idx_sync_services_enabled` (is_enabled, service_type)
 - `idx_sync_services_last_run` (last_run_at)
+- `idx_sync_services_celery_task` (celery_task_name)

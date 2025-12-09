@@ -29,22 +29,13 @@ export interface Statistics {
 }
 
 /**
- * 每日 Posting 统计数据接口
+ * 每日统计数据接口（合并 posting 数量和销售额）
  */
-export interface DailyPostingStats {
+export interface DailyStats {
   dates: string[];
   shops: string[];
-  data: Record<string, Record<string, number>>;
-  total_days: number;
-}
-
-/**
- * 每日销售额统计数据接口
- */
-export interface DailyRevenueStats {
-  dates: string[];
-  shops: string[];
-  data: Record<string, Record<string, string>>;  // 销售额为字符串格式（保持精度）
+  counts: Record<string, Record<string, number>>;   // 每日每店铺 posting 数量
+  revenue: Record<string, Record<string, string>>;  // 每日每店铺销售额（字符串保持精度）
   total_days: number;
   currency: string;  // 货币单位（RUB）
 }

@@ -21,6 +21,7 @@
 | info_ru | Text | YES | - | 附加信息俄文 |
 | picture | String(500) | YES | - | - |
 | cached_at | DateTime | YES | utcnow | - |
+| is_deprecated | Boolean | YES | False | 是否已废弃（OZON平台已移除此字典值） |
 
 ## 索引
 

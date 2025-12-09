@@ -107,8 +107,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // user state 仅用于 login 后立即更新（在 query 重新获取之前）
   const currentUser = data ?? user;
 
+  // 从用户数据中提取设置（/me 接口已合并返回 settings）
+  const settings = currentUser?.settings ?? null;
+
   const value: AuthContextValue = {
     user: currentUser,
+    settings,
     isLoading: isLoading && authService.isAuthenticated(),
     login,
     logout,

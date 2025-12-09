@@ -321,6 +321,12 @@ class UserSettings(Base):
         nullable=False,
         comment="日期格式"
     )
+    display_shop_name_format: Mapped[str] = mapped_column(
+        String(10),
+        default="both",
+        nullable=False,
+        comment="店铺名称显示格式：ru(俄文)/cn(中文)/both(俄文【中文】)"
+    )
 
     # 同步设置
     sync_auto_sync: Mapped[bool] = mapped_column(
@@ -400,6 +406,7 @@ class UserSettings(Base):
                 "timezone": self.display_timezone,
                 "currency": self.display_currency,
                 "date_format": self.display_date_format,
+                "shop_name_format": self.display_shop_name_format,
             },
             "sync": {
                 "auto_sync": self.sync_auto_sync,
@@ -433,6 +440,7 @@ class UserSettings(Base):
             display_timezone=display.get("timezone", "Asia/Shanghai"),
             display_currency=display.get("currency", "RUB"),
             display_date_format=display.get("date_format", "YYYY-MM-DD"),
+            display_shop_name_format=display.get("shop_name_format", "both"),
             # 同步设置
             sync_auto_sync=sync.get("auto_sync", True),
             sync_interval=sync.get("sync_interval", 60),
@@ -470,6 +478,8 @@ class UserSettings(Base):
             self.display_currency = display["currency"]
         if "date_format" in display:
             self.display_date_format = display["date_format"]
+        if "shop_name_format" in display:
+            self.display_shop_name_format = display["shop_name_format"]
 
         # 更新同步设置
         if "auto_sync" in sync:

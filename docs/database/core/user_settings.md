@@ -21,6 +21,7 @@
 | display_timezone | String(50) | NO | 'Asia/Shanghai' | 时区 |
 | display_currency | String(3) | NO | 'RUB' | 默认货币：RUB/CNY/USD/EUR |
 | display_date_format | String(20) | NO | 'YYYY-MM-DD' | 日期格式 |
+| display_shop_name_format | String(10) | NO | 'both' | 店铺名称显示格式：ru(俄文)/cn(中文)/both(俄文【中文】) |
 | sync_auto_sync | Boolean | NO | True | 自动同步 |
 | sync_interval | Integer | NO | 60 | 同步间隔（分钟） |
 | sync_on_login | Boolean | NO | True | 登录时同步 |

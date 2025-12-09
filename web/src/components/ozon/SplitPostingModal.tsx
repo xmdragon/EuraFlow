@@ -4,8 +4,9 @@
  */
 import {
   ScissorOutlined,
+  DownOutlined,
+  UpOutlined,
   PlusOutlined,
-  DeleteOutlined,
   MinusOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -13,13 +14,11 @@ import {
   Modal,
   Card,
   Button,
-  InputNumber,
   Space,
-  Alert,
   Typography,
-  Divider,
+  Image,
   Empty,
-  Tag,
+  Tooltip,
 } from 'antd';
 import axios from 'axios';
 import React, { useState, useEffect, useMemo } from 'react';
@@ -39,23 +38,14 @@ interface SplitPostingModalProps {
 
 // 商品信息（从 posting 中提取）
 interface ProductInfo {
-  product_id: number;
   sku: string;
   name: string;
-  quantity: number; // 原始数量
+  image: string;
+  totalQuantity: number; // 原始总数量
 }
 
-// 新货件中的商品分配
-interface NewPostingProduct {
-  product_id: number;
-  quantity: number;
-}
-
-// 新货件
-interface NewPosting {
-  id: string; // 临时 ID
-  products: NewPostingProduct[];
-}
+// 拆分分配状态：每个 SKU 保留在原货件的数量
+type AllocationState = Record<string, number>;
 
 const SplitPostingModal: React.FC<SplitPostingModalProps> = ({
   visible,
@@ -64,134 +54,82 @@ const SplitPostingModal: React.FC<SplitPostingModalProps> = ({
   onSuccess,
 }) => {
   const queryClient = useQueryClient();
-  const [newPostings, setNewPostings] = useState<NewPosting[]>([]);
+  // allocation[sku] = 保留在原货件的数量
+  const [allocation, setAllocation] = useState<AllocationState>({});
 
   // 从 posting 中提取商品信息
   const products: ProductInfo[] = useMemo(() => {
     if (!posting?.products) return [];
     return posting.products
-      .filter((p) => p.product_id != null && p.quantity > 0)
+      .filter((p) => p.sku && p.quantity > 0)
       .map((p) => ({
-        product_id: p.product_id!,
         sku: p.sku || '',
         name: p.name || '',
-        quantity: p.quantity,
+        image: p.image || '',
+        totalQuantity: p.quantity,
       }));
   }, [posting]);
 
-  // 计算每个商品的已分配数量
-  const allocatedQuantities = useMemo(() => {
-    const allocated: Record<number, number> = {};
-    products.forEach((p) => {
-      allocated[p.product_id] = 0;
-    });
-    newPostings.forEach((np) => {
-      np.products.forEach((p) => {
-        if (allocated[p.product_id] !== undefined) {
-          allocated[p.product_id] += p.quantity;
-        }
-      });
-    });
-    return allocated;
-  }, [products, newPostings]);
-
-  // 计算每个商品的剩余可分配数量
-  const remainingQuantities = useMemo(() => {
-    const remaining: Record<number, number> = {};
-    products.forEach((p) => {
-      remaining[p.product_id] = p.quantity - (allocatedQuantities[p.product_id] || 0);
-    });
-    return remaining;
-  }, [products, allocatedQuantities]);
-
-  // 检查是否所有商品都已完全分配
-  const isFullyAllocated = useMemo(() => {
-    return products.every((p) => remainingQuantities[p.product_id] === 0);
-  }, [products, remainingQuantities]);
-
-  // 检查是否有有效的拆分（至少2个货件，每个货件至少1个商品）
-  const isValidSplit = useMemo(() => {
-    if (newPostings.length < 2) return false;
-    return newPostings.every(
-      (np) => np.products.length > 0 && np.products.some((p) => p.quantity > 0)
-    );
-  }, [newPostings]);
-
-  // 重置状态
+  // 初始化分配状态：所有商品全部在原货件
   useEffect(() => {
     if (visible && posting) {
-      // 初始化时创建两个空的新货件
-      setNewPostings([
-        { id: `new-${Date.now()}-1`, products: [] },
-        { id: `new-${Date.now()}-2`, products: [] },
-      ]);
+      const initial: AllocationState = {};
+      products.forEach((p) => {
+        initial[p.sku] = p.totalQuantity;
+      });
+      setAllocation(initial);
     } else {
-      setNewPostings([]);
+      setAllocation({});
     }
-  }, [visible, posting]);
+  }, [visible, posting, products]);
 
-  // 添加新货件
-  const addNewPosting = () => {
-    setNewPostings((prev) => [...prev, { id: `new-${Date.now()}`, products: [] }]);
+  // 计算拆分件的数量
+  const getSplitQuantity = (sku: string, total: number): number => {
+    const remaining = allocation[sku] ?? total;
+    return total - remaining;
   };
 
-  // 删除新货件
-  const removeNewPosting = (postingId: string) => {
-    setNewPostings((prev) => prev.filter((np) => np.id !== postingId));
+  // 检查是否有有效的拆分（原货件和拆分件都有商品）
+  const isValidSplit = useMemo(() => {
+    let originalHasItems = false;
+    let splitHasItems = false;
+
+    products.forEach((p) => {
+      const remaining = allocation[p.sku] ?? p.totalQuantity;
+      const splitQty = p.totalQuantity - remaining;
+      if (remaining > 0) originalHasItems = true;
+      if (splitQty > 0) splitHasItems = true;
+    });
+
+    return originalHasItems && splitHasItems;
+  }, [products, allocation]);
+
+  // 从原货件移动一件到拆分件
+  const moveToSplit = (sku: string) => {
+    setAllocation((prev) => {
+      const current = prev[sku] ?? 0;
+      if (current <= 0) return prev;
+      return { ...prev, [sku]: current - 1 };
+    });
   };
 
-  // 添加商品到新货件
-  const addProductToPosting = (postingId: string, productId: number) => {
-    setNewPostings((prev) =>
-      prev.map((np) => {
-        if (np.id !== postingId) return np;
-        // 检查是否已存在
-        if (np.products.some((p) => p.product_id === productId)) return np;
-        const remaining = remainingQuantities[productId] || 0;
-        if (remaining <= 0) return np;
-        return {
-          ...np,
-          products: [...np.products, { product_id: productId, quantity: 1 }],
-        };
-      })
-    );
+  // 从拆分件移动一件回原货件
+  const moveToOriginal = (sku: string, total: number) => {
+    setAllocation((prev) => {
+      const current = prev[sku] ?? total;
+      if (current >= total) return prev;
+      return { ...prev, [sku]: current + 1 };
+    });
   };
 
-  // 从新货件中移除商品
-  const removeProductFromPosting = (postingId: string, productId: number) => {
-    setNewPostings((prev) =>
-      prev.map((np) => {
-        if (np.id !== postingId) return np;
-        return {
-          ...np,
-          products: np.products.filter((p) => p.product_id !== productId),
-        };
-      })
-    );
+  // 将所有商品移到拆分件
+  const moveAllToSplit = (sku: string) => {
+    setAllocation((prev) => ({ ...prev, [sku]: 0 }));
   };
 
-  // 更新商品数量
-  const updateProductQuantity = (
-    postingId: string,
-    productId: number,
-    quantity: number
-  ) => {
-    setNewPostings((prev) =>
-      prev.map((np) => {
-        if (np.id !== postingId) return np;
-        return {
-          ...np,
-          products: np.products.map((p) =>
-            p.product_id === productId ? { ...p, quantity } : p
-          ),
-        };
-      })
-    );
-  };
-
-  // 获取商品信息
-  const getProductInfo = (productId: number): ProductInfo | undefined => {
-    return products.find((p) => p.product_id === productId);
+  // 将所有商品移回原货件
+  const moveAllToOriginal = (sku: string, total: number) => {
+    setAllocation((prev) => ({ ...prev, [sku]: total }));
   };
 
   // 拆分 mutation
@@ -199,15 +137,27 @@ const SplitPostingModal: React.FC<SplitPostingModalProps> = ({
     mutationFn: () => {
       if (!posting) throw new Error('posting is null');
 
+      // 构建请求：原货件 + 拆分件
+      const originalProducts: { sku: string; quantity: number }[] = [];
+      const splitProducts: { sku: string; quantity: number }[] = [];
+
+      products.forEach((p) => {
+        const remaining = allocation[p.sku] ?? p.totalQuantity;
+        const splitQty = p.totalQuantity - remaining;
+
+        if (remaining > 0) {
+          originalProducts.push({ sku: p.sku, quantity: remaining });
+        }
+        if (splitQty > 0) {
+          splitProducts.push({ sku: p.sku, quantity: splitQty });
+        }
+      });
+
       const request: SplitPostingRequest = {
-        postings: newPostings.map((np) => ({
-          products: np.products
-            .filter((p) => p.quantity > 0)
-            .map((p) => ({
-              product_id: p.product_id,
-              quantity: p.quantity,
-            })),
-        })),
+        postings: [
+          { products: originalProducts },
+          { products: splitProducts },
+        ],
       };
 
       return ozonApi.splitPosting(posting.posting_number, request);
@@ -233,12 +183,8 @@ const SplitPostingModal: React.FC<SplitPostingModalProps> = ({
   });
 
   const handleSubmit = () => {
-    if (!isFullyAllocated) {
-      notifyError('请完成所有商品的分配', '所有商品数量必须被完全分配到新货件中');
-      return;
-    }
     if (!isValidSplit) {
-      notifyError('无效的拆分配置', '至少需要2个货件，且每个货件至少包含1个商品');
+      notifyError('无效的拆分', '原货件和拆分件都必须至少有1件商品');
       return;
     }
     splitMutation.mutate();
@@ -246,12 +192,16 @@ const SplitPostingModal: React.FC<SplitPostingModalProps> = ({
 
   if (!posting) return null;
 
+  // 计算原货件和拆分件的商品
+  const originalItems = products.filter((p) => (allocation[p.sku] ?? p.totalQuantity) > 0);
+  const splitItems = products.filter((p) => getSplitQuantity(p.sku, p.totalQuantity) > 0);
+
   return (
     <Modal
       title={
         <Space>
           <ScissorOutlined style={{ color: '#1890ff' }} />
-          <span>拆分货件</span>
+          <span>拆分货件 - {posting.posting_number}</span>
         </Space>
       }
       open={visible}
@@ -260,181 +210,151 @@ const SplitPostingModal: React.FC<SplitPostingModalProps> = ({
       confirmLoading={splitMutation.isPending}
       okText="确认拆分"
       cancelText="取消"
-      width={700}
+      width={520}
       okButtonProps={{
-        disabled: !isFullyAllocated || !isValidSplit,
+        disabled: !isValidSplit,
       }}
     >
-      <Alert
-        message={`货件号: ${posting.posting_number}`}
-        description="将此货件拆分为多个独立货件。请为每个新货件分配商品数量，所有商品必须被完全分配。"
-        type="info"
-        showIcon
-        style={{ marginBottom: 16 }}
-      />
-
-      {/* 商品列表 */}
+      {/* 原货件 */}
       <Card
-        title="商品列表"
+        title="原货件"
         size="small"
-        style={{ marginBottom: 16 }}
-        bodyStyle={{ padding: '8px 12px' }}
+        style={{ marginBottom: 8 }}
+        styles={{ body: { padding: '12px', minHeight: 220 } }}
       >
-        {products.length === 0 ? (
-          <Empty description="没有可拆分的商品" />
+        {originalItems.length === 0 ? (
+          <Empty description="无商品" style={{ padding: '40px 0' }} />
         ) : (
-          products.map((product) => (
-            <div
-              key={product.product_id}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '8px 0',
-                borderBottom: '1px solid #f0f0f0',
-              }}
-            >
-              <div>
-                <Text strong>{product.sku}</Text>
-                {product.name && (
-                  <Text type="secondary" style={{ marginLeft: 8, fontSize: 12 }}>
-                    {product.name}
-                  </Text>
-                )}
-              </div>
-              <div>
-                <Tag color={remainingQuantities[product.product_id] === 0 ? 'success' : 'warning'}>
-                  {remainingQuantities[product.product_id] === 0
-                    ? '已分配完成'
-                    : `剩余: ${remainingQuantities[product.product_id]} / ${product.quantity}`}
-                </Tag>
-              </div>
-            </div>
-          ))
+          <Space wrap size={[16, 16]}>
+            {originalItems.map((product) => {
+              const remaining = allocation[product.sku] ?? product.totalQuantity;
+              const canMoveDown = remaining > 0;
+              return (
+                <div
+                  key={product.sku}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    width: 160,
+                  }}
+                >
+                  <Image
+                    src={product.image || 'https://via.placeholder.com/160?text=No+Image'}
+                    alt={product.name}
+                    width={160}
+                    height={160}
+                    style={{ objectFit: 'cover', borderRadius: 4 }}
+                    fallback="https://via.placeholder.com/160?text=No+Image"
+                    preview={false}
+                  />
+                  <div style={{ marginTop: 8, textAlign: 'center' }}>
+                    <Space>
+                      <Button
+                        size="small"
+                        icon={<MinusOutlined />}
+                        onClick={() => moveToSplit(product.sku)}
+                        disabled={!canMoveDown}
+                      />
+                      <Text strong style={{ minWidth: 24, textAlign: 'center', display: 'inline-block' }}>
+                        {remaining}
+                      </Text>
+                      <Button
+                        size="small"
+                        icon={<PlusOutlined />}
+                        onClick={() => moveToOriginal(product.sku, product.totalQuantity)}
+                        disabled={remaining >= product.totalQuantity}
+                      />
+                      <Tooltip title="全部移至拆分件">
+                        <Button
+                          size="small"
+                          icon={<DownOutlined />}
+                          onClick={() => moveAllToSplit(product.sku)}
+                          disabled={!canMoveDown}
+                        />
+                      </Tooltip>
+                    </Space>
+                  </div>
+                </div>
+              );
+            })}
+          </Space>
         )}
       </Card>
 
-      <Divider orientation="left">新货件分配</Divider>
+      {/* 上下箭头分隔 */}
+      <div style={{ textAlign: 'center', margin: '4px 0' }}>
+        <Space>
+          <UpOutlined style={{ fontSize: 16, color: '#1890ff' }} />
+          <DownOutlined style={{ fontSize: 16, color: '#1890ff' }} />
+        </Space>
+      </div>
 
-      {/* 新货件列表 */}
-      {newPostings.map((newPosting, index) => (
-        <Card
-          key={newPosting.id}
-          title={`货件 ${index + 1}`}
-          size="small"
-          style={{ marginBottom: 12 }}
-          extra={
-            newPostings.length > 2 && (
-              <Button
-                type="text"
-                danger
-                size="small"
-                icon={<DeleteOutlined />}
-                onClick={() => removeNewPosting(newPosting.id)}
-              >
-                删除
-              </Button>
-            )
-          }
-        >
-          {newPosting.products.length === 0 ? (
-            <Empty description="点击下方按钮添加商品" style={{ padding: '12px 0' }} />
-          ) : (
-            newPosting.products.map((p) => {
-              const productInfo = getProductInfo(p.product_id);
-              if (!productInfo) return null;
-              const maxQuantity =
-                (remainingQuantities[p.product_id] || 0) + p.quantity;
+      {/* 拆分件 */}
+      <Card
+        title="拆分件"
+        size="small"
+        styles={{ body: { padding: '12px', minHeight: 220 } }}
+      >
+        {splitItems.length === 0 ? (
+          <Empty description="点击上方 - 或 ↓ 按钮移动商品到这里" style={{ padding: '40px 0' }} />
+        ) : (
+          <Space wrap size={[16, 16]}>
+            {splitItems.map((product) => {
+              const splitQty = getSplitQuantity(product.sku, product.totalQuantity);
+              const canMoveUp = splitQty > 0;
               return (
                 <div
-                  key={p.product_id}
+                  key={product.sku}
                   style={{
                     display: 'flex',
-                    justifyContent: 'space-between',
+                    flexDirection: 'column',
                     alignItems: 'center',
-                    padding: '8px 0',
-                    borderBottom: '1px solid #f0f0f0',
+                    width: 160,
                   }}
                 >
-                  <div>
-                    <Text>{productInfo.sku}</Text>
+                  <Image
+                    src={product.image || 'https://via.placeholder.com/160?text=No+Image'}
+                    alt={product.name}
+                    width={160}
+                    height={160}
+                    style={{ objectFit: 'cover', borderRadius: 4 }}
+                    fallback="https://via.placeholder.com/160?text=No+Image"
+                    preview={false}
+                  />
+                  <div style={{ marginTop: 8, textAlign: 'center' }}>
+                    <Space>
+                      <Button
+                        size="small"
+                        icon={<MinusOutlined />}
+                        onClick={() => moveToOriginal(product.sku, product.totalQuantity)}
+                        disabled={!canMoveUp}
+                      />
+                      <Text strong style={{ minWidth: 24, textAlign: 'center', display: 'inline-block' }}>
+                        {splitQty}
+                      </Text>
+                      <Button
+                        size="small"
+                        icon={<PlusOutlined />}
+                        onClick={() => moveToSplit(product.sku)}
+                        disabled={splitQty >= product.totalQuantity}
+                      />
+                      <Tooltip title="全部移回原货件">
+                        <Button
+                          size="small"
+                          icon={<UpOutlined />}
+                          onClick={() => moveAllToOriginal(product.sku, product.totalQuantity)}
+                          disabled={!canMoveUp}
+                        />
+                      </Tooltip>
+                    </Space>
                   </div>
-                  <Space>
-                    <InputNumber
-                      min={1}
-                      max={maxQuantity}
-                      value={p.quantity}
-                      onChange={(value) =>
-                        updateProductQuantity(newPosting.id, p.product_id, value || 1)
-                      }
-                      size="small"
-                      style={{ width: 80 }}
-                    />
-                    <Button
-                      type="text"
-                      danger
-                      size="small"
-                      icon={<MinusOutlined />}
-                      onClick={() => removeProductFromPosting(newPosting.id, p.product_id)}
-                    />
-                  </Space>
                 </div>
               );
-            })
-          )}
-
-          {/* 添加商品按钮 */}
-          <div style={{ marginTop: 8 }}>
-            <Space wrap>
-              {products
-                .filter(
-                  (product) =>
-                    remainingQuantities[product.product_id] > 0 &&
-                    !newPosting.products.some((p) => p.product_id === product.product_id)
-                )
-                .map((product) => (
-                  <Button
-                    key={product.product_id}
-                    size="small"
-                    icon={<PlusOutlined />}
-                    onClick={() => addProductToPosting(newPosting.id, product.product_id)}
-                  >
-                    {product.sku}
-                  </Button>
-                ))}
-            </Space>
-          </div>
-        </Card>
-      ))}
-
-      {/* 添加新货件按钮 */}
-      <Button
-        type="dashed"
-        block
-        icon={<PlusOutlined />}
-        onClick={addNewPosting}
-        style={{ marginTop: 8 }}
-      >
-        添加货件
-      </Button>
-
-      {/* 验证提示 */}
-      {!isFullyAllocated && (
-        <Alert
-          message="请完成所有商品的分配"
-          type="warning"
-          showIcon
-          style={{ marginTop: 16 }}
-        />
-      )}
-      {!isValidSplit && isFullyAllocated && (
-        <Alert
-          message="至少需要2个货件，且每个货件至少包含1个商品"
-          type="warning"
-          showIcon
-          style={{ marginTop: 16 }}
-        />
-      )}
+            })}
+          </Space>
+        )}
+      </Card>
     </Modal>
   );
 };

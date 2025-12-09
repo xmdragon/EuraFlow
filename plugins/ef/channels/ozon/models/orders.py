@@ -265,26 +265,66 @@ class OzonPosting(Base):
 
     def to_packing_dict(self) -> dict:
         """
-        转换为打包页面所需的字典格式
+        转换为扁平化的字典格式
 
         完全不依赖 order 关系，所有数据从 posting 自身获取。
-        用于打包列表、搜索等场景，降低内存占用。
+        用于订单列表、打包列表、搜索等场景。
 
         Returns:
-            打包页面所需的数据字典
+            扁平化的数据字典，前端直接使用顶层字段
         """
-        # 基础信息
-        result = {
+        # 追踪号 - 从 packages 关系或 raw_payload 获取
+        tracking_number = None
+        if hasattr(self, '__dict__') and 'packages' in self.__dict__ and self.packages:
+            tracking_number = self.packages[0].tracking_number
+        elif self.raw_payload and 'tracking_number' in self.raw_payload:
+            tracking_number = self.raw_payload['tracking_number']
+
+        # 构建 packages 列表
+        packages = []
+        if hasattr(self, '__dict__') and 'packages' in self.__dict__ and self.packages:
+            packages = [
+                {
+                    'id': pkg.id,
+                    'tracking_number': pkg.tracking_number,
+                    'carrier_name': pkg.carrier_name,
+                    'carrier_code': pkg.carrier_code,
+                }
+                for pkg in self.packages
+            ]
+        elif self.raw_payload and self.raw_payload.get('tracking_number'):
+            packages = [{
+                'id': None,
+                'tracking_number': self.raw_payload['tracking_number'],
+                'carrier_name': None,
+                'carrier_code': None,
+            }]
+
+        # 商品列表 - 从 raw_payload 获取
+        products = []
+        if self.raw_payload and 'products' in self.raw_payload:
+            for product in self.raw_payload['products']:
+                products.append({
+                    'sku': str(product.get('sku', '')),
+                    'offer_id': str(product.get('offer_id', '')) if product.get('offer_id') else None,
+                    'product_id': product.get('product_id'),  # OZON 商品 ID (拆分 API 需要)
+                    'name': product.get('name', ''),
+                    'quantity': product.get('quantity', 0),
+                    'price': str(product.get('price', '0')),
+                })
+
+        return {
+            # 基础信息
             'id': self.id,
             'shop_id': self.shop_id,
             'posting_number': self.posting_number,
             'status': self.status,
             'operation_status': self.operation_status,
             'warehouse_name': self.warehouse_name,
-            'delivery_method': self.delivery_method_name,
+            'delivery_method_name': self.delivery_method_name,
             'shipment_date': self.shipment_date.isoformat() if self.shipment_date else None,
             'in_process_at': self.in_process_at.isoformat() if self.in_process_at else None,
-            'ordered_at': self.in_process_at.isoformat() if self.in_process_at else None,  # 使用 in_process_at 作为下单时间
+            'ordered_at': self.in_process_at.isoformat() if self.in_process_at else None,
             'shipped_at': self.shipped_at.isoformat() if self.shipped_at else None,
             'delivered_at': self.delivered_at.isoformat() if self.delivered_at else None,
 
@@ -317,86 +357,16 @@ class OzonPosting(Base):
 
             # 国内单号
             'domestic_tracking_numbers': self.get_domestic_tracking_numbers(),
-        }
 
-        # 追踪号 - 从 packages 关系或 raw_payload 获取
-        tracking_number = None
-        if hasattr(self, '__dict__') and 'packages' in self.__dict__ and self.packages:
-            tracking_number = self.packages[0].tracking_number
-        elif self.raw_payload and 'tracking_number' in self.raw_payload:
-            tracking_number = self.raw_payload['tracking_number']
-        result['tracking_number'] = tracking_number
+            # 追踪号
+            'tracking_number': tracking_number or '',
 
-        # 构建 packages 列表
-        packages = []
-        if hasattr(self, '__dict__') and 'packages' in self.__dict__ and self.packages:
-            packages = [
-                {
-                    'id': pkg.id,
-                    'tracking_number': pkg.tracking_number,
-                    'carrier_name': pkg.carrier_name,
-                    'carrier_code': pkg.carrier_code,
-                }
-                for pkg in self.packages
-            ]
-        elif self.raw_payload and self.raw_payload.get('tracking_number'):
-            packages = [{
-                'id': None,
-                'tracking_number': self.raw_payload['tracking_number'],
-                'carrier_name': None,
-                'carrier_code': None,
-            }]
-        result['packages'] = packages
-
-        # 商品列表 - 从 raw_payload 获取
-        items = []
-        if self.raw_payload and 'products' in self.raw_payload:
-            for product in self.raw_payload['products']:
-                items.append({
-                    'sku': str(product.get('sku', '')),
-                    'offer_id': str(product.get('offer_id', '')) if product.get('offer_id') else None,
-                    'product_id': product.get('product_id'),  # OZON 商品 ID (拆分 API 需要)
-                    'name': product.get('name', ''),
-                    'quantity': product.get('quantity', 0),
-                    'price': str(product.get('price', '0')),
-                })
-        result['items'] = items
-        result['products'] = items  # 兼容前端的 posting.products
-
-        # 嵌套的 postings 数组（兼容现有前端结构）
-        result['postings'] = [{
-            'id': self.id,
-            'posting_number': self.posting_number,
-            'status': self.status,
-            'operation_status': self.operation_status,
-            'warehouse_name': self.warehouse_name,
-            'delivery_method_name': self.delivery_method_name,
-            'shipment_date': self.shipment_date.isoformat() if self.shipment_date else None,
-            'in_process_at': self.in_process_at.isoformat() if self.in_process_at else None,
-            'ordered_at': self.in_process_at.isoformat() if self.in_process_at else None,
-            'shipped_at': self.shipped_at.isoformat() if self.shipped_at else None,
-            'delivered_at': self.delivered_at.isoformat() if self.delivered_at else None,
-            # 金额字段
-            'total_amount': str(self.order_total_price) if self.order_total_price else '0',
-            'currency_code': 'CNY',
-            # 业务字段
-            'material_cost': str(self.material_cost) if self.material_cost else None,
-            'domestic_tracking_numbers': self.get_domestic_tracking_numbers(),
-            'purchase_price': str(self.purchase_price) if self.purchase_price else None,
-            'purchase_price_updated_at': self.purchase_price_updated_at.isoformat() if self.purchase_price_updated_at else None,
-            'order_notes': self.order_notes,
-            'source_platform': self.source_platform,
-            'last_mile_delivery_fee_cny': str(self.last_mile_delivery_fee_cny) if self.last_mile_delivery_fee_cny else None,
-            'international_logistics_fee_cny': str(self.international_logistics_fee_cny) if self.international_logistics_fee_cny else None,
-            'ozon_commission_cny': str(self.ozon_commission_cny) if self.ozon_commission_cny else None,
-            'profit': str(self.profit) if self.profit else None,
-            'profit_rate': str(self.profit_rate) if self.profit_rate else None,
-            'package_weight': self.package_weight,
+            # 包裹列表
             'packages': packages,
-            'products': items,
-        }]
 
-        return result
+            # 商品列表
+            'products': products,
+        }
 
     __table_args__ = (
         Index("idx_ozon_postings_status", "shop_id", "status"),

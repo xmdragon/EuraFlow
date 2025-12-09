@@ -27,6 +27,33 @@ export interface UserQuota {
 // 账号状态
 export type AccountStatus = 'active' | 'suspended' | 'disabled';
 
+// 用户设置
+export interface UserSettings {
+  notifications: {
+    email: boolean;
+    browser: boolean;
+    order_updates: boolean;
+    price_alerts: boolean;
+    inventory_alerts: boolean;
+  };
+  display: {
+    language: string;
+    timezone: string;
+    currency: string;
+    date_format: string;
+    shop_name_format: 'ru' | 'cn' | 'both';
+  };
+  sync: {
+    auto_sync: boolean;
+    sync_interval: number;
+    sync_on_login: boolean;
+  };
+  security: {
+    two_factor_auth: boolean;
+    session_timeout: number;
+  };
+}
+
 export interface User {
   id: number;
   username: string;
@@ -43,6 +70,7 @@ export interface User {
   last_login_at?: string;
   created_at: string;
   updated_at: string;
+  settings?: UserSettings;
 }
 
 export interface LoginRequest {
@@ -59,6 +87,7 @@ export interface LoginResponse {
 
 export interface AuthContextValue {
   user: User | null;
+  settings: UserSettings | null;
   isLoading: boolean;
   login: (credentials: LoginRequest) => Promise<void>;
   logout: () => void;

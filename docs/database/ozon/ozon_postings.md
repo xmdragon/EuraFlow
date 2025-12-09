@@ -11,7 +11,6 @@
 | 字段名 | 类型 | 可空 | 默认值 | 说明 |
 |--------|------|:----:|--------|------|
 | id | BigInteger | PK | - | - |
-| order_id | BigInteger | NO | - | FK → ozon_orders.id |
 | shop_id | Integer | NO | - | - |
 | posting_number | String(100) | NO | - | - |
 | ozon_posting_number | String(100) | YES | - | - |
@@ -39,6 +38,8 @@
 | international_logistics_fee_cny | Numeric(18, 2) | YES | - | 国际物流费(CNY) |
 | ozon_commission_cny | Numeric(18, 2) | YES | - | Ozon佣金(CNY) |
 | finance_synced_at | DateTime | YES | - | 财务同步时间 |
+| tracking_synced_at | DateTime | YES | - | 国际追踪号首次同步时间 |
+| domestic_tracking_updated_at | DateTime | YES | - | 国内单号最后更新时间 |
 | profit | Numeric(18, 2) | YES | - | 利润金额(CNY) |
 | profit_rate | Numeric(10, 4) | YES | - | 利润比率(%) |
 | order_total_price | Numeric(18, 2) | YES | - | 订单总金额（从raw_payload.products计算，避免运行时JSONB解析） |
@@ -49,6 +50,7 @@
 | label_pdf_path | String(500) | YES | - | 标签PDF文件路径（70x125mm竖向格式） |
 | label_printed_at | DateTime | YES | - | 标签首次打印时间 |
 | label_print_count | Integer | NO | 0 | 标签打印次数 |
+| package_weight | Integer | YES | - | 包装重量（克），用于跨境物流申报 |
 | in_process_at | DateTime | YES | - | - |
 | shipped_at | DateTime | YES | - | - |
 | delivered_at | DateTime | YES | - | - |
@@ -61,10 +63,5 @@
 - `idx_ozon_postings_status` (shop_id, status)
 - `idx_ozon_postings_date` (shop_id, shipment_date)
 - `idx_ozon_postings_warehouse` (warehouse_id, status)
-- `idx_ozon_postings_order_join` (order_id, in_process_at, status, shop_id)
 - `idx_ozon_postings_in_process` (shop_id, in_process_at, status)
 - `idx_ozon_postings_status_time` (status, in_process_at, shop_id)
-
-## 外键关系
-
-- `order_id` → `ozon_orders.id`

@@ -18,11 +18,12 @@
 | source_product_id | String(100) | YES | - | 来源商品ID（OZON商品ID） |
 | product_data | JSONB | NO | - | 完整商品数据（标题、图片、尺寸、重量、变体等） |
 | listing_request_payload | JSONB | YES | - | 发送给 OZON API 的上架请求数据 |
-| listing_task_id | String(500) | YES | - | Celery 任务 ID（多变体时逗号分隔） |
+| listing_task_count | Integer | YES | - | Celery 任务数量（变体数） |
 | listing_status | String(50) | YES | - | 上架状态：pending | processing | success | failed |
 | listing_product_id | BigInteger | YES | - | 上架成功后关联的正式商品ID（ozon_products.id） |
 | listing_error_message | Text | YES | - | 上架失败的错误信息 |
 | listing_at | DateTime | YES | - | 上架时间（UTC） |
+| listing_source | String(20) | YES | - | 上架方式：follow（跟卖上架）| manual（手动上架）| edit（编辑上架） |
 | is_read | Boolean | NO | False | 是否已读 |
 | is_deleted | Boolean | NO | False | 是否软删除 |
 | last_edited_at | DateTime | YES | - | 最后编辑时间（UTC） |

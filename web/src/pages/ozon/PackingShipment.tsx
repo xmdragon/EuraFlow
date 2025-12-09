@@ -33,6 +33,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import { useCurrency } from '../../hooks/useCurrency';
+import { useShopNameFormat } from '../../hooks/useShopNameFormat';
 import {
   statusConfig,
   operationStatusConfig,
@@ -52,6 +53,7 @@ import PackingSearchBar, { type SearchParams, type ViewMode } from '@/components
 import SkuGroupCard, { type SkuGroup } from '@/components/ozon/packing/SkuGroupCard';
 import PrepareStockModal from '@/components/ozon/PrepareStockModal';
 import PurchasePriceHistoryModal from '@/components/ozon/PurchasePriceHistoryModal';
+import SplitPostingModal from '@/components/ozon/SplitPostingModal';
 import UpdateBusinessInfoModal from '@/components/ozon/UpdateBusinessInfoModal';
 import PrintErrorModal from '@/components/ozon/packing/PrintErrorModal';
 import EditNotesModal from '@/components/ozon/packing/EditNotesModal';
@@ -98,6 +100,7 @@ const PackingShipment: React.FC = () => {
   const queryClient = useQueryClient();
   const { modal } = App.useApp();
   const { currency: userCurrency } = useCurrency();
+  const { formatShopName } = useShopNameFormat();
   const { copyToClipboard } = useCopy();
   const { formatDateTime } = useDateTime();
   const { canOperate, canSync } = usePermission();
@@ -129,7 +132,12 @@ const PackingShipment: React.FC = () => {
   // 状态管理 - 分页和滚动加载
   const [currentPage, setCurrentPage] = useState(1);
   const currentPageRef = React.useRef(1); // 使用 ref 跟踪当前页，避免 useEffect 依赖
-  const [itemsPerRow, setItemsPerRow] = useState(6); // 每行显示数量
+  // 使用懒初始化计算 itemsPerRow，避免初始值和计算值不一致导致双重请求
+  const [itemsPerRow, setItemsPerRow] = useState(() => {
+    const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
+    const menuWidth = 250;
+    return Math.max(1, Math.floor((screenWidth - menuWidth - 10) / 170));
+  });
   const [allPostings, setAllPostings] = useState<ozonApi.PostingWithOrder[]>([]); // 累积所有已加载的posting
   const [isLoadingMore, setIsLoadingMore] = useState(false); // 是否正在加载更多
   const [hasMoreData, setHasMoreData] = useState(true); // 是否还有更多数据
@@ -155,6 +163,10 @@ const PackingShipment: React.FC = () => {
   const [domesticTrackingModalVisible, setDomesticTrackingModalVisible] = useState(false);
   const [discardOrderModalVisible, setDiscardOrderModalVisible] = useState(false);
   const [currentPosting, setCurrentPosting] = useState<ozonApi.PostingWithOrder | null>(null);
+
+  // 拆分货件弹窗状态
+  const [splitModalVisible, setSplitModalVisible] = useState(false);
+  const [splitPosting, setSplitPosting] = useState<ozonApi.PostingWithOrder | null>(null);
 
   // 进货价格历史弹窗状态
   const [priceHistoryModalVisible, setPriceHistoryModalVisible] = useState(false);
@@ -273,22 +285,23 @@ const PackingShipment: React.FC = () => {
   }, [operationStatus]);
 
   // 查询店铺列表（用于显示店铺名称）
+  // 使用与 ShopSelector 相同的 queryKey，共享缓存避免重复请求
   const { data: shopsData } = useQuery({
-    queryKey: ['ozonShops'],
+    queryKey: ['ozon', 'shops'],
     queryFn: () => ozonApi.getShops(),
-    staleTime: 300000, // 5分钟缓存
+    staleTime: 5 * 60 * 1000, // 5分钟缓存
   });
 
-  // 建立 shop_id → shop_name 的映射（显示格式：俄文 [中文]）
+  // 建立 shop_id → shop_name 的映射（根据用户设置格式化）
   const shopNameMap = React.useMemo(() => {
     const map: Record<number, string> = {};
     if (shopsData?.data) {
       shopsData.data.forEach((shop) => {
-        map[shop.id] = shop.shop_name + (shop.shop_name_cn ? ` [${shop.shop_name_cn}]` : '');
+        map[shop.id] = formatShopName(shop);
       });
     }
     return map;
-  }, [shopsData]);
+  }, [shopsData, formatShopName]);
 
   // 查询打包发货订单列表
   // 第一个标签"等待备货"使用OZON原生状态，其他标签使用operation_status
@@ -352,16 +365,15 @@ const PackingShipment: React.FC = () => {
     staleTime: 30000, // 数据30秒内不会被认为是过期的
   });
 
-  // 当店铺、状态、搜索参数、平台筛选、采购信息筛选、排序或视图模式变化时，重置分页并强制刷新
+  // 当店铺、状态、搜索参数、平台筛选、采购信息筛选、排序或视图模式变化时，重置分页状态
+  // 注意：不需要手动 invalidateQueries，因为 queryKey 变化时 TanStack Query 会自动重新请求
   useEffect(() => {
     setCurrentPage(1);
     currentPageRef.current = 1; // 同步更新 ref
     setAllPostings([]);
     setHasMoreData(true);
     setAccumulatedImageMap({}); // 重置图片映射
-    // 强制使缓存失效，确保重新请求
-    queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
-  }, [selectedShop, operationStatus, searchParams, selectedPlatform, selectedPurchaseInfo, sortOrder, viewMode, queryClient]);
+  }, [selectedShop, operationStatus, searchParams, selectedPlatform, selectedPurchaseInfo, sortOrder, viewMode]);
 
   // 当收到新数据时，累积到 allPostings
   useEffect(() => {
@@ -374,51 +386,27 @@ const PackingShipment: React.FC = () => {
         Object.assign(newImageMap, ordersData.offer_id_images);
       }
 
-      // 从订单项中提取图片作为备用
-      ordersData.data.forEach((order) => {
-        if (order.items) {
-          order.items.forEach((item) => {
-            if (item.offer_id && item.image && !newImageMap[item.offer_id]) {
-              newImageMap[item.offer_id] = item.image;
-            }
-          });
-        }
+      // 从商品列表中提取图片作为备用（扁平化数据使用 products 字段）
+      ordersData.data.forEach((posting) => {
+        const products = posting.products || posting.items || [];
+        products.forEach((item) => {
+          if (item.offer_id && item.image && !newImageMap[item.offer_id]) {
+            newImageMap[item.offer_id] = item.image;
+          }
+        });
       });
 
       // 合并到累积的映射中
       setAccumulatedImageMap((prev) => ({ ...prev, ...newImageMap }));
 
-      // 展开订单为货件
-      const flattened: ozonApi.PostingWithOrder[] = [];
-      ordersData.data.forEach((order: ozonApi.Order) => {
-        // 如果订单有 postings，展开每个 posting
-        if (order.postings && order.postings.length > 0) {
-          order.postings.forEach((posting) => {
-            flattened.push({
-              ...posting,
-              order: order, // 关联完整的订单信息
-              shop_id: order.shop_id,
-              items: posting.items || order.items,
-              tracking_number: posting.tracking_number || order.tracking_number,
-            });
-          });
-        } else {
-          // 如果订单没有 postings，使用订单本身的 posting_number 创建一个虚拟 posting
-          if (order.posting_number) {
-            flattened.push({
-              id: order.id,
-              posting_number: order.posting_number,
-              status: order.status,
-              shipment_date: order.shipment_date,
-              delivery_method_name: order.delivery_method,
-              warehouse_name: order.warehouse_name,
-              packages_count: 1,
-              is_cancelled: order.status === 'cancelled',
-              order: order,
-            } as ozonApi.PostingWithOrder);
-          }
-        }
-      });
+      // 后端返回扁平化数据，直接转换为 PostingWithOrder
+      const flattened: ozonApi.PostingWithOrder[] = ordersData.data.map(
+        (posting: ozonApi.Posting) => ({
+          ...posting,
+          // 兼容旧代码：order 指向自身（扁平化后 posting 本身包含所有信息）
+          order: posting as unknown as ozonApi.Order,
+        })
+      ) as ozonApi.PostingWithOrder[];
 
       // 后端已做精确匹配，无需前端二次过滤
 
@@ -724,6 +712,22 @@ const PackingShipment: React.FC = () => {
     },
     []
   );
+
+  // 拆分货件
+  const handleSplitPostingCallback = React.useCallback(
+    (posting: ozonApi.PostingWithOrder) => {
+      setSplitPosting(posting);
+      setSplitModalVisible(true);
+    },
+    []
+  );
+
+  // 拆分成功后刷新
+  const handleSplitSuccess = React.useCallback(() => {
+    setSplitModalVisible(false);
+    setSplitPosting(null);
+    refetch();
+  }, [refetch]);
 
   const handleCheckboxChangeCallback = React.useCallback(
     (postingNumber: string, checked: boolean) => {
@@ -1613,6 +1617,7 @@ const PackingShipment: React.FC = () => {
                       onSubmitTracking={handleSubmitTrackingCallback}
                       onDiscardOrder={handleDiscardOrderCallback}
                       onCheckboxChange={handleCheckboxChangeCallback}
+                      onSplitPosting={handleSplitPostingCallback}
                       canOperate={canOperate}
                     />
                   ))}
@@ -1787,6 +1792,17 @@ const PackingShipment: React.FC = () => {
         onCancel={() => setPriceHistoryModalVisible(false)}
         sku={selectedSku}
         productName={selectedProductName}
+      />
+
+      {/* 拆分货件弹窗 */}
+      <SplitPostingModal
+        visible={splitModalVisible}
+        onCancel={() => {
+          setSplitModalVisible(false);
+          setSplitPosting(null);
+        }}
+        posting={splitPosting}
+        onSuccess={handleSplitSuccess}
       />
 
       {/* 批量备货弹窗 */}

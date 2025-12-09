@@ -37,6 +37,7 @@ class DisplaySettings(BaseModel):
     timezone: str = Field("Asia/Shanghai", description="时区")
     currency: str = Field("RUB", description="默认货币")
     date_format: str = Field("YYYY-MM-DD", description="日期格式")
+    shop_name_format: str = Field("both", description="店铺名称显示格式：ru/cn/both")
 
 
 class SyncSettings(BaseModel):

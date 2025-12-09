@@ -92,6 +92,9 @@
 - `idx_ozon_products_ozon_visibility` (ozon_visibility_status)
 - `idx_ozon_products_sync` (shop_id, sync_status, last_sync_at)
 - `idx_ozon_products_title_cn` (title_cn)
+- `idx_ozon_products_shop_status` (shop_id, status)
+- `idx_ozon_products_shop_created` (shop_id, created_at)
+- `idx_ozon_products_shop_updated` (shop_id, updated_at)
 
 ## 唯一约束
 

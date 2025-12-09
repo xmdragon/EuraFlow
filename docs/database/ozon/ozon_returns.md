@@ -13,7 +13,6 @@
 | id | BigInteger | PK | - | - |
 | shop_id | Integer | NO | - | 店铺ID |
 | posting_id | BigInteger | YES | - | FK → ozon_postings.id | 关联的货件ID |
-| order_id | BigInteger | YES | - | FK → ozon_orders.id | 关联的订单ID |
 | return_id | BigInteger | NO | - | OZON退货申请ID |
 | return_number | String(100) | NO | - | 退货申请编号 |
 | posting_number | String(100) | NO | - | 货件编号 |
@@ -55,4 +54,3 @@
 ## 外键关系
 
 - `posting_id` → `ozon_postings.id`
-- `order_id` → `ozon_orders.id`

@@ -88,6 +88,32 @@ const { currency, symbol, formatPrice } = useCurrency();
 
 ---
 
+### 店铺名称显示
+
+#### `useShopNameFormat`
+**路径**：`web/src/hooks/useShopNameFormat.ts`
+**用途**：根据用户设置格式化店铺名称显示
+**API**：
+- `shopNameFormat`: 当前格式设置（'ru' | 'cn' | 'both'）
+- `formatShopName(shop)`: 根据设置格式化店铺名称
+- `getShortName(shop)`: 获取短名称（用于紧凑显示）
+- `getFullName(shop)`: 获取完整名称（用于下拉展开）
+
+**使用示例**：
+```typescript
+const { formatShopName, getShortName, getFullName } = useShopNameFormat();
+
+// 格式化店铺名称（根据用户设置）
+<span>{formatShopName(shop)}</span>
+
+// 根据用户设置：
+// ru -> "Магазин"
+// cn -> "我的店铺"
+// both -> "Магазин【我的店铺】"
+```
+
+---
+
 ### 时间与时区处理
 
 #### `useDateTime`
@@ -674,6 +700,7 @@ const initiatorText = getCancellationInitiatorText('CLIENT');
 - **权限判断** → `usePermission`
 - **复制文本** → `useCopy`
 - **货币转换** → `useCurrency`
+- **店铺名称显示** → `useShopNameFormat`
 - **状态映射** → `OZON_ORDER_STATUS_MAP`
 - **通知提示** → `notification` 工具
 - **日志记录** → `loggers`
@@ -860,6 +887,7 @@ const parentId = getDescriptionCategoryId(categoryPath);
 - **权限判断** → `usePermission`
 - **复制文本** → `useCopy`
 - **货币转换** → `useCurrency`
+- **店铺名称显示** → `useShopNameFormat`
 - **状态映射** → `OZON_ORDER_STATUS_MAP`
 - **通知提示** → `notification` 工具
 - **日志记录** → `loggers`

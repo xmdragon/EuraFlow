@@ -74,7 +74,7 @@ export * from './api/stock';
 export type { ShopData, ApiCredentials } from './types/shop';
 
 // 统计类型
-export type { Statistics, DailyPostingStats, DailyRevenueStats } from './types/statistics';
+export type { Statistics, DailyStats } from './types/statistics';
 
 // 聊天类型
 export type { OzonChat, OzonChatMessage, ChatStats } from './types/chat';

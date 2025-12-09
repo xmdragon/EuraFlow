@@ -1,9 +1,9 @@
- 
 import { ShopOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { Select, Space, Spin } from 'antd';
 import React, { useEffect, useState, useMemo } from 'react';
 
+import { useShopNameFormat } from '@/hooks/useShopNameFormat';
 import { getShops } from '@/services/ozon';
 
 import styles from './ShopSelector.module.scss';
@@ -35,6 +35,9 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
   const [selectedShop, setSelectedShop] = useState<number | number[] | null>(
     value !== undefined ? value : isMultiple ? [] : null
   );
+
+  // 获取店铺名称格式化配置
+  const { getShortName, getFullName } = useShopNameFormat();
 
   // 获取店铺列表（仅基本信息，用于下拉选择）
   const { data: shopsData, isLoading } = useQuery({
@@ -141,8 +144,7 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
   // 如果只有一个店铺且不显示"全部"选项，隐藏选择器
   if (!isMultiple && shops.length === 1 && !showAllOption) {
     const shop = shops[0];
-    const displayName = shop.shop_name + (shop.shop_name_cn ? ` [${shop.shop_name_cn}]` : '');
-    return <span>{displayName}</span>;
+    return <span>{getFullName(shop)}</span>;
   }
 
   return (
@@ -176,23 +178,17 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
           </Space>
         </Option>
       )}
-      {shops.map((shop) => {
-        // 紧凑显示：优先用中文名，否则用原名
-        const shortName = shop.shop_name_cn || shop.shop_name;
-        // 完整显示：原名 + 中文名（如有）
-        const fullName = shop.shop_name + (shop.shop_name_cn ? ` [${shop.shop_name_cn}]` : '');
-        return (
-          <Option key={shop.id} value={shop.id} label={shortName}>
-            <Space>
-              <ShopOutlined />
-              <span>{fullName}</span>
-              {shop.status !== 'active' && (
-                <span className={styles.statusLabel}>({shop.status})</span>
-              )}
-            </Space>
-          </Option>
-        );
-      })}
+      {shops.map((shop) => (
+        <Option key={shop.id} value={shop.id} label={getShortName(shop)}>
+          <Space>
+            <ShopOutlined />
+            <span>{getFullName(shop)}</span>
+            {shop.status !== 'active' && (
+              <span className={styles.statusLabel}>({shop.status})</span>
+            )}
+          </Space>
+        </Option>
+      ))}
     </Select>
   );
 };

@@ -438,6 +438,13 @@ async def get_packing_orders(
         # 使用 posting.to_packing_dict()，完全不依赖 order 关系
         order_dict = posting.to_packing_dict()
 
+        # 填充商品图片（根据 offer_id 映射）
+        if 'products' in order_dict and order_dict['products']:
+            for product in order_dict['products']:
+                offer_id = product.get('offer_id')
+                if offer_id and offer_id in offer_id_images:
+                    product['image'] = offer_id_images[offer_id]
+
         # 状态修正兜底机制：检查posting的operation_status是否正确
         if 'postings' in order_dict and order_dict['postings']:
             for posting_dict in order_dict['postings']:

@@ -200,7 +200,7 @@ export interface DiscardOrderRequest {
  * 拆分货件请求 - 单个商品
  */
 export interface SplitPostingProduct {
-  product_id: number;
+  sku: string;  // 使用 SKU 作为唯一标识
   quantity: number;
 }
 

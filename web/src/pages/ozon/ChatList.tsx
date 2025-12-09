@@ -39,6 +39,7 @@ import ShopSelector from "@/components/ozon/ShopSelector";
 import PageTitle from "@/components/PageTitle";
 import { useDateTime } from "@/hooks/useDateTime";
 import { usePermission } from "@/hooks/usePermission";
+import { useShopNameFormat } from "@/hooks/useShopNameFormat";
 import * as ozonApi from "@/services/ozon";
 import { notifySuccess, notifyError } from "@/utils/notification";
 import { getGlobalNotification } from "@/utils/globalNotification";
@@ -51,6 +52,7 @@ const ChatList: React.FC = () => {
   const queryClient = useQueryClient();
   const { canOperate, canSync } = usePermission();
   const { formatDateTime } = useDateTime();
+  const { formatShopName } = useShopNameFormat();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // 从URL参数中读取店铺ID
@@ -264,8 +266,7 @@ const ChatList: React.FC = () => {
 
     for (let i = 0; i < shops.length; i++) {
       const shop = shops[i];
-      const displayName =
-        shop.shop_name + (shop.shop_name_cn ? ` [${shop.shop_name_cn}]` : "");
+      const displayName = formatShopName(shop);
 
       notifySuccess(
         "批量同步进度",

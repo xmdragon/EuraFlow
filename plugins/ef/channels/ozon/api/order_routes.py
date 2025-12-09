@@ -1047,7 +1047,7 @@ async def sync_single_order(
 
 class SplitPostingProduct(BaseModel):
     """拆分货件请求 - 单个商品"""
-    product_id: int
+    sku: str  # 使用 SKU 作为唯一标识
     quantity: int
 
 
@@ -1076,8 +1076,8 @@ async def split_posting(
     请求体示例：
     {
         "postings": [
-            {"products": [{"product_id": 123, "quantity": 1}]},
-            {"products": [{"product_id": 123, "quantity": 1}]}
+            {"products": [{"sku": "3063768668", "quantity": 1}]},
+            {"products": [{"sku": "3063768668", "quantity": 1}]}
         ]
     }
 
@@ -1128,11 +1128,21 @@ async def split_posting(
             shop_id=shop_id
         )
 
-        # 转换请求格式
-        split_postings = [
-            {"products": [{"product_id": p.product_id, "quantity": p.quantity} for p in item.products]}
-            for item in request.postings
-        ]
+        # 构建拆分请求：在 OZON API 中，sku 字段实际上就是 product_id
+        split_postings = []
+        for item in request.postings:
+            products = []
+            for p in item.products:
+                # SKU 是数字格式的字符串，直接转为 int 作为 product_id
+                try:
+                    product_id = int(p.sku)
+                except ValueError:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"无效的 SKU 格式: {p.sku}，应为数字"
+                    )
+                products.append({"product_id": product_id, "quantity": p.quantity})
+            split_postings.append({"products": products})
 
         logger.info(f"拆分货件: posting_number={posting_number}, shop_id={shop_id}, split_count={len(split_postings)}")
 

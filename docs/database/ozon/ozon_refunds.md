@@ -11,7 +11,6 @@
 | 字段名 | 类型 | 可空 | 默认值 | 说明 |
 |--------|------|:----:|--------|------|
 | id | BigInteger | PK | - | - |
-| order_id | BigInteger | NO | - | FK → ozon_orders.id |
 | shop_id | Integer | NO | - | - |
 | refund_id | String(100) | NO | - | - |
 | refund_type | String(50) | YES | - | - |
@@ -36,5 +35,4 @@
 
 ## 外键关系
 
-- `order_id` → `ozon_orders.id`
 - `posting_id` → `ozon_postings.id`

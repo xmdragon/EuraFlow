@@ -11,7 +11,7 @@ from ef_core.services.auth_service import get_auth_service
 from ef_core.services.api_key_service import get_api_key_service
 from ef_core.services.audit_service import AuditService
 from ef_core.database import get_async_session, get_db_manager
-from ef_core.models.users import User
+from ef_core.models.users import User, UserSettings
 from ef_core.utils.logger import get_logger
 from ef_core.utils.errors import UnauthorizedError, ValidationError, NotFoundError, ConflictError
 from sqlalchemy import select
@@ -55,6 +55,24 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+class UserSettingsResponse(BaseModel):
+    """用户设置响应（嵌入在用户信息中）"""
+    notifications: dict = Field(default_factory=lambda: {
+        "email": True, "browser": True, "order_updates": True,
+        "price_alerts": True, "inventory_alerts": True
+    })
+    display: dict = Field(default_factory=lambda: {
+        "language": "zh-CN", "timezone": "Asia/Shanghai",
+        "currency": "RUB", "date_format": "YYYY-MM-DD", "shop_name_format": "both"
+    })
+    sync: dict = Field(default_factory=lambda: {
+        "auto_sync": True, "sync_interval": 60, "sync_on_login": True
+    })
+    security: dict = Field(default_factory=lambda: {
+        "two_factor_auth": False, "session_timeout": 30
+    })
+
+
 class UserResponse(BaseModel):
     """用户信息响应"""
     id: int
@@ -71,6 +89,7 @@ class UserResponse(BaseModel):
     manager_level: Optional[dict] = None  # 管理员级别详情
     last_login_at: Optional[str]
     created_at: str
+    settings: UserSettingsResponse = Field(default_factory=UserSettingsResponse)  # 用户设置
 
 
 class CreateUserRequest(BaseModel):
@@ -431,13 +450,40 @@ async def refresh_token(
         )
 
 
+async def _get_user_settings(session: AsyncSession, user_id: int) -> dict:
+    """获取用户设置，如果不存在则返回默认值"""
+    stmt = select(UserSettings).where(UserSettings.user_id == user_id)
+    result = await session.execute(stmt)
+    settings = result.scalar_one_or_none()
+
+    if settings:
+        return settings.to_dict()
+    # 返回默认设置
+    return {
+        "notifications": {
+            "email": True, "browser": True, "order_updates": True,
+            "price_alerts": True, "inventory_alerts": True
+        },
+        "display": {
+            "language": "zh-CN", "timezone": "Asia/Shanghai",
+            "currency": "RUB", "date_format": "YYYY-MM-DD", "shop_name_format": "both"
+        },
+        "sync": {
+            "auto_sync": True, "sync_interval": 60, "sync_on_login": True
+        },
+        "security": {
+            "two_factor_auth": False, "session_timeout": 30
+        }
+    }
+
+
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(request: Request):
     """
     获取当前用户信息
 
     - 支持 JWT Token (Authorization: Bearer <token>) 或 API Key (X-API-Key: <key>)
-    - 返回用户基本信息和关联的店铺
+    - 返回用户基本信息、关联的店铺和用户设置
     """
     # 1. 优先尝试 API Key 认证
     api_key = request.headers.get("X-API-Key")
@@ -459,6 +505,7 @@ async def get_current_user_info(request: Request):
                 if user:
                     user_data = user.to_dict()
                     user_data["shop_ids"] = [shop.id for shop in user.shops] if user.shops else []
+                    user_data["settings"] = await _get_user_settings(session, user.id)
                     logger.info("API Key认证成功")
                     return UserResponse(**user_data)
 
@@ -486,9 +533,10 @@ async def get_current_user_info(request: Request):
             if not user or not user.is_active:
                 raise HTTPException(status_code=401, detail={"code": "USER_NOT_FOUND", "message": "User not found"})
 
-            # 构建响应
+            # 构建响应（包含用户设置）
             user_data = user.to_dict()
             user_data["shop_ids"] = [shop.id for shop in user.shops] if user.shops else []
+            user_data["settings"] = await _get_user_settings(session, user.id)
 
             return UserResponse(**user_data)
     except Exception as e:

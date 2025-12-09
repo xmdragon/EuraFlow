@@ -29,6 +29,7 @@ import React, { useState } from 'react';
 
 import { useCurrency } from '../../hooks/useCurrency';
 import { useDateTime } from '../../hooks/useDateTime';
+import { useShopNameFormat } from '../../hooks/useShopNameFormat';
 import { formatPriceWithFallback, getCurrencySymbol } from '../../utils/currency';
 
 import styles from './OrderList.module.scss';
@@ -67,6 +68,7 @@ const OrderList: React.FC = () => {
   const queryClient = useQueryClient();
   const { currency: userCurrency } = useCurrency();
   const { formatDateTime } = useDateTime();
+  const { formatShopName } = useShopNameFormat();
   const { canOperate, canSync } = usePermission();
   const { copyToClipboard } = useCopy();
 
@@ -163,22 +165,23 @@ const OrderList: React.FC = () => {
   const [searchParams, setSearchParams] = useState<OrderSearchParams>({});
 
   // 查询店铺列表（用于显示店铺名称）
+  // 使用与 ShopSelector 相同的 queryKey，共享缓存避免重复请求
   const { data: shopsData } = useQuery({
-    queryKey: ['ozonShops'],
+    queryKey: ['ozon', 'shops'],
     queryFn: () => ozonApi.getShops(),
-    staleTime: 300000, // 5分钟缓存
+    staleTime: 5 * 60 * 1000, // 5分钟缓存
   });
 
-  // 建立 shop_id → shop_name 的映射（显示格式：俄文 [中文]）
+  // 建立 shop_id → shop_name 的映射（根据用户设置格式化）
   const shopNameMap = React.useMemo(() => {
     const map: Record<number, string> = {};
     if (shopsData?.data) {
       shopsData.data.forEach((shop) => {
-        map[shop.id] = shop.shop_name + (shop.shop_name_cn ? ` [${shop.shop_name_cn}]` : '');
+        map[shop.id] = formatShopName(shop);
       });
     }
     return map;
-  }, [shopsData]);
+  }, [shopsData, formatShopName]);
 
   // 使用统一的订单状态配置
   const statusConfig = ORDER_STATUS_CONFIG;
@@ -225,66 +228,34 @@ const OrderList: React.FC = () => {
     staleTime: 10000, // 数据10秒内不会被认为是过期的
   });
 
-  // 展开订单数据为货件维度（PostingWithOrder 数组）
+  // API 返回扁平化数据，直接使用（每条记录就是一个 posting）
   const postingsData = React.useMemo<ozonApi.PostingWithOrder[]>(() => {
     if (!ordersData?.data) return [];
 
-    const flattened: ozonApi.PostingWithOrder[] = [];
-    ordersData.data.forEach((order: ozonApi.Order) => {
-      // 如果订单有 postings，展开每个 posting
-      if (order.postings && order.postings.length > 0) {
-        order.postings.forEach((posting) => {
-          // "已废弃"和"所有"标签：显示所有 posting
-          // 其他标签：按 posting.status 过滤
-          if (activeTab === 'discarded' || activeTab === 'all' || posting.status === activeTab) {
-            flattened.push({
-              ...posting,
-              order: order, // 关联完整的订单信息
-              // 提升常用字段到 posting 级别便于访问
-              shop_id: order.shop_id,
-              items: posting.products || order.items,
-              ordered_at: order.ordered_at,
-              delivery_method: order.delivery_method,
-            });
-          }
-        });
-      } else {
-        // 如果订单没有 postings，使用订单本身的 posting_number 创建一个虚拟 posting
-        // 这是为了兼容可能存在的没有 postings 数组的订单
-        if (
-          order.posting_number &&
-          (activeTab === 'discarded' || activeTab === 'all' || order.status === activeTab)
-        ) {
-          flattened.push({
-            id: order.id,
-            posting_number: order.posting_number,
-            status: order.status,
-            shipment_date: order.shipment_date,
-            delivery_method_name: order.delivery_method,
-            warehouse_name: order.warehouse_name,
-            packages_count: 1,
-            is_cancelled: order.status === 'cancelled',
-            order: order,
-            // 提升常用字段到 posting 级别便于访问
-            shop_id: order.shop_id,
-            items: order.items,
-            ordered_at: order.ordered_at,
-            delivery_method: order.delivery_method,
-          } as ozonApi.PostingWithOrder);
-        }
-      }
-    });
+    // 后端返回扁平化数据，直接转换为 PostingWithOrder
+    const result = ordersData.data
+      .filter((posting: ozonApi.Posting) => {
+        // "已废弃"标签：显示 operation_status='cancelled' 的订单（后端已过滤）
+        // "所有"标签：显示所有
+        // 其他标签：按 status 过滤（后端已过滤，这里做前端兜底）
+        if (activeTab === 'discarded' || activeTab === 'all') return true;
+        return posting.status === activeTab;
+      })
+      .map((posting: ozonApi.Posting) => ({
+        ...posting,
+        // 兼容旧代码：order 指向自身（扁平化后 posting 本身包含所有信息）
+        order: posting as unknown as ozonApi.Order,
+      })) as ozonApi.PostingWithOrder[];
 
     // 如果用户搜索了 keyword 且是货件编号格式，进行二次过滤（前端兜底，主要依赖后端过滤）
     const searchKeyword = searchParams.keyword?.trim();
     if (searchKeyword && searchKeyword.includes('-')) {
-      // 仅对货件编号格式进行前端二次过滤
-      return flattened.filter((posting) =>
+      return result.filter((posting) =>
         posting.posting_number.toLowerCase().includes(searchKeyword.toLowerCase())
       );
     }
 
-    return flattened;
+    return result;
   }, [ordersData, searchParams.keyword, activeTab]);
 
   // 将 PostingWithOrder 数组转换为 OrderItemRow 数组（每个商品一行）
@@ -792,10 +763,9 @@ const OrderList: React.FC = () => {
 
   // 处理函数
 
-  // 判断货件是否可以拆分
+  // 判断货件是否可以拆分：商品种类 > 1，或单个商品数量 > 1
   const canSplitPosting = (posting: ozonApi.PostingWithOrder): boolean => {
     const products = posting.products || [];
-    // 商品种类 > 1，或单个商品数量 > 1
     if (products.length > 1) return true;
     if (products.length === 1 && products[0].quantity > 1) return true;
     return false;

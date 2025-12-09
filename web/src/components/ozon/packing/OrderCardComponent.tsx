@@ -2,7 +2,7 @@
 /**
  * 打包发货订单卡片组件
  */
-import { ShoppingCartOutlined, LinkOutlined, CopyOutlined } from '@ant-design/icons';
+import { ShoppingCartOutlined, LinkOutlined, CopyOutlined, ScissorOutlined } from '@ant-design/icons';
 import { Card, Checkbox, Avatar, Tooltip, Tag, Button, Space, Typography } from 'antd';
 import React from 'react';
 
@@ -44,6 +44,7 @@ export interface OrderCardComponentProps {
   onSubmitTracking: (posting: ozonApi.PostingWithOrder) => void;
   onDiscardOrder: (posting: ozonApi.PostingWithOrder) => void;
   onCheckboxChange: (postingNumber: string, checked: boolean) => void;
+  onSplitPosting?: (posting: ozonApi.PostingWithOrder) => void;
   canOperate: boolean;
 }
 
@@ -69,6 +70,7 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
     onSubmitTracking,
     onDiscardOrder,
     onCheckboxChange,
+    onSplitPosting,
     canOperate,
   }) => {
     // 注意：formatDateTime 从 props 传入，避免在列表项中订阅全局查询
@@ -121,6 +123,12 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
 
     // 是否选中
     const isSelected = selectedPostingNumbers.includes(posting.posting_number);
+
+    // 判断是否可拆分：商品种类 > 1，或单个商品数量 > 1
+    const products = posting.products || [];
+    const canSplit = products.length > 1 || (products.length === 1 && products[0]?.quantity > 1);
+    // 拆分图标仅在"等待备货"状态且是第一个商品时显示
+    const showSplitIcon = operationStatus === 'awaiting_stock' && isFirstProduct && canSplit && onSplitPosting;
 
     return (
       <Tooltip title={order.order_notes || null} placement="top">
@@ -226,6 +234,23 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
                 >
                   {product.quantity || 1}
                 </span>
+                {/* 拆分图标 */}
+                {showSplitIcon && (
+                  <Tooltip title="拆分货件">
+                    <ScissorOutlined
+                      style={{
+                        marginLeft: 6,
+                        cursor: 'pointer',
+                        color: '#1890ff',
+                        fontSize: 14,
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSplitPosting?.(posting);
+                      }}
+                    />
+                  </Tooltip>
+                )}
               </div>
             )}
 
