@@ -696,13 +696,7 @@ async def create_user(
         manager_level_id=manager_level_id
     )
 
-    # 验证：仅 sub_account 角色必须指定至少一个店铺
-    # admin 和 manager 可以不关联店铺（admin 有全局权限，manager 可以后续分配）
-    if user_data.role == "sub_account" and (not user_data.shop_ids or len(user_data.shop_ids) == 0):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"code": "SHOP_REQUIRED", "message": "子账号必须选择至少一个店铺"}
-        )
+    # 所有角色都可以不关联店铺，登录后前端会引导用户添加店铺
 
     session.add(new_user)
     await session.flush()
