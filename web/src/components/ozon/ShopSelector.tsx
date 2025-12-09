@@ -166,9 +166,10 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
       mode={mode}
       dropdownMatchSelectWidth={false}
       popupClassName={styles.shopSelectDropdown}
+      optionLabelProp="label"
     >
       {!isMultiple && showAllOption && (
-        <Option value="all">
+        <Option value="all" label="全部店铺">
           <Space>
             <ShopOutlined />
             <span>全部店铺</span>
@@ -176,12 +177,15 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
         </Option>
       )}
       {shops.map((shop) => {
-        const displayName = shop.shop_name + (shop.shop_name_cn ? ` [${shop.shop_name_cn}]` : '');
+        // 紧凑显示：优先用中文名，否则用原名
+        const shortName = shop.shop_name_cn || shop.shop_name;
+        // 完整显示：原名 + 中文名（如有）
+        const fullName = shop.shop_name + (shop.shop_name_cn ? ` [${shop.shop_name_cn}]` : '');
         return (
-          <Option key={shop.id} value={shop.id}>
+          <Option key={shop.id} value={shop.id} label={shortName}>
             <Space>
               <ShopOutlined />
-              <span>{displayName}</span>
+              <span>{fullName}</span>
               {shop.status !== 'active' && (
                 <span className={styles.statusLabel}>({shop.status})</span>
               )}
