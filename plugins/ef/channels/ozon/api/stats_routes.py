@@ -394,6 +394,19 @@ async def get_statistics(
         )
         month_revenue = month_revenue_result.scalar() or Decimal('0')
 
+        # 查询店铺余额
+        balance_filter = [OzonShop.status == 'active']
+        if shop_id:
+            balance_filter.append(OzonShop.id == shop_id)
+
+        balance_result = await db.execute(
+            select(
+                func.coalesce(func.sum(OzonShop.current_balance_rub), 0).label('total_balance')
+            )
+            .where(*balance_filter)
+        )
+        total_balance = balance_result.scalar() or Decimal('0')
+
         # 构建响应数据
         result = {
             "products": {
@@ -419,6 +432,9 @@ async def get_statistics(
                 "yesterday": str(yesterday_revenue),
                 "week": str(week_revenue),
                 "month": str(month_revenue)
+            },
+            "balance": {
+                "total_rub": str(total_balance)
             }
         }
 

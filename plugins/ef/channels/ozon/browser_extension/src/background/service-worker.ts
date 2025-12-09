@@ -19,14 +19,8 @@ import {
 // 导入自动采集模块
 import { registerAutoCollectorHandlers } from './auto-collector';
 
-// 导入促销自动拉取清理模块
-import { promoAutoAddCleaner, registerPromoCleanerHandlers } from './promo-auto-add-cleaner';
-
-// 导入账单付款同步模块
-import { invoicePaymentSyncer, registerInvoicePaymentSyncerHandlers } from './invoice-payment-syncer';
-
-// 导入余额同步模块
-import { balanceSyncer, registerBalanceSyncerHandlers } from './balance-syncer';
+// 导入统一的店铺任务协调器（整合促销清理、账单同步、余额同步）
+import { shopTaskRunner, registerShopTaskRunnerHandlers } from './shop-task-runner';
 
 // ============================================================================
 // OZON 版本信息动态拦截器
@@ -121,34 +115,16 @@ chrome.runtime.onInstalled.addListener((details: chrome.runtime.InstalledDetails
     });
   }
 
-  // 执行促销自动拉取清理（每天首次执行）
-  promoAutoAddCleaner.run().catch((error) => {
-    console.error('[ServiceWorker] 促销清理执行失败:', error);
-  });
-
-  // 执行账单付款同步（检查窗口内每天首次执行）
-  invoicePaymentSyncer.run().catch((error) => {
-    console.error('[ServiceWorker] 账单付款同步执行失败:', error);
-  });
-
-  // 执行余额同步（每小时执行）
-  balanceSyncer.run().catch((error) => {
-    console.error('[ServiceWorker] 余额同步执行失败:', error);
+  // 执行店铺任务（促销清理 + 账单同步 + 余额同步）
+  shopTaskRunner.run().catch((error) => {
+    console.error('[ServiceWorker] 店铺任务执行失败:', error);
   });
 });
 
 // Service Worker 启动时也检查执行
 chrome.runtime.onStartup.addListener(() => {
-  promoAutoAddCleaner.run().catch((error) => {
-    console.error('[ServiceWorker] 促销清理执行失败:', error);
-  });
-
-  invoicePaymentSyncer.run().catch((error) => {
-    console.error('[ServiceWorker] 账单付款同步执行失败:', error);
-  });
-
-  balanceSyncer.run().catch((error) => {
-    console.error('[ServiceWorker] 余额同步执行失败:', error);
+  shopTaskRunner.run().catch((error) => {
+    console.error('[ServiceWorker] 店铺任务执行失败:', error);
   });
 });
 
@@ -697,9 +673,7 @@ async function getEuraflowConfig(): Promise<any> {
 // 注册消息处理器
 // ============================================================================
 registerAutoCollectorHandlers();
-registerPromoCleanerHandlers();
-registerInvoicePaymentSyncerHandlers();
-registerBalanceSyncerHandlers();
+registerShopTaskRunnerHandlers();
 
 // 导出类型（供TypeScript使用）
 export {};

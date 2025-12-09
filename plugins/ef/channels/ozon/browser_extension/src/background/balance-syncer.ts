@@ -83,6 +83,7 @@ class BalanceSyncer {
 
       // 获取店铺列表（通过 configCache 统一管理）
       const shops = await configCache.getShops(api);
+      console.log('[BalanceSyncer] 店铺数据:', JSON.stringify(shops[0]));
       if (!shops.length) {
         console.log('[BalanceSyncer] 没有店铺');
         return;
@@ -246,23 +247,29 @@ class BalanceSyncer {
           : null;
 
         if (!actualCompanyId || actualCompanyId !== expectedClientId) {
-          return { matched: false, balance: null };
+          return { matched: false, balance: null, expectedClientId, actualCompanyId };
         }
 
         // 2. 获取余额
         // 路径: window.__MODULE_STATE__["finances"].financesModule.balanceModule.monthlyBalance.balance.endAmount.amount
         const moduleState = windowAny.__MODULE_STATE__;
-        const balance = moduleState?.["finances"]?.financesModule?.balanceModule?.monthlyBalance?.balance?.endAmount?.amount;
+        const balanceModule = moduleState?.["finances"]?.financesModule?.balanceModule;
+        const monthlyBalance = balanceModule?.monthlyBalance;
+        const endAmount = monthlyBalance?.balance?.endAmount;
+        const balance = endAmount?.amount;
 
         if (typeof balance === 'number') {
-          return { matched: true, balance };
+          return { matched: true, balance, expectedClientId, actualCompanyId };
         }
 
         return { matched: true, balance: null };
       }
     });
 
-    const data = results?.[0]?.result as { matched: boolean; balance: number | null } | undefined;
+    const data = results?.[0]?.result as { matched: boolean; balance: number | null; expectedClientId?: string; actualCompanyId?: string | null } | undefined;
+
+    // 调试输出
+    console.log(`[BalanceSyncer] 预期 client_id: ${data?.expectedClientId}, 页面 company.id: ${data?.actualCompanyId}, 余额: ${data?.balance}`);
 
     if (!data?.matched) {
       console.warn(`[BalanceSyncer] company.id 不匹配，跳过 ${expectedClientId}`);

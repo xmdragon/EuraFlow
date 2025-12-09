@@ -333,14 +333,24 @@ function clearProductEditCache(productId: string): void {
 /**
  * 应用商品编辑数据缓存到当前状态
  */
-function applyProductEditCache(cache: ProductEditCache): void {
-  // 恢复店铺和仓库选择（如果在当前可用列表中）
+async function applyProductEditCache(cache: ProductEditCache): Promise<void> {
+  // 恢复店铺选择（如果在当前可用列表中）
   if (cache.shopId && shops.some(s => s.id === cache.shopId)) {
     selectedShopId = cache.shopId;
+    // 如果店铺变化，需要重新加载该店铺的仓库列表
+    if (apiClient) {
+      warehouses = await configCache.getWarehouses(apiClient, cache.shopId);
+    }
   }
+
+  // 恢复仓库选择（必须在重新加载仓库后检查）
   if (cache.warehouseIds.length > 0 && warehouses.some(w => cache.warehouseIds.includes(w.id))) {
     selectedWarehouseIds = cache.warehouseIds.filter(id => warehouses.some(w => w.id === id));
+  } else if (warehouses.length > 0) {
+    // 如果缓存的仓库在当前店铺不存在，自动选择第一个仓库
+    selectedWarehouseIds = [warehouses[0].id];
   }
+
   if (cache.watermarkId && watermarks.some(w => w.id === cache.watermarkId)) {
     selectedWatermarkId = cache.watermarkId;
   }
@@ -455,7 +465,7 @@ export async function showPublishModal(product: any = null, currentRealPrice: nu
     const productEditCache = loadProductEditCache(productId);
     if (productEditCache) {
       updateLoadingMessage('正在恢复编辑数据...');
-      applyProductEditCache(productEditCache);
+      await applyProductEditCache(productEditCache);
     }
 
     // 5. 渲染主弹窗（仅关闭加载弹窗，不重置数据）

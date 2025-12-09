@@ -157,9 +157,7 @@ class InvoicePaymentSyncer {
       const api = createEuraflowApi(apiConfig.apiUrl, apiConfig.apiKey);
 
       // 调用后端 API 检查是否需要同步
-      console.log('[InvoicePaymentSyncer] 检查是否需要同步...');
       const { inCheckWindow, windowReason, shopsToSync } = await this.checkShouldSync(api);
-      console.log('[InvoicePaymentSyncer] 检查结果:', { inCheckWindow, windowReason, shopsToSync });
 
       // 不在检查窗口内，标记已执行并返回
       if (!inCheckWindow) {
