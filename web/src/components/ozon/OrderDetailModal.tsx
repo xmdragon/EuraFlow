@@ -114,7 +114,6 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const [domesticTrackingModalVisible, setDomesticTrackingModalVisible] = useState(false);
 
   // 同步状态管理
-  const [syncingMaterialCost, setSyncingMaterialCost] = useState(false);
   const [syncingFinance, setSyncingFinance] = useState(false);
 
   // 保存进货金额
@@ -164,26 +163,6 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       notifyError('更新失败', error?.response?.data?.detail || '更新失败');
     } finally {
       setSaving(false);
-    }
-  };
-
-  // 同步打包费用
-  const handleSyncMaterialCost = async () => {
-    if (!localPosting?.posting_number) return;
-
-    try {
-      setSyncingMaterialCost(true);
-      await ozonApi.syncMaterialCost(localPosting.posting_number);
-      notifySuccess('同步成功', '打包费用同步成功');
-      onUpdate?.(); // 触发父组件刷新
-    } catch (error) {
-      // 如果是403权限错误，不显示自定义错误，让axios拦截器统一处理
-      if (error.response?.status === 403) {
-        return;
-      }
-      notifyError('同步失败', error?.response?.data?.detail || '同步失败');
-    } finally {
-      setSyncingMaterialCost(false);
     }
   };
 
@@ -913,17 +892,6 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                                   )
                                 : '-'}
                             </Text>
-                            {isDelivered && canSync && (
-                              <Button
-                                type="link"
-                                size="small"
-                                icon={<SyncOutlined spin={syncingMaterialCost} />}
-                                loading={syncingMaterialCost}
-                                onClick={handleSyncMaterialCost}
-                              >
-                                同步
-                              </Button>
-                            )}
                             {isDelivered && canOperate && (
                               <Button
                                 type="link"
