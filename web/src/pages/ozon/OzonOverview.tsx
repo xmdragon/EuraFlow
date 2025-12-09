@@ -481,10 +481,10 @@ const OzonOverview: React.FC = () => {
             <Card>
               <Statistic
                 title="当前余额"
-                value={stats.balance.total_rub}
-                precision={2}
+                value={Math.round(stats.balance.total_rub)}
+                precision={0}
                 prefix={<WalletOutlined />}
-                suffix={<span>₽ <span style={{ fontSize: '14px', color: '#8c8c8c' }}>(≈ ¥{stats.balance.total_cny.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span></span>}
+                suffix={<span>₽ <span style={{ fontSize: '14px', color: '#ff4d4f' }}>(≈ ¥{Math.round(stats.balance.total_cny).toLocaleString('zh-CN')})</span></span>}
               />
             </Card>
           </Col>
