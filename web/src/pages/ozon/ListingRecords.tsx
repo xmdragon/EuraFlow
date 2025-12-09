@@ -394,6 +394,26 @@ const ListingRecords: React.FC = () => {
       render: renderStatusTag,
     },
     {
+      title: '原链接',
+      dataIndex: 'source_url',
+      key: 'source_url',
+      width: 60,
+      align: 'center' as const,
+      render: (url: string) => {
+        if (!url) return '-';
+        return (
+          <Tooltip title="查看原商品">
+            <a href={url} target="_blank" rel="noopener noreferrer">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" fill="#005BFF"/>
+                <path d="M12 7C9.24 7 7 9.24 7 12s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zm0 8c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z" fill="white"/>
+              </svg>
+            </a>
+          </Tooltip>
+        );
+      },
+    },
+    {
       title: '上架方式',
       dataIndex: 'listing_source',
       key: 'listing_source',
