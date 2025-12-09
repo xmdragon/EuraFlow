@@ -88,7 +88,7 @@ async def get_product_import_logs(
 async def create_product(
     request: Dict[str, Any],
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     上架商品到OZON（需要操作员权限）
@@ -448,7 +448,7 @@ async def get_product_import_status(
     task_id: str,
     shop_id: int = Query(..., description="店铺ID"),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     查询商品导入状态（前端轮询使用）

@@ -71,7 +71,7 @@ async def prepare_stock(
     dto: PrepareStockDTO,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     备货操作：保存业务信息 + 可选同步到 OZON（需要操作员权限）
@@ -231,7 +231,7 @@ async def update_posting_business_info(
     dto: UpdateBusinessInfoDTO,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     更新业务信息（不改变操作状态）（需要操作员权限）
@@ -380,7 +380,7 @@ async def submit_domestic_tracking(
     dto: SubmitDomesticTrackingDTO,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     填写国内物流单号（支持多单号）（需要操作员权限）
@@ -524,7 +524,7 @@ async def update_domestic_tracking(
     dto: UpdateDomesticTrackingDTO,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     更新国内物流单号列表（需要操作员权限）
@@ -667,7 +667,7 @@ async def discard_posting(
     dto: DiscardPostingDTO,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     废弃订单（需要操作员权限）
@@ -760,7 +760,7 @@ async def mark_posting_printed(
     posting_number: str,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     将货件标记为"已打印"状态（需要操作员权限）

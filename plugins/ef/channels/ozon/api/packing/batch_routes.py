@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 async def prepare_order(
     posting_number: str = Body(..., description="发货单号"),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     提交备货请求（FBS订单备货流程）（需要操作员权限）
@@ -166,7 +166,7 @@ async def batch_print_labels(
     request: Request,
     body: BatchPrintRequest,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     批量打印快递面单（最多20个）（需要操作员权限）

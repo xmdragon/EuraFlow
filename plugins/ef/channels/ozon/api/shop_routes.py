@@ -231,7 +231,7 @@ async def get_shops(
 async def create_shop(
     shop_data: ShopCreateDTO,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """创建新的 Ozon 店铺（需要操作员权限）"""
     from ef_core.models.users import user_shops
@@ -302,7 +302,7 @@ async def update_shop(
     shop_id: int,
     shop_data: ShopUpdateDTO,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """更新 Ozon 店铺配置（需要操作员权限）"""
     # 查找店铺
@@ -349,7 +349,7 @@ async def update_shop(
 async def delete_shop(
     shop_id: int,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """删除 Ozon 店铺（需要操作员权限）"""
     result = await db.execute(
@@ -370,7 +370,7 @@ async def delete_shop(
 async def test_connection(
     shop_id: int,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """测试店铺 API 连接（需要操作员权限）"""
     # 获取店铺信息
@@ -466,7 +466,7 @@ async def configure_webhook(
     shop_id: int,
     webhook_config: Dict[str, Any] = Body(...),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """配置店铺 Webhook（需要操作员权限）"""
     import secrets
@@ -529,7 +529,7 @@ async def configure_webhook(
 async def test_webhook(
     shop_id: int,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """测试 Webhook 配置（需要操作员权限）"""
     import json
@@ -625,7 +625,7 @@ async def test_webhook(
 async def delete_webhook_config(
     shop_id: int,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """删除店铺 Webhook 配置（需要操作员权限）"""
     # 获取店铺信息
@@ -659,7 +659,7 @@ async def trigger_sync(
     orders_mode: str = Query("incremental", description="Orders sync mode: full, incremental"),
     products_mode: str = Query("incremental", description="Products sync mode: full, incremental"),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """触发店铺同步（需要操作员权限）"""
     import uuid
@@ -756,7 +756,7 @@ async def get_warehouses(
 async def sync_warehouses(
     shop_id: int,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     同步店铺仓库信息（需要操作员权限）
@@ -895,7 +895,7 @@ async def sync_warehouses(
 @router.post("/shops/sync-all-warehouses")
 async def sync_all_warehouses(
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     批量同步所有店铺的仓库信息（需要操作员权限）

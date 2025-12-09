@@ -178,7 +178,7 @@ async def update_sync_service(
     service_id: int,
     request: UpdateSyncServiceRequest,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     更新同步服务配置（需要操作员权限）
@@ -234,7 +234,7 @@ async def update_sync_service(
 async def trigger_sync_service(
     service_id: int,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     手动触发同步服务（需要操作员权限）
@@ -335,7 +335,7 @@ async def clear_sync_service_logs(
     service_id: int,
     request: ClearLogsRequest,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """清空同步服务日志（需要操作员权限）"""
     # 查找服务
@@ -437,7 +437,7 @@ async def get_sync_service_stats(
 async def reset_sync_service_stats(
     service_id: int,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """重置同步服务统计数据（需要操作员权限）"""
     # 查找服务

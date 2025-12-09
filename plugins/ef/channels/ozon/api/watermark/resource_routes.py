@@ -28,7 +28,7 @@ async def cleanup_old_resources(
     days: int = Query(30, ge=1),
     dry_run: bool = Query(False),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """清理过期Cloudinary资源"""
     try:
@@ -151,7 +151,7 @@ async def delete_image_storage_resources(
     http_request: Request,
     request: Dict[str, List[str]] = Body(..., description='{"public_ids": ["id1", "id2"]}'),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """批量删除图床资源（自动选择当前激活的图床）"""
     try:
@@ -219,7 +219,7 @@ async def delete_image_storage_resources(
 async def upload_refined_images(
     request_body: Dict[str, Any],
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ) -> Dict[str, Any]:
     """
     从象寄精修工具返回的URL异步上传图片到当前激活的图床
@@ -340,7 +340,7 @@ async def upload_refined_images(
 async def upload_base64_image(
     request_body: Dict[str, Any],
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ) -> Dict[str, Any]:
     """
     上传Base64编码的图片到当前激活的图床

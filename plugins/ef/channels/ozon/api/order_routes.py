@@ -536,7 +536,7 @@ async def update_order_extra_info(
     request: Request,
     extra_info: Dict[str, Any] = Body(...),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     更新货件额外信息（进货价格、国内运单号、材料费用、备注）（需要操作员权限）
@@ -877,7 +877,7 @@ async def sync_orders(
     shop_id: int = Body(...),
     mode: str = Body("incremental", description="同步模式: full-全量同步, incremental-增量同步"),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     同步订单数据（需要操作员权限）
@@ -966,7 +966,7 @@ async def sync_single_order(
     posting_number: str,
     shop_id: int = Query(..., description="店铺ID"),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     同步单个订单（需要操作员权限）

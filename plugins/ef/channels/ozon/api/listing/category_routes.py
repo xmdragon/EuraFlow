@@ -468,7 +468,7 @@ async def search_attribute_values(
 async def sync_category_tree(
     request: Dict[str, Any],
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     同步类目树（需要操作员权限）
@@ -523,7 +523,7 @@ async def sync_category_tree(
 async def sync_category_tree_async(
     request: Dict[str, Any],
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     异步同步类目树（异步后台任务，需要操作员权限）
@@ -610,7 +610,7 @@ async def sync_category_tree_async(
 async def batch_sync_category_attributes(
     request: Dict[str, Any],
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     批量同步类目特征（异步后台任务，需要操作员权限）
@@ -714,7 +714,7 @@ async def batch_sync_category_attributes(
 @router.get("/listings/categories/sync-async/status/{task_id}")
 async def get_category_sync_task_status(
     task_id: str,
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     查询类目同步任务状态
@@ -806,7 +806,7 @@ async def get_category_sync_task_status(
 @router.get("/listings/categories/batch-sync-attributes/status/{task_id}")
 async def get_batch_sync_task_status(
     task_id: str,
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     查询批量同步特征任务状态
@@ -902,7 +902,7 @@ async def sync_single_category_attributes(
     force_refresh: bool = Query(False, description="是否强制刷新"),
     sync_dictionary_values: bool = Query(True, description="是否同步特征值指南"),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     同步单个类目的特征

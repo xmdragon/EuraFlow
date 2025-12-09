@@ -21,7 +21,7 @@ async def sync_finance(
     posting_number: str,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     从 OZON 同步单个发货单的财务费用（需要操作员权限）

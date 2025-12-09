@@ -71,7 +71,7 @@ class RegenerateAPIKeyResponse(BaseModel):
 async def create_api_key(
     http_request: Request,
     key_data: CreateAPIKeyRequest,
-    current_user: User = Depends(require_role("operator")),
+    current_user: User = Depends(require_role("sub_account")),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
@@ -154,7 +154,7 @@ async def list_api_keys(
 async def delete_api_key(
     http_request: Request,
     key_id: int,
-    current_user: User = Depends(require_role("operator")),
+    current_user: User = Depends(require_role("sub_account")),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
@@ -210,7 +210,7 @@ async def delete_api_key(
 async def regenerate_api_key(
     http_request: Request,
     key_id: int,
-    current_user: User = Depends(require_role("operator")),
+    current_user: User = Depends(require_role("sub_account")),
     db: AsyncSession = Depends(get_async_session)
 ):
     """

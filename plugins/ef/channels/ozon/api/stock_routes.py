@@ -79,7 +79,7 @@ async def get_stock_list(
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(50, ge=1, le=200, description="每页数量"),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     查询库存列表（带店铺权限过滤）
@@ -184,7 +184,7 @@ async def add_stock(
     request: Request,
     data: AddStockRequest,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     添加库存（需要操作员权限）
@@ -305,7 +305,7 @@ async def update_stock(
     request: Request,
     data: UpdateStockRequest,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     更新库存（需要操作员权限）
@@ -429,7 +429,7 @@ async def delete_stock(
     stock_id: int,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     删除库存（需要操作员权限）
@@ -486,7 +486,7 @@ async def delete_stock(
 async def check_stock_for_posting(
     posting_number: str,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     检查订单商品的库存情况（备货时使用）

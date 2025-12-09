@@ -53,7 +53,7 @@ def _map_position_to_gravity(position: str) -> str:
 async def preview_watermark(
     request: WatermarkPreviewRequest,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """预览单图水印效果"""
     try:
@@ -100,7 +100,7 @@ async def preview_watermark(
 async def apply_watermark_to_url(
     request: ApplyWatermarkToUrlRequest,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     URL方式应用水印（使用Cloudinary/阿里云transformation，不上传新文件）
@@ -256,7 +256,7 @@ async def apply_watermark_to_url(
 async def preview_watermark_batch(
     request: BatchPreviewRequest,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """批量预览水印效果，返回每个商品所有图片的预览结果（不进行位置分析）"""
     try:
@@ -391,7 +391,7 @@ async def apply_watermark_batch(
     sync_mode: bool = Query(True, description="同步处理模式（True:立即处理，False:异步处理）"),
     analyze_mode: str = Query("individual", description="分析模式: 'individual'=每张图片单独分析, 'fast'=使用第一张图片的分析结果"),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """批量应用水印"""
     try:
@@ -528,7 +528,7 @@ async def apply_watermark_batch(
 async def restore_original_batch(
     request: BatchRestoreRequest,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """批量还原原图"""
     try:

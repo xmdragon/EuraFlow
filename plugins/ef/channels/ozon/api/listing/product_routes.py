@@ -36,7 +36,7 @@ async def import_product(
     http_request: Request,
     import_data: Dict[str, Any],
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     导入商品到OZON（完整上架流程）（需要操作员权限）
@@ -131,7 +131,7 @@ async def update_product_price(
     offer_id: str,
     price_data: Dict[str, Any],
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     更新商品价格（需要操作员权限）
@@ -203,7 +203,7 @@ async def update_product_stock(
     offer_id: str,
     stock_data: Dict[str, Any],
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     更新商品库存（需要操作员权限）
@@ -269,7 +269,7 @@ async def unarchive_product(
     http_request: Request,
     unarchive_data: Dict[str, Any],
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     重新上架商品（从归档中还原）（需要操作员权限）

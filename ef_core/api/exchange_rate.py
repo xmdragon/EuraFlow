@@ -87,7 +87,7 @@ async def configure_api(
     http_request: Request,
     config_data: ConfigureAPIRequest,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     配置汇率API密钥
@@ -206,7 +206,7 @@ async def convert(
 async def refresh_rate(
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     手动刷新汇率
@@ -260,7 +260,7 @@ async def get_rate_history(
 @router.post("/test-connection")
 async def test_connection(
     request: TestConnectionRequest,
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     测试API连接

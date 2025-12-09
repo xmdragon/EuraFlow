@@ -35,7 +35,7 @@ async def create_cloudinary_config(
     watermark_images_folder: str = Form("watermarks"),
     auto_cleanup_days: int = Form(30),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """创建或更新Cloudinary配置（全局唯一）"""
     try:
@@ -148,7 +148,7 @@ async def get_cloudinary_config(
 @router.post("/cloudinary/test")
 async def test_cloudinary_connection(
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """测试Cloudinary连接"""
     # 获取全局配置
@@ -185,7 +185,7 @@ async def test_cloudinary_connection(
 async def set_cloudinary_default(
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """设置 Cloudinary 为默认图床"""
     try:
@@ -250,7 +250,7 @@ async def create_aliyun_oss_config(
     product_images_folder: str = Form("products"),
     watermark_images_folder: str = Form("watermarks"),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """创建或更新阿里云 OSS 配置（单例模式，ID 固定为 1）"""
     try:
@@ -356,7 +356,7 @@ async def get_aliyun_oss_config(
 @router.post("/aliyun-oss/test")
 async def test_aliyun_oss_connection(
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """测试阿里云 OSS 连接"""
     config = await db.get(AliyunOssConfig, 1)
@@ -382,7 +382,7 @@ async def set_aliyun_oss_default(
     request: Request,
     enabled: bool = Form(True, description="是否启用阿里云 OSS"),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """设置阿里云 OSS 为默认图床"""
     try:

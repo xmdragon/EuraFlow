@@ -544,7 +544,7 @@ async def get_products(
 async def sync_products(
     request: Dict[str, Any],
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     同步商品数据（需要操作员权限）
@@ -756,7 +756,7 @@ async def sync_products(
 @router.post("/products/prices")
 async def update_prices(
     request: Dict[str, Any],
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """批量更新商品价格（异步任务）"""
     from ..tasks.batch_price_update_task import batch_update_prices_task
@@ -783,7 +783,7 @@ async def update_prices(
 @router.get("/products/prices/task/{task_id}")
 async def get_batch_price_update_task_status(
     task_id: str,
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     查询批量价格更新任务状态
@@ -855,7 +855,7 @@ async def get_batch_price_update_task_status(
 @router.post("/products/stocks")
 async def update_stocks(
     request: Dict[str, Any],
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """批量更新商品库存（异步任务）"""
     from ..tasks.batch_stock_update_task import batch_update_stocks_task
@@ -883,7 +883,7 @@ async def update_stocks(
 @router.get("/products/stocks/task/{task_id}")
 async def get_batch_stock_update_task_status(
     task_id: str,
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     查询批量库存更新任务状态
@@ -958,7 +958,7 @@ async def get_batch_stock_update_task_status(
 async def sync_single_product(
     product_id: int,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """同步单个商品（需要操作员权限）"""
     # 获取商品信息
@@ -1041,7 +1041,7 @@ async def update_product(
     product_id: int,
     product_data: Dict[str, Any],
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """更新商品信息（需要操作员权限）"""
     # 获取商品
@@ -1123,7 +1123,7 @@ async def update_product(
 async def archive_product(
     product_id: int,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """归档商品（需要操作员权限）"""
     # 获取商品
@@ -1159,7 +1159,7 @@ async def archive_product(
 async def delete_product(
     product_id: int,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     删除商品（需要操作员权限）
@@ -1269,7 +1269,7 @@ class BatchDeleteRequest(BaseModel):
 async def batch_delete_products(
     request: BatchDeleteRequest,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     批量删除商品（需要操作员权限）
@@ -1415,7 +1415,7 @@ async def batch_delete_products(
 async def export_products(
     request: Dict[str, Any] = {},
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """导出商品数据为CSV（需要操作员权限）"""
     import csv
@@ -1839,7 +1839,7 @@ async def update_product_description(
     product_id: int,
     request: DescriptionUpdateRequest,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     更新商品描述

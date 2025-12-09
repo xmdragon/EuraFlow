@@ -35,7 +35,7 @@ async def create_watermark_config(
     positions: str = Form('["bottom_right"]'),  # JSON字符串
     watermark_file: UploadFile = File(...),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """创建水印配置"""
     try:
@@ -217,7 +217,7 @@ async def update_watermark_config(
     positions: str = Form('["bottom_right"]'),  # JSON字符串
     is_active: bool = Form(True),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """更新水印配置"""
     try:
@@ -319,7 +319,7 @@ async def delete_watermark_config(
     request: Request,
     config_id: int,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """删除水印配置"""
     config = await db.get(WatermarkConfig, config_id)

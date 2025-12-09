@@ -36,7 +36,7 @@ async def import_product_images(
     offer_id: str,
     request: Dict[str, Any],
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     导入商品图片（需要操作员权限）
@@ -127,7 +127,7 @@ async def get_images_status(
 async def upload_media(
     request: Dict[str, Any],
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     上传图片/视频到图床（自动选择当前激活的图床，需要操作员权限）
@@ -239,7 +239,7 @@ async def upload_media_file(
     media_type: str = Form("image"),
     folder: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
+    current_user: User = Depends(require_role("sub_account"))
 ):
     """
     上传文件到图床（支持图片和视频，multipart/form-data方式）
