@@ -1,11 +1,10 @@
 /**
  * 第三方服务配置Tab
- * 整合：Cloudinary图床、跨境巴士、汇率API
+ * 整合：Cloudinary图床、汇率API、翻译配置、象寄图片
  */
 import {
   DollarOutlined,
   PictureOutlined,
-  TruckOutlined,
   ReloadOutlined,
   LineChartOutlined,
   TranslationOutlined,
@@ -21,7 +20,6 @@ import {
   Row,
   Col,
   Statistic,
-  Switch,
   Spin,
   Segmented,
   Tabs,
@@ -35,7 +33,6 @@ import RateChart from "./RateChart";
 import TranslationConfigTab from "./TranslationConfigTab";
 import { usePermission } from "@/hooks/usePermission";
 import * as exchangeRateApi from "@/services/exchangeRateApi";
-import * as ozonApi from "@/services/ozon";
 import * as xiangjifanyiApi from "@/services/xiangjifanyiApi";
 import type { FormValues } from "@/types/common";
 import { notifySuccess, notifyError, notifyInfo } from "@/utils/notification";
@@ -43,57 +40,11 @@ import { notifySuccess, notifyError, notifyInfo } from "@/utils/notification";
 const ThirdPartyServicesTab: React.FC = () => {
   const queryClient = useQueryClient();
   const { canOperate } = usePermission();
-  const [kuajing84Form] = Form.useForm();
   const [exchangeRateForm] = Form.useForm();
   const [xiangjifanyiForm] = Form.useForm();
   const [timeRange, setTimeRange] = useState<"today" | "week" | "month">(
     "today",
   );
-
-  // ========== 跨境巴士配置 ==========
-  const { data: kuajing84Config, isLoading: kuajing84Loading } = useQuery({
-    queryKey: ["ozon", "kuajing84-global-config"],
-    queryFn: () => ozonApi.getKuajing84Config(),
-  });
-
-  const saveKuajing84Mutation = useMutation({
-    mutationFn: (values: FormValues) =>
-      ozonApi.saveKuajing84Config({
-        username: values.username as string,
-        password: values.password as string,
-        enabled: (values.enabled as boolean) || false,
-      }),
-    onSuccess: () => {
-      notifySuccess("保存成功", "跨境巴士配置已保存");
-      queryClient.invalidateQueries({
-        queryKey: ["ozon", "kuajing84-global-config"],
-      });
-      kuajing84Form.setFieldsValue({ password: "" });
-    },
-    onError: (error: Error) => {
-      notifyError("保存失败", `保存失败: ${error.message}`);
-    },
-  });
-
-  const testKuajing84Mutation = useMutation({
-    mutationFn: () => ozonApi.testKuajing84Connection(),
-    onSuccess: () => {
-      notifySuccess("测试成功", "跨境巴士连接测试成功");
-    },
-    onError: (error: Error) => {
-      notifyError("测试失败", `测试失败: ${error.message}`);
-    },
-  });
-
-  useEffect(() => {
-    if (kuajing84Config?.data) {
-      kuajing84Form.setFieldsValue({
-        enabled: kuajing84Config.data.enabled || false,
-        username: kuajing84Config.data.username || "",
-        password: "",
-      });
-    }
-  }, [kuajing84Config, kuajing84Form]);
 
   // ========== 汇率配置 ==========
   const { data: exchangeRateConfig } = useQuery({
@@ -239,77 +190,6 @@ const ThirdPartyServicesTab: React.FC = () => {
             children: (
               <Card className={styles.card}>
                 <ImageStorageConfigTab />
-              </Card>
-            ),
-          },
-          {
-            key: "kuajing84",
-            label: (
-              <>
-                <TruckOutlined /> 跨境巴士
-              </>
-            ),
-            children: (
-              <Card className={styles.card}>
-                <Alert
-                  message="跨境巴士用于订单物流同步"
-                  description="启用后，打包发货页面可以将已填写国内物流单号的订单同步到跨境巴士平台"
-                  type="info"
-                  showIcon
-                  style={{ marginBottom: 16 }}
-                />
-
-                <Spin spinning={kuajing84Loading}>
-                  <Form
-                    form={kuajing84Form}
-                    layout="vertical"
-                    onFinish={(values) => saveKuajing84Mutation.mutate(values)}
-                  >
-                    <Form.Item
-                      name="enabled"
-                      label="启用跨境巴士同步"
-                      valuePropName="checked"
-                    >
-                      <Switch checkedChildren="启用" unCheckedChildren="禁用" />
-                    </Form.Item>
-
-                    <Form.Item
-                      name="username"
-                      label="用户名"
-                      rules={[{ required: true, message: "请输入用户名" }]}
-                    >
-                      <Input placeholder="请输入跨境巴士用户名" style={{ width: 200 }} />
-                    </Form.Item>
-
-                    <Form.Item
-                      name="password"
-                      label="密码"
-                      rules={[{ required: true, message: "请输入密码" }]}
-                    >
-                      <Input.Password placeholder="请输入跨境巴士密码" style={{ width: 200 }} />
-                    </Form.Item>
-
-                    {canOperate && (
-                      <Form.Item>
-                        <Space>
-                          <Button
-                            type="primary"
-                            htmlType="submit"
-                            loading={saveKuajing84Mutation.isPending}
-                          >
-                            保存配置
-                          </Button>
-                          <Button
-                            onClick={() => testKuajing84Mutation.mutate()}
-                            loading={testKuajing84Mutation.isPending}
-                          >
-                            测试连接
-                          </Button>
-                        </Space>
-                      </Form.Item>
-                    )}
-                  </Form>
-                </Spin>
               </Card>
             ),
           },

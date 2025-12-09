@@ -32,7 +32,6 @@ export interface SubmitDomesticTrackingRequest {
   /** @deprecated 使用 domestic_tracking_numbers 代替 */
   domestic_tracking_number?: string; // [已废弃] 单个国内物流单号（兼容字段）
   order_notes?: string; // 订单备注（可选）
-  sync_to_kuajing84?: boolean; // 是否同步到跨境巴士（默认false）
 }
 
 /**

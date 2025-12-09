@@ -50,8 +50,6 @@ OZON 渠道插件数据模型
 | aliyun_translation_configs | 阿里云翻译配置表（单例模式，只有一条记录） | [查看](./ozon/aliyun_translation_configs.md) |
 | chatgpt_translation_configs | ChatGPT翻译配置表（单例模式，只有一条记录） | [查看](./ozon/chatgpt_translation_configs.md) |
 | cloudinary_configs | Cloudinary配置模型（加密存储凭证） | [查看](./ozon/cloudinary_configs.md) |
-| kuajing84_global_config | 跨境巴士全局配置表（单例模式，只有一条记录） | [查看](./ozon/kuajing84_global_config.md) |
-| kuajing84_sync_logs | 跨境巴士同步日志表 | [查看](./ozon/kuajing84_sync_logs.md) |
 | ozon_api_metrics | API 调用指标 | [查看](./ozon/ozon_api_metrics.md) |
 | ozon_attribute_dictionary_values | OZON属性字典值缓存表 | [查看](./ozon/ozon_attribute_dictionary_values.md) |
 | ozon_cancellations | OZON 取消申请表 | [查看](./ozon/ozon_cancellations.md) |

@@ -119,8 +119,6 @@ def get_table_order():
         'watermark_configs',
         'watermark_tasks',
         'xiangjifanyi_configs',
-        'kuajing84_global_config',
-        'kuajing84_sync_logs',
     ]
 
     # 选品相关表

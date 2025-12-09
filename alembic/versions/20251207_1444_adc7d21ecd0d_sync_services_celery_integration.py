@@ -111,7 +111,6 @@ def upgrade() -> None:
         # 填充已知映射的 celery_task_name（asyncpg 要求每条语句单独执行）
         task_mappings = [
             ("database_backup", "ef.system.database_backup"),
-            ("kuajing84_material_cost", "ef.ozon.kuajing84.material_cost"),
             ("ozon_finance_sync", "ef.ozon.finance.sync"),
             ("ozon_finance_transactions_daily", "ef.ozon.finance.transactions"),
             ("ozon_sync_incremental", "ef.ozon.orders.pull"),

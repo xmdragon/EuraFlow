@@ -34,11 +34,6 @@ try:
 except ImportError as e:
     logger.warning(f"Could not import chat routes: {e}")
 
-try:
-    from .kuajing84_routes import router as kuajing84_router
-    router.include_router(kuajing84_router)
-except ImportError as e:
-    logger.warning(f"Could not import kuajing84 routes: {e}")
 
 try:
     from .translation_routes import router as translation_router

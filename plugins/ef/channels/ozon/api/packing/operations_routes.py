@@ -41,14 +41,12 @@ class SubmitDomesticTrackingDTO(BaseModel):
     """填写国内单号请求 DTO（支持多单号）"""
     # 新字段：数组输入（推荐）
     domestic_tracking_numbers: Optional[List[str]] = Field(None, min_length=1, max_length=10, description="国内物流单号列表（支持多个）")
-    
+
     # 兼容字段：单值输入（废弃但保留）
     domestic_tracking_number: Optional[str] = Field(None, description="[已废弃] 单个国内物流单号，请使用 domestic_tracking_numbers")
-    
+
     order_notes: Optional[str] = Field(None, description="订单备注（可选）")
-    
-    sync_to_kuajing84: bool = Field(False, description="是否同步到跨境巴士（默认false）")
-    
+
     def get_tracking_numbers(self) -> List[str]:
         """获取国内单号列表（兼容逻辑）"""
         if self.domestic_tracking_numbers:
@@ -66,7 +64,6 @@ class UpdateDomesticTrackingDTO(BaseModel):
 class DiscardPostingDTO(BaseModel):
     """丢弃发货单请求 DTO"""
     reason: Optional[str] = Field(None, description="丢弃原因")
-    sync_to_kuajing84: bool = Field(False, description="是否同步到跨境巴士")
 
 @router.post("/postings/{posting_number}/prepare")
 async def prepare_stock(
@@ -386,13 +383,12 @@ async def submit_domestic_tracking(
     current_user: User = Depends(require_role("operator"))
 ):
     """
-    填写国内物流单号 + 同步跨境巴士（支持多单号）（需要操作员权限）
+    填写国内物流单号（支持多单号）（需要操作员权限）
 
     操作流程：
     1. 保存国内物流单号列表（支持多个）和备注
-    2. 同步到跨境巴士（使用第一个单号）
-    3. 更新操作状态为"单号确认"
-    4. 更新操作时间
+    2. 更新操作状态为"单号确认"
+    3. 更新操作时间
 
     幂等性：如果状态已是 tracking_confirmed，返回错误
     """
@@ -427,8 +423,7 @@ async def submit_domestic_tracking(
     result = await service.submit_domestic_tracking(
         posting_number=posting_number,
         domestic_tracking_numbers=tracking_numbers,
-        order_notes=dto.order_notes,
-        sync_to_kuajing84=dto.sync_to_kuajing84
+        order_notes=dto.order_notes
     )
 
     if not result["success"]:
@@ -540,7 +535,6 @@ async def update_domestic_tracking(
     - 传入完整的国内单号列表，会**替换**现有的所有单号
     - 支持编辑、删除、添加单号
     - 如果清空所有国内单号（传空列表），会自动将 operation_status 改为 "allocated"（已分配）
-    - 不会同步到跨境巴士（仅更新本地数据）
 
     Args:
         posting_number: 货件编号
@@ -676,23 +670,18 @@ async def discard_posting(
     current_user: User = Depends(require_role("operator"))
 ):
     """
-    异步废弃订单（可选后台同步到跨境84）（需要操作员权限）
+    废弃订单（需要操作员权限）
 
     流程说明:
     1. 验证 posting 是否存在
-    2. 根据参数决定是否同步到跨境巴士：
-       - 如果勾选：创建同步日志（状态：pending），启动后台任务
-       - 如果不勾选：直接更新本地状态为取消
-    3. **立即返回**（不等待跨境84同步完成）
-
-    如果勾选同步，前端应使用 /kuajing84/sync-status/{sync_log_id} 轮询同步状态
+    2. 更新本地状态为取消
 
     Args:
         posting_number: 发货单号
-        dto: 包含 sync_to_kuajing84 参数（是否同步到跨境巴士）
+        dto: 废弃原因（可选）
 
     Returns:
-        废弃结果，如果同步跨境巴士则包含 sync_log_id 用于轮询
+        废弃结果
     """
     from ...services.posting_operations import PostingOperationsService
     from ef_core.services.audit_service import AuditService
@@ -712,8 +701,7 @@ async def discard_posting(
         # 2. 执行业务逻辑
         service = PostingOperationsService(db)
         result = await service.discard_posting_async(
-            posting_number=posting_number,
-            sync_to_kuajing84=dto.sync_to_kuajing84
+            posting_number=posting_number
         )
 
         if not result["success"]:

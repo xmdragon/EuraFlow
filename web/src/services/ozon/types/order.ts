@@ -192,5 +192,5 @@ export interface ShipmentRequest {
  * 废弃订单请求参数
  */
 export interface DiscardOrderRequest {
-  sync_to_kuajing84: boolean; // 是否同步到跨境巴士
+  // 预留扩展字段
 }

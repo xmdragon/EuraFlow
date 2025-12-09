@@ -99,10 +99,6 @@ class OzonPosting(Base):
         comment="操作状态：awaiting_stock(等待备货)/allocating(分配中)/allocated(已分配)/tracking_confirmed(单号确认)/shipping(运输中)/cancelled(已取消)"
     )
 
-    # 跨境巴士同步状态
-    kuajing84_sync_error = Column(String(200), comment="跨境巴士同步错误信息（如'订单不存在'则跳过后续同步）")
-    kuajing84_last_sync_at = Column(DateTime(timezone=True), comment="最后尝试同步跨境巴士的时间")
-
     # 财务费用字段（CNY）
     last_mile_delivery_fee_cny = Column(Numeric(18, 2), comment="尾程派送费(CNY)")
     international_logistics_fee_cny = Column(Numeric(18, 2), comment="国际物流费(CNY)")

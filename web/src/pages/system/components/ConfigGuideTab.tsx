@@ -12,7 +12,7 @@ const { Panel } = Collapse;
 
 const ConfigGuideTab: React.FC = () => {
   const { user } = useAuth();
-  const isOperator = user?.role === 'operator';
+  const isManager = user?.role === 'manager';
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto' }}>
@@ -49,7 +49,7 @@ const ConfigGuideTab: React.FC = () => {
         </Panel>
 
         {/* Cloudinary配置 - 仅管理员可见 */}
-        {!isOperator && (
+        {!isManager && (
           <Panel header="🖼️ Cloudinary图床配置" key="cloudinary">
           <Title level={5}>如何获取Cloudinary凭据？</Title>
           <Paragraph>
@@ -81,37 +81,8 @@ const ConfigGuideTab: React.FC = () => {
         </Panel>
         )}
 
-        {/* 跨境巴士配置 - 仅管理员可见 */}
-        {!isOperator && (
-          <Panel header="🚚 跨境巴士配置" key="kuajing84">
-          <Title level={5}>跨境巴士是什么？</Title>
-          <Paragraph>
-            跨境巴士（kuajing84.com）是一个跨境物流服务平台，支持将国内物流单号同步到国际物流系统。
-          </Paragraph>
-
-          <Title level={5}>配置步骤</Title>
-          <Paragraph>
-            <ol>
-              <li>注册 <Link href="https://www.kuajing84.com" target="_blank">跨境巴士</Link> 账号</li>
-              <li>在系统配置中填入用户名和密码</li>
-              <li>启用同步开关</li>
-              <li>在打包发货页面使用自动同步功能</li>
-            </ol>
-          </Paragraph>
-
-          <Title level={5}>使用说明</Title>
-          <Paragraph>
-            <ul>
-              <li>配置为全局设置，所有店铺共享</li>
-              <li>仅同步已填写国内物流单号的订单</li>
-              <li>系统会自动处理登录和Cookie管理</li>
-            </ul>
-          </Paragraph>
-        </Panel>
-        )}
-
         {/* 汇率API配置 - 仅管理员可见 */}
-        {!isOperator && (
+        {!isManager && (
           <Panel header="💱 汇率API配置" key="exchange-rate">
           <Title level={5}>如何获取汇率API Key？</Title>
           <Paragraph>
@@ -164,7 +135,7 @@ const ConfigGuideTab: React.FC = () => {
         </Panel>
 
         {/* 常见问题 - 仅管理员可见 */}
-        {!isOperator && (
+        {!isManager && (
           <Panel header="❓ 常见问题" key="faq">
           <Title level={5}>配置保存失败怎么办？</Title>
           <Paragraph>

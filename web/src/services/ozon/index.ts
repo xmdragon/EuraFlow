@@ -23,9 +23,6 @@ export * from './api/statistics';
 // 聊天
 export * from './api/chats';
 
-// 跨境巴士
-export * from './api/kuajing84';
-
 // 商品
 export * from './api/products';
 
@@ -81,9 +78,6 @@ export type { Statistics, DailyPostingStats, DailyRevenueStats } from './types/s
 
 // 聊天类型
 export type { OzonChat, OzonChatMessage, ChatStats } from './types/chat';
-
-// 跨境巴士类型
-export type { Kuajing84Config, Kuajing84ConfigRequest, Kuajing84SyncLog } from './types/kuajing84';
 
 // 商品类型
 export type {

@@ -17,9 +17,10 @@ import { useNavigate } from 'react-router-dom';
 import {
   WebSocketNotification,
   ChatNotificationData,
-  Kuajing84SyncNotificationData,
   PostingNotificationData,
+  SessionExpiredNotificationData,
 } from '@/types/notification';
+import authService from '@/services/authService';
 import { loggers } from '@/utils/logger';
 
 export const useNotifications = (shopId: number | null) => {
@@ -62,45 +63,6 @@ export const useNotifications = (shopId: number | null) => {
       }
     },
     [shopId, navigate, notification]
-  );
-
-  const handleKuajing84SyncNotification = useCallback(
-    (data: Kuajing84SyncNotificationData) => {
-      const key = `kuajing84-sync-${data.sync_log_id}`;
-
-      // 刷新订单数据
-      queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
-      queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
-
-      // 显示通知
-      const isSuccess = data.status === 'success';
-      const title =
-        data.sync_type === 'submit_tracking'
-          ? isSuccess
-            ? '国内单号同步成功'
-            : '国内单号同步失败'
-          : isSuccess
-            ? '订单废弃成功'
-            : '订单废弃失败';
-
-      notification.open({
-        key,
-        message: title,
-        description: data.message,
-        icon: isSuccess ? (
-          <CheckCircleOutlined style={{ color: '#52c41a' }} />
-        ) : (
-          <CloseCircleOutlined style={{ color: '#ff4d4f' }} />
-        ),
-        placement: 'bottomRight',
-        duration: 5,
-        style: {
-          backgroundColor: isSuccess ? '#f6ffed' : '#fff2f0',
-          borderLeft: `4px solid ${isSuccess ? '#52c41a' : '#ff4d4f'}`,
-        },
-      });
-    },
-    [queryClient, notification]
   );
 
   const handlePostingCreated = useCallback(
@@ -203,6 +165,42 @@ export const useNotifications = (shopId: number | null) => {
     [queryClient, notification]
   );
 
+  // 处理会话过期通知（单设备登录）
+  const handleSessionExpired = useCallback(
+    (data: SessionExpiredNotificationData) => {
+      const key = 'session-expired';
+
+      // 构建描述信息
+      let description = data.message || '您的账号在其他设备登录，当前会话已失效';
+      if (data.new_device_info) {
+        description += `\n设备: ${data.new_device_info}`;
+      }
+      if (data.new_ip_address) {
+        description += `\n IP: ${data.new_ip_address}`;
+      }
+
+      notification.warning({
+        key,
+        message: '登录失效',
+        description,
+        icon: <WarningOutlined style={{ color: '#faad14' }} />,
+        placement: 'topRight',
+        duration: 0, // 不自动关闭
+        style: {
+          backgroundColor: '#fffbe6',
+          borderLeft: '4px solid #faad14',
+        },
+      });
+
+      // 2秒后清除token并跳转到登录页
+      setTimeout(() => {
+        authService.clearTokens();
+        window.location.href = '/login';
+      }, 2000);
+    },
+    [notification]
+  );
+
   const handleWebSocketMessage = useCallback(
     (message: WebSocketNotification) => {
       switch (message.type) {
@@ -214,13 +212,6 @@ export const useNotifications = (shopId: number | null) => {
           // 聊天新消息通知（全局广播，不过滤店铺）
           if (message.chat_id && message.data) {
             handleChatNotification(message.data as ChatNotificationData, message.chat_id);
-          }
-          break;
-
-        case 'kuajing84.sync_completed':
-          // 跨境巴士同步完成通知
-          if (message.data) {
-            handleKuajing84SyncNotification(message.data as Kuajing84SyncNotificationData);
           }
           break;
 
@@ -252,6 +243,13 @@ export const useNotifications = (shopId: number | null) => {
           }
           break;
 
+        case 'session_expired':
+          // 单设备登录：会话失效通知
+          if (message.data) {
+            handleSessionExpired(message.data as SessionExpiredNotificationData);
+          }
+          break;
+
         case 'ping':
         case 'pong':
           // 心跳消息，忽略
@@ -263,11 +261,11 @@ export const useNotifications = (shopId: number | null) => {
     },
     [
       handleChatNotification,
-      handleKuajing84SyncNotification,
       handlePostingCreated,
       handlePostingCancelled,
       handlePostingStatusChanged,
       handlePostingDelivered,
+      handleSessionExpired,
     ]
   );
 

@@ -2134,7 +2134,6 @@ await hooks.register_cron(
 # 1. plugins/ef/channels/ozon/__init__.py
 async def pull_orders_task(**kwargs) -> None:  # 添加 **kwargs
 async def sync_inventory_task(**kwargs) -> None:
-async def kuajing84_material_cost_task(**kwargs):
 async def ozon_finance_sync_task(**kwargs):
 async def ozon_finance_transactions_task(**kwargs):
 

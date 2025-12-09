@@ -274,39 +274,11 @@ async def setup(hooks) -> None:
     # 注册同步服务处理函数到全局Handler注册表
     try:
         from plugins.ef.system.sync_service.services.handler_registry import get_registry
-        from .services.kuajing84_material_cost_sync_service import get_kuajing84_material_cost_sync_service
         from .services.ozon_sync import OzonSyncService
 
         registry = get_registry()
 
-        # 1. 注册跨境巴士物料成本同步服务
-        kuajing84_service = get_kuajing84_material_cost_sync_service()
-        registry.register(
-            service_key="kuajing84_material_cost",
-            handler=kuajing84_service.sync_material_costs,
-            name="跨境巴士物料成本同步",
-            description='自动从跨境巴士查询并更新"已打包"订单的物料成本和国内物流单号（单线程模式：每小时第15分钟执行，每次处理1个订单，处理间隔5秒）',
-            plugin="ef.channels.ozon",
-            config_schema={
-                "batch_size": {
-                    "type": "integer",
-                    "default": 1,
-                    "minimum": 1,
-                    "maximum": 10,
-                    "description": "每次处理订单数"
-                },
-                "delay_seconds": {
-                    "type": "integer",
-                    "default": 5,
-                    "minimum": 1,
-                    "maximum": 60,
-                    "description": "处理间隔（秒）"
-                }
-            }
-        )
-        logger.info("✓ Registered kuajing84_material_cost sync service handler")
-
-        # 2. 注册OZON财务费用同步服务
+        # 1. 注册OZON财务费用同步服务
         from .services.ozon_finance_sync_service import get_ozon_finance_sync_service
         finance_service = get_ozon_finance_sync_service()
         registry.register(
@@ -676,19 +648,7 @@ async def setup(hooks) -> None:
 
     # 注册其他同步服务的定时任务（统一使用 Celery Beat）
     try:
-        # 1. 跨境巴士物料成本同步
-        async def kuajing84_material_cost_task(**kwargs):
-            """跨境巴士物料成本同步定时任务"""
-            from plugins.ef.system.sync_service.services.handler_registry import get_registry
-            registry = get_registry()
-            handler = registry.get_handler("kuajing84_material_cost")
-            if handler:
-                return await handler({})
-            else:
-                logger.warning("kuajing84_material_cost handler not found")
-                return {}
-
-        # 2. OZON财务费用同步
+        # 1. OZON财务费用同步
         async def ozon_finance_sync_task(**kwargs):
             """
             OZON财务费用同步定时任务
@@ -792,14 +752,6 @@ async def setup(hooks) -> None:
                 return {}
 
         # 注册跨境巴士任务（每小时第15分钟执行）
-        await hooks.register_cron(
-            name="ef.ozon.kuajing84.material_cost",
-            cron="15 * * * *",
-            task=kuajing84_material_cost_task,
-            display_name="跨境巴士物料成本同步",
-            description="从跨境巴士查询并更新已打包订单的物料成本"
-        )
-
         # 注册财务费用同步（每天凌晨3:15）
         await hooks.register_cron(
             name="ef.ozon.finance.sync",

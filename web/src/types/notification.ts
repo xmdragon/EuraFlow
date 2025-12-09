@@ -10,16 +10,6 @@ export interface ChatNotificationData {
   timestamp: string;
 }
 
-export interface Kuajing84SyncNotificationData {
-  sync_log_id: number;
-  sync_type: 'submit_tracking' | 'discard_order';
-  status: 'success' | 'failed';
-  order_number: string;
-  logistics_order?: string;
-  error_message?: string;
-  message: string;
-}
-
 export interface PostingNotificationData {
   posting_number: string;
   product_count?: number;
@@ -33,6 +23,14 @@ export interface PostingNotificationData {
   timestamp: string;
 }
 
+// 单设备登录通知数据
+export interface SessionExpiredNotificationData {
+  reason: 'new_login' | 'manual_logout' | 'admin_revoke';
+  message: string;
+  new_device_info?: string;
+  new_ip_address?: string;
+}
+
 export interface WebSocketNotification {
   type:
     | 'connected'
@@ -40,14 +38,14 @@ export interface WebSocketNotification {
     | 'pong'
     | 'chat.new_message'
     | 'chat.message_updated'
-    | 'kuajing84.sync_completed'
     | 'posting.created'
     | 'posting.cancelled'
     | 'posting.status_changed'
-    | 'posting.delivered';
+    | 'posting.delivered'
+    | 'session_expired'; // 单设备登录：会话失效
   shop_id?: number;
   chat_id?: string;
-  data?: ChatNotificationData | Kuajing84SyncNotificationData | PostingNotificationData | unknown;
+  data?: ChatNotificationData | PostingNotificationData | SessionExpiredNotificationData | unknown;
   timestamp?: string;
 }
 

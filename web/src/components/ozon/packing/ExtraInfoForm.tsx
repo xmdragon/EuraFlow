@@ -1,29 +1,20 @@
- 
+
 /**
  * 订单额外信息表单组件
  * 用于编辑订单的进货价格、物料成本、采购平台、国内物流单号和订单备注
  */
-import { SendOutlined } from '@ant-design/icons';
 import { useQueryClient } from '@tanstack/react-query';
-import type { UseMutationResult } from '@tanstack/react-query';
 import { Form, Input, Select, Button, Space, Row, Col } from 'antd';
 import React, { useEffect } from 'react';
 
 import { useCurrency } from '@/hooks/useCurrency';
 import * as ozonApi from '@/services/ozon';
 import { getCurrencySymbol } from '@/utils/currency';
-import { logger } from '@/utils/logger';
 import { notifySuccess, notifyError } from '@/utils/notification';
 
 import type { FormValues } from '@/types/common';
 
 const { Option } = Select;
-
-interface SyncKuajing84Params {
-  ozonOrderId: number;
-  postingNumber: string;
-  logisticsOrder: string;
-}
 
 export interface ExtraInfoFormProps {
   /** 选中的订单 */
@@ -32,8 +23,6 @@ export interface ExtraInfoFormProps {
   selectedPosting: ozonApi.Posting | null;
   /** 设置更新加载状态 */
   setIsUpdatingExtraInfo: (_isLoading: boolean) => void;
-  /** 同步到跨境巴士的 mutation */
-  syncToKuajing84Mutation: UseMutationResult<unknown, Error, SyncKuajing84Params, unknown>;
   /** 是否有操作权限 */
   canOperate: boolean;
 }
@@ -45,7 +34,6 @@ export const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({
   selectedOrder,
   selectedPosting,
   setIsUpdatingExtraInfo,
-  syncToKuajing84Mutation,
   canOperate,
 }) => {
   const [form] = Form.useForm();
@@ -165,42 +153,6 @@ export const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({
           <Space>
             <Button type="primary" htmlType="submit">
               保存信息
-            </Button>
-            <Button
-              type="default"
-              icon={<SendOutlined />}
-              loading={syncToKuajing84Mutation.isPending}
-              onClick={async () => {
-                try {
-                  // 先保存表单
-                  const values = await form.validateFields();
-                  await handleFinish(values);
-
-                  // 再同步到跨境巴士
-                  if (!selectedOrder?.id) {
-                    notifyError('同步失败', '订单ID不存在');
-                    return;
-                  }
-                  if (!selectedPosting?.posting_number) {
-                    notifyError('同步失败', '货件编号不存在');
-                    return;
-                  }
-                  if (!values.domestic_tracking_number) {
-                    notifyError('同步失败', '请先填写国内物流单号');
-                    return;
-                  }
-
-                  syncToKuajing84Mutation.mutate({
-                    ozonOrderId: selectedOrder.id,
-                    postingNumber: selectedPosting.posting_number,
-                    logisticsOrder: values.domestic_tracking_number,
-                  });
-                } catch (error) {
-                  logger.error('保存并同步失败:', error);
-                }
-              }}
-            >
-              保存并同步跨境巴士
             </Button>
             <Button onClick={() => form.resetFields()}>重置</Button>
           </Space>

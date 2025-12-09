@@ -419,16 +419,15 @@ async def setup(hooks) -> None:
 9. `ef.ozon.promotions.health_check` - 促销系统健康检查（每小时第2分钟 `2 * * * *`）
 10. `ef.ozon.cancellations.sync` - 取消申请同步（每小时第7分钟 `7 * * * *`）
 11. `ef.ozon.returns.sync` - 退货申请同步（每小时第12分钟 `12 * * * *`）
-12. `ef.ozon.kuajing84.material_cost` - 跨境巴士物料成本同步（每小时第15分钟 `15 * * * *`）
-13. `ef.ozon.finance.sync` - OZON财务费用同步（每天凌晨3:15 `15 3 * * *`）
-14. `ef.ozon.finance.transactions` - OZON财务交易同步（每天UTC 22:00 `0 22 * * *`）
-15. `ef.ozon.labels.prefetch` - 标签预缓存（每5分钟 `*/5 * * * *`）
-16. `ef.ozon.labels.cleanup` - 标签缓存清理（每天凌晨4:00 `0 4 * * *`）
-17. `ef.ozon.drafts.cleanup` - 草稿清理（每天凌晨2:10 `10 2 * * *`）
-18. `ef.ozon.collection.poll_listing_status` - 采集记录上架状态轮询（每10分钟 `*/10 * * * *`）
+12. `ef.ozon.finance.sync` - OZON财务费用同步（每天凌晨3:15 `15 3 * * *`）
+13. `ef.ozon.finance.transactions` - OZON财务交易同步（每天UTC 22:00 `0 22 * * *`）
+14. `ef.ozon.labels.prefetch` - 标签预缓存（每5分钟 `*/5 * * * *`）
+15. `ef.ozon.labels.cleanup` - 标签缓存清理（每天凌晨4:00 `0 4 * * *`）
+16. `ef.ozon.drafts.cleanup` - 草稿清理（每天凌晨2:10 `10 2 * * *`）
+17. `ef.ozon.collection.poll_listing_status` - 采集记录上架状态轮询（每10分钟 `*/10 * * * *`）
 
 **其他任务：**
-19. `ef.finance.rates.refresh` - 汇率刷新（每小时第18分钟 `18 * * * *`）
+18. `ef.finance.rates.refresh` - 汇率刷新（每小时第18分钟 `18 * * * *`）
 
 ### 查看任务调度状态
 ```bash

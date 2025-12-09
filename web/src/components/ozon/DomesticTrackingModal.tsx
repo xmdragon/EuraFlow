@@ -1,9 +1,9 @@
 /**
  * 国内物流单号弹窗组件（支持多单号）
- * 用于"已分配"状态，填写国内物流单号并同步到跨境巴士
+ * 用于"已分配"状态，填写国内物流单号
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Modal, Form, Input, message, Select, Checkbox } from 'antd';
+import { Modal, Form, Input, message, Select } from 'antd';
 import axios from 'axios';
 import React from 'react';
 
@@ -48,13 +48,8 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
     mutationFn: (data: ozonApi.SubmitDomesticTrackingRequest) => {
       return ozonApi.submitDomesticTracking(postingNumber, data);
     },
-    onSuccess: (response, variables) => {
-      // 提交成功，根据是否同步到跨境巴士显示不同提示
-      if (variables.sync_to_kuajing84) {
-        notifySuccess('国内单号已保存', '正在后台同步到跨境巴士，稍后将收到通知');
-      } else {
-        notifySuccess('国内单号已保存', '国内单号已成功保存');
-      }
+    onSuccess: () => {
+      notifySuccess('国内单号已保存', '国内单号已成功保存');
       // 刷新计数查询
       queryClient.invalidateQueries({ queryKey: ['packingOrdersCount'] });
       // 刷新订单列表查询（确保切换标签页时数据正确）
@@ -133,7 +128,6 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
         const submitData: ozonApi.SubmitDomesticTrackingRequest = {
           domestic_tracking_numbers: cleanedNumbers,
           order_notes: values.order_notes,
-          sync_to_kuajing84: values.sync_to_kuajing84 === true, // 默认为false
         };
         submitTrackingMutation.mutate(submitData);
       }
@@ -198,10 +192,6 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
                 maxLength={500}
                 showCount
               />
-            </Form.Item>
-
-            <Form.Item name="sync_to_kuajing84" valuePropName="checked" initialValue={false}>
-              <Checkbox>同步到跨境巴士</Checkbox>
             </Form.Item>
           </>
         )}
