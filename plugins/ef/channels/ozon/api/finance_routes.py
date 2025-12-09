@@ -887,10 +887,20 @@ async def get_invoice_payments_by_period(
         raise HTTPException(status_code=500, detail=f"Query failed: {str(e)}")
 
 
-class InvoicePaymentSyncCheckResponse(BaseModel):
-    """账单付款同步检查响应"""
+class ShopSyncStatus(BaseModel):
+    """店铺同步状态"""
+    shop_id: int = Field(..., description="店铺ID")
+    client_id: str = Field(..., description="店铺 client_id")
+    shop_name: str = Field(..., description="店铺名称")
     should_sync: bool = Field(..., description="是否需要同步")
     reason: str = Field(..., description="原因说明")
+
+
+class InvoicePaymentSyncCheckResponse(BaseModel):
+    """账单付款同步检查响应"""
+    in_check_window: bool = Field(..., description="是否在检查窗口内")
+    window_reason: str = Field(..., description="检查窗口说明")
+    shops: List[ShopSyncStatus] = Field(default_factory=list, description="各店铺同步状态")
 
 
 @router.get(
@@ -906,36 +916,32 @@ async def check_should_sync_invoice_payments(
     检查是否需要同步账单付款
 
     检查逻辑：
-    1. 当前日期是否在检查窗口内（周期结束后 3-5 天）
-    2. 是否有 waiting 状态的记录可能已付款
+    1. 当前日期是否在检查窗口内（周期结束后 7 天内）
+    2. 每个店铺是否已同步（该周期是否有记录）
 
     检查窗口：
-    - 周期 1-15 结束后 → 18、19、20 号检查
-    - 周期 16-月末结束后 → 下月 3、4、5 号检查
+    - 周期 1-15 结束后 → 16-22 号检查
+    - 周期 16-月末结束后 → 下月 1-7 号检查
     """
     try:
-        from datetime import datetime, timedelta
+        from datetime import datetime
         from calendar import monthrange
 
         now = datetime.utcnow()
         day = now.day
 
-        # 检查是否在检查窗口内
-        in_check_window = (day >= 3 and day <= 5) or (day >= 18 and day <= 20)
-
-        if not in_check_window:
-            return InvoicePaymentSyncCheckResponse(
-                should_sync=False,
-                reason=f"不在检查窗口内（当前日期: {day}号，检查窗口: 3-5号或18-20号）"
-            )
-
-        # 计算上一个周期的日期范围
-        if day >= 18 and day <= 20:
+        # 判断检查窗口和对应周期
+        # 周期 1-15 结束后 → 16-22 号检查
+        # 周期 16-月末结束后 → 下月 1-7 号检查
+        if day >= 16 and day <= 22:
             # 检查当月 1-15 周期
+            in_check_window = True
             period_start = date(now.year, now.month, 1)
             period_end = date(now.year, now.month, 15)
-        else:
+            window_reason = f"在检查窗口内（{day}号，检查周期 {period_start} ~ {period_end}）"
+        elif day >= 1 and day <= 7:
             # 检查上月 16-月末周期
+            in_check_window = True
             if now.month == 1:
                 prev_year = now.year - 1
                 prev_month = 12
@@ -946,28 +952,76 @@ async def check_should_sync_invoice_payments(
             _, last_day = monthrange(prev_year, prev_month)
             period_start = date(prev_year, prev_month, 16)
             period_end = date(prev_year, prev_month, last_day)
+            window_reason = f"在检查窗口内（{day}号，检查周期 {period_start} ~ {period_end}）"
+        else:
+            # 不在检查窗口内
+            return InvoicePaymentSyncCheckResponse(
+                in_check_window=False,
+                window_reason=f"不在检查窗口内（当前 {day} 号，检查窗口: 1-7号或16-22号）",
+                shops=[]
+            )
 
-        # 查询该周期是否有 waiting 状态的记录
-        stmt = select(func.count(OzonInvoicePayment.id)).where(
+        # 获取所有有 client_id 的店铺
+        from plugins.ef.channels.ozon.models.ozon_shops import OzonShop
+        stmt = select(OzonShop).where(
             and_(
-                OzonInvoicePayment.period_start >= period_start,
-                OzonInvoicePayment.period_end <= period_end,
-                OzonInvoicePayment.payment_status == "waiting"
+                OzonShop.client_id.isnot(None),
+                OzonShop.client_id != "",
+                OzonShop.status == "active"
             )
         )
         result = await db.execute(stmt)
-        waiting_count = result.scalar() or 0
+        shops = result.scalars().all()
 
-        if waiting_count > 0:
-            return InvoicePaymentSyncCheckResponse(
-                should_sync=True,
-                reason=f"周期 {period_start} ~ {period_end} 有 {waiting_count} 条待付款记录需要更新"
+        shop_statuses = []
+        for shop in shops:
+            # 查询该店铺在该周期是否有记录
+            stmt = select(func.count(OzonInvoicePayment.id)).where(
+                and_(
+                    OzonInvoicePayment.shop_id == shop.id,
+                    OzonInvoicePayment.period_start >= period_start,
+                    OzonInvoicePayment.period_end <= period_end
+                )
             )
+            result = await db.execute(stmt)
+            record_count = result.scalar() or 0
 
-        # 即使没有 waiting 记录，也可能有新的付款记录需要同步
+            if record_count > 0:
+                # 已有记录，检查是否有 waiting 状态
+                stmt = select(func.count(OzonInvoicePayment.id)).where(
+                    and_(
+                        OzonInvoicePayment.shop_id == shop.id,
+                        OzonInvoicePayment.period_start >= period_start,
+                        OzonInvoicePayment.period_end <= period_end,
+                        OzonInvoicePayment.payment_status == "waiting"
+                    )
+                )
+                result = await db.execute(stmt)
+                waiting_count = result.scalar() or 0
+
+                if waiting_count > 0:
+                    should_sync = True
+                    reason = f"有 {waiting_count} 条待付款记录需要更新"
+                else:
+                    should_sync = False
+                    reason = f"已同步 {record_count} 条记录，无待付款"
+            else:
+                # 没有记录，需要同步
+                should_sync = True
+                reason = "该周期尚未同步"
+
+            shop_statuses.append(ShopSyncStatus(
+                shop_id=shop.id,
+                client_id=shop.client_id,
+                shop_name=shop.shop_name_cn or shop.shop_name,
+                should_sync=should_sync,
+                reason=reason
+            ))
+
         return InvoicePaymentSyncCheckResponse(
-            should_sync=True,
-            reason=f"在检查窗口内，需要同步周期 {period_start} ~ {period_end} 的付款记录"
+            in_check_window=in_check_window,
+            window_reason=window_reason,
+            shops=shop_statuses
         )
 
     except Exception as e:

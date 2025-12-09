@@ -75,8 +75,13 @@ class InvoicePaymentSyncer {
 
   /**
    * 调用后端 API 检查是否需要同步
+   * 返回需要同步的店铺 client_id 列表
    */
-  private async checkShouldSync(api: EuraflowApi): Promise<{ shouldSync: boolean; reason: string }> {
+  private async checkShouldSync(api: EuraflowApi): Promise<{
+    inCheckWindow: boolean;
+    windowReason: string;
+    shopsToSync: string[];  // 需要同步的店铺 client_id 列表
+  }> {
     try {
       const response = await fetch(`${(api as any).baseUrl}/api/ef/v1/ozon/invoice-payments/should-sync`, {
         method: 'GET',
@@ -86,18 +91,25 @@ class InvoicePaymentSyncer {
       });
 
       if (!response.ok) {
-        // API 错误时默认执行同步
-        return { shouldSync: true, reason: 'API 检查失败，默认执行同步' };
+        // API 错误时返回空列表
+        return { inCheckWindow: false, windowReason: 'API 检查失败', shopsToSync: [] };
       }
 
       const result = await response.json();
+
+      // 提取需要同步的店铺 client_id
+      const shopsToSync = result.shops
+        ?.filter((shop: any) => shop.should_sync)
+        ?.map((shop: any) => shop.client_id) || [];
+
       return {
-        shouldSync: result.should_sync,
-        reason: result.reason
+        inCheckWindow: result.in_check_window,
+        windowReason: result.window_reason,
+        shopsToSync
       };
     } catch (error) {
-      // 网络错误时默认执行同步
-      return { shouldSync: true, reason: '网络错误，默认执行同步' };
+      // 网络错误时返回空列表
+      return { inCheckWindow: false, windowReason: '网络错误', shopsToSync: [] };
     }
   }
 
@@ -140,14 +152,21 @@ class InvoicePaymentSyncer {
       const api = createEuraflowApi(apiConfig.apiUrl, apiConfig.apiKey);
 
       // 调用后端 API 检查是否需要同步
-      const { shouldSync, reason } = await this.checkShouldSync(api);
-      if (!shouldSync) {
-        // 不需要同步，但仍然标记已执行（避免频繁检查）
+      const { inCheckWindow, windowReason, shopsToSync } = await this.checkShouldSync(api);
+
+      // 不在检查窗口内，标记已执行并返回
+      if (!inCheckWindow) {
         await this.markAsRun();
         return;
       }
 
-      console.log('[InvoicePaymentSyncer] 开始执行账单付款同步...', reason);
+      // 没有需要同步的店铺，标记已执行并返回
+      if (shopsToSync.length === 0) {
+        await this.markAsRun();
+        return;
+      }
+
+      console.log('[InvoicePaymentSyncer] 开始执行账单付款同步...', windowReason);
 
       // 获取店铺列表（通过 configCache 统一管理）
       const shops = await configCache.getShops(api);
@@ -155,14 +174,14 @@ class InvoicePaymentSyncer {
         return;
       }
 
-      // 过滤有 client_id 的店铺
-      const validShops = shops.filter(shop => shop.client_id);
-      if (!validShops.length) {
+      // 只同步需要同步的店铺
+      const shopsNeedSync = shops.filter(shop => shopsToSync.includes(shop.client_id));
+      if (!shopsNeedSync.length) {
         return;
       }
 
-      // 遍历每个店铺
-      for (const shop of validShops) {
+      // 遍历需要同步的店铺
+      for (const shop of shopsNeedSync) {
         await this.syncShop(shop, api);
       }
 
