@@ -20,8 +20,8 @@ import type { Shop } from '../shared/types';
 
 // 缓存键：记录最后执行时间戳
 const CACHE_KEY = 'invoice_payment_syncer_last_run';
-// 检查间隔：7 天
-const CHECK_INTERVAL_DAYS = 7;
+// 检查间隔：10 天（临时调整用于测试）
+const CHECK_INTERVAL_DAYS = 10;
 
 // 付款记录接口
 interface InvoicePayment {
@@ -131,13 +131,17 @@ class InvoicePaymentSyncer {
    * 主入口：执行同步
    */
   async run(): Promise<void> {
+    console.log('[InvoicePaymentSyncer] run() 被调用');
+
     // 检查是否在北京时间 5 点后
     if (!this.shouldRunNow()) {
+      console.log('[InvoicePaymentSyncer] 跳过：不在北京时间 5 点后');
       return;
     }
 
-    // 检查是否在 7 天内已执行
+    // 检查是否在 10 天内已执行
     if (await this.hasRunRecently()) {
+      console.log('[InvoicePaymentSyncer] 跳过：10 天内已执行');
       return;
     }
 
@@ -145,6 +149,7 @@ class InvoicePaymentSyncer {
       // 获取 API 配置
       const apiConfig = await this.getApiConfig();
       if (!apiConfig.apiUrl || !apiConfig.apiKey) {
+        console.log('[InvoicePaymentSyncer] 跳过：缺少 API 配置');
         return;
       }
 
@@ -152,16 +157,20 @@ class InvoicePaymentSyncer {
       const api = createEuraflowApi(apiConfig.apiUrl, apiConfig.apiKey);
 
       // 调用后端 API 检查是否需要同步
+      console.log('[InvoicePaymentSyncer] 检查是否需要同步...');
       const { inCheckWindow, windowReason, shopsToSync } = await this.checkShouldSync(api);
+      console.log('[InvoicePaymentSyncer] 检查结果:', { inCheckWindow, windowReason, shopsToSync });
 
       // 不在检查窗口内，标记已执行并返回
       if (!inCheckWindow) {
+        console.log('[InvoicePaymentSyncer] 跳过：不在检查窗口内 -', windowReason);
         await this.markAsRun();
         return;
       }
 
       // 没有需要同步的店铺，标记已执行并返回
       if (shopsToSync.length === 0) {
+        console.log('[InvoicePaymentSyncer] 跳过：没有需要同步的店铺');
         await this.markAsRun();
         return;
       }
@@ -202,7 +211,7 @@ class InvoicePaymentSyncer {
       await this.switchToShop(shop.client_id);
 
       // 2. 获取或创建标签页
-      const { tabId, shouldClose } = await this.getOrCreateFinanceTab();
+      const { tabId } = await this.getOrCreateFinanceTab();
 
       try {
         // 3. 在页面上下文中解析付款表格
@@ -222,10 +231,8 @@ class InvoicePaymentSyncer {
         );
 
       } finally {
-        // 5. 如果是新创建的标签页，关闭它
-        if (shouldClose) {
-          await this.closeTab(tabId);
-        }
+        // 5. 始终关闭标签页，避免下个店铺复用时数据未切换
+        await this.closeTab(tabId);
       }
 
     } catch (error) {

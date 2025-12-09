@@ -107,18 +107,18 @@ const generatePeriodOptions = (): PeriodOption[] => {
         value: `${monthStart.format('YYYY-MM-DD')}|${mid15.format('YYYY-MM-DD')}`,
       });
     } else {
-      // 完整月份：上半月、下半月、整月
+      // 完整月份：整月、下半月、上半月
       options.push({
-        label: `${monthLabel} (1-15日)`,
-        value: `${monthStart.format('YYYY-MM-DD')}|${mid15.format('YYYY-MM-DD')}`,
+        label: monthLabel,
+        value: `${monthStart.format('YYYY-MM-DD')}|${monthEnd.format('YYYY-MM-DD')}`,
       });
       options.push({
         label: `${monthLabel} (16-${monthEnd.date()}日)`,
         value: `${mid16.format('YYYY-MM-DD')}|${monthEnd.format('YYYY-MM-DD')}`,
       });
       options.push({
-        label: monthLabel,
-        value: `${monthStart.format('YYYY-MM-DD')}|${monthEnd.format('YYYY-MM-DD')}`,
+        label: `${monthLabel} (1-15日)`,
+        value: `${monthStart.format('YYYY-MM-DD')}|${mid15.format('YYYY-MM-DD')}`,
       });
     }
   }

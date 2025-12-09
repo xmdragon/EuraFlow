@@ -965,14 +965,14 @@ async def check_should_sync_invoice_payments(
 
         # 判断检查窗口和对应周期
         # 周期 1-15 结束后 → 16-22 号检查
-        # 周期 16-月末结束后 → 下月 1-7 号检查
+        # 周期 16-月末结束后 → 下月 1-15 号检查（临时放宽用于测试）
         if day >= 16 and day <= 22:
             # 检查当月 1-15 周期
             in_check_window = True
             period_start = date(now.year, now.month, 1)
             period_end = date(now.year, now.month, 15)
             window_reason = f"在检查窗口内（{day}号，检查周期 {period_start} ~ {period_end}）"
-        elif day >= 1 and day <= 7:
+        elif day >= 1 and day <= 15:
             # 检查上月 16-月末周期
             in_check_window = True
             if now.month == 1:
