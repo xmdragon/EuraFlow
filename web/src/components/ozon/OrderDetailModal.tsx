@@ -78,7 +78,6 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
 
   // 从 posting 获取订单相关字段（兼容 to_packing_dict 返回的数据）
   const postingData = localPosting as ozonApi.Posting & {
-    total_price?: string;
     total_amount?: string;
     currency_code?: string;
     ordered_at?: string;
@@ -356,7 +355,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     </Descriptions.Item>
                     <Descriptions.Item label="总金额">
                       {formatPriceWithFallback(
-                        postingData.total_price || postingData.total_amount,
+                        postingData.total_amount,
                         postingData.currency_code || 'CNY',
                         userCurrency
                       )}
@@ -672,9 +671,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 const isDelivered = localPosting?.status === 'delivered';
 
                 // 计算订单金额（商品总价）
-                const orderAmount = parseFloat(
-                  postingData.total_price || postingData.total_amount || '0'
-                );
+                const orderAmount = parseFloat(postingData.total_amount || '0');
 
                 // 获取各项费用
                 const purchasePrice = parseFloat(localPosting?.purchase_price || '0');
@@ -711,7 +708,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     <Descriptions bordered column={1} labelStyle={{ width: '120px' }}>
                       <Descriptions.Item label="订单金额">
                         {formatPriceWithFallback(
-                          postingData.total_price || postingData.total_amount,
+                          postingData.total_amount,
                           postingData.currency_code || 'CNY',
                           userCurrency
                         )}

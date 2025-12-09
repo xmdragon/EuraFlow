@@ -289,7 +289,6 @@ class OzonPosting(Base):
             'delivered_at': self.delivered_at.isoformat() if self.delivered_at else None,
 
             # 金额
-            'total_price': str(self.order_total_price) if self.order_total_price else '0',
             'total_amount': str(self.order_total_price) if self.order_total_price else '0',
             'currency_code': 'CNY',
 
@@ -378,7 +377,6 @@ class OzonPosting(Base):
             'shipped_at': self.shipped_at.isoformat() if self.shipped_at else None,
             'delivered_at': self.delivered_at.isoformat() if self.delivered_at else None,
             # 金额字段
-            'total_price': str(self.order_total_price) if self.order_total_price else '0',
             'total_amount': str(self.order_total_price) if self.order_total_price else '0',
             'currency_code': 'CNY',
             # 业务字段

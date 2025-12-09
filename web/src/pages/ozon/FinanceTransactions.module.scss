@@ -12,6 +12,15 @@
 
 .summaryRow {
   margin-bottom: $spacing-md;
+
+  // 统一卡片高度
+  :global(.ant-card) {
+    height: 100%;
+  }
+
+  :global(.ant-col) {
+    display: flex;
+  }
 }
 
 .listCard {
