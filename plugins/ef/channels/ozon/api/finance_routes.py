@@ -651,8 +651,8 @@ def parse_amount_cny(amount_str: str) -> Decimal:
     if not amount_str:
         return Decimal("0")
 
-    # 1. 移除货币符号和空格
-    cleaned = amount_str.replace("¥", "").replace("₽", "").replace(" ", "").strip()
+    # 1. 移除货币符号和空格（包括普通空格和非断行空格 U+00A0）
+    cleaned = amount_str.replace("¥", "").replace("₽", "").replace(" ", "").replace("\u00a0", "").strip()
 
     # 2. 处理负数（俄语负号 − 和普通负号 -）
     is_negative = False

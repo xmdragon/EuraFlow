@@ -373,8 +373,15 @@ class OzonPosting(Base):
             'warehouse_name': self.warehouse_name,
             'delivery_method_name': self.delivery_method_name,
             'shipment_date': self.shipment_date.isoformat() if self.shipment_date else None,
+            'in_process_at': self.in_process_at.isoformat() if self.in_process_at else None,
+            'ordered_at': self.in_process_at.isoformat() if self.in_process_at else None,
             'shipped_at': self.shipped_at.isoformat() if self.shipped_at else None,
             'delivered_at': self.delivered_at.isoformat() if self.delivered_at else None,
+            # 金额字段
+            'total_price': str(self.order_total_price) if self.order_total_price else '0',
+            'total_amount': str(self.order_total_price) if self.order_total_price else '0',
+            'currency_code': 'CNY',
+            # 业务字段
             'material_cost': str(self.material_cost) if self.material_cost else None,
             'domestic_tracking_numbers': self.get_domestic_tracking_numbers(),
             'purchase_price': str(self.purchase_price) if self.purchase_price else None,
