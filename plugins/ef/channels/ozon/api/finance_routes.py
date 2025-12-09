@@ -13,7 +13,7 @@ import logging
 from ef_core.database import get_async_session
 from ef_core.models.users import User
 from ef_core.api.auth import get_current_user_flexible, get_current_user_from_api_key
-from ..models.finance import OzonFinanceTransaction, OzonInvoicePayment, calculate_billing_period
+from ..models.finance import OzonFinanceTransaction, OzonInvoicePayment, calculate_billing_period_by_payment_date
 from ..models.ozon_shops import OzonShop
 from ..models.global_settings import OzonGlobalSetting
 from ..models.orders import OzonPosting
@@ -730,10 +730,7 @@ async def sync_invoice_payments(
             # 3. 解析金额
             amount = parse_amount_cny(payment.amount_cny)
 
-            # 4. 计算账单周期
-            period_start, period_end = calculate_billing_period(scheduled_date)
-
-            # 5. 转换状态
+            # 4. 转换状态
             # 页面显示 "等待付款" 或 "已付款"
             status_map = {
                 "等待付款": "waiting",
@@ -743,7 +740,17 @@ async def sync_invoice_payments(
             }
             payment_status = status_map.get(payment.payment_status, "waiting")
 
-            # 6. Upsert
+            # 5. 计算账单周期
+            # - 已付款：用实际付款日期推算
+            # - 等待付款：用当前日期（同步日期）推算
+            if payment_status == "paid" and actual_date:
+                period_start, period_end = calculate_billing_period_by_payment_date(actual_date)
+            else:
+                # 等待付款用当前日期推算
+                today = date.today()
+                period_start, period_end = calculate_billing_period_by_payment_date(today)
+
+            # 6. Upsert（按店铺+周期+付款类型去重）
             stmt = pg_insert(OzonInvoicePayment).values(
                 shop_id=shop.id,
                 payment_type=payment.payment_type,
@@ -761,9 +768,11 @@ async def sync_invoice_payments(
                     "synced_at": datetime.utcnow().isoformat()
                 }
             ).on_conflict_do_update(
-                constraint="uq_ozon_invoice_payment",
+                constraint="uq_ozon_invoice_payment_period",
                 set_={
+                    "amount_cny": amount,
                     "payment_status": payment_status,
+                    "scheduled_payment_date": scheduled_date,
                     "actual_payment_date": actual_date,
                     "payment_method": payment.payment_method if payment.payment_method != "—" else None,
                     "payment_file_number": payment.payment_file_number if payment.payment_file_number != "—" else None,

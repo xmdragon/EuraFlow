@@ -3,7 +3,7 @@
  * 商品过滤栏组件
  * 包含店铺选择、搜索、状态过滤等功能
  */
-import { SearchOutlined, PlusOutlined, DollarOutlined, CloudUploadOutlined } from '@ant-design/icons';
+import { SearchOutlined, PlusOutlined } from '@ant-design/icons';
 import { Card, Form, Input, Select, Button, Space, FormInstance } from 'antd';
 import React from 'react';
 
@@ -37,10 +37,6 @@ export interface ProductFilterBarProps {
   onStatusChange: (_newStatus: string) => void;
   /** 新建商品回调 */
   onCreateProduct: () => void;
-  /** 商品上架回调 */
-  onListingRecords?: () => void;
-  /** 促销商品回调 */
-  onPromotions?: () => void;
   /** 全局统计数据 */
   stats?: ProductStats | null;
 }
@@ -57,8 +53,6 @@ export const ProductFilterBar: React.FC<ProductFilterBarProps> = ({
   onReset,
   onStatusChange,
   onCreateProduct,
-  onListingRecords,
-  onPromotions,
   stats,
 }) => {
   return (
@@ -98,16 +92,6 @@ export const ProductFilterBar: React.FC<ProductFilterBarProps> = ({
             <Button type="primary" icon={<PlusOutlined />} onClick={onCreateProduct}>
               新建商品
             </Button>
-            {onListingRecords && (
-              <Button icon={<CloudUploadOutlined />} onClick={onListingRecords}>
-                商品上架
-              </Button>
-            )}
-            {onPromotions && (
-              <Button icon={<DollarOutlined />} onClick={onPromotions}>
-                促销商品
-              </Button>
-            )}
           </Space>
         </Form.Item>
       </Form>

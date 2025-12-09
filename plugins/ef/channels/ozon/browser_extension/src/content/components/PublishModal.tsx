@@ -898,7 +898,15 @@ function bindMainModalEvents(): void {
   document.querySelectorAll('.custom-price-input').forEach((input) => {
     input.addEventListener('input', (e) => {
       const index = parseInt((e.target as HTMLInputElement).getAttribute('data-index') || '0');
-      variants[index].custom_price = parseFloat((e.target as HTMLInputElement).value) || 0;
+      const newPrice = parseFloat((e.target as HTMLInputElement).value) || 0;
+      variants[index].custom_price = newPrice;
+      // 自动计算划线价格（1.6倍）
+      variants[index].custom_old_price = newPrice * 1.6;
+      // 更新划线价格输入框
+      const oldPriceInput = document.querySelector(`.custom-old-price-input[data-index="${index}"]`) as HTMLInputElement;
+      if (oldPriceInput) {
+        oldPriceInput.value = (newPrice * 1.6).toFixed(2);
+      }
     });
   });
 

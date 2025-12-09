@@ -495,7 +495,7 @@ const FinanceTransactions: React.FC = () => {
 
   return (
     <div>
-      <PageTitle icon={<DollarOutlined />} title="财务交易" />
+      <PageTitle icon={<DollarOutlined />} title="财务记录" />
 
       <div className={styles.contentContainer}>
         <Card className={styles.filterCard}>

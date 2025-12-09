@@ -241,6 +241,7 @@ const Dashboard: React.FC = () => {
           'ozon-stock': { icon: <DatabaseOutlined />, label: '库存管理', path: '/dashboard/ozon/stock' },
           'ozon-cancel-return': { icon: <CloseCircleOutlined />, label: '取消退货', path: '/dashboard/ozon/cancel-return' },
           'ozon-finance-transactions': { icon: <DollarOutlined />, label: '财务记录', path: '/dashboard/ozon/finance-transactions' },
+          'ozon-warehouses': { icon: <HomeOutlined />, label: '仓库列表', path: '/dashboard/ozon/warehouses' },
           'ozon-promotions': { icon: <DollarOutlined />, label: '促销活动', path: '/dashboard/ozon/promotions' },
           'ozon-chats': { icon: <MessageOutlined />, label: '聊天管理', path: '/dashboard/ozon/chats' },
         };

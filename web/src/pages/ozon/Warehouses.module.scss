@@ -1,0 +1,31 @@
+@use '@/styles/variables' as *;
+@use '@/styles/mixins' as *;
+
+// 仓库列表页面样式
+// 遵守 CLAUDE.md §8 规范：禁止 inline style
+
+// 页面容器
+.pageWrapper {
+  // 表格单元格 padding
+  :global {
+    th,
+    td {
+      padding: $spacing-xs !important;
+    }
+  }
+}
+
+// 全宽
+.fullWidth {
+  width: 100%;
+}
+
+// 工具栏
+.toolbar {
+  margin-bottom: 16px;
+}
+
+// 店铺选择器
+.shopSelector {
+  width: 200px;
+}

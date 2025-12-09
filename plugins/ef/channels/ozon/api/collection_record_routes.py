@@ -317,7 +317,7 @@ async def get_records(
 
 @router.get("/daily-stats")
 async def get_listing_daily_stats(
-    shop_id: int = Query(..., description="店铺ID"),
+    shop_id: Optional[int] = Query(None, description="店铺ID（可选，不传则统计所有店铺）"),
     range_type: Optional[str] = Query(
         None, description="时间范围类型：7days/14days/thisMonth/lastMonth/custom"
     ),
@@ -334,7 +334,7 @@ async def get_listing_daily_stats(
     获取每日上架统计数据（统计商品表，按商品在OZON创建的时间）
 
     Args:
-        shop_id: 店铺ID（必填）
+        shop_id: 店铺ID（可选，不传则统计所有店铺，返回多店铺数据）
         range_type: 时间范围类型（后端根据用户时区计算日期）
         start_date: 开始日期（仅 custom 模式）
         end_date: 结束日期（仅 custom 模式）
@@ -342,9 +342,10 @@ async def get_listing_daily_stats(
         current_user: 当前用户
 
     Returns:
-        每日上架数量统计
+        每日上架数量统计（单店铺或多店铺格式）
     """
     from ..models.products import OzonProduct
+    from ..models.ozon_shops import OzonShop
     from sqlalchemy import select, and_
     from zoneinfo import ZoneInfo
 
@@ -367,52 +368,87 @@ async def get_listing_daily_stats(
 
         # 构建查询条件（使用UTC时间戳范围）
         product_filter = [
-            OzonProduct.shop_id == shop_id,
             OzonProduct.ozon_created_at.isnot(None),  # 必须有OZON创建时间
             OzonProduct.ozon_created_at >= start_datetime_utc,
             OzonProduct.ozon_created_at <= end_datetime_utc,
         ]
 
-        # 查询商品数据（不在数据库层面按日期分组，而是查询完整时间戳）
+        # 如果指定了店铺ID，添加店铺筛选条件
+        if shop_id is not None:
+            product_filter.append(OzonProduct.shop_id == shop_id)
+
+        # 查询商品数据（包括 shop_id 用于多店铺分组）
         stats_result = await db.execute(
-            select(OzonProduct.ozon_created_at)
+            select(OzonProduct.ozon_created_at, OzonProduct.shop_id)
             .where(and_(*product_filter))
             .order_by(OzonProduct.ozon_created_at)
         )
-        stats_rows = stats_result.scalars().all()
+        stats_rows = stats_result.all()
 
-        # 组织数据结构
-        # 1. 按日期分组（在Python中转换时区后分组）
-        daily_stats = {}
-        for ozon_created_at in stats_rows:
-            # 将UTC时间转换为全局时区
-            created_at_tz = ozon_created_at.astimezone(tz)
-            # 提取日期
-            date_str = created_at_tz.date().isoformat()
-
-            if date_str not in daily_stats:
-                daily_stats[date_str] = 0
-            daily_stats[date_str] += 1
-
-        # 2. 生成完整的日期序列（填充缺失日期）
+        # 生成完整的日期序列
         all_dates = []
         current_date = start_date_obj
         while current_date <= end_date_obj:
-            date_str = current_date.isoformat()
-            all_dates.append(date_str)
-            if date_str not in daily_stats:
-                daily_stats[date_str] = 0
+            all_dates.append(current_date.isoformat())
             current_date += timedelta(days=1)
 
-        # 计算实际天数
-        actual_days = (end_date_obj - start_date_obj).days + 1
+        # 如果指定了单个店铺，返回简单格式
+        if shop_id is not None:
+            daily_stats = {date: 0 for date in all_dates}
+            for ozon_created_at, _ in stats_rows:
+                created_at_tz = ozon_created_at.astimezone(tz)
+                date_str = created_at_tz.date().isoformat()
+                if date_str in daily_stats:
+                    daily_stats[date_str] += 1
+
+            return {
+                "ok": True,
+                "data": {
+                    "dates": all_dates,
+                    "data": daily_stats,
+                    "total_days": len(all_dates)
+                }
+            }
+
+        # 全部店铺模式：返回多店铺格式（与 stats_routes.py 的 daily-stats 保持一致）
+        # 获取店铺列表及名称
+        shops_result = await db.execute(
+            select(OzonShop.id, OzonShop.shop_name)
+            .where(OzonShop.status == "active")
+        )
+        shops_data = {row[0]: row[1] for row in shops_result.all()}
+
+        # 按日期和店铺分组统计
+        counts: dict[str, dict[str, int]] = {date: {} for date in all_dates}
+        shop_ids_in_data = set()
+
+        for ozon_created_at, product_shop_id in stats_rows:
+            created_at_tz = ozon_created_at.astimezone(tz)
+            date_str = created_at_tz.date().isoformat()
+
+            if date_str in counts:
+                shop_name = shops_data.get(product_shop_id, f"店铺{product_shop_id}")
+                if shop_name not in counts[date_str]:
+                    counts[date_str][shop_name] = 0
+                counts[date_str][shop_name] += 1
+                shop_ids_in_data.add(product_shop_id)
+
+        # 获取有数据的店铺名称列表
+        shops_list = [shops_data.get(sid, f"店铺{sid}") for sid in sorted(shop_ids_in_data)]
+
+        # 确保每个日期的每个店铺都有数据（填充0）
+        for date in all_dates:
+            for shop_name in shops_list:
+                if shop_name not in counts[date]:
+                    counts[date][shop_name] = 0
 
         return {
             "ok": True,
             "data": {
                 "dates": all_dates,
-                "data": daily_stats,
-                "total_days": actual_days
+                "shops": shops_list,
+                "counts": counts,
+                "total_days": len(all_dates)
             }
         }
 

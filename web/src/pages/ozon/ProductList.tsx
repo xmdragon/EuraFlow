@@ -435,8 +435,6 @@ const ProductList: React.FC = () => {
           }
         }}
         onCreateProduct={() => navigate('/dashboard/ozon/products/create')}
-        onListingRecords={() => navigate('/dashboard/ozon/listing-records')}
-        onPromotions={() => navigate('/dashboard/ozon/promotions')}
         stats={globalStats?.products}
       />
 

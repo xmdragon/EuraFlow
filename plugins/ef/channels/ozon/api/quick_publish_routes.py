@@ -275,7 +275,17 @@ async def get_quick_publish_config(
     优化：单次请求获取所有配置，减少网络往返
     """
     try:
-        from ef_core.models.users import user_shops
+        from ef_core.models.users import user_shops, UserSettings
+
+        # 获取用户的店铺名称显示格式设置
+        settings_result = await db.execute(
+            select(UserSettings).where(UserSettings.user_id == user.id)
+        )
+        user_settings = settings_result.scalar_one_or_none()
+        # 默认格式：both（俄文【中文】）
+        shop_name_format = 'both'
+        if user_settings and user_settings.display:
+            shop_name_format = user_settings.display.get('shop_name_format', 'both')
 
         # 1. 获取店铺列表（根据用户角色和权限）
         if user.role == "admin":
@@ -290,14 +300,14 @@ async def get_quick_publish_config(
         shops_result = await db.execute(stmt.order_by(OzonShop.shop_name))
         shops = shops_result.scalars().all()
 
-        # 2. 获取所有店铺的仓库（批量查询，避免N+1）
+        # 2. 获取所有店铺的仓库（批量查询，避免N+1，按创建顺序排序）
         shop_ids = [shop.id for shop in shops]
         if shop_ids:
             warehouses_result = await db.execute(
                 select(OzonWarehouse)
                 .where(OzonWarehouse.shop_id.in_(shop_ids))
                 .where(OzonWarehouse.status == 'created')
-                .order_by(OzonWarehouse.shop_id, OzonWarehouse.is_rfbs.desc(), OzonWarehouse.name)
+                .order_by(OzonWarehouse.shop_id, OzonWarehouse.created_at)
             )
             all_warehouses = warehouses_result.scalars().all()
 
@@ -348,12 +358,23 @@ async def get_quick_publish_config(
         else:
             logger.warning("没有找到激活的图床配置，返回空水印列表")
 
-        # 4. 组装返回数据
+        # 4. 组装返回数据（根据用户设置格式化店铺名称）
+        def format_shop_display_name(shop_obj, fmt: str) -> str:
+            """根据用户设置格式化店铺显示名称"""
+            if fmt == 'ru':
+                return shop_obj.shop_name
+            elif fmt == 'cn':
+                return shop_obj.shop_name_cn or shop_obj.shop_name
+            else:  # both
+                if shop_obj.shop_name_cn:
+                    return f"{shop_obj.shop_name}【{shop_obj.shop_name_cn}】"
+                return shop_obj.shop_name
+
         shops_data = []
         for shop in shops:
             shops_data.append({
                 "id": shop.id,
-                "display_name": shop.shop_name_cn or shop.shop_name,
+                "display_name": format_shop_display_name(shop, shop_name_format),
                 "shop_name": shop.shop_name,  # 俄文名
                 "shop_name_cn": shop.shop_name_cn or "",  # 中文名
                 "client_id": shop.client_id,  # OZON Client ID（用于切换店铺）

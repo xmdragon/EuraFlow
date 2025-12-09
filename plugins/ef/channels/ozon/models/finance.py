@@ -145,30 +145,44 @@ class OzonFinanceSyncWatermark(Base):
     )
 
 
-def calculate_billing_period(scheduled_payment_date: date) -> Tuple[date, date]:
+def calculate_billing_period_by_payment_date(payment_date: date) -> Tuple[date, date]:
     """
-    根据计划付款日期计算账单周期
-    规则：计划付款日期 - 15 天 = 周期结束日
+    根据付款日期推算账单周期
+
+    规则（基于 OZON 付款时间线）：
+    - 付款日在某月 1-15 号 → 对应上月 16-月末的周期
+    - 付款日在某月 16-月末 → 对应当月 1-15 号的周期
 
     示例：
-    - 计划付款日 2025-12-15 → 减15天 → 2025-11-30 → 周期 2025-11-16 至 2025-11-30
-    - 计划付款日 2025-11-25 → 减15天 → 2025-11-10 → 周期 2025-11-01 至 2025-11-15
+    - 付款日 2025-11-10 → 对应周期 2025-10-16 至 2025-10-31
+    - 付款日 2025-11-20 → 对应周期 2025-11-01 至 2025-11-15
     """
-    # 减去15天得到周期结束日附近
-    period_end_approx = scheduled_payment_date - timedelta(days=15)
+    if payment_date.day <= 15:
+        # 付款日在上半月 → 对应上月下半月周期
+        if payment_date.month == 1:
+            prev_year = payment_date.year - 1
+            prev_month = 12
+        else:
+            prev_year = payment_date.year
+            prev_month = payment_date.month - 1
 
-    if period_end_approx.day <= 15:
-        # 周期是当月 1-15 日
-        period_start = period_end_approx.replace(day=1)
-        period_end = period_end_approx.replace(day=15)
+        period_start = date(prev_year, prev_month, 16)
+        _, last_day = monthrange(prev_year, prev_month)
+        period_end = date(prev_year, prev_month, last_day)
     else:
-        # 周期是当月 16-月末
-        period_start = period_end_approx.replace(day=16)
-        # 获取月末
-        _, last_day = monthrange(period_end_approx.year, period_end_approx.month)
-        period_end = period_end_approx.replace(day=last_day)
+        # 付款日在下半月 → 对应当月上半月周期
+        period_start = date(payment_date.year, payment_date.month, 1)
+        period_end = date(payment_date.year, payment_date.month, 15)
 
     return period_start, period_end
+
+
+def calculate_billing_period(scheduled_payment_date: date) -> Tuple[date, date]:
+    """
+    根据计划付款日期计算账单周期（兼容旧逻辑，不推荐使用）
+    请使用 calculate_billing_period_by_payment_date 代替
+    """
+    return calculate_billing_period_by_payment_date(scheduled_payment_date)
 
 
 class OzonInvoicePayment(Base):
@@ -207,8 +221,8 @@ class OzonInvoicePayment(Base):
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, comment="记录更新时间")
 
     __table_args__ = (
-        # 唯一约束：店铺+计划付款日期+金额（避免重复记录）
-        UniqueConstraint("shop_id", "scheduled_payment_date", "amount_cny", name="uq_ozon_invoice_payment"),
+        # 唯一约束：店铺+周期+付款类型（一个店铺一个周期只能有一条款项）
+        UniqueConstraint("shop_id", "period_start", "period_end", "payment_type", name="uq_ozon_invoice_payment_period"),
         # 按周期查询
         Index("idx_ozon_invoice_payment_shop_period", "shop_id", "period_start", "period_end"),
     )

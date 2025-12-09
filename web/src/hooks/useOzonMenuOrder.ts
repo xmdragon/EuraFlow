@@ -15,6 +15,7 @@ const DEFAULT_ORDER = [
   'ozon-stock',              // 库存管理
   'ozon-cancel-return',      // 取消退货
   'ozon-finance-transactions', // 财务记录
+  'ozon-warehouses',         // 仓库列表
   'ozon-promotions',         // 促销活动
   'ozon-chats',              // 聊天管理
 ];

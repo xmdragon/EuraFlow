@@ -130,6 +130,7 @@ const ListingRecords: React.FC = () => {
   const [statsModalVisible, setStatsModalVisible] = useState(false);
   const [timeRangeType, setTimeRangeType] = useState<'7days' | '14days' | 'thisMonth' | 'lastMonth' | 'custom'>('14days');
   const [customDateRange, setCustomDateRange] = useState<[Dayjs | null, Dayjs | null]>([null, null]);
+  const [displayMode, setDisplayMode] = useState<'single' | 'total'>('total'); // single: 单店显示, total: 汇总显示
 
   // 计算日期范围参数（后端会根据用户时区处理）
   const dateRangeParams = useMemo(() => {
@@ -167,7 +168,7 @@ const ListingRecords: React.FC = () => {
   // 获取当前选中店铺的名称
   const selectedShopName = selectedShop
     ? shops.find((s) => s.id === selectedShop)?.shop_name || '未知店铺'
-    : '';
+    : '全部店铺';
 
   // 查询上架记录列表
   const { data, isLoading } = useQuery({
@@ -193,34 +194,88 @@ const ListingRecords: React.FC = () => {
   const { data: dailyStatsData, isLoading: isDailyStatsLoading } = useQuery({
     queryKey: ['listing-records-daily-stats', selectedShop, dateRangeParams],
     queryFn: async () => {
-      if (!selectedShop) return null;
+      const params: Record<string, unknown> = {
+        range_type: dateRangeParams.rangeType,
+        start_date: dateRangeParams.startDate,
+        end_date: dateRangeParams.endDate,
+      };
 
-      const response = await axios.get('/api/ef/v1/ozon/collection-records/daily-stats', {
-        params: {
-          shop_id: selectedShop,
-          range_type: dateRangeParams.rangeType,
-          start_date: dateRangeParams.startDate,
-          end_date: dateRangeParams.endDate,
-        },
-      });
+      // 如果选择了特定店铺，添加 shop_id
+      if (selectedShop !== null) {
+        params.shop_id = selectedShop;
+      }
 
+      const response = await axios.get('/api/ef/v1/ozon/collection-records/daily-stats', { params });
       return response.data.data;
     },
-    enabled: selectedShop !== null && statsModalVisible,
+    enabled: statsModalVisible,
   });
 
-  // 转换图表数据 - Recharts格式
+  // 计算日期范围显示文本
+  const dateRangeLabel = useMemo(() => {
+    if (!dailyStatsData || !dailyStatsData.dates || dailyStatsData.dates.length === 0) {
+      return '总计';
+    }
+    const startDate = dailyStatsData.dates[0];
+    const endDate = dailyStatsData.dates[dailyStatsData.dates.length - 1];
+    return `总计 (${startDate} ~ ${endDate})`;
+  }, [dailyStatsData]);
+
+  // 图表颜色配置
+  const CHART_COLORS = [
+    '#1890ff',
+    '#52c41a',
+    '#faad14',
+    '#f5222d',
+    '#722ed1',
+    '#13c2c2',
+    '#eb2f96',
+    '#fa8c16',
+    '#a0d911',
+    '#2f54eb',
+  ];
+
+  // 转换图表数据 - Recharts格式（支持单店铺和多店铺）
   const chartData = useMemo(() => {
     if (!dailyStatsData || !dailyStatsData.dates) return [];
 
-    return dailyStatsData.dates.map((date: string) => {
-      const displayDate = dayjs(date).format('MM-DD');
-      return {
-        date: displayDate,
-        count: dailyStatsData.data[date] || 0,
-      };
-    });
-  }, [dailyStatsData]);
+    // 单店铺模式（有 data 字段）
+    if (dailyStatsData.data && !dailyStatsData.shops) {
+      return dailyStatsData.dates.map((date: string) => {
+        const displayDate = dayjs(date).format('MM-DD');
+        return {
+          date: displayDate,
+          [selectedShopName]: dailyStatsData.data[date] || 0,
+        };
+      });
+    }
+
+    // 多店铺模式（有 shops 和 counts 字段）
+    if (dailyStatsData.shops && dailyStatsData.counts) {
+      return dailyStatsData.dates.map((date: string) => {
+        const displayDate = dayjs(date).format('MM-DD');
+        const dayData: Record<string, string | number> = { date: displayDate };
+
+        if (displayMode === 'total' && selectedShop === null) {
+          // 汇总模式：计算所有店铺的总和
+          let total = 0;
+          dailyStatsData.shops.forEach((shop: string) => {
+            total += dailyStatsData.counts[date]?.[shop] || 0;
+          });
+          dayData[dateRangeLabel] = total;
+        } else {
+          // 单店模式：显示各店铺独立数据
+          dailyStatsData.shops.forEach((shop: string) => {
+            dayData[shop] = dailyStatsData.counts[date]?.[shop] || 0;
+          });
+        }
+
+        return dayData;
+      });
+    }
+
+    return [];
+  }, [dailyStatsData, displayMode, selectedShop, selectedShopName, dateRangeLabel]);
 
   // 查看记录详情
   const handleView = (record: ListingRecord) => {
@@ -447,7 +502,6 @@ const ListingRecords: React.FC = () => {
               type="primary"
               icon={<LineChartOutlined />}
               onClick={() => setStatsModalVisible(true)}
-              disabled={!selectedShop}
             >
               统计
             </Button>
@@ -530,6 +584,20 @@ const ListingRecords: React.FC = () => {
                 placeholder={['开始日期', '结束日期']}
               />
             )}
+            {selectedShop === null && (
+              <>
+                <Text strong style={{ marginLeft: 16 }}>显示模式：</Text>
+                <Select
+                  value={displayMode}
+                  onChange={setDisplayMode}
+                  style={{ width: 120 }}
+                  options={[
+                    { label: '汇总显示', value: 'total' },
+                    { label: '单店显示', value: 'single' },
+                  ]}
+                />
+              </>
+            )}
           </Space>
         </Card>
 
@@ -540,7 +608,7 @@ const ListingRecords: React.FC = () => {
           </div>
         ) : chartData.length > 0 ? (
           <ResponsiveContainer width="100%" height={400}>
-            <LineChart data={chartData} margin={{ top: 20, right: 30, bottom: 20, left: 20 }}>
+            <LineChart data={chartData} margin={{ top: 20, right: 80, bottom: 20, left: 20 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis
                 dataKey="date"
@@ -549,10 +617,11 @@ const ListingRecords: React.FC = () => {
                 height={80}
                 tick={{ fontSize: 12 }}
               />
-              <YAxis />
+              <YAxis domain={[0, (dataMax: number) => Math.ceil(dataMax * 1.1)]} />
               <RechartsTooltip
                 content={({ active, payload, label }) => {
                   if (active && payload && payload.length) {
+                    const total = payload.reduce((sum: number, item: { value?: number }) => sum + (item.value || 0), 0);
                     return (
                       <div
                         style={{
@@ -564,9 +633,22 @@ const ListingRecords: React.FC = () => {
                         }}
                       >
                         <p style={{ margin: '0 0 5px 0', fontWeight: 'bold' }}>{label}</p>
-                        <p style={{ margin: 0, color: '#1890ff' }}>
-                          上架数量: {payload[0].value}
-                        </p>
+                        {payload.length === 1 ? (
+                          <p style={{ margin: 0, color: '#1890ff' }}>
+                            上架数量: {payload[0].value}
+                          </p>
+                        ) : (
+                          <>
+                            {payload.map((item: { name?: string; value?: number; color?: string }, index: number) => (
+                              <p key={index} style={{ margin: '2px 0', color: item.color }}>
+                                {item.name}: {item.value}
+                              </p>
+                            ))}
+                            <p style={{ margin: '5px 0 0 0', fontWeight: 'bold', borderTop: '1px solid #ddd', paddingTop: '5px' }}>
+                              总计: {total}
+                            </p>
+                          </>
+                        )}
                       </div>
                     );
                   }
@@ -574,15 +656,56 @@ const ListingRecords: React.FC = () => {
                 }}
               />
               <Legend />
-              <Line
-                type="monotone"
-                dataKey="count"
-                name="上架数量"
-                stroke="#1890ff"
-                strokeWidth={2}
-                dot={{ r: 4 }}
-                activeDot={{ r: 6 }}
-              />
+              {/* 根据数据类型渲染不同的折线 */}
+              {(() => {
+                // 单店铺模式（选择了特定店铺）
+                if (selectedShop !== null) {
+                  return (
+                    <Line
+                      type="monotone"
+                      dataKey={selectedShopName}
+                      name={selectedShopName}
+                      stroke={CHART_COLORS[0]}
+                      strokeWidth={2}
+                      dot={{ r: 4 }}
+                      activeDot={{ r: 6 }}
+                    />
+                  );
+                }
+
+                // 多店铺汇总模式
+                if (displayMode === 'total') {
+                  return (
+                    <Line
+                      type="monotone"
+                      dataKey={dateRangeLabel}
+                      name={dateRangeLabel}
+                      stroke={CHART_COLORS[0]}
+                      strokeWidth={2}
+                      dot={{ r: 4 }}
+                      activeDot={{ r: 6 }}
+                    />
+                  );
+                }
+
+                // 多店铺单店显示模式
+                if (dailyStatsData?.shops) {
+                  return dailyStatsData.shops.map((shop: string, index: number) => (
+                    <Line
+                      key={shop}
+                      type="monotone"
+                      dataKey={shop}
+                      name={shop}
+                      stroke={CHART_COLORS[index % CHART_COLORS.length]}
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                      activeDot={{ r: 5 }}
+                    />
+                  ));
+                }
+
+                return null;
+              })()}
             </LineChart>
           </ResponsiveContainer>
         ) : (
