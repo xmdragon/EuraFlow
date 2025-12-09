@@ -407,6 +407,18 @@ async def get_statistics(
         )
         total_balance = balance_result.scalar() or Decimal('0')
 
+        # 获取 RUB -> CNY 汇率并计算人民币金额
+        total_balance_cny = Decimal('0')
+        rub_to_cny_rate = Decimal('0')
+        try:
+            from ef_core.services.exchange_rate_service import ExchangeRateService
+            exchange_service = ExchangeRateService()
+            rub_to_cny_rate = await exchange_service.get_rate(db, from_currency='RUB', to_currency='CNY')
+            if rub_to_cny_rate and total_balance:
+                total_balance_cny = total_balance * rub_to_cny_rate
+        except Exception as e:
+            logger.warning(f"获取汇率失败: {e}")
+
         # 构建响应数据
         result = {
             "products": {
@@ -434,7 +446,9 @@ async def get_statistics(
                 "month": str(month_revenue)
             },
             "balance": {
-                "total_rub": str(total_balance)
+                "total_rub": str(total_balance),
+                "total_cny": str(total_balance_cny.quantize(Decimal('0.01'))),
+                "rate": str(rub_to_cny_rate.quantize(Decimal('0.0001'))) if rub_to_cny_rate else "0"
             }
         }
 

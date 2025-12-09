@@ -152,6 +152,10 @@ const OzonOverview: React.FC = () => {
       week: statisticsData?.revenue?.week || 0,
       month: statisticsData?.revenue?.month || 0,
     },
+    balance: {
+      total_rub: parseFloat(statisticsData?.balance?.total_rub || '0'),
+      total_cny: parseFloat(statisticsData?.balance?.total_cny || '0'),
+    },
   };
 
   // 计算日期范围显示文本
@@ -477,14 +481,10 @@ const OzonOverview: React.FC = () => {
             <Card>
               <Statistic
                 title="当前余额"
-                value={
-                  selectedShop
-                    ? shops?.data?.find((s: { id: number }) => s.id === selectedShop)?.current_balance_rub ?? 0
-                    : shops?.data?.reduce((sum: number, s: { current_balance_rub?: number }) => sum + (s.current_balance_rub || 0), 0) || 0
-                }
+                value={stats.balance.total_rub}
                 precision={2}
                 prefix={<WalletOutlined />}
-                suffix="₽"
+                suffix={<span>₽ <span style={{ fontSize: '14px', color: '#8c8c8c' }}>(≈ ¥{stats.balance.total_cny.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span></span>}
               />
             </Card>
           </Col>
