@@ -53,6 +53,93 @@ class ShopResponseDTO(BaseModel):
     updated_at: datetime
 
 
+@router.get("/shops/management")
+async def get_shops_for_management(
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
+):
+    """
+    获取店铺列表（用于店铺管理页面）
+
+    权限控制：
+    - admin: 可以看到所有店铺，都可以编辑
+    - manager/sub_account: 可以看到自己创建的店铺（可编辑）和有权限的店铺（只读）
+    """
+    from ef_core.models.users import user_shops
+
+    # 获取用户关联的店铺ID
+    user_shop_stmt = select(user_shops.c.shop_id).where(user_shops.c.user_id == current_user.id)
+    user_shop_result = await db.execute(user_shop_stmt)
+    user_shop_ids = set(row[0] for row in user_shop_result.fetchall())
+
+    if current_user.role == "admin":
+        # admin 返回所有店铺
+        stmt = select(OzonShop)
+    else:
+        # 其他用户：获取自己创建的店铺 + 有权限的店铺
+        stmt = select(OzonShop).where(
+            (OzonShop.owner_user_id == current_user.id) | (OzonShop.id.in_(user_shop_ids))
+        )
+
+    result = await db.execute(stmt.order_by(OzonShop.created_at.desc()))
+    shops = result.scalars().all()
+
+    if not shops:
+        return {"data": []}
+
+    # 获取店铺统计数据
+    shop_ids = [shop.id for shop in shops]
+
+    # 获取所有店铺的商品数量
+    products_stmt = (
+        select(OzonProduct.shop_id, func.count(OzonProduct.id).label('count'))
+        .where(OzonProduct.shop_id.in_(shop_ids))
+        .group_by(OzonProduct.shop_id)
+    )
+    products_result = await db.execute(products_stmt)
+    products_count_map = {row.shop_id: row.count for row in products_result}
+
+    # 获取所有店铺的订单数量
+    postings_stmt = (
+        select(OzonPosting.shop_id, func.count(OzonPosting.id).label('count'))
+        .where(OzonPosting.shop_id.in_(shop_ids))
+        .group_by(OzonPosting.shop_id)
+    )
+    postings_result = await db.execute(postings_stmt)
+    orders_count_map = {row.shop_id: row.count for row in postings_result}
+
+    # 获取所有创建者信息
+    owner_ids = list(set(shop.owner_user_id for shop in shops if shop.owner_user_id))
+    owner_map = {}
+    if owner_ids:
+        owner_stmt = select(User.id, User.username).where(User.id.in_(owner_ids))
+        owner_result = await db.execute(owner_stmt)
+        owner_map = {row.id: row.username for row in owner_result}
+
+    # 组装响应数据
+    shops_data = []
+    for shop in shops:
+        # 判断是否可编辑：admin可编辑所有，其他用户只能编辑自己创建的
+        can_edit = current_user.role == "admin" or shop.owner_user_id == current_user.id
+
+        shop_dict = shop.to_dict(include_credentials=can_edit)  # 只有可编辑的店铺才返回凭证
+
+        shop_dict["owner_user_id"] = shop.owner_user_id
+        shop_dict["owner_username"] = owner_map.get(shop.owner_user_id, "-")
+        shop_dict["can_edit"] = can_edit
+
+        shop_dict["stats"] = {
+            "total_products": products_count_map.get(shop.id, 0),
+            "total_orders": orders_count_map.get(shop.id, 0),
+            "last_sync_at": shop.last_sync_at.isoformat() if shop.last_sync_at else None,
+            "sync_status": "success" if shop.last_sync_at else "pending"
+        }
+
+        shops_data.append(shop_dict)
+
+    return {"data": shops_data}
+
+
 @router.get("/shops")
 async def get_shops(
     include_stats: bool = Query(False, description="是否包含统计数据（商品数、订单数）"),
@@ -149,6 +236,34 @@ async def create_shop(
     """创建新的 Ozon 店铺（需要操作员权限）"""
     from ef_core.models.users import user_shops
     from sqlalchemy import insert
+    from sqlalchemy.orm import selectinload
+
+    # 检查店铺数量限额（仅对 manager 角色）
+    if current_user.role == "manager":
+        # 加载 manager_level 关系
+        stmt = select(User).options(selectinload(User.manager_level)).where(User.id == current_user.id)
+        result = await db.execute(stmt)
+        manager = result.scalar_one_or_none()
+
+        if manager and manager.manager_level:
+            # 查询当前用户拥有的店铺数量
+            shop_count_stmt = select(func.count()).select_from(OzonShop).where(OzonShop.owner_user_id == current_user.id)
+            shop_count_result = await db.execute(shop_count_stmt)
+            current_shop_count = shop_count_result.scalar()
+
+            max_shops = manager.manager_level.max_shops
+            if current_shop_count >= max_shops:
+                if max_shops == 0:
+                    error_msg = "您的账号级别不允许创建店铺"
+                else:
+                    error_msg = f"不能创建更多店铺，已达上限（{max_shops}个）"
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "code": "QUOTA_EXCEEDED",
+                        "message": error_msg
+                    }
+                )
 
     new_shop = OzonShop(
         shop_name=shop_data.shop_name,

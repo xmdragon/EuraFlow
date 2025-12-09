@@ -1,0 +1,49 @@
+@use '@/styles/variables' as *;
+
+.pageWrapper {
+  padding: 0 8px;
+}
+
+.contentContainer {
+  padding: 0 8px;
+}
+
+.loadingContainer {
+  padding: 40px;
+  text-align: center;
+}
+
+.loadingText {
+  margin-top: 8px;
+  color: #999;
+}
+
+.shopListCard {
+  margin-bottom: $spacing-lg;
+}
+
+.addButtonRow {
+  margin-bottom: $spacing-md;
+  display: flex;
+  gap: $spacing-md;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 40px 0;
+}
+
+.emptyIcon {
+  font-size: 48px;
+  color: #ccc;
+  margin-bottom: $spacing-md;
+}
+
+.emptyText {
+  display: block;
+  margin-bottom: $spacing-lg;
+}
+
+.currentShopAlert {
+  margin-bottom: $spacing-lg;
+}

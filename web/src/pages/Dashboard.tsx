@@ -21,6 +21,10 @@ import {
   CloseOutlined,
   CloseCircleOutlined,
   KeyOutlined,
+  CrownOutlined,
+  CaretUpFilled,
+  PushpinOutlined,
+  HomeOutlined,
 } from "@ant-design/icons";
 import {
   Layout,
@@ -28,12 +32,14 @@ import {
   Avatar,
   Dropdown,
   Typography,
+  Tooltip,
   Card,
   Row,
   Col,
   Spin,
   Button,
 } from "antd";
+import type { MenuProps } from "antd";
 import React, { Suspense, useState, useEffect } from "react";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 
@@ -45,7 +51,8 @@ const OzonManagement = lazyWithRetry(() => import("./ozon"));
 const SystemManagement = lazyWithRetry(() => import("./system"));
 const Profile = lazyWithRetry(() => import("./Profile"));
 const ApiKeys = lazyWithRetry(() => import("./ApiKeys"));
-const UserManagement = lazyWithRetry(() => import("./UserManagement"));
+const UserManagement = lazyWithRetry(() => import("./users"));
+const ShopManagement = lazyWithRetry(() => import("./shops"));
 
 import styles from "./Dashboard.module.scss";
 
@@ -54,6 +61,7 @@ import PageTitle from "@/components/PageTitle";
 import QuickAccessButton from "@/components/QuickAccessButton";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuickMenu } from "@/hooks/useQuickMenu";
+import { useOzonMenuOrder } from "@/hooks/useOzonMenuOrder";
 import type { User } from "@/types/auth";
 
 // 加载中组件
@@ -78,6 +86,7 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { quickMenuItems, addQuickMenu, removeQuickMenu, isInQuickMenu } = useQuickMenu();
+  const { menuOrder, moveUp } = useOzonMenuOrder();
 
   // 侧边栏折叠状态，从 localStorage 读取初始值
   const [collapsed, setCollapsed] = useState<boolean>(() => {
@@ -90,6 +99,7 @@ const Dashboard: React.FC = () => {
     const path = location.pathname;
     if (path.includes("/ozon")) return ["ozon"];
     if (path.includes("/system")) return ["system"];
+    if (path.includes("/users")) return ["users"];
     return [];
   });
 
@@ -101,7 +111,7 @@ const Dashboard: React.FC = () => {
   // 处理菜单展开/收起（手风琴效果）
   const handleOpenChange = (keys: string[]) => {
     // 定义有子菜单的根级菜单组
-    const rootSubmenuKeys = ['ozon', 'system'];
+    const rootSubmenuKeys = ['ozon', 'system', 'users'];
 
     // 获取最新展开的菜单 key
     const latestOpenKey = keys.find((key) => openKeys.indexOf(key) === -1);
@@ -147,7 +157,7 @@ const Dashboard: React.FC = () => {
     UserOutlined: <UserOutlined />,
   };
 
-  const userMenuItems = [
+  const userMenuItems: MenuProps['items'] = [
     {
       key: "profile",
       icon: <UserOutlined />,
@@ -160,7 +170,7 @@ const Dashboard: React.FC = () => {
       label: "API KEY",
       onClick: () => navigate("/dashboard/api-keys"),
     },
-    { type: "divider" as const },
+    { type: "divider", key: "divider-1" },
     {
       key: "logout",
       icon: <LogoutOutlined />,
@@ -198,8 +208,8 @@ const Dashboard: React.FC = () => {
   const menuItems = [
     {
       key: "dashboard",
-      icon: <DashboardOutlined />,
-      label: createMenuLabel("dashboard", "仪表板", "/dashboard"),
+      icon: <HomeOutlined />,
+      label: createMenuLabel("dashboard", "首页", "/dashboard"),
       onClick: () => navigate("/dashboard"),
     },
     {
@@ -212,139 +222,148 @@ const Dashboard: React.FC = () => {
       key: "ozon",
       icon: <ShopOutlined />,
       label: "Ozon管理",
-      children: [
-        {
-          key: "ozon-overview",
-          icon: <DashboardOutlined />,
-          label: createMenuLabel("ozon-overview", "概览", "/dashboard/ozon/overview"),
-          onClick: () => navigate("/dashboard/ozon/overview"),
-        },
-        {
-          key: "ozon-selection",
-          icon: <FilterOutlined />,
-          label: createMenuLabel("ozon-selection", "选品助手", "/dashboard/ozon/selection"),
-          onClick: () => navigate("/dashboard/ozon/selection"),
-        },
-        {
-          key: "ozon-products-list",
-          icon: <ShoppingOutlined />,
-          label: createMenuLabel("ozon-products-list", "商品列表", "/dashboard/ozon/products"),
-          onClick: () => navigate("/dashboard/ozon/products"),
-        },
-        {
-          key: "ozon-listing-records",
-          icon: <CloudUploadOutlined />,
-          label: createMenuLabel("ozon-listing-records", "上架记录", "/dashboard/ozon/listing-records"),
-          onClick: () => navigate("/dashboard/ozon/listing-records"),
-        },
-        {
-          key: "ozon-collection-records",
-          icon: <DatabaseOutlined />,
-          label: createMenuLabel("ozon-collection-records", "采集记录", "/dashboard/ozon/collection-records"),
-          onClick: () => navigate("/dashboard/ozon/collection-records"),
-        },
-        {
-          key: "ozon-promotions",
-          icon: <DollarOutlined />,
-          label: createMenuLabel("ozon-promotions", "促销活动", "/dashboard/ozon/promotions"),
-          onClick: () => navigate("/dashboard/ozon/promotions"),
-        },
-        {
-          key: "ozon-orders",
-          icon: <ShoppingCartOutlined />,
-          label: createMenuLabel("ozon-orders", "订单管理", "/dashboard/ozon/orders"),
-          onClick: () => navigate("/dashboard/ozon/orders"),
-        },
-        {
-          key: "ozon-packing",
-          icon: <ShoppingCartOutlined />,
-          label: createMenuLabel("ozon-packing", "打包发货", "/dashboard/ozon/packing"),
-          onClick: () => navigate("/dashboard/ozon/packing"),
-        },
-        {
-          key: "ozon-reports",
-          icon: <FileTextOutlined />,
-          label: createMenuLabel("ozon-reports", "订单报表", "/dashboard/ozon/reports"),
-          onClick: () => navigate("/dashboard/ozon/reports"),
-        },
-        {
-          key: "ozon-cancel-return",
-          icon: <CloseCircleOutlined />,
-          label: createMenuLabel("ozon-cancel-return", "取消和退货", "/dashboard/ozon/cancel-return"),
-          onClick: () => navigate("/dashboard/ozon/cancel-return"),
-        },
-        {
-          key: "ozon-stock",
-          icon: <DatabaseOutlined />,
-          label: createMenuLabel("ozon-stock", "库存管理", "/dashboard/ozon/stock"),
-          onClick: () => navigate("/dashboard/ozon/stock"),
-        },
-        {
-          key: "ozon-finance-transactions",
-          icon: <DollarOutlined />,
-          label: createMenuLabel("ozon-finance-transactions", "财务交易", "/dashboard/ozon/finance-transactions"),
-          onClick: () => navigate("/dashboard/ozon/finance-transactions"),
-        },
-        {
-          key: "ozon-chats",
-          icon: <MessageOutlined />,
-          label: createMenuLabel("ozon-chats", "聊天管理", "/dashboard/ozon/chats"),
-          onClick: () => navigate("/dashboard/ozon/chats"),
-        },
-      ],
+      children: (() => {
+        // Ozon 子菜单配置（使用新名称）
+        const ozonMenuConfig: Record<string, { icon: React.ReactNode; label: string; path: string }> = {
+          'ozon-overview': { icon: <DashboardOutlined />, label: '店铺概览', path: '/dashboard/ozon/overview' },
+          'ozon-packing': { icon: <ShoppingCartOutlined />, label: '打包发货', path: '/dashboard/ozon/packing' },
+          'ozon-orders': { icon: <ShoppingCartOutlined />, label: '订单管理', path: '/dashboard/ozon/orders' },
+          'ozon-products-list': { icon: <ShoppingOutlined />, label: '商品列表', path: '/dashboard/ozon/products' },
+          'ozon-reports': { icon: <FileTextOutlined />, label: '订单报表', path: '/dashboard/ozon/reports' },
+          'ozon-selection': { icon: <FilterOutlined />, label: '选品助手', path: '/dashboard/ozon/selection' },
+          'ozon-listing-records': { icon: <CloudUploadOutlined />, label: '上架记录', path: '/dashboard/ozon/listing-records' },
+          'ozon-collection-records': { icon: <DatabaseOutlined />, label: '采集记录', path: '/dashboard/ozon/collection-records' },
+          'ozon-stock': { icon: <DatabaseOutlined />, label: '库存管理', path: '/dashboard/ozon/stock' },
+          'ozon-cancel-return': { icon: <CloseCircleOutlined />, label: '取消退货', path: '/dashboard/ozon/cancel-return' },
+          'ozon-finance-transactions': { icon: <DollarOutlined />, label: '财务记录', path: '/dashboard/ozon/finance-transactions' },
+          'ozon-promotions': { icon: <DollarOutlined />, label: '促销活动', path: '/dashboard/ozon/promotions' },
+          'ozon-chats': { icon: <MessageOutlined />, label: '聊天管理', path: '/dashboard/ozon/chats' },
+        };
+
+        // 创建带上移按钮的 Ozon 菜单标签
+        const createOzonMenuLabel = (key: string, label: string, path: string, index: number) => {
+          const isAdded = isInQuickMenu(key);
+          return (
+            <div className={styles.menuItemWrapper}>
+              <span>{label}</span>
+              {!collapsed && index > 0 && (
+                <Tooltip title="上移此菜单" placement="top">
+                  <Button
+                    type="text"
+                    size="small"
+                    className={styles.moveUpButton}
+                    icon={<CaretUpFilled />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      moveUp(key);
+                    }}
+                  />
+                </Tooltip>
+              )}
+              {!collapsed && (
+                <Tooltip title={isAdded ? "已添加到首页快捷菜单" : "添加到首页快捷菜单"} placement="top">
+                  <Button
+                    type="text"
+                    size="small"
+                    className={styles.addMenuButton}
+                    icon={isAdded ? <CheckOutlined /> : <PushpinOutlined />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!isAdded) {
+                        handleAddQuickMenu(key, label, path);
+                      }
+                    }}
+                  />
+                </Tooltip>
+              )}
+            </div>
+          );
+        };
+
+        // 根据用户自定义顺序生成菜单项
+        return menuOrder.map((key, index) => {
+          const config = ozonMenuConfig[key];
+          if (!config) return null;
+          return {
+            key,
+            icon: config.icon,
+            label: createOzonMenuLabel(key, config.label, config.path, index),
+            onClick: () => navigate(config.path),
+          };
+        }).filter(Boolean);
+      })(),
     },
-    // 系统管理菜单 - 根据角色显示不同子菜单
-    ...(user?.role === "admin" || user?.role === "operator"
+    // 系统管理菜单 - 仅超级管理员可见
+    ...(user?.role === "admin"
       ? [
           {
             key: "system",
             icon: <AppstoreOutlined />,
             label: "系统管理",
             children: [
-              // 后台服务 - 仅管理员可见
-              ...(user?.role === "admin"
-                ? [
-                    {
-                      key: "system-sync-services",
-                      icon: <SyncOutlined />,
-                      label: createMenuLabel("system-sync-services", "后台服务", "/dashboard/system/sync-services"),
-                      onClick: () => navigate("/dashboard/system/sync-services"),
-                    },
-                  ]
-                : []),
-              // 系统配置 - 管理员和操作员都可见
+              {
+                key: "system-sync-services",
+                icon: <SyncOutlined />,
+                label: createMenuLabel("system-sync-services", "后台服务", "/dashboard/system/sync-services"),
+                onClick: () => navigate("/dashboard/system/sync-services"),
+              },
               {
                 key: "system-configuration",
                 icon: <SettingOutlined />,
                 label: createMenuLabel("system-configuration", "系统配置", "/dashboard/system/configuration"),
                 onClick: () => navigate("/dashboard/system/configuration"),
               },
-              // 水印管理 - 管理员和操作员都可见
               {
                 key: "system-watermark",
                 icon: <PictureOutlined />,
                 label: createMenuLabel("system-watermark", "水印管理", "/dashboard/system/watermark"),
                 onClick: () => navigate("/dashboard/system/watermark"),
               },
-              // 图床资源 - 仅管理员可见
+              {
+                key: "system-image-storage",
+                icon: <CloudUploadOutlined />,
+                label: createMenuLabel("system-image-storage", "图床资源", "/dashboard/system/image-storage"),
+                onClick: () => navigate("/dashboard/system/image-storage"),
+              },
+              {
+                key: "system-logs",
+                icon: <FileTextOutlined />,
+                label: createMenuLabel("system-logs", "日志管理", "/dashboard/system/logs"),
+                onClick: () => navigate("/dashboard/system/logs"),
+              },
+            ],
+          },
+        ]
+      : []),
+    // 店铺管理 - admin、manager 和 sub_account 可见
+    {
+      key: "shops",
+      icon: <ShopOutlined />,
+      label: createMenuLabel("shops", "店铺管理", "/dashboard/shops"),
+      onClick: () => navigate("/dashboard/shops"),
+    },
+    // 用户管理 - admin 和 manager 可见
+    ...(user?.role === "admin" || user?.role === "manager"
+      ? [
+          {
+            key: "users",
+            icon: <UserOutlined />,
+            label: "用户管理",
+            children: [
+              {
+                key: "users-list",
+                icon: <UserOutlined />,
+                label: createMenuLabel("users-list", "用户列表", "/dashboard/users"),
+                onClick: () => navigate("/dashboard/users"),
+              },
+              // 用户级别 - 仅超级管理员可见
               ...(user?.role === "admin"
                 ? [
                     {
-                      key: "system-image-storage",
-                      icon: <CloudUploadOutlined />,
-                      label: createMenuLabel("system-image-storage", "图床资源", "/dashboard/system/image-storage"),
-                      onClick: () => navigate("/dashboard/system/image-storage"),
-                    },
-                  ]
-                : []),
-              // 日志管理 - 仅管理员可见
-              ...(user?.role === "admin"
-                ? [
-                    {
-                      key: "system-logs",
-                      icon: <FileTextOutlined />,
-                      label: createMenuLabel("system-logs", "日志管理", "/dashboard/system/logs"),
-                      onClick: () => navigate("/dashboard/system/logs"),
+                      key: "users-levels",
+                      icon: <CrownOutlined />,
+                      label: createMenuLabel("users-levels", "用户级别", "/dashboard/users/levels"),
+                      onClick: () => navigate("/dashboard/users/levels"),
                     },
                   ]
                 : []),
@@ -352,17 +371,13 @@ const Dashboard: React.FC = () => {
           },
         ]
       : []),
-    // 用户管理 - 仅管理员可见
-    ...(user?.role === "admin"
-      ? [
-          {
-            key: "users",
-            icon: <UserOutlined />,
-            label: createMenuLabel("users", "用户管理", "/dashboard/users"),
-            onClick: () => navigate("/dashboard/users"),
-          },
-        ]
-      : []),
+    // 退出登录
+    {
+      key: "logout",
+      icon: <LogoutOutlined />,
+      label: "退出登录",
+      onClick: handleLogout,
+    },
   ];
 
   // 根据路径获取选中的菜单项
@@ -388,7 +403,9 @@ const Dashboard: React.FC = () => {
     if (path.includes("/system/image-storage")) return "system-image-storage";
     if (path.includes("/system/sync-services")) return "system-sync-services";
     if (path.includes("/finance")) return "finance";
-    if (path.includes("/users")) return "users";
+    if (path.includes("/shops")) return "shops";
+    if (path.includes("/users/levels")) return "users-levels";
+    if (path.includes("/users")) return "users-list";
     if (path.includes("/profile")) return "profile";
     return "dashboard";
   };
@@ -396,7 +413,7 @@ const Dashboard: React.FC = () => {
   return (
     <Layout style={{ minHeight: "100vh" }}>
       <Sider
-        theme="dark"
+        theme="light"
         width={240}
         collapsible
         collapsed={collapsed}
@@ -409,6 +426,8 @@ const Dashboard: React.FC = () => {
           left: 0,
           top: 0,
           bottom: 0,
+          background: "#f0f2f5",
+          borderRight: "1px solid #e8e8e8",
         }}
       >
         <div className={collapsed ? styles.logoCollapsed : styles.logo}>
@@ -416,12 +435,13 @@ const Dashboard: React.FC = () => {
         </div>
 
         <Menu
-          theme="dark"
+          theme="light"
           mode="inline"
           selectedKeys={[getSelectedKey()]}
           openKeys={openKeys}
           onOpenChange={handleOpenChange}
           items={menuItems}
+          style={{ background: "transparent", borderRight: "none" }}
         />
       </Sider>
 
@@ -439,7 +459,7 @@ const Dashboard: React.FC = () => {
                         user || {
                           id: 0,
                           username: "Guest",
-                          role: "guest",
+                          role: "sub_account" as const,
                           permissions: [],
                           is_active: false,
                           created_at: new Date().toISOString(),
@@ -454,17 +474,19 @@ const Dashboard: React.FC = () => {
                     />
                   }
                 />
-                <Route path="/ozon/*" element={<OzonManagement />} />
-                <Route path="/finance" element={<FinanceCalculator />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/api-keys" element={<ApiKeys />} />
-                {/* 系统管理路由 - 管理员和操作员都可以访问 */}
-                {(user?.role === "admin" || user?.role === "operator") && (
-                  <Route path="/system/*" element={<SystemManagement />} />
-                )}
-                {/* 用户管理路由 - 仅管理员可以访问 */}
+                <Route path="ozon/*" element={<OzonManagement />} />
+                <Route path="finance" element={<FinanceCalculator />} />
+                <Route path="profile" element={<Profile />} />
+                <Route path="api-keys" element={<ApiKeys />} />
+                {/* 系统管理路由 - 仅超级管理员可访问 */}
                 {user?.role === "admin" && (
-                  <Route path="/users" element={<UserManagement />} />
+                  <Route path="system/*" element={<SystemManagement />} />
+                )}
+                {/* 店铺管理路由 - 所有角色可访问 */}
+                <Route path="shops/*" element={<ShopManagement />} />
+                {/* 用户管理路由 - admin 和 manager 可访问 */}
+                {(user?.role === "admin" || user?.role === "manager") && (
+                  <Route path="users/*" element={<UserManagement />} />
                 )}
               </Routes>
             </Suspense>
@@ -484,7 +506,7 @@ interface DashboardHomeProps {
   removeQuickMenu: (key: string) => void;
   navigate: (path: string) => void;
   iconMap: Record<string, React.ReactNode>;
-  userMenuItems: Array<{ key: string; icon?: React.ReactNode; label: string; onClick?: () => void; type?: "divider" }>;
+  userMenuItems: MenuProps['items'];
 }
 
 const DashboardHome: React.FC<DashboardHomeProps> = ({
@@ -497,8 +519,11 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({
 }) => {
   return (
     <div className={styles.pageWrapper}>
-      {/* 用户信息在右上角 */}
-      <div className={styles.header}>
+      {/* 欢迎标题行，右侧显示用户信息 */}
+      <div className={styles.welcomeHeader}>
+        <Title level={2} className={styles.welcomeTitle}>
+          欢迎使用 EuraFlow 跨境电商管理平台
+        </Title>
         <Dropdown
           menu={{ items: userMenuItems }}
           placement="bottomRight"
@@ -513,41 +538,6 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({
           </div>
         </Dropdown>
       </div>
-
-      <PageTitle icon={<DashboardOutlined />} title="系统状态" />
-
-      <Title level={2} className={styles.welcomeTitle}>
-        欢迎使用 EuraFlow 跨境电商管理平台
-      </Title>
-
-      <Row gutter={16} className={styles.statsRow}>
-        <Col xs={24} sm={12} md={8}>
-          <Card>
-            <p className={styles.cardLabel}>账户角色</p>
-            <p className={styles.cardValue}>
-              {user?.role || "未设置"}
-            </p>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={8}>
-          <Card>
-            <p className={styles.cardLabel}>账户状态</p>
-            <p className={user?.is_active ? styles.cardValueActive : styles.cardValueInactive}>
-              {user?.is_active ? "活跃" : "未激活"}
-            </p>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={8}>
-          <Card>
-            <p className={styles.cardLabel}>最后登录</p>
-            <p className={styles.cardValueTime}>
-              {user?.last_login_at
-                ? new Date(user.last_login_at).toLocaleString("zh-CN")
-                : "首次登录"}
-            </p>
-          </Card>
-        </Col>
-      </Row>
 
       {/* 快捷菜单区域 */}
       {quickMenuItems.length > 0 && (

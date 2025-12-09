@@ -35,7 +35,7 @@ import styles from './OrderList.module.scss';
 import OrderDetailModal from '@/components/ozon/OrderDetailModal';
 import ProductImage from '@/components/ozon/ProductImage';
 import PurchasePriceHistoryModal from '@/components/ozon/PurchasePriceHistoryModal';
-import ShopSelectorWithLabel from '@/components/ozon/ShopSelectorWithLabel';
+import ShopSelector from '@/components/ozon/ShopSelector';
 import PageTitle from '@/components/PageTitle';
 import { ORDER_STATUS_CONFIG } from '@/config/ozon/orderStatusConfig';
 import { OZON_ORDER_STATUS_MAP } from '@/constants/ozonStatus';
@@ -865,8 +865,7 @@ const OrderList: React.FC = () => {
           }}
         >
           <Form.Item>
-            <ShopSelectorWithLabel
-              label="选择店铺"
+            <ShopSelector
               value={selectedShop}
               onChange={(shopId) => {
                 const normalized = Array.isArray(shopId) ? (shopId[0] ?? null) : (shopId ?? null);

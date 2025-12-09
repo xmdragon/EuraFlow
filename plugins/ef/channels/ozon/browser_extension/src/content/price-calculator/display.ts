@@ -468,11 +468,12 @@ export async function injectCompleteDisplay(data: {
   ozonProduct: any;
   spbSales: any | null;
   euraflowConfig: any | null;
+  productId?: string;  // SKU（从 URL 提取的商品ID）
 }): Promise<void> {
   // 注入 EuraFlow 样式（仅注入一次）
   injectEuraflowStyles();
 
-  const { message, price, ozonProduct, spbSales, euraflowConfig } = data;
+  const { message, price, ozonProduct, spbSales, euraflowConfig, productId } = data;
 
   // dimensions 直接从 ozonProduct 中获取
   const dimensions = ozonProduct?.dimensions || null;
@@ -520,7 +521,7 @@ export async function injectCompleteDisplay(data: {
 
   // 阶段1：先添加价格区和数据区
   euraflowContainer.appendChild(createPriceSection(message));
-  euraflowContainer.appendChild(await createDataSection(spbSales, dimensions));
+  euraflowContainer.appendChild(await createDataSection(spbSales, dimensions, productId));
 
   // 阶段1：创建按钮行容器（先隐藏）
   const buttonRow = document.createElement('div');
@@ -634,7 +635,7 @@ function createPriceSection(_message: string): HTMLElement {
  * 创建数据字段区域（de3.png 风格紧凑两列布局）
  * 根据 popup 数据面板配置显示字段
  */
-async function createDataSection(spbSales: any | null, dimensions: any | null): Promise<HTMLElement> {
+async function createDataSection(spbSales: any | null, dimensions: any | null, productId?: string): Promise<HTMLElement> {
   // 注入保护性 CSS
   if (!document.getElementById('euraflow-protect-styles')) {
     const style = document.createElement('style');
@@ -673,7 +674,7 @@ async function createDataSection(spbSales: any | null, dimensions: any | null): 
   const visibleFields = new Set(config.visibleFields);
 
   // 渲染紧凑两列布局（根据配置过滤字段）
-  const rows = buildDataRows(spbSales, dimensions, visibleFields);
+  const rows = buildDataRows(spbSales, dimensions, visibleFields, productId);
   rows.forEach(row => section.appendChild(row));
 
   return section;
@@ -696,8 +697,9 @@ function shouldShowTwoColRow(leftField: string, rightField: string, visibleField
  * @param spbSales 上品帮销售数据
  * @param dimensions OZON 尺寸数据
  * @param visibleFields 可见字段集合（从 popup 配置获取）
+ * @param productId SKU（从 URL 提取的商品ID）
  */
-function buildDataRows(spbSales: any | null, dimensions: any | null, visibleFields: Set<string>): HTMLElement[] {
+function buildDataRows(spbSales: any | null, dimensions: any | null, visibleFields: Set<string>, productId?: string): HTMLElement[] {
   const rows: HTMLElement[] = [];
 
   // 类目行（单列）- 带 ID 以便后续异步更新
@@ -844,9 +846,9 @@ function buildDataRows(spbSales: any | null, dimensions: any | null, visibleFiel
   }
 
   // SKU 行（单列，带复制按钮）
-  if (visibleFields.has('sku')) {
-    const sku = spbSales?.sku || '---';
-    rows.push(createSkuRow(sku));
+  // productId 就是 SKU，在初始化时就已经有值
+  if (visibleFields.has('sku') && productId) {
+    rows.push(createSkuRow(productId));
   }
 
   // 底部行：评分 + 上架时间（两列）- 上架日期/天数

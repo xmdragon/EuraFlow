@@ -8,6 +8,7 @@ import {
   PlusOutlined,
   MinusOutlined,
   CopyOutlined,
+  GiftOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -886,7 +887,7 @@ const Promotions: React.FC = () => {
 
   return (
     <div className={styles.pageWrapper}>
-      <PageTitle title="促销活动管理" />
+      <PageTitle icon={<GiftOutlined />} title="促销活动" />
       {viewMode === 'list' ? renderListView() : renderDetailView()}
 
       {/* 参加促销弹窗 */}

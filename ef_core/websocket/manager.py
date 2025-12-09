@@ -224,6 +224,61 @@ class NotificationManager:
             logger.error(f"WebSocket send failed: {e}")
             raise
 
+    async def send_session_expired(
+        self,
+        user_id: int,
+        reason: str = "session_replaced",
+        message: str = "您的账号在其他设备登录",
+        device_info: str = None,
+        ip_address: str = None
+    ) -> int:
+        """
+        发送会话过期通知（用于单设备登录踢出旧设备）
+
+        Args:
+            user_id: 用户ID
+            reason: 过期原因（session_replaced, account_expired, account_disabled 等）
+            message: 显示给用户的消息
+            device_info: 新设备信息
+            ip_address: 新设备IP
+
+        Returns:
+            成功发送的连接数
+        """
+        notification = {
+            "type": "session_expired",
+            "data": {
+                "reason": reason,
+                "message": message,
+                "new_device_info": device_info,
+                "new_ip_address": ip_address,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        }
+
+        count = await self.send_to_user(user_id, notification)
+        logger.info(
+            f"Sent session_expired notification to user {user_id}: "
+            f"reason={reason}, sent_count={count}"
+        )
+        return count
+
+    async def send_account_expired(self, user_id: int) -> int:
+        """
+        发送账号过期通知（用于定时检查过期账号）
+
+        Args:
+            user_id: 用户ID
+
+        Returns:
+            成功发送的连接数
+        """
+        return await self.send_session_expired(
+            user_id=user_id,
+            reason="account_expired",
+            message="您的账号已过期，请联系管理员续期"
+        )
+
     def get_stats(self) -> Dict[str, Any]:
         """
         获取连接统计信息
@@ -240,6 +295,15 @@ class NotificationManager:
                 for shop_id in set().union(*self._user_shops.values())
             } if self._user_shops else {}
         }
+
+    def get_online_user_ids(self) -> Set[int]:
+        """
+        获取所有在线用户ID
+
+        Returns:
+            在线用户ID集合
+        """
+        return set(self._connections.keys())
 
 
 # 全局单例实例

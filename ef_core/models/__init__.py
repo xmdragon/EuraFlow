@@ -7,9 +7,11 @@ from .shipments import Shipment, Package
 from .inventory import Inventory
 from .listings import Listing
 from .returns import Return, Refund
-from .users import User
+from .users import User, UserSettings
 from .api_keys import APIKey
 from .exchange_rate import ExchangeRateConfig, ExchangeRate
+from .manager_level import ManagerLevel
+from .user_login_session import UserLoginSession
 
 __all__ = [
     "Base",
@@ -22,7 +24,10 @@ __all__ = [
     "Return",
     "Refund",
     "User",
+    "UserSettings",
     "APIKey",
     "ExchangeRateConfig",
-    "ExchangeRate"
+    "ExchangeRate",
+    "ManagerLevel",
+    "UserLoginSession",
 ]

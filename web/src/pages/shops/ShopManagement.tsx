@@ -1,7 +1,8 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
- * OZON店铺配置Tab
- * 从 pages/ozon/ShopSettings.tsx 迁移而来
+ * 店铺管理页面
+ * - 管理员：可以查看所有店铺，包括子账号创建的店铺
+ * - 管理员/子账号：可以管理自己创建的店铺
+ * - 子账号：可以查看有权限的店铺，但不能编辑
  */
 import {
   ShopOutlined,
@@ -12,6 +13,8 @@ import {
   PlusOutlined,
   TruckOutlined,
   ClockCircleOutlined,
+  UserOutlined,
+  LockOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -37,8 +40,9 @@ import {
 import axios from 'axios';
 import React, { useState, useEffect } from 'react';
 
-import styles from './OzonShopTab.module.scss';
+import styles from './ShopManagement.module.scss';
 
+import PageTitle from '@/components/PageTitle';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermission } from '@/hooks/usePermission';
 import * as ozonApi from '@/services/ozon';
@@ -61,6 +65,9 @@ interface Shop {
   shop_name_cn?: string;
   platform: string;
   status: 'active' | 'inactive' | 'suspended';
+  owner_user_id?: number;
+  owner_username?: string;
+  can_edit?: boolean;  // 是否可编辑（自己创建的店铺）
   api_credentials?: {
     client_id: string;
     api_key: string;
@@ -83,7 +90,7 @@ interface Shop {
   updated_at: string;
 }
 
-const OzonShopTab: React.FC = () => {
+const ShopManagement: React.FC = () => {
   const { modal } = App.useApp();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -93,18 +100,18 @@ const OzonShopTab: React.FC = () => {
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
   const [addShopModalVisible, setAddShopModalVisible] = useState(false);
 
-  // 判断用户是否为操作员
+  // 判断用户角色
   const isManager = user?.role === 'manager';
-  const userShopIds = user?.shop_ids || [];
+  const isSubAccount = user?.role === 'sub_account';
 
-  // 获取店铺列表（包含完整信息，包括API凭证）
+  // 获取店铺列表（包含完整信息，包括API凭证和所有者信息）
   const {
     data: shopsData,
     isLoading,
     error,
   } = useQuery({
-    queryKey: ['ozon', 'shops', 'full'],
-    queryFn: () => ozonApi.getShops(true),  // include_stats=true 以获取完整信息
+    queryKey: ['shops', 'management'],
+    queryFn: () => ozonApi.getShopsForManagement(),
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
@@ -124,11 +131,11 @@ const OzonShopTab: React.FC = () => {
     onSuccess: (data) => {
       notifySuccess('添加成功', '店铺添加成功');
       setAddShopModalVisible(false);
-      queryClient.invalidateQueries({ queryKey: ['ozon', 'shops'] });  // 刷新所有店铺列表
+      queryClient.invalidateQueries({ queryKey: ['shops'] });
+      queryClient.invalidateQueries({ queryKey: ['ozon', 'shops'] });
       setSelectedShop(data);
     },
     onError: (error: unknown) => {
-      // 解析错误信息
       let errorMsg = '添加失败';
       if (axios.isAxiosError(error)) {
         const data = error.response?.data;
@@ -168,6 +175,7 @@ const OzonShopTab: React.FC = () => {
     },
     onSuccess: (data) => {
       notifySuccess('保存成功', '店铺配置已保存');
+      queryClient.invalidateQueries({ queryKey: ['shops'] });
       queryClient.invalidateQueries({ queryKey: ['ozon', 'shops'] });
       setSelectedShop(data);
 
@@ -247,7 +255,10 @@ const OzonShopTab: React.FC = () => {
   useEffect(() => {
     if (shopsData?.data?.[0] && !selectedShop) {
       const shop = shopsData.data[0];
-      setSelectedShop(shop);
+      // 只有可编辑的店铺才自动选中
+      if (shop.can_edit) {
+        setSelectedShop(shop);
+      }
     }
   }, [shopsData, selectedShop]);
 
@@ -261,8 +272,6 @@ const OzonShopTab: React.FC = () => {
         api_key: selectedShop.api_credentials?.api_key || '',
         webhook_url: selectedShop.config?.webhook_url || '',
       };
-
-      console.log('Setting form values:', formValues);  // 调试日志
       form.setFieldsValue(formValues);
     }
   }, [selectedShop, form]);
@@ -292,13 +301,15 @@ const OzonShopTab: React.FC = () => {
           await ozonApi.deleteShop(shop.id);
 
           notifySuccess('删除成功', '店铺已删除');
+          queryClient.invalidateQueries({ queryKey: ['shops'] });
           queryClient.invalidateQueries({ queryKey: ['ozon', 'shops'] });
 
           if (selectedShop?.id === shop.id) {
             setSelectedShop(null);
           }
-        } catch (error) {
-          notifyError('删除失败', `删除失败: ${error.message}`);
+        } catch (error: unknown) {
+          const err = error as Error;
+          notifyError('删除失败', `删除失败: ${err.message}`);
         }
       },
     });
@@ -306,52 +317,52 @@ const OzonShopTab: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className={styles.loadingContainer}>
-        <Spin size="large" />
-        <div className={styles.loadingText}>加载店铺信息...</div>
+      <div className={styles.pageWrapper}>
+        <PageTitle title="店铺管理" />
+        <div className={styles.loadingContainer}>
+          <Spin size="large" />
+          <div className={styles.loadingText}>加载店铺信息...</div>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <Alert
-        message="加载失败"
-        description={`无法加载店铺信息: ${error instanceof Error ? error.message : '未知错误'}`}
-        type="error"
-        showIcon
-      />
+      <div className={styles.pageWrapper}>
+        <PageTitle title="店铺管理" />
+        <Alert
+          message="加载失败"
+          description={`无法加载店铺信息: ${error instanceof Error ? error.message : '未知错误'}`}
+          type="error"
+          showIcon
+        />
+      </div>
     );
   }
 
-  // 根据用户角色过滤店铺列表
-  const allShops = shopsData?.data || [];
-  const shops = isManager
-    ? allShops.filter(shop => userShopIds.includes(shop.id))
-    : allShops;
+  const shops = shopsData?.data || [];
 
   return (
-    <div className={styles.container}>
+    <div className={styles.pageWrapper}>
+      <PageTitle title="店铺管理" />
+
       {/* 店铺列表 */}
       <Card className={styles.shopListCard}>
-        {(isAdmin || canSync) && (
-          <div className={styles.addButtonRow}>
-            {isAdmin && (
-              <Button type="primary" icon={<PlusOutlined />} onClick={handleAddShop}>
-                添加店铺
-              </Button>
-            )}
-            {canSync && (
-              <Button
-                icon={<TruckOutlined />}
-                loading={syncAllWarehousesMutation.isPending}
-                onClick={() => syncAllWarehousesMutation.mutate()}
-              >
-                同步所有店铺仓库
-              </Button>
-            )}
-          </div>
-        )}
+        <div className={styles.addButtonRow}>
+          <Button type="primary" icon={<PlusOutlined />} onClick={handleAddShop}>
+            添加店铺
+          </Button>
+          {canSync && (
+            <Button
+              icon={<TruckOutlined />}
+              loading={syncAllWarehousesMutation.isPending}
+              onClick={() => syncAllWarehousesMutation.mutate()}
+            >
+              同步所有店铺仓库
+            </Button>
+          )}
+        </div>
 
         {shops.length === 0 ? (
           <div className={styles.emptyState}>
@@ -360,16 +371,11 @@ const OzonShopTab: React.FC = () => {
               暂无店铺
             </Title>
             <Text type="secondary" className={styles.emptyText}>
-              {isManager
-                ? '您还没有绑定任何Ozon店铺，请联系管理员进行绑定'
-                : '您还没有添加任何Ozon店铺'}
-              {isAdmin && '，点击上方"添加店铺"按钮开始配置'}
+              您还没有添加任何Ozon店铺，点击上方"添加店铺"按钮开始配置
             </Text>
-            {isAdmin && (
-              <Button type="primary" icon={<PlusOutlined />} onClick={handleAddShop}>
-                立即添加店铺
-              </Button>
-            )}
+            <Button type="primary" icon={<PlusOutlined />} onClick={handleAddShop}>
+              立即添加店铺
+            </Button>
           </div>
         ) : (
           <Table
@@ -389,26 +395,50 @@ const OzonShopTab: React.FC = () => {
                       {record.shop_name_cn && <Text type="secondary"> [{record.shop_name_cn}]</Text>}
                     </Text>
                     {record.id === selectedShop?.id && <Tag color="blue">当前选中</Tag>}
+                    {!record.can_edit && (
+                      <Tooltip title="此店铺由其他用户创建，您只有查看权限">
+                        <Tag icon={<LockOutlined />} color="default">只读</Tag>
+                      </Tooltip>
+                    )}
                   </Space>
                 ),
               },
+              // 管理员可见创建者列
+              ...(isAdmin
+                ? [
+                    {
+                      title: '创建者',
+                      dataIndex: 'owner_username',
+                      key: 'owner_username',
+                      width: 120,
+                      render: (username: string) => (
+                        <Space>
+                          <UserOutlined />
+                          <Text>{username || '-'}</Text>
+                        </Space>
+                      ),
+                    },
+                  ]
+                : []),
               {
                 title: '状态',
                 dataIndex: 'status',
                 key: 'status',
-                render: (status) => {
-                  const statusMap = {
+                width: 100,
+                render: (status: string) => {
+                  const statusMap: Record<string, { color: string; text: string }> = {
                     active: { color: 'success', text: '活跃' },
                     inactive: { color: 'default', text: '未激活' },
                     suspended: { color: 'error', text: '已暂停' },
                   };
-                  const config = statusMap[status as keyof typeof statusMap];
-                  return <Badge status={config.color as any} text={config.text} />;
+                  const config = statusMap[status] || { color: 'default', text: status };
+                  return <Badge status={config.color as 'success' | 'default' | 'error'} text={config.text} />;
                 },
               },
               {
                 title: '最后同步',
                 key: 'last_sync',
+                width: 140,
                 render: (_: unknown, record: Shop) => {
                   if (!record.stats?.last_sync_at) return '-';
                   const date = new Date(record.stats.last_sync_at);
@@ -422,44 +452,42 @@ const OzonShopTab: React.FC = () => {
                   );
                 },
               },
-              ...(canOperate
-                ? [
-                    {
-                      title: '操作',
-                      key: 'action',
-                      render: (_: unknown, record: Shop) => (
-                        <Space>
-                          <Button
-                            type="link"
-                            size="small"
-                            onClick={() => {
-                              setSelectedShop(record);
-                              // 表单值由 useEffect 统一设置（带防御性编码）
-                            }}
-                          >
-                            编辑
-                          </Button>
-                          {isAdmin && (
-                            <Button
-                              type="link"
-                              size="small"
-                              danger
-                              onClick={() => handleDeleteShop(record)}
-                            >
-                              删除
-                            </Button>
-                          )}
-                        </Space>
-                      ),
-                    },
-                  ]
-                : []),
+              {
+                title: '操作',
+                key: 'action',
+                width: 150,
+                render: (_: unknown, record: Shop) => (
+                  <Space>
+                    {record.can_edit ? (
+                      <>
+                        <Button
+                          type="link"
+                          size="small"
+                          onClick={() => setSelectedShop(record)}
+                        >
+                          编辑
+                        </Button>
+                        <Button
+                          type="link"
+                          size="small"
+                          danger
+                          onClick={() => handleDeleteShop(record)}
+                        >
+                          删除
+                        </Button>
+                      </>
+                    ) : (
+                      <Text type="secondary">-</Text>
+                    )}
+                  </Space>
+                ),
+              },
             ]}
           />
         )}
       </Card>
 
-      {selectedShop && (
+      {selectedShop && selectedShop.can_edit && (
         <>
           <Alert
             message={`当前编辑店铺: ${selectedShop.shop_name}`}
@@ -469,80 +497,78 @@ const OzonShopTab: React.FC = () => {
           />
 
           <Form form={form} layout="vertical" onFinish={handleSave}>
-            <Tabs
-              defaultActiveKey="1"
-              destroyInactiveTabPane
-              items={[
-                {
-                  label: (
-                    <span>
-                      <KeyOutlined /> API配置
-                    </span>
-                  ),
-                  key: '1',
-                  children: (
-                    <div className={styles.contentContainer}>
-                      <Row gutter={16}>
-                        <Col span={12}>
-                          <Form.Item
-                            name="shop_name"
-                            label="店铺名称（俄文）"
-                            rules={[{ required: true, message: '请输入店铺名称' }]}
-                          >
-                            <Input placeholder="请输入店铺名称（俄文）" />
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item name="shop_name_cn" label="店铺中文名称">
-                            <Input placeholder="请输入店铺中文名称（选填）" />
-                          </Form.Item>
-                        </Col>
-                      </Row>
+            <Card>
+              <Tabs
+                defaultActiveKey="1"
+                destroyInactiveTabPane
+                items={[
+                  {
+                    label: (
+                      <span>
+                        <KeyOutlined /> API配置
+                      </span>
+                    ),
+                    key: '1',
+                    children: (
+                      <div className={styles.contentContainer}>
+                        <Row gutter={16}>
+                          <Col span={12}>
+                            <Form.Item
+                              name="shop_name"
+                              label="店铺名称（俄文）"
+                              rules={[{ required: true, message: '请输入店铺名称' }]}
+                            >
+                              <Input placeholder="请输入店铺名称（俄文）" />
+                            </Form.Item>
+                          </Col>
+                          <Col span={12}>
+                            <Form.Item name="shop_name_cn" label="店铺中文名称">
+                              <Input placeholder="请输入店铺中文名称（选填）" />
+                            </Form.Item>
+                          </Col>
+                        </Row>
 
-                      <Row gutter={16}>
-                        <Col span={12}>
-                          <Form.Item
-                            name="client_id"
-                            label="Client ID"
-                            rules={[{ required: true, message: '请输入Client ID' }]}
-                          >
-                            <Input placeholder="Ozon Client ID" />
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item
-                            name="api_key"
-                            label="API Key"
-                            rules={[
-                              {
-                                validator: (_, value) => {
-                                  // 如果是编辑模式且当前值是掩码，则不要求必填
-                                  if (selectedShop && (!value || value === '******')) {
+                        <Row gutter={16}>
+                          <Col span={12}>
+                            <Form.Item
+                              name="client_id"
+                              label="Client ID"
+                              rules={[{ required: true, message: '请输入Client ID' }]}
+                            >
+                              <Input placeholder="Ozon Client ID" />
+                            </Form.Item>
+                          </Col>
+                          <Col span={12}>
+                            <Form.Item
+                              name="api_key"
+                              label="API Key"
+                              rules={[
+                                {
+                                  validator: (_, value) => {
+                                    if (selectedShop && (!value || value === '******')) {
+                                      return Promise.resolve();
+                                    }
+                                    if (!value) {
+                                      return Promise.reject(new Error('请输入API Key'));
+                                    }
                                     return Promise.resolve();
-                                  }
-                                  // 创建模式或者用户输入了新值，则验证
-                                  if (!value) {
-                                    return Promise.reject(new Error('请输入API Key'));
-                                  }
-                                  return Promise.resolve();
+                                  },
                                 },
-                              },
-                            ]}
-                            extra="出于安全考虑，保存后将显示为掩码。如需更新，直接输入新值即可；不修改则留空。"
-                          >
-                            <Input.Password placeholder="不修改则留空" />
-                          </Form.Item>
-                        </Col>
-                      </Row>
-                    </div>
-                  ),
-                },
-              ]}
-            />
+                              ]}
+                              extra="出于安全考虑，保存后将显示为掩码。如需更新，直接输入新值即可；不修改则留空。"
+                            >
+                              <Input.Password placeholder="不修改则留空" />
+                            </Form.Item>
+                          </Col>
+                        </Row>
+                      </div>
+                    ),
+                  },
+                ]}
+              />
 
-            <Divider />
+              <Divider />
 
-            {canOperate && (
               <Form.Item>
                 <Space>
                   <Button icon={<ApiOutlined />} onClick={handleTestConnection} loading={testingConnection}>
@@ -561,7 +587,7 @@ const OzonShopTab: React.FC = () => {
                   </Button>
                 </Space>
               </Form.Item>
-            )}
+            </Card>
           </Form>
         </>
       )}
@@ -637,4 +663,4 @@ const OzonShopTab: React.FC = () => {
   );
 };
 
-export default OzonShopTab;
+export default ShopManagement;

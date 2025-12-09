@@ -50,30 +50,61 @@ class User(Base):
     
     # 状态和权限
     is_active: Mapped[bool] = mapped_column(
-        Boolean, 
-        default=True, 
+        Boolean,
+        default=True,
         nullable=False,
         comment="是否激活"
     )
     role: Mapped[str] = mapped_column(
-        String(50), 
+        String(50),
         nullable=False,
-        default="viewer",
-        comment="角色：admin/operator/viewer"
+        default="sub_account",
+        comment="角色：admin/manager/sub_account"
     )
     permissions: Mapped[dict] = mapped_column(
-        JSON, 
+        JSON,
         default=list,
         nullable=False,
         comment="权限列表"
     )
-    
+
+    # 管理员级别（仅 manager 角色使用）
+    manager_level_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger,
+        ForeignKey("manager_levels.id", ondelete="SET NULL"),
+        nullable=True,
+        comment="管理员级别ID"
+    )
+
+    # 账号状态（仅 manager/sub_account 使用，admin 不受限制）
+    # active: 正常, suspended: 停用（可登录但不能写操作）, disabled: 禁用（不能登录）
+    account_status: Mapped[str] = mapped_column(
+        String(20),
+        default="active",
+        nullable=False,
+        comment="账号状态：active/suspended/disabled"
+    )
+
+    # 账号过期时间（仅 manager/sub_account 使用）
+    expires_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="账号过期时间，NULL表示永不过期"
+    )
+
     # 多账号体系
     parent_user_id: Mapped[Optional[int]] = mapped_column(
         BigInteger,
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=True,
         comment="父账号ID"
+    )
+
+    # 单设备登录 - 当前活跃会话令牌
+    current_session_token: Mapped[Optional[str]] = mapped_column(
+        String(64),
+        nullable=True,
+        comment="当前活跃会话令牌"
     )
 
     # 店铺关联
@@ -112,6 +143,10 @@ class User(Base):
     api_keys = relationship("APIKey", back_populates="user", cascade="all, delete-orphan")
     # 用户关联的店铺（多对多）
     shops = relationship("OzonShop", secondary=user_shops, backref="associated_users")
+    # 管理员级别
+    manager_level = relationship("ManagerLevel", back_populates="users")
+    # 登录会话
+    login_sessions = relationship("UserLoginSession", back_populates="user", cascade="all, delete-orphan")
     
     # 索引
     __table_args__ = (
@@ -142,12 +177,71 @@ class User(Base):
             "role": self.role,
             "permissions": self.permissions,
             "is_active": self.is_active,
+            "account_status": self.account_status,
+            "expires_at": self.expires_at.isoformat() if self.expires_at else None,
             "parent_user_id": self.parent_user_id,
             "primary_shop_id": self.primary_shop_id,
+            "manager_level_id": self.manager_level_id,
             "last_login_at": self.last_login_at.isoformat() if self.last_login_at else None,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat()
         }
+
+    def get_effective_account_status(self) -> str:
+        """获取有效的账号状态（子账号继承管理员状态）"""
+        if self.role == "sub_account" and self.parent_user:
+            return self.parent_user.account_status
+        return self.account_status
+
+    def get_effective_expires_at(self):
+        """获取有效的过期时间（子账号继承管理员过期时间）"""
+        if self.role == "sub_account" and self.parent_user:
+            return self.parent_user.expires_at
+        return self.expires_at
+
+    def is_expired(self) -> bool:
+        """检查账号是否已过期"""
+        from datetime import datetime, timezone
+        expires_at = self.get_effective_expires_at()
+        if expires_at is None:
+            return False
+        return datetime.now(timezone.utc) > expires_at
+
+    def can_login(self) -> tuple[bool, str]:
+        """检查是否可以登录，返回 (可以登录, 错误消息)"""
+        # admin 不受限制
+        if self.role == "admin":
+            return True, ""
+
+        # 检查账号状态
+        status = self.get_effective_account_status()
+        if status == "disabled":
+            return False, "账号已禁用"
+
+        # 检查是否过期
+        if self.is_expired():
+            return False, "账号已过期"
+
+        return True, ""
+
+    def can_write(self) -> tuple[bool, str]:
+        """检查是否可以执行写操作，返回 (可以写, 错误消息)"""
+        # admin 不受限制
+        if self.role == "admin":
+            return True, ""
+
+        # 检查账号状态
+        status = self.get_effective_account_status()
+        if status == "disabled":
+            return False, "账号已禁用"
+        if status == "suspended":
+            return False, "账号已到期"
+
+        # 检查是否过期
+        if self.is_expired():
+            return False, "账号已过期"
+
+        return True, ""
 
 
 class UserSettings(Base):

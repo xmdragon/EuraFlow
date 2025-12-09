@@ -128,7 +128,26 @@ class AuthMiddleware(BaseHTTPMiddleware):
         request.state.shop_id = user_info.get("shop_id")
         request.state.shop_ids = user_info.get("shop_ids")  # None 表示 admin 可访问所有
         request.state.permissions = user_info.get("permissions", [])
-        request.state.role = user_info.get("role", "viewer")
+        request.state.role = user_info.get("role", "sub_account")
+        request.state.can_write = user_info.get("can_write", True)
+        request.state.write_error = user_info.get("write_error", "")
+
+        # 检查写操作权限（对于 suspended 或 expired 账号）
+        if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+            if not user_info.get("can_write", True):
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "ok": False,
+                        "error": {
+                            "type": "about:blank",
+                            "title": "Forbidden",
+                            "status": 403,
+                            "detail": user_info.get("write_error", "账号已到期"),
+                            "code": "ACCOUNT_WRITE_FORBIDDEN"
+                        }
+                    }
+                )
 
         # 继续处理请求
         return await call_next(request)
@@ -149,29 +168,67 @@ class AuthMiddleware(BaseHTTPMiddleware):
     async def _validate_token(self, token: str) -> Optional[dict]:
         """验证 JWT token"""
         auth_service = get_auth_service()
-        
+
         try:
             # 解码令牌
             payload = auth_service.decode_token(token)
-            
+
             # 验证令牌类型
             if payload.get("type") != "access":
                 return None
-            
+
             # 检查黑名单
             jti = payload.get("jti")
             if jti and await auth_service.is_token_revoked(jti):
                 return None
-            
-            # 返回用户信息（包含 shop_ids）
+
+            # 验证会话令牌（单设备登录）和账号状态
+            session_token = payload.get("session_token")
+            user_id = int(payload.get("sub"))
+            can_write = True
+            write_error = ""
+
+            from ef_core.database import get_db_manager
+            from ef_core.models.users import User
+            from sqlalchemy import select
+            from sqlalchemy.orm import selectinload
+
+            db_manager = get_db_manager()
+            async with db_manager.get_session() as db:
+                # 查询用户（包含 parent_user 用于子账号继承状态）
+                stmt = select(User).where(User.id == user_id).options(
+                    selectinload(User.parent_user)
+                )
+                result = await db.execute(stmt)
+                user = result.scalar_one_or_none()
+
+                if not user:
+                    return None
+
+                # 验证会话令牌
+                if session_token and user.current_session_token:
+                    if user.current_session_token != session_token:
+                        self.logger.info(
+                            f"Session expired for user {user_id}: "
+                            f"current={user.current_session_token[:8]}..., provided={session_token[:8]}..."
+                        )
+                        return None
+
+                # 检查账号是否可以执行写操作（admin 不受限制）
+                can_write, write_error = user.can_write()
+
+            # 返回用户信息（包含 shop_ids、session_token 和写权限）
             return {
-                "user_id": int(payload.get("sub")),
+                "user_id": user_id,
                 "shop_id": payload.get("shop_id"),
                 "shop_ids": payload.get("shop_ids"),  # None 表示 admin 可访问所有
                 "permissions": payload.get("permissions", []),
-                "role": payload.get("role", "viewer")
+                "role": payload.get("role", "sub_account"),
+                "session_token": session_token,
+                "can_write": can_write,
+                "write_error": write_error
             }
-            
+
         except Exception as e:
             self.logger.debug(f"Token validation failed: {e}")
             return None
@@ -215,36 +272,42 @@ def check_role(user, required_role: str) -> bool:
 
     Args:
         user: 用户对象
-        required_role: 要求的角色 (operator, admin)
+        required_role: 要求的角色 (sub_account, manager, admin)
 
     Returns:
         bool: 是否满足角色要求
 
     角色权限层级：
-    - admin > operator > viewer
-    - admin 可以执行所有操作
-    - operator 可以修改数据
-    - viewer 只能查看数据
+    - admin > manager > sub_account
+    - admin: 超级管理员，可以查看所有店铺，管理所有用户
+    - manager: 管理员，可以创建子账号和店铺（受级别限额）
+    - sub_account: 子账号，只能查看被绑定的店铺
     """
     if not user:
         return False
 
+    user_role = user.role
+
     # admin 拥有最高权限
-    if user.role == "admin":
+    if user_role == "admin":
         return True
 
-    # 如果要求 operator 角色
-    if required_role == "operator":
-        return user.role in ["operator", "admin"]
+    # 如果要求 manager 角色
+    if required_role == "manager":
+        return user_role in ["manager", "admin"]
 
     # 如果要求 admin 角色
     if required_role == "admin":
-        return user.role == "admin"
+        return user_role == "admin"
+
+    # 如果要求 sub_account 角色（最低权限）
+    if required_role == "sub_account":
+        return user_role in ["sub_account", "manager", "admin"]
 
     return False
 
 
-def require_role(required_role: str = "operator"):
+def require_role(required_role: str = "manager"):
     """
     创建角色检查依赖函数，用于FastAPI路由的权限控制
 
@@ -254,16 +317,21 @@ def require_role(required_role: str = "operator"):
 
         @router.post("/products")
         async def create_product(
-            current_user: User = Depends(require_role("operator"))
+            current_user: User = Depends(require_role("manager"))
         ):
-            # 只有 operator 和 admin 可以访问
+            # 只有 manager 和 admin 可以访问
             pass
 
     Args:
-        required_role: 要求的最低角色 (operator 或 admin)
+        required_role: 要求的最低角色 (sub_account, manager, admin)
 
     Returns:
         依赖函数，用于FastAPI的Depends()
+
+    角色层级：
+    - admin: 超级管理员
+    - manager: 管理员（可创建子账号和店铺）
+    - sub_account: 子账号（仅查看绑定的店铺）
     """
     from ef_core.api.auth import get_current_user_flexible
     from fastapi import Depends
@@ -278,9 +346,9 @@ def require_role(required_role: str = "operator"):
 
         if not check_role(user, required_role):
             role_names = {
-                "admin": "管理员",
-                "operator": "操作员",
-                "viewer": "查看员"
+                "admin": "超级管理员",
+                "manager": "管理员",
+                "sub_account": "子账号"
             }
             current_role_name = role_names.get(user.role, user.role)
             required_role_name = role_names.get(required_role, required_role)

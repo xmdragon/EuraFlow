@@ -290,12 +290,121 @@ async def event_bus_maintenance() -> Dict[str, Any]:
         raise
 
 
+@task_with_context(bind=False, name="ef.core.check_expired_accounts")
+async def check_expired_accounts() -> Dict[str, Any]:
+    """检查过期账号并通知在线用户登出"""
+    from ef_core.tasks.task_logger import update_task_result, record_task_error
+
+    logger.info("Checking expired accounts")
+
+    result = {
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "checked": 0,
+        "expired_notified": 0,
+        "errors": 0
+    }
+
+    try:
+        from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+        from ef_core.config import get_settings
+        from ef_core.models.users import User
+        from ef_core.websocket.manager import notification_manager
+
+        settings = get_settings()
+
+        # 创建独立的引擎实例
+        temp_engine = create_async_engine(
+            settings.database_url,
+            pool_pre_ping=True,
+            pool_size=1,
+            max_overflow=0,
+        )
+
+        try:
+            async_session = async_sessionmaker(temp_engine, expire_on_commit=False)
+
+            async with async_session() as session:
+                # 获取所有在线用户ID
+                online_user_ids = notification_manager.get_online_user_ids()
+
+                if not online_user_ids:
+                    logger.info("No online users to check")
+                    return result
+
+                result["checked"] = len(online_user_ids)
+
+                # 查询这些用户（包含 parent_user 用于子账号继承状态）
+                stmt = select(User).where(User.id.in_(online_user_ids)).options(
+                    selectinload(User.parent_user)
+                )
+                users_result = await session.execute(stmt)
+                users = users_result.scalars().all()
+
+                # 检查每个用户是否过期
+                for user in users:
+                    try:
+                        # 跳过 admin
+                        if user.role == "admin":
+                            continue
+
+                        # 检查是否可以登录（包含过期检查）
+                        can_login, error_msg = user.can_login()
+
+                        if not can_login:
+                            # 发送过期通知
+                            await notification_manager.send_session_expired(
+                                user_id=user.id,
+                                reason="account_expired" if "过期" in error_msg else "account_disabled",
+                                message=error_msg
+                            )
+                            result["expired_notified"] += 1
+                            logger.info(
+                                f"Notified user {user.id} ({user.username}) to logout: {error_msg}"
+                            )
+                    except Exception as e:
+                        result["errors"] += 1
+                        logger.error(
+                            f"Failed to check/notify user {user.id}: {e}",
+                            exc_info=True
+                        )
+
+        finally:
+            await temp_engine.dispose()
+
+        logger.info(
+            f"Expired accounts check completed: "
+            f"checked={result['checked']}, "
+            f"expired_notified={result['expired_notified']}, "
+            f"errors={result['errors']}"
+        )
+
+        # 记录任务结果
+        update_task_result(
+            task_name="ef.core.check_expired_accounts",
+            records_processed=result["checked"],
+            records_updated=result["expired_notified"],
+            extra_data=result
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error("Check expired accounts failed", exc_info=True)
+        record_task_error(
+            task_name="ef.core.check_expired_accounts",
+            error_message=str(e)
+        )
+        raise
+
+
 # 注册定时任务到 Celery Beat
 def register_core_tasks():
     """注册核心系统任务"""
     from .celery_app import celery_app
     from celery.schedules import crontab
-    
+
     # 更新 beat_schedule
     celery_app.conf.beat_schedule.update({
         "system-health-check": {
@@ -303,22 +412,28 @@ def register_core_tasks():
             "schedule": crontab(minute="*/5"),  # 每5分钟
             "options": {"queue": "ef_core"}
         },
-        
+
         "cleanup-expired-data": {
             "task": "ef.core.cleanup_expired_data",
             "schedule": crontab(hour="3", minute="0"),  # 每天凌晨3点
             "options": {"queue": "ef_core"}
         },
-        
+
         "collect-system-metrics": {
-            "task": "ef.core.metrics_collection", 
+            "task": "ef.core.metrics_collection",
             "schedule": crontab(minute="*/10"),  # 每10分钟
             "options": {"queue": "ef_core"}
         },
-        
+
         "event-bus-maintenance": {
             "task": "ef.core.event_bus_maintenance",
             "schedule": crontab(hour="1", minute="30"),  # 每天凌晨1:30
+            "options": {"queue": "ef_core"}
+        },
+
+        "check-expired-accounts": {
+            "task": "ef.core.check_expired_accounts",
+            "schedule": crontab(minute="*/5"),  # 每5分钟检查一次
             "options": {"queue": "ef_core"}
         }
     })

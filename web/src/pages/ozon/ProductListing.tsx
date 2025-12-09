@@ -31,7 +31,7 @@ import React, { useState } from 'react';
 import styles from './ProductListing.module.scss';
 
 import ProductImage from '@/components/ozon/ProductImage';
-import ShopSelectorWithLabel from '@/components/ozon/ShopSelectorWithLabel';
+import ShopSelector from '@/components/ozon/ShopSelector';
 import PageTitle from '@/components/PageTitle';
 import * as ozonApi from '@/services/ozon';
 import { notifySuccess, notifyError } from '@/utils/notification';
@@ -304,8 +304,7 @@ const ProductListing: React.FC = () => {
       {/* 页面标题和店铺选择器 */}
       <PageTitle icon={<CloudUploadOutlined />} title="已下架商品 - 重新上架" />
       <div className={styles.shopSelectorContainer}>
-        <ShopSelectorWithLabel
-          label="选择店铺"
+        <ShopSelector
           value={selectedShop}
           onChange={(shopId) => setSelectedShop(shopId as number)}
           className={styles.shopSelector}

@@ -435,7 +435,7 @@ const ListingRecords: React.FC = () => {
       {/* 过滤栏 */}
       <Card style={{ marginBottom: 16 }}>
         <Form form={filterForm} layout="inline">
-          <Form.Item label="选择店铺">
+          <Form.Item>
             <ShopSelector
               value={selectedShop}
               onChange={handleShopChange}

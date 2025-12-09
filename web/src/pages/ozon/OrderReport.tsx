@@ -57,7 +57,7 @@ import styles from "./OrderReport.module.scss";
 
 import OrderDetailModal from "@/components/ozon/OrderDetailModal";
 import ProductImage from "@/components/ozon/ProductImage";
-import ShopSelectorWithLabel from "@/components/ozon/ShopSelectorWithLabel";
+import ShopSelector from "@/components/ozon/ShopSelector";
 import PageTitle from "@/components/PageTitle";
 import { ORDER_STATUS_CONFIG } from "@/config/ozon/orderStatusConfig";
 import { useCopy } from "@/hooks/useCopy";
@@ -723,7 +723,7 @@ const OrderReport: React.FC = () => {
           <div className={styles.stickyHeader}>
           <Row gutter={12} className={styles.filterRow} align="middle">
             <Col>
-              <ShopSelectorWithLabel
+              <ShopSelector
                 value={selectedShop}
                 onChange={(value) => {
                   setSelectedShop(value as number | null);

@@ -35,7 +35,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 import styles from "./ChatList.module.scss";
 
-import ShopSelectorWithLabel from "@/components/ozon/ShopSelectorWithLabel";
+import ShopSelector from "@/components/ozon/ShopSelector";
 import PageTitle from "@/components/PageTitle";
 import { useDateTime } from "@/hooks/useDateTime";
 import { usePermission } from "@/hooks/usePermission";
@@ -489,8 +489,7 @@ const ChatList: React.FC = () => {
       <div className={styles.contentContainer}>
         {/* 店铺选择器 */}
         <Card className={styles.shopCard}>
-          <ShopSelectorWithLabel
-            label="选择店铺"
+          <ShopSelector
             value={selectedShopId}
             onChange={(shopId) => {
               const normalized = Array.isArray(shopId)

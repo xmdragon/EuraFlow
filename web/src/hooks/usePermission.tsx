@@ -8,13 +8,13 @@ import { useAuth } from './useAuth';
  * 基于用户角色提供权限检查功能
  *
  * 角色权限层级：
- * - admin: 最高权限，可以执行所有操作
- * - operator: 可以修改数据
- * - viewer: 只能查看数据
+ * - admin: 超级管理员，最高权限，可以执行所有操作
+ * - manager: 管理员，可以创建子账号和店铺（受级别限额）
+ * - sub_account: 子账号，只能查看被绑定的店铺
  *
  * @example
  * ```tsx
- * const { canOperate, isAdmin, isViewer } = usePermission();
+ * const { canOperate, isAdmin, isManager } = usePermission();
  *
  * return (
  *   <>
@@ -28,30 +28,31 @@ export function usePermission() {
   const { user } = useAuth();
 
   const permissions = useMemo(() => {
-    const role = user?.role || 'viewer';
+    const role = user?.role || 'sub_account';
 
     return {
       // 角色判断
       isAdmin: role === 'admin',
-      isOperator: role === 'operator',
-      isViewer: role === 'viewer',
+      isManager: role === 'manager',
+      isSubAccount: role === 'sub_account',
 
       // 权限判断
-      canOperate: role === 'admin' || role === 'operator',
-      canOnlyView: role === 'viewer',
+      canOperate: role === 'admin' || role === 'manager',
+      canOnlyView: role === 'sub_account',
 
       // 具体操作权限
-      canCreate: role === 'admin' || role === 'operator',
-      canUpdate: role === 'admin' || role === 'operator',
-      canDelete: role === 'admin' || role === 'operator',
-      canExport: role === 'admin' || role === 'operator',
-      canImport: role === 'admin' || role === 'operator',
-      canSync: role === 'admin' || role === 'operator',
+      canCreate: role === 'admin' || role === 'manager',
+      canUpdate: role === 'admin' || role === 'manager',
+      canDelete: role === 'admin' || role === 'manager',
+      canExport: role === 'admin' || role === 'manager',
+      canImport: role === 'admin' || role === 'manager',
+      canSync: role === 'admin' || role === 'manager',
 
       // 管理员专属权限
-      canManageUsers: role === 'admin',
-      canManageShops: role === 'admin' || role === 'operator',
-      canManageSettings: role === 'admin' || role === 'operator',
+      canManageUsers: role === 'admin' || role === 'manager',
+      canManageShops: role === 'admin' || role === 'manager',
+      canManageSettings: role === 'admin' || role === 'manager',
+      canManageLevels: role === 'admin', // 仅 admin 可管理级别
 
       // 当前角色
       role,

@@ -152,25 +152,23 @@ const ImageStorageResources: React.FC = () => {
 
   return (
     <div className={styles.pageWrapper}>
-      <PageTitle icon={<CloudOutlined />} title="图床资源管理" />
+      <PageTitle icon={<CloudOutlined />} title="图床资源" />
 
-      <div className={styles.container}>
-        <div className={styles.header}>
-          <h3>图床资源浏览</h3>
-          <p className={styles.description}>
-            管理所有已上传到图床的图片资源，包括水印图片、商品图片等。
-            {activeProvider !== 'none' && (
-              <span style={{ marginLeft: '10px', color: '#1890ff' }}>
-                (当前图床: {activeProvider === 'cloudinary' ? 'Cloudinary' : '阿里云 OSS'})
-              </span>
-            )}
-          </p>
-        </div>
-
+      <Card>
         {/* 存储统计卡片 */}
         {usageData && 'usage' in usageData && usageData.usage && (
-          <Row gutter={16} style={{ marginBottom: '24px' }}>
-            <Col xs={24} sm={12} md={8}>
+          <Row gutter={16} style={{ marginBottom: 16 }}>
+            <Col xs={24} sm={12} md={6}>
+              <Card>
+                <Statistic
+                  title="当前图床"
+                  value={activeProvider === 'cloudinary' ? 'Cloudinary' : '阿里云 OSS'}
+                  prefix={<CloudOutlined />}
+                  valueStyle={{ fontSize: '20px' }}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={12} md={6}>
               <Card>
                 <Statistic
                   title={
@@ -189,7 +187,7 @@ const ImageStorageResources: React.FC = () => {
                 />
               </Card>
             </Col>
-            <Col xs={24} sm={12} md={8}>
+            <Col xs={24} sm={12} md={6}>
               <Card>
                 <Statistic
                   title="文件数量"
@@ -199,7 +197,7 @@ const ImageStorageResources: React.FC = () => {
                 />
               </Card>
             </Col>
-            <Col xs={24} sm={12} md={8}>
+            <Col xs={24} sm={12} md={6}>
               <Card>
                 <Statistic
                   title={activeProvider === 'cloudinary' ? '本月带宽' : '本月流量'}
@@ -361,7 +359,7 @@ const ImageStorageResources: React.FC = () => {
             </div>
           )}
         </Spin>
-      </div>
+      </Card>
     </div>
   );
 };

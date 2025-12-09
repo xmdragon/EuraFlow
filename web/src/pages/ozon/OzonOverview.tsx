@@ -451,7 +451,7 @@ const OzonOverview: React.FC = () => {
 
   return (
     <div>
-      <PageTitle icon={<ShoppingOutlined />} title="Ozon 管理概览" />
+      <PageTitle icon={<ShoppingOutlined />} title="店铺概览" />
 
       <div className={styles.contentContainer}>
         <Row className={styles.titleRow} align="middle">

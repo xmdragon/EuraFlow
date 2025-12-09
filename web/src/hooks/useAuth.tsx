@@ -103,8 +103,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await queryClient.invalidateQueries({ queryKey: ['currentUser'] });
   };
 
+  // 使用 data 作为用户状态的主要来源，避免 useEffect 延迟导致的闪烁
+  // user state 仅用于 login 后立即更新（在 query 重新获取之前）
+  const currentUser = data ?? user;
+
   const value: AuthContextValue = {
-    user,
+    user: currentUser,
     isLoading: isLoading && authService.isAuthenticated(),
     login,
     logout,

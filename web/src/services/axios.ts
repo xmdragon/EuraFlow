@@ -92,11 +92,23 @@ const handlePermissionDenied = (error: unknown) => {
   import('antd')
     .then(({ message: antdMessage }) => {
       let errorDetail = '您没有执行此操作的权限';
+      let errorCode = '';
       if (isAxiosError(error) && error.response?.data) {
-        const data = error.response.data as { error?: { detail?: string }; detail?: string };
+        const data = error.response.data as {
+          error?: { detail?: string; code?: string };
+          detail?: string;
+          code?: string;
+        };
         errorDetail = data?.error?.detail || data?.detail || errorDetail;
+        errorCode = data?.error?.code || data?.code || '';
       }
-      antdMessage.error(`权限不足: ${errorDetail}`);
+
+      // 检查是否是账号状态导致的写操作被拒绝
+      if (errorCode === 'ACCOUNT_WRITE_FORBIDDEN') {
+        antdMessage.warning(errorDetail);
+      } else {
+        antdMessage.error(`权限不足: ${errorDetail}`);
+      }
     })
     .catch(() => {
       // 如果antd加载失败，使用原生alert

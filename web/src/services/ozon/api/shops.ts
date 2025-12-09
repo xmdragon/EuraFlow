@@ -56,3 +56,12 @@ export const testApiConnection = async (credentials: ApiCredentials) => {
   const response = await apiClient.post("/ozon/test-connection", credentials);
   return response.data;
 };
+
+/**
+ * 获取店铺列表（用于店铺管理页面）
+ * 包含所有者信息和编辑权限标识
+ */
+export const getShopsForManagement = async () => {
+  const response = await apiClient.get("/ozon/shops/management");
+  return response.data;
+};

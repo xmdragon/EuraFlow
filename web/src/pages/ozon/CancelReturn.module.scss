@@ -1,5 +1,4 @@
 .cancelReturnPage {
-  padding: 24px;
   background: #f0f2f5;
   min-height: 100vh;
 }
@@ -122,19 +121,17 @@
   padding: 40px 0;
 }
 
-// ===== 翻译按钮区域 =====
-.translateWrapper {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+// ===== 详情弹窗描述列表样式（全局覆盖） =====
+:global {
+  // label 列宽 80px，不换行
+  .ant-descriptions.ant-descriptions-bordered.ant-descriptions-small .ant-descriptions-item-label {
+    width: 80px;
+    white-space: nowrap;
+  }
 
-// ===== 翻译按钮样式 =====
-.translateButton {
-  padding: 0;
-}
-
-// ===== 翻译结果 =====
-.translateResult {
-  margin-top: 16px;
+  // padding 改为 4px
+  .ant-descriptions.ant-descriptions-bordered.ant-descriptions-small .ant-descriptions-row > .ant-descriptions-item-label,
+  .ant-descriptions.ant-descriptions-bordered.ant-descriptions-small .ant-descriptions-row > .ant-descriptions-item-content {
+    padding: 4px !important;
+  }
 }

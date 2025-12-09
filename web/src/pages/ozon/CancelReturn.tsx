@@ -1,7 +1,7 @@
 /**
  * OZON 取消和退货申请管理页面
  */
-import { CloseCircleOutlined, ReloadOutlined, SearchOutlined, CopyOutlined, TranslationOutlined } from '@ant-design/icons';
+import { CloseCircleOutlined, ReloadOutlined, SearchOutlined, CopyOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import {
   Card,
@@ -42,7 +42,6 @@ import { useColumnSettings } from '@/hooks/useColumnSettings';
 import { useCopy } from '@/hooks/useCopy';
 import { useDateTime } from '@/hooks/useDateTime';
 import * as ozonApi from '@/services/ozon';
-import { translateText } from '@/services/translationApi';
 import { notifyError, notifySuccess } from '@/utils/notification';
 
 const { RangePicker } = DatePicker;
@@ -539,27 +538,23 @@ const CancelReturn: React.FC = () => {
 
   return (
     <div className={styles.cancelReturnPage}>
-      <PageTitle icon={<CloseCircleOutlined />} title="取消和退货申请" />
+      <PageTitle icon={<CloseCircleOutlined />} title="取消退货" />
 
       {/* 筛选器 */}
       <Card className={styles.filterCard}>
         <Space direction="vertical" className={styles.fullWidth} size="middle">
           <Row gutter={16} align="middle">
             <Col>
-              <Space>
-                <Text strong>选择店铺：</Text>
-                <ShopSelector
-                  value={selectedShop}
-                  onChange={(value) => {
-                    // 支持单选和"全部"（null）
-                    const shopId = Array.isArray(value) ? value[0] : value;
-                    setSelectedShop(shopId);
-                  }}
-                  showAllOption={true}
-                  style={{ width: 200 }}
-                  placeholder="请选择店铺"
-                />
-              </Space>
+              <ShopSelector
+                value={selectedShop}
+                onChange={(value) => {
+                  // 支持单选和"全部"（null）
+                  const shopId = Array.isArray(value) ? value[0] : value;
+                  setSelectedShop(shopId);
+                }}
+                showAllOption={true}
+                style={{ width: 200 }}
+              />
             </Col>
             <Col>
               <Button
@@ -788,6 +783,12 @@ const CancelReturn: React.FC = () => {
               </Descriptions.Item>
               <Descriptions.Item label="货件编号" span={2}>
                 {returnDetail.posting_number}
+                {returnDetail.posting_number && (
+                  <CopyOutlined
+                    className={styles.copyIcon}
+                    onClick={() => copyToClipboard(returnDetail.posting_number, '货件编号')}
+                  />
+                )}
               </Descriptions.Item>
               <Descriptions.Item label="订单号">
                 {returnDetail.order_number || '-'}
@@ -803,12 +804,22 @@ const CancelReturn: React.FC = () => {
               </Descriptions.Item>
               <Descriptions.Item label="SKU">
                 {returnDetail.sku || '-'}
+                {returnDetail.sku && (
+                  <CopyOutlined
+                    className={styles.copyIcon}
+                    onClick={() => copyToClipboard(returnDetail.sku, 'SKU')}
+                  />
+                )}
               </Descriptions.Item>
               <Descriptions.Item label="价格">
                 {returnDetail.price ? `${Number(returnDetail.price).toFixed(2)} ${returnDetail.currency_code}` : '-'}
               </Descriptions.Item>
               <Descriptions.Item label="配送方式">
-                {returnDetail.delivery_method_name || '-'}
+                {returnDetail.delivery_method_name ? (
+                  <Tooltip title={returnDetail.delivery_method_name}>
+                    {returnDetail.delivery_method_name.split('（')[0].split('(')[0]}
+                  </Tooltip>
+                ) : '-'}
               </Descriptions.Item>
               <Descriptions.Item label="状态组">
                 <Tag color={RETURN_STATE_CONFIG[returnDetail.group_state]?.color || 'default'}>
@@ -822,78 +833,10 @@ const CancelReturn: React.FC = () => {
                 {returnDetail.money_return_state_name || '-'}
               </Descriptions.Item>
               <Descriptions.Item label="退货原因" span={2}>
-                <div className={styles.translateWrapper}>
-                  <span>{returnDetail.return_reason_name || '-'}</span>
-                  {returnDetail.return_reason_name && (
-                    <Button
-                      type="link"
-                      size="small"
-                      icon={<TranslationOutlined />}
-                      onClick={async () => {
-                        const russianText = returnDetail.return_reason_name;
-                        if (russianText) {
-                          try {
-                            const translation = await translateText(russianText, 'ru', 'zh');
-                            Modal.info({
-                              title: '翻译结果',
-                              content: (
-                                <div>
-                                  <p><strong>原文（俄语）：</strong></p>
-                                  <p>{russianText}</p>
-                                  <p className={styles.translateResult}><strong>译文（中文）：</strong></p>
-                                  <p>{translation}</p>
-                                </div>
-                              ),
-                              width: 500,
-                            });
-                          } catch {
-                            notifyError('翻译失败，请稍后重试');
-                          }
-                        }
-                      }}
-                      className={styles.translateButton}
-                    >
-                      翻译
-                    </Button>
-                  )}
-                </div>
+                {returnDetail.return_reason_name || '-'}
               </Descriptions.Item>
               <Descriptions.Item label="拒绝原因" span={2}>
-                <div className={styles.translateWrapper}>
-                  <span>{returnDetail.rejection_reason_name || '-'}</span>
-                  {returnDetail.rejection_reason_name && (
-                    <Button
-                      type="link"
-                      size="small"
-                      icon={<TranslationOutlined />}
-                      onClick={async () => {
-                        const russianText = returnDetail.rejection_reason_name;
-                        if (russianText) {
-                          try {
-                            const translation = await translateText(russianText, 'ru', 'zh');
-                            Modal.info({
-                              title: '翻译结果',
-                              content: (
-                                <div>
-                                  <p><strong>原文（俄语）：</strong></p>
-                                  <p>{russianText}</p>
-                                  <p className={styles.translateResult}><strong>译文（中文）：</strong></p>
-                                  <p>{translation}</p>
-                                </div>
-                              ),
-                              width: 500,
-                            });
-                          } catch {
-                            notifyError('翻译失败，请稍后重试');
-                          }
-                        }
-                      }}
-                      className={styles.translateButton}
-                    >
-                      翻译
-                    </Button>
-                  )}
-                </div>
+                {returnDetail.rejection_reason_name || '-'}
               </Descriptions.Item>
               <Descriptions.Item label="退货方式" span={2}>
                 {returnDetail.return_method_description || '-'}

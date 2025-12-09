@@ -59,7 +59,7 @@ const Profile: React.FC = () => {
           <div className={styles.infoItem}>
             <div className={styles.label}>角色</div>
             <div className={styles.value}>
-              {user?.role === 'admin' ? '管理员' : user?.role === 'operator' ? '操作员' : '查看员'}
+              {user?.role === 'admin' ? '超级管理员' : user?.role === 'manager' ? '管理员' : '子账号'}
             </div>
           </div>
 

@@ -23,6 +23,11 @@ from ef_core.utils.errors import UnauthorizedError, ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+# 延迟导入避免循环依赖
+def _get_session_service():
+    from ef_core.services.session_service import get_session_service
+    return get_session_service()
+
 logger = get_logger(__name__)
 
 
@@ -159,67 +164,118 @@ class AuthService:
         db_manager = get_db_manager()
 
         async with db_manager.get_session() as session:
-            # 查询用户
+            # 查询用户（包含 parent_user 用于子账号继承状态）
             stmt = select(User).where(
                 User.username == email_or_username
-            ).options(selectinload(User.primary_shop), selectinload(User.shops))
-            
+            ).options(
+                selectinload(User.primary_shop),
+                selectinload(User.shops),
+                selectinload(User.parent_user)
+            )
+
             result = await session.execute(stmt)
             user = result.scalar_one_or_none()
-            
+
             if not user:
                 return None
-            
+
             # 验证密码
             if not self.verify_password(password, user.password_hash):
                 return None
-            
+
             # 检查用户是否激活
             if not user.is_active:
                 raise UnauthorizedError(
                     code="USER_INACTIVE",
                     detail="User account is deactivated"
                 )
-            
+
+            # 检查账号状态和过期时间（admin 不受限制）
+            can_login, error_msg = user.can_login()
+            if not can_login:
+                raise UnauthorizedError(
+                    code="ACCOUNT_STATUS_ERROR",
+                    detail=error_msg
+                )
+
             # 更新最后登录时间
             user.last_login_at = datetime.now(timezone.utc)
             await session.commit()
-            
+
             # 刷新用户对象以确保所有属性都已加载
             await session.refresh(user)
-            
+
             return user
     
-    async def login(self, email_or_username: str, password: str, ip_address: str = None) -> dict:
-        """用户登录"""
+    async def login(
+        self,
+        email_or_username: str,
+        password: str,
+        ip_address: str = None,
+        user_agent: str = None,
+        device_info: str = None
+    ) -> dict:
+        """用户登录
+
+        Args:
+            email_or_username: 邮箱或用户名
+            password: 密码
+            ip_address: 客户端IP地址
+            user_agent: User-Agent
+            device_info: 设备信息
+
+        Returns:
+            dict: 包含 access_token, refresh_token, user, kicked_session_token
+        """
         # 检查登录限流
         if await self.check_rate_limit(email_or_username, ip_address):
             raise UnauthorizedError(
                 code="RATE_LIMIT_EXCEEDED",
                 detail="Too many login attempts. Please try again later."
             )
-        
+
         # 使用数据库管理器获取新会话
         db_manager = get_db_manager()
-        
+        kicked_session_token = None
+
         async with db_manager.get_session() as session:
             # 认证用户
             user = await self.authenticate_user(email_or_username, password)
-            
+
             if not user:
                 # 记录失败尝试
                 await self.record_login_attempt(email_or_username, ip_address, success=False)
                 logger.warning(f"Login failed", username=email_or_username, ip=ip_address)
-                
+
                 raise UnauthorizedError(
                     code="INVALID_CREDENTIALS",
                     detail="Invalid username or password"
                 )
-            
+
             # 记录成功登录
             await self.record_login_attempt(email_or_username, ip_address, success=True)
             logger.info(f"User logged in", user_id=user.id, username=user.username, ip=ip_address)
-            
+
+            # 单设备登录：创建新会话，踢出旧设备
+            session_service = _get_session_service()
+            session_token, kicked_session_token = await session_service.create_session(
+                db=session,
+                user_id=user.id,
+                device_info=device_info,
+                ip_address=ip_address,
+                user_agent=user_agent
+            )
+
+            await session.commit()
+
+            # 重新查询用户以获取最新数据
+            stmt = select(User).where(User.id == user.id).options(
+                selectinload(User.shops),
+                selectinload(User.manager_level)
+            )
+            result = await session.execute(stmt)
+            user = result.scalar_one()
+
             # 在会话内构建用户数据，避免detached instance错误
             user_data = {
                 "id": user.id,
@@ -227,14 +283,19 @@ class AuthService:
                 "role": user.role,
                 "permissions": user.permissions,
                 "is_active": user.is_active,
+                "account_status": user.account_status,
+                "expires_at": user.expires_at.isoformat() if user.expires_at else None,
+                "parent_user_id": user.parent_user_id,
                 "primary_shop_id": user.primary_shop_id,
                 "shop_ids": [shop.id for shop in user.shops] if user.shops else [],
+                "manager_level_id": user.manager_level_id,
+                "manager_level": user.manager_level.to_dict() if user.manager_level else None,
                 "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
                 "created_at": user.created_at.isoformat(),
                 "updated_at": user.updated_at.isoformat()
             }
 
-            # 创建令牌（包含店铺权限，避免每次请求查询数据库）
+            # 创建令牌（包含店铺权限和会话令牌，避免每次请求查询数据库）
             # admin 用户 shop_ids 为 None（表示可访问所有店铺）
             shop_ids = None if user.role == "admin" else [shop.id for shop in user.shops] if user.shops else []
             token_data = {
@@ -243,31 +304,33 @@ class AuthService:
                 "role": user.role,
                 "permissions": user.permissions,
                 "shop_id": user.primary_shop_id,
-                "shop_ids": shop_ids  # 存入 JWT，避免每次查询
+                "shop_ids": shop_ids,  # 存入 JWT，避免每次查询
+                "session_token": session_token  # 会话令牌，用于单设备登录验证
             }
-        
+
         access_token = self.create_access_token(token_data)
-        refresh_token = self.create_refresh_token({"sub": str(user.id)})
-        
+        refresh_token = self.create_refresh_token({"sub": str(user.id), "session_token": session_token})
+
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
             "token_type": "bearer",
-            "user": user_data
+            "user": user_data,
+            "kicked_session_token": kicked_session_token  # 被踢出的旧会话令牌，用于WebSocket通知
         }
     
     async def refresh_access_token(self, refresh_token: str) -> dict:
         """刷新访问令牌"""
         try:
             payload = self.decode_token(refresh_token)
-            
+
             # 验证令牌类型
             if payload.get("type") != "refresh":
                 raise UnauthorizedError(
                     code="INVALID_TOKEN_TYPE",
                     detail="Invalid token type"
                 )
-            
+
             # 检查黑名单
             jti = payload.get("jti")
             if await self.is_token_revoked(jti):
@@ -275,11 +338,14 @@ class AuthService:
                     code="TOKEN_REVOKED",
                     detail="Token has been revoked"
                 )
-            
+
+            # 获取会话令牌（用于单设备登录验证）
+            session_token = payload.get("session_token")
+
             # 获取用户信息
             user_id = payload.get("sub")
             db_manager = get_db_manager()
-            
+
             async with db_manager.get_session() as session:
                 stmt = select(User).where(User.id == int(user_id)).options(selectinload(User.shops))
                 result = await session.execute(stmt)
@@ -291,7 +357,15 @@ class AuthService:
                         detail="User not found or inactive"
                     )
 
-                # 创建新的访问令牌（包含店铺权限）
+                # 验证会话令牌（单设备登录）
+                if session_token and user.current_session_token:
+                    if user.current_session_token != session_token:
+                        raise UnauthorizedError(
+                            code="SESSION_EXPIRED",
+                            detail="您的账号在其他设备登录，当前会话已失效"
+                        )
+
+                # 创建新的访问令牌（包含店铺权限和会话令牌）
                 shop_ids = None if user.role == "admin" else [shop.id for shop in user.shops] if user.shops else []
                 token_data = {
                     "sub": str(user.id),
@@ -299,23 +373,27 @@ class AuthService:
                     "role": user.role,
                     "permissions": user.permissions,
                     "shop_id": user.primary_shop_id,
-                    "shop_ids": shop_ids
+                    "shop_ids": shop_ids,
+                    "session_token": session_token  # 保持原会话令牌
                 }
-                
+
                 new_access_token = self.create_access_token(token_data)
-                
-                # 可选：旋转refresh token
-                new_refresh_token = self.create_refresh_token({"sub": str(user.id)})
-                
+
+                # 旋转refresh token（保持session_token）
+                new_refresh_token = self.create_refresh_token({
+                    "sub": str(user.id),
+                    "session_token": session_token
+                })
+
                 # 撤销旧的refresh token
                 await self.revoke_token(jti, int(self.refresh_token_expire.total_seconds()))
-                
+
                 return {
                     "access_token": new_access_token,
                     "refresh_token": new_refresh_token,
                     "token_type": "bearer"
                 }
-                
+
         except JWTError as e:
             raise UnauthorizedError(
                 code="INVALID_TOKEN",

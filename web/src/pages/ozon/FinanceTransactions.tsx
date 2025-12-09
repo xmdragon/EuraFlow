@@ -11,6 +11,7 @@ import {
   Row,
   Col,
   Pagination,
+  Space,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
@@ -484,9 +485,6 @@ const FinanceTransactions: React.FC = () => {
       <div className={styles.contentContainer}>
         <Card className={styles.filterCard}>
           <Row gutter={[16, 16]} align="middle">
-            <Col>
-              <span>选择店铺:</span>
-            </Col>
             <Col>
               <ShopSelector
                 value={selectedShop}

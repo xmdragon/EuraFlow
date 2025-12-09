@@ -35,7 +35,7 @@ html, body {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #f0f2f5;
 }
 
 .login-form {
@@ -60,4 +60,17 @@ html, body {
 /* Alert with description 紧凑 padding */
 .ant-alert-with-description {
   padding: 10px 12px !important;
+}
+
+/* 统一页面布局规则 */
+/* main 下一级 div: padding: 2px, 无 margin */
+main > div {
+  padding: 2px !important;
+  margin: 0 !important;
+}
+
+/* main 下下级 div: 无左右 padding */
+main > div > div {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
 }

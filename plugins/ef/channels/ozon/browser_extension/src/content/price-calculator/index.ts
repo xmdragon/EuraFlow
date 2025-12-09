@@ -189,7 +189,8 @@ export class RealPriceCalculator {
         price: null,
         ozonProduct: null,
         spbSales: spbSalesData,
-        euraflowConfig: null
+        euraflowConfig: null,
+        productId  // SKU（从 URL 提取的商品ID）
       });
 
       // 6. 异步加载所有其他数据并更新组件

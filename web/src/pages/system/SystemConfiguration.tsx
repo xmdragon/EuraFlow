@@ -1,6 +1,7 @@
 /**
  * 系统配置统一管理页面
- * 集中管理：OZON店铺、第三方服务、API密钥等配置
+ * 集中管理：第三方服务、API密钥等配置
+ * 注意：OZON店铺配置已移至独立的"店铺管理"页面
  */
 import { SettingOutlined } from '@ant-design/icons';
 import { Tabs } from 'antd';
@@ -10,40 +11,29 @@ import styles from './SystemConfiguration.module.scss';
 
 import ConfigGuideTab from './components/ConfigGuideTab';
 import GlobalSettingsTab from './components/GlobalSettingsTab';
-import OzonShopTab from './components/OzonShopTab';
 import ThirdPartyServicesTab from './components/ThirdPartyServicesTab';
 import PageTitle from '@/components/PageTitle';
-import { useAuth } from '@/hooks/useAuth';
 
 const SystemConfiguration: React.FC = () => {
-  const { user } = useAuth();
-  const isOperator = user?.role === 'operator';
-
-  // 根据角色过滤标签
+  // 配置标签
   const allTabs = [
     {
       key: 'global-settings',
       label: '🌐 全局设置',
       children: <GlobalSettingsTab />,
-      visible: true, // 所有角色可见（管理员可编辑，操作员只读）
-    },
-    {
-      key: 'ozon-shops',
-      label: '📦 OZON店铺',
-      children: <OzonShopTab />,
-      visible: true, // 所有角色可见（操作员只能看到绑定的店铺）
+      visible: true,
     },
     {
       key: 'third-party',
       label: '🔌 第三方服务',
       children: <ThirdPartyServicesTab />,
-      visible: !isOperator, // 操作员不可见
+      visible: true,
     },
     {
       key: 'guide',
       label: 'ℹ️ 配置说明',
       children: <ConfigGuideTab />,
-      visible: true, // 所有角色可见（操作员只能看到部分内容）
+      visible: true,
     },
   ];
 
@@ -52,7 +42,7 @@ const SystemConfiguration: React.FC = () => {
     .map(({ key, label, children }) => ({ key, label, children }));
 
   // 确定默认选中的标签
-  const defaultActiveKey = tabItems.length > 0 ? tabItems[0].key : 'ozon-shops';
+  const defaultActiveKey = tabItems.length > 0 ? tabItems[0].key : 'global-settings';
 
   return (
     <div className={styles.container}>
