@@ -283,9 +283,7 @@ async def get_quick_publish_config(
         )
         user_settings = settings_result.scalar_one_or_none()
         # 默认格式：both（俄文【中文】）
-        shop_name_format = 'both'
-        if user_settings and user_settings.display:
-            shop_name_format = user_settings.display.get('shop_name_format', 'both')
+        shop_name_format = user_settings.display_shop_name_format if user_settings else 'both'
 
         # 1. 获取店铺列表（根据用户角色和权限）
         if user.role == "admin":
