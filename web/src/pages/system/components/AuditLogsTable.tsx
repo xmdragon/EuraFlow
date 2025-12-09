@@ -279,9 +279,9 @@ const AuditLogsTable: React.FC = () => {
     true: '是',
     false: '否',
     // 用户角色
-    admin: '管理员',
-    operator: '操作员',
-    viewer: '查看者',
+    admin: '超级管理员',
+    manager: '管理员',
+    sub_account: '子账号',
     // 登录方式
     password: '密码登录',
     // 加入方式

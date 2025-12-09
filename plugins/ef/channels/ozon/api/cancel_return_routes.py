@@ -123,8 +123,7 @@ async def get_cancellations(
 
     权限要求：
     - admin: 可查看所有店铺
-    - operator: 只能查看已授权店铺
-    - viewer: 只读权限
+    - manager/sub_account: 只能查看已授权店铺
     """
     # 权限校验：过滤用户有权限的店铺
     try:
@@ -180,8 +179,7 @@ async def get_returns(
 
     权限要求：
     - admin: 可查看所有店铺
-    - operator: 只能查看已授权店铺
-    - viewer: 只读权限
+    - manager/sub_account: 只能查看已授权店铺
     """
     # 权限校验：过滤用户有权限的店铺
     try:
@@ -230,8 +228,7 @@ async def get_return_detail(
 
     权限要求：
     - admin: 可查看所有店铺
-    - operator: 只能查看已授权店铺
-    - viewer: 只读权限
+    - manager/sub_account: 只能查看已授权店铺
     """
     # 调用服务层
     service = CancelReturnService()
@@ -253,8 +250,7 @@ async def sync_cancellations(
     手动同步取消申请（异步）
 
     权限要求：
-    - admin/operator: 可触发同步
-    - viewer: 无权限
+    - 任何登录用户可触发同步（同步用户有权限的店铺）
     """
     import logging
     import uuid
@@ -262,13 +258,8 @@ async def sync_cancellations(
     logger = logging.getLogger(__name__)
     logger.info(f"收到取消申请同步请求，shop_id={request.shop_id}, user={current_user.username}")
 
-    # 权限校验：只有 admin 和 operator 可以触发同步
-    if current_user.role == "viewer":
-        problem(403, "PERMISSION_DENIED", "您没有权限执行此操作")
-
-    # 校验店铺权限
+    # 校验店铺权限（指定店铺时检查权限，不指定时同步用户有权限的所有店铺）
     if request.shop_id is not None:
-        # 指定店铺：检查是否有权限操作该店铺
         try:
             allowed_shop_ids = await filter_by_shop_permission(current_user, db, request.shop_id)
             logger.info(f"用户有权限的店铺: {allowed_shop_ids}")
@@ -276,10 +267,6 @@ async def sync_cancellations(
                 problem(403, "SHOP_ACCESS_DENIED", "您没有权限操作该店铺")
         except PermissionError as e:
             raise HTTPException(status_code=403, detail=str(e))
-    else:
-        # 全部店铺：非 admin 不允许
-        if current_user.role != "admin":
-            problem(403, "PERMISSION_DENIED", "只有管理员可以同步所有店铺")
 
     # 生成任务ID
     task_id = f"cancellation_sync_{uuid.uuid4().hex[:12]}"
@@ -368,8 +355,7 @@ async def sync_returns(
     手动同步退货申请（异步）
 
     权限要求：
-    - admin/operator: 可触发同步
-    - viewer: 无权限
+    - 任何登录用户可触发同步（同步用户有权限的店铺）
     """
     import logging
     import uuid
@@ -377,13 +363,8 @@ async def sync_returns(
     logger = logging.getLogger(__name__)
     logger.info(f"收到退货申请同步请求，shop_id={request.shop_id}, user={current_user.username}")
 
-    # 权限校验：只有 admin 和 operator 可以触发同步
-    if current_user.role == "viewer":
-        problem(403, "PERMISSION_DENIED", "您没有权限执行此操作")
-
-    # 校验店铺权限
+    # 校验店铺权限（指定店铺时检查权限，不指定时同步用户有权限的所有店铺）
     if request.shop_id is not None:
-        # 指定店铺：检查是否有权限操作该店铺
         try:
             allowed_shop_ids = await filter_by_shop_permission(current_user, db, request.shop_id)
             logger.info(f"用户有权限的店铺: {allowed_shop_ids}")
@@ -391,10 +372,6 @@ async def sync_returns(
                 problem(403, "SHOP_ACCESS_DENIED", "您没有权限操作该店铺")
         except PermissionError as e:
             raise HTTPException(status_code=403, detail=str(e))
-    else:
-        # 全部店铺：非 admin 不允许
-        if current_user.role != "admin":
-            problem(403, "PERMISSION_DENIED", "只有管理员可以同步所有店铺")
 
     # 生成任务ID
     task_id = f"return_sync_{uuid.uuid4().hex[:12]}"
