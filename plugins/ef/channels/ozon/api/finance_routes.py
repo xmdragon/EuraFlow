@@ -643,18 +643,42 @@ def parse_ru_date(date_str: str) -> Optional[date]:
 
 def parse_amount_cny(amount_str: str) -> Decimal:
     """
-    解析金额字符串，支持带空格的千分位分隔符
-    例如: "12 345.67" -> Decimal("12345.67")
+    解析金额字符串，支持俄罗斯/欧洲格式
+    例如: "11 676,27 ¥" -> Decimal("11676.27")
+          "12 345.67" -> Decimal("12345.67")
+          "-1 234,56 ¥" -> Decimal("-1234.56")
     """
     if not amount_str:
         return Decimal("0")
-    # 移除空格和其他非数字字符（保留小数点和负号）
-    cleaned = amount_str.replace(" ", "").replace(",", ".")
-    # 处理负数
-    if cleaned.startswith("−"):  # 俄语负号
-        cleaned = "-" + cleaned[1:]
+
+    # 1. 移除货币符号和空格
+    cleaned = amount_str.replace("¥", "").replace("₽", "").replace(" ", "").strip()
+
+    # 2. 处理负数（俄语负号 − 和普通负号 -）
+    is_negative = False
+    if cleaned.startswith("−") or cleaned.startswith("-"):
+        is_negative = True
+        cleaned = cleaned[1:]
+
+    # 3. 处理小数分隔符（俄罗斯用逗号，国际用点号）
+    # 如果同时有点和逗号，需要判断哪个是小数分隔符
+    if "," in cleaned and "." in cleaned:
+        # 例如 "1.234,56" -> 逗号是小数分隔符
+        # 例如 "1,234.56" -> 点号是小数分隔符
+        if cleaned.rfind(",") > cleaned.rfind("."):
+            # 逗号在后面，是小数分隔符
+            cleaned = cleaned.replace(".", "").replace(",", ".")
+        else:
+            # 点号在后面，是小数分隔符
+            cleaned = cleaned.replace(",", "")
+    elif "," in cleaned:
+        # 只有逗号，当作小数分隔符
+        cleaned = cleaned.replace(",", ".")
+
+    # 4. 解析
     try:
-        return Decimal(cleaned)
+        result = Decimal(cleaned)
+        return -result if is_negative else result
     except Exception:
         return Decimal("0")
 
