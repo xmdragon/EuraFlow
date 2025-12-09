@@ -56,7 +56,7 @@ export interface ShopSelectorWithLabelProps {
  * />
  */
 export const ShopSelectorWithLabel: React.FC<ShopSelectorWithLabelProps> = ({
-  showLabel = true,
+  showLabel = false,
   label = '选择店铺',
   value,
   onChange,
