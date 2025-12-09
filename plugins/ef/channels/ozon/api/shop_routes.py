@@ -183,7 +183,9 @@ async def get_shops(
                 "shop_name_cn": shop.shop_name_cn,
                 "display_name": shop.shop_name_cn or shop.shop_name,
                 "platform": shop.platform,
-                "status": shop.status
+                "status": shop.status,
+                "current_balance_rub": float(shop.current_balance_rub) if shop.current_balance_rub else None,
+                "balance_updated_at": shop.balance_updated_at.isoformat() if shop.balance_updated_at else None,
             })
         return {"data": shops_data}
 
