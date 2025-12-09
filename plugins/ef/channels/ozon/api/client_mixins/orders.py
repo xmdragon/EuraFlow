@@ -171,6 +171,44 @@ class OrdersMixin:
 
         return await self._request("POST", "/v2/posting/fbs/cancel", data=data, resource_type="postings")
 
+    async def split_posting(
+        self, posting_number: str, postings: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        将货件拆分为多个不带备货的货件
+
+        使用 /v1/posting/fbs/split 接口
+
+        Args:
+            posting_number: 原始货件编号
+            postings: 拆分后的货件列表，每个包含 products 数组
+                [{
+                    "products": [
+                        {"product_id": 商品ID, "quantity": 数量}
+                    ]
+                }]
+
+        Returns:
+            {
+                "parent_posting": {
+                    "posting_number": "原始货件号",
+                    "products": [{"product_id": 0, "quantity": 0}]
+                },
+                "postings": [
+                    {
+                        "posting_number": "新货件号",
+                        "products": [{"product_id": 0, "quantity": 0}]
+                    }
+                ]
+            }
+        """
+        data = {
+            "posting_number": posting_number,
+            "postings": postings
+        }
+
+        return await self._request("POST", "/v1/posting/fbs/split", data=data, resource_type="postings")
+
     async def get_package_labels(
         self, posting_numbers: List[str]
     ) -> Dict[str, Any]:

@@ -75,10 +75,9 @@ class InvoicePaymentSyncer {
     // 获取 UTC 日期（用于检查窗口）
     const day = now.getUTCDate();
 
-    // 检查窗口：
-    // - 周期 1-15 结束后 → 18、19、20 号检查
-    // - 周期 16-月末结束后 → 下月 3、4、5 号检查
-    const inCheckWindow = (day >= 3 && day <= 5) || (day >= 18 && day <= 20);
+    // 检查窗口：1-15 号都可以检查（临时放宽，便于测试）
+    // TODO: 正式上线后改回 (day >= 3 && day <= 5) || (day >= 18 && day <= 20)
+    const inCheckWindow = day >= 1 && day <= 15;
 
     return inCheckWindow;
   }
@@ -209,10 +208,10 @@ class InvoicePaymentSyncer {
       return { tabId: existingTabs[0].id, shouldClose: false };
     }
 
-    // 创建新的后台标签页
+    // 创建新的标签页（前台打开，便于调试）
     const newTab = await chrome.tabs.create({
       url: 'https://seller.ozon.ru/app/finances/invoices',
-      active: false  // 后台打开
+      active: true  // TODO: 调试完成后改回 false
     });
 
     if (!newTab.id) {
@@ -301,6 +300,8 @@ class InvoicePaymentSyncer {
       target: { tabId },
       world: 'MAIN',
       func: () => {
+        console.log('[InvoicePaymentSyncer] 开始解析页面...');
+
         const payments: Array<{
           payment_type: string;
           amount_cny: string;
@@ -312,30 +313,45 @@ class InvoicePaymentSyncer {
           payment_method: string | null;
         }> = [];
 
-        // 查找表格行
-        // OZON 财务发票页面的表格结构可能变化，需要根据实际页面调整
-        const rows = document.querySelectorAll('table tbody tr');
+        // 查找发票表格（使用类名匹配）
+        const table = document.querySelector('table[class*="invoicesTable"]') || document.querySelector('table');
+        console.log('[InvoicePaymentSyncer] 表格:', table ? '找到' : '未找到');
+        if (!table) {
+          return payments;
+        }
 
-        rows.forEach((row) => {
+        // 查找表格行（跳过表头）
+        const rows = table.querySelectorAll('tbody tr');
+        console.log('[InvoicePaymentSyncer] 找到行数:', rows.length);
+
+        rows.forEach((row, index) => {
           const cells = row.querySelectorAll('td');
-          if (cells.length >= 6) {
-            // 表格列顺序（可能需要调整）：
-            // 0: 付款类型
-            // 1: 金额
-            // 2: 付款状态
-            // 3: 计划付款日期
-            // 4: 付款发放日期（实际付款日期）
-            // 5: 周期
-            // 6: 付款文件编号
-            // 7: 支付方式
-            const paymentType = cells[0]?.textContent?.trim() || '';
-            const amountText = cells[1]?.textContent?.trim() || '';
-            const statusText = cells[2]?.textContent?.trim() || '';
-            const scheduledDate = cells[3]?.textContent?.trim() || '';
-            const actualDate = cells[4]?.textContent?.trim() || null;
-            const periodText = cells[5]?.textContent?.trim() || null;
-            const fileNumber = cells.length > 6 ? cells[6]?.textContent?.trim() || null : null;
-            const paymentMethod = cells.length > 7 ? cells[7]?.textContent?.trim() || null : null;
+          console.log(`[InvoicePaymentSyncer] 行 ${index}: ${cells.length} 列`);
+
+          // 表格有 10 列，第一列和最后一列是空白占位符
+          // 列 0: 空白
+          // 列 1: 付款类型
+          // 列 2: 金额
+          // 列 3: 付款状态
+          // 列 4: 计划付款日期
+          // 列 5: 付款发放日期
+          // 列 6: 时期
+          // 列 7: 付款文件编号
+          // 列 8: 支付方式
+          // 列 9: 空白
+          if (cells.length >= 9) {
+            const paymentType = cells[1]?.textContent?.trim() || '';
+            const amountText = cells[2]?.textContent?.trim() || '';
+            const statusText = cells[3]?.textContent?.trim() || '';
+            const scheduledDate = cells[4]?.textContent?.trim() || '';
+            const actualDate = cells[5]?.textContent?.trim() || null;
+            const periodText = cells[6]?.textContent?.trim() || null;
+            const fileNumber = cells[7]?.textContent?.trim() || null;
+            const paymentMethod = cells[8]?.textContent?.trim() || null;
+
+            console.log(`[InvoicePaymentSyncer] 行 ${index} 数据:`, {
+              paymentType, amountText, statusText, scheduledDate, actualDate, paymentMethod
+            });
 
             // 只处理有效的付款记录
             if (paymentType && amountText && scheduledDate) {
@@ -353,6 +369,7 @@ class InvoicePaymentSyncer {
           }
         });
 
+        console.log('[InvoicePaymentSyncer] 解析完成，记录数:', payments.length);
         return payments;
       }
     });

@@ -3,7 +3,13 @@
  */
 
 import { apiClient } from '../client';
-import type { OrderFilter, ShipmentRequest, DiscardOrderRequest } from '../types/order';
+import type {
+  OrderFilter,
+  ShipmentRequest,
+  DiscardOrderRequest,
+  SplitPostingRequest,
+  SplitPostingResponse,
+} from '../types/order';
 
 /**
  * 获取订单列表（页码分页）
@@ -131,6 +137,26 @@ export const discardOrder = async (postingNumber: string, data: DiscardOrderRequ
   const response = await apiClient.post(
     `/ozon/packing/postings/${postingNumber}/discard`,
     data
+  );
+  return response.data;
+};
+
+/**
+ * 拆分货件
+ *
+ * 将一个货件拆分为多个不带备货的货件（仅支持 awaiting_packaging 状态）
+ *
+ * @param postingNumber 原始货件编号
+ * @param request 拆分请求，包含新货件的商品分配
+ * @returns 拆分结果
+ */
+export const splitPosting = async (
+  postingNumber: string,
+  request: SplitPostingRequest
+): Promise<SplitPostingResponse> => {
+  const response = await apiClient.post(
+    `/ozon/postings/${postingNumber}/split`,
+    request
   );
   return response.data;
 };

@@ -356,6 +356,7 @@ class OzonPosting(Base):
                 items.append({
                     'sku': str(product.get('sku', '')),
                     'offer_id': str(product.get('offer_id', '')) if product.get('offer_id') else None,
+                    'product_id': product.get('product_id'),  # OZON 商品 ID (拆分 API 需要)
                     'name': product.get('name', ''),
                     'quantity': product.get('quantity', 0),
                     'price': str(product.get('price', '0')),

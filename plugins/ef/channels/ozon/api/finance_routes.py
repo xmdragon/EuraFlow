@@ -776,7 +776,7 @@ async def sync_invoice_payments(
             success=True,
             created=created_count,
             updated=updated_count,
-            message=f"Synced {created_count + updated_count} payments for shop {shop.name}"
+            message=f"Synced {created_count + updated_count} payments for client_id {request.client_id}"
         )
 
     except HTTPException:

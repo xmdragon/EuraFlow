@@ -10,6 +10,7 @@ export interface OrderItem {
   sku: string;
   offer_id?: string;
   ozon_sku?: number;
+  product_id?: number; // OZON 商品 ID (用于拆分 API)
   name?: string;
   quantity: number;
   price: string;
@@ -193,4 +194,39 @@ export interface ShipmentRequest {
  */
 export interface DiscardOrderRequest {
   // 预留扩展字段
+}
+
+/**
+ * 拆分货件请求 - 单个商品
+ */
+export interface SplitPostingProduct {
+  product_id: number;
+  quantity: number;
+}
+
+/**
+ * 拆分货件请求 - 单个新货件
+ */
+export interface SplitPostingItem {
+  products: SplitPostingProduct[];
+}
+
+/**
+ * 拆分货件请求
+ */
+export interface SplitPostingRequest {
+  postings: SplitPostingItem[];
+}
+
+/**
+ * 拆分货件响应
+ */
+export interface SplitPostingResponse {
+  success: boolean;
+  message: string;
+  data: {
+    parent_posting_number: string;
+    new_posting_numbers: string[];
+    split_at: string;
+  };
 }

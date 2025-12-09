@@ -100,7 +100,11 @@ export type {
   OrderFilter,
   ShipmentRequest,
   ShipmentPackage,
-  DiscardOrderRequest
+  DiscardOrderRequest,
+  SplitPostingProduct,
+  SplitPostingItem,
+  SplitPostingRequest,
+  SplitPostingResponse
 } from './types/order';
 
 // 发货单类型

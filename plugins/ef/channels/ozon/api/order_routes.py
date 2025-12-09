@@ -2,7 +2,8 @@
 订单管理 API路由
 """
 from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
-from typing import Optional, Dict, Any
+from pydantic import BaseModel
+from typing import Optional, Dict, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_, exists
 from decimal import Decimal
@@ -1039,4 +1040,165 @@ async def sync_single_order(
         raise HTTPException(
             status_code=500,
             detail=f"同步失败: {str(e)}"
+        )
+
+
+# ========== 货件拆分 API ==========
+
+class SplitPostingProduct(BaseModel):
+    """拆分货件请求 - 单个商品"""
+    product_id: int
+    quantity: int
+
+
+class SplitPostingItem(BaseModel):
+    """拆分货件请求 - 单个新货件"""
+    products: List[SplitPostingProduct]
+
+
+class SplitPostingRequest(BaseModel):
+    """拆分货件请求"""
+    postings: List[SplitPostingItem]
+
+
+@router.post("/postings/{posting_number}/split")
+async def split_posting(
+    posting_number: str,
+    request: SplitPostingRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
+):
+    """
+    拆分货件为多个不带备货的货件
+
+    仅支持 awaiting_packaging 状态的货件。
+
+    请求体示例：
+    {
+        "postings": [
+            {"products": [{"product_id": 123, "quantity": 1}]},
+            {"products": [{"product_id": 123, "quantity": 1}]}
+        ]
+    }
+
+    返回拆分后的货件信息。
+    """
+    from ..api.client import OzonAPIClient
+    from ..models import OzonShop
+    from ..services.posting_processor import PostingProcessor
+
+    try:
+        # 1. 查找原始 posting
+        result = await db.execute(
+            select(OzonPosting).where(OzonPosting.posting_number == posting_number)
+        )
+        posting = result.scalar_one_or_none()
+
+        if not posting:
+            raise HTTPException(
+                status_code=404,
+                detail=f"未找到货件 {posting_number}"
+            )
+
+        # 2. 检查状态
+        if posting.status != "awaiting_packaging":
+            raise HTTPException(
+                status_code=400,
+                detail=f"只能拆分等待备货状态的货件，当前状态: {posting.status}"
+            )
+
+        shop_id = posting.shop_id
+
+        # 3. 获取店铺 API 凭证
+        shop_result = await db.execute(
+            select(OzonShop).where(OzonShop.id == shop_id)
+        )
+        shop = shop_result.scalar_one_or_none()
+
+        if not shop:
+            raise HTTPException(
+                status_code=404,
+                detail=f"未找到店铺 ID={shop_id}"
+            )
+
+        # 4. 调用 OZON API 拆分货件
+        api_client = OzonAPIClient(
+            client_id=shop.client_id,
+            api_key=shop.api_key_enc,
+            shop_id=shop_id
+        )
+
+        # 转换请求格式
+        split_postings = [
+            {"products": [{"product_id": p.product_id, "quantity": p.quantity} for p in item.products]}
+            for item in request.postings
+        ]
+
+        logger.info(f"拆分货件: posting_number={posting_number}, shop_id={shop_id}, split_count={len(split_postings)}")
+
+        split_response = await api_client.split_posting(
+            posting_number=posting_number,
+            postings=split_postings
+        )
+
+        # 5. 处理响应 - 更新原 posting 和创建新 posting
+        processor = PostingProcessor()
+
+        # 5.1 更新原 posting (parent_posting)
+        parent_posting = split_response.get("result", {}).get("parent_posting", {})
+        if parent_posting.get("posting_number"):
+            # 获取更新后的详情
+            detail_response = await api_client.get_posting_details(
+                posting_number=parent_posting["posting_number"],
+                with_analytics_data=True,
+                with_financial_data=True
+            )
+            if detail_response.get("result"):
+                posting_data = detail_response["result"]
+                ozon_order_id = str(posting_data.get("order_id", posting.ozon_order_id or ""))
+                await processor.sync_posting(db, posting_data, shop_id, ozon_order_id)
+
+        # 5.2 创建新的 postings
+        new_postings = split_response.get("result", {}).get("postings", [])
+        created_posting_numbers = []
+
+        for new_posting in new_postings:
+            new_posting_number = new_posting.get("posting_number")
+            if new_posting_number:
+                # 获取新 posting 的详情
+                detail_response = await api_client.get_posting_details(
+                    posting_number=new_posting_number,
+                    with_analytics_data=True,
+                    with_financial_data=True
+                )
+                if detail_response.get("result"):
+                    posting_data = detail_response["result"]
+                    ozon_order_id = str(posting_data.get("order_id", posting.ozon_order_id or ""))
+                    await processor.sync_posting(db, posting_data, shop_id, ozon_order_id)
+                    created_posting_numbers.append(new_posting_number)
+
+        await db.commit()
+
+        # 6. 关闭 API 客户端
+        await api_client.close()
+
+        logger.info(f"货件拆分成功: posting_number={posting_number}, new_postings={created_posting_numbers}")
+
+        return {
+            "success": True,
+            "message": "货件拆分成功",
+            "data": {
+                "parent_posting_number": parent_posting.get("posting_number", posting_number),
+                "new_posting_numbers": created_posting_numbers,
+                "split_at": utcnow().isoformat()
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"拆分货件失败: posting_number={posting_number}, error={e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"拆分失败: {str(e)}"
         )

@@ -6,6 +6,7 @@ import {
   SearchOutlined,
   ShoppingCartOutlined,
   CopyOutlined,
+  ScissorOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -36,6 +37,7 @@ import OrderDetailModal from '@/components/ozon/OrderDetailModal';
 import ProductImage from '@/components/ozon/ProductImage';
 import PurchasePriceHistoryModal from '@/components/ozon/PurchasePriceHistoryModal';
 import ShopSelector from '@/components/ozon/ShopSelector';
+import SplitPostingModal from '@/components/ozon/SplitPostingModal';
 import PageTitle from '@/components/PageTitle';
 import { ORDER_STATUS_CONFIG } from '@/config/ozon/orderStatusConfig';
 import { OZON_ORDER_STATUS_MAP } from '@/constants/ozonStatus';
@@ -142,6 +144,10 @@ const OrderList: React.FC = () => {
   const [priceHistoryModalVisible, setPriceHistoryModalVisible] = useState(false);
   const [selectedSku, setSelectedSku] = useState<string>('');
   const [selectedProductName, setSelectedProductName] = useState<string>('');
+
+  // 拆分货件弹窗状态
+  const [splitModalVisible, setSplitModalVisible] = useState(false);
+  const [splitPosting, setSplitPosting] = useState<ozonApi.PostingWithOrder | null>(null);
 
   // 搜索参数状态
   interface OrderSearchParams {
@@ -592,6 +598,24 @@ const OrderList: React.FC = () => {
             </div>
             <div>
               <span className={styles.labelSecondary}>数量: </span>X {item.quantity || 1}
+              {/* 拆分图标：仅在等待备货状态、第一个商品行、且可拆分时显示 */}
+              {activeTab === 'awaiting_packaging' &&
+                row.isFirstItem &&
+                canSplitPosting(row.posting) && (
+                  <Tooltip title="拆分货件">
+                    <ScissorOutlined
+                      style={{
+                        marginLeft: 8,
+                        cursor: 'pointer',
+                        color: '#1890ff',
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSplitClick(row.posting);
+                      }}
+                    />
+                  </Tooltip>
+                )}
             </div>
             <div>
               <span className={styles.labelSecondary}>单价: </span>
@@ -767,6 +791,28 @@ const OrderList: React.FC = () => {
   ];
 
   // 处理函数
+
+  // 判断货件是否可以拆分
+  const canSplitPosting = (posting: ozonApi.PostingWithOrder): boolean => {
+    const products = posting.products || [];
+    // 商品种类 > 1，或单个商品数量 > 1
+    if (products.length > 1) return true;
+    if (products.length === 1 && products[0].quantity > 1) return true;
+    return false;
+  };
+
+  // 点击拆分图标
+  const handleSplitClick = (posting: ozonApi.PostingWithOrder) => {
+    setSplitPosting(posting);
+    setSplitModalVisible(true);
+  };
+
+  // 拆分成功后刷新
+  const handleSplitSuccess = () => {
+    setSplitModalVisible(false);
+    setSplitPosting(null);
+  };
+
   const showOrderDetail = (order: ozonApi.Order, posting?: ozonApi.Posting) => {
     setSelectedOrder(order);
     setSelectedPosting(posting || null);
@@ -1018,6 +1064,17 @@ const OrderList: React.FC = () => {
         onCancel={() => setPriceHistoryModalVisible(false)}
         sku={selectedSku}
         productName={selectedProductName}
+      />
+
+      {/* 拆分货件弹窗 */}
+      <SplitPostingModal
+        visible={splitModalVisible}
+        posting={splitPosting}
+        onCancel={() => {
+          setSplitModalVisible(false);
+          setSplitPosting(null);
+        }}
+        onSuccess={handleSplitSuccess}
       />
 
       {/* 同步确认对话框 */}
