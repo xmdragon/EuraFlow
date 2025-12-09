@@ -468,6 +468,7 @@ const Dashboard: React.FC = () => {
                           role: "sub_account" as const,
                           permissions: [],
                           is_active: false,
+                          account_status: "active" as const,
                           created_at: new Date().toISOString(),
                           updated_at: new Date().toISOString(),
                         }

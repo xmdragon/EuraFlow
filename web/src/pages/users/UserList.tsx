@@ -39,10 +39,27 @@ import { useAuth } from '@/hooks/useAuth';
 import axios from '@/services/axios';
 import { notifySuccess, notifyError } from '@/utils/notification';
 
-import type { FormValues } from '@/types/common';
 import type { AccountStatus, ManagerLevel, UserRole } from '@/types/auth';
 
 const { Option } = Select;
+
+// 用户表单类型
+interface UserFormValues {
+  username: string;
+  password?: string;
+  role: UserRole;
+  is_active: boolean;
+  account_status?: AccountStatus;
+  shop_ids?: number[];
+  manager_level_id?: number;
+  renewal_days?: number;
+  expiration_days?: number;
+}
+
+// 密码表单类型
+interface PasswordFormValues {
+  new_password: string;
+}
 
 interface User {
   id: number;
@@ -209,7 +226,7 @@ const UserManagement: React.FC = () => {
   }
 
   // 创建/更新用户
-  const handleSubmit = async (values: FormValues) => {
+  const handleSubmit = async (values: UserFormValues) => {
     try {
       // 处理shop_ids：admin和manager角色不传入shop_ids（可访问所有店铺）
       const shopIds = (values.role === 'admin' || values.role === 'manager') ? undefined : values.shop_ids || [];
@@ -366,7 +383,7 @@ const UserManagement: React.FC = () => {
   };
 
   // 修改密码
-  const handlePasswordSubmit = async (values: FormValues) => {
+  const handlePasswordSubmit = async (values: PasswordFormValues) => {
     if (!editingUser) return;
 
     try {
