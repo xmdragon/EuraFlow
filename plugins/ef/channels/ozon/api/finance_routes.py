@@ -965,14 +965,14 @@ async def check_should_sync_invoice_payments(
 
         # 判断检查窗口和对应周期
         # 周期 1-15 结束后 → 16-22 号检查
-        # 周期 16-月末结束后 → 下月 1-15 号检查（临时放宽用于测试）
+        # 周期 16-月末结束后 → 下月 1-7 号检查
         if day >= 16 and day <= 22:
             # 检查当月 1-15 周期
             in_check_window = True
             period_start = date(now.year, now.month, 1)
             period_end = date(now.year, now.month, 15)
             window_reason = f"在检查窗口内（{day}号，检查周期 {period_start} ~ {period_end}）"
-        elif day >= 1 and day <= 15:
+        elif day >= 1 and day <= 7:
             # 检查上月 16-月末周期
             in_check_window = True
             if now.month == 1:
@@ -1060,3 +1060,59 @@ async def check_should_sync_invoice_payments(
     except Exception as e:
         logger.error(f"Check should sync invoice payments failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Check failed: {str(e)}")
+
+
+# ============ 店铺余额同步 ============
+
+class ShopBalanceUpdateRequest(BaseModel):
+    """店铺余额更新请求"""
+    client_id: str = Field(..., description="店铺 client_id")
+    balance_rub: Decimal = Field(..., description="当前余额（卢布）")
+
+
+class ShopBalanceUpdateResponse(BaseModel):
+    """店铺余额更新响应"""
+    success: bool
+    shop_id: int
+    balance_rub: Decimal
+    updated_at: str
+
+
+@router.post("/shop-balance/update", response_model=ShopBalanceUpdateResponse)
+async def update_shop_balance(
+    request: ShopBalanceUpdateRequest,
+    db: AsyncSession = Depends(get_async_session),
+    _: User = Depends(get_current_user_from_api_key)
+):
+    """
+    更新店铺当前余额（由浏览器扩展调用）
+    """
+    try:
+        # 查找店铺
+        stmt = select(OzonShop).where(OzonShop.client_id == request.client_id)
+        result = await db.execute(stmt)
+        shop = result.scalar_one_or_none()
+
+        if not shop:
+            raise HTTPException(status_code=404, detail=f"Shop not found: {request.client_id}")
+
+        # 更新余额
+        shop.current_balance_rub = request.balance_rub
+        shop.balance_updated_at = datetime.utcnow()
+
+        await db.commit()
+
+        logger.info(f"Shop balance updated: shop_id={shop.id}, balance={request.balance_rub} RUB")
+
+        return ShopBalanceUpdateResponse(
+            success=True,
+            shop_id=shop.id,
+            balance_rub=request.balance_rub,
+            updated_at=shop.balance_updated_at.isoformat()
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Update shop balance failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Update failed: {str(e)}")

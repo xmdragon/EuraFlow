@@ -3,9 +3,10 @@ Ozon店铺数据模型
 """
 from datetime import datetime
 from typing import Optional, Dict, Any
+from decimal import Decimal
 from sqlalchemy import (
     BigInteger, String, Text, DateTime, JSON, Boolean,
-    ForeignKey, UniqueConstraint, func
+    ForeignKey, UniqueConstraint, func, Numeric
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSONB
@@ -111,7 +112,20 @@ class OzonShop(Base):
         nullable=True,
         comment="最后同步时间"
     )
-    
+
+    # 财务信息
+    current_balance_rub: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(18, 2),
+        nullable=True,
+        comment="当前余额（卢布）"
+    )
+
+    balance_updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="余额更新时间"
+    )
+
     # 关系
     owner = relationship("User", backref="ozon_shops", foreign_keys=[owner_user_id])
     
@@ -137,6 +151,8 @@ class OzonShop(Base):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "last_sync_at": self.last_sync_at.isoformat() if self.last_sync_at else None,
+            "current_balance_rub": float(self.current_balance_rub) if self.current_balance_rub else None,
+            "balance_updated_at": self.balance_updated_at.isoformat() if self.balance_updated_at else None,
         }
         
         if include_credentials:

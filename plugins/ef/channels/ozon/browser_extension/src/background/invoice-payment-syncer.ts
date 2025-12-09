@@ -20,8 +20,8 @@ import type { Shop } from '../shared/types';
 
 // 缓存键：记录最后执行时间戳
 const CACHE_KEY = 'invoice_payment_syncer_last_run';
-// 检查间隔：10 天（临时调整用于测试）
-const CHECK_INTERVAL_DAYS = 10;
+// 检查间隔：7 天
+const CHECK_INTERVAL_DAYS = 7;
 
 // 付款记录接口
 interface InvoicePayment {
@@ -214,8 +214,8 @@ class InvoicePaymentSyncer {
       const { tabId } = await this.getOrCreateFinanceTab();
 
       try {
-        // 3. 在页面上下文中解析付款表格
-        const payments = await this.fetchPayments(tabId);
+        // 3. 在页面上下文中解析付款表格（传入预期的 client_id 进行校验）
+        const payments = await this.fetchPayments(tabId, shop.client_id);
 
         if (payments.length === 0) {
           console.log(`[InvoicePaymentSyncer] ${shop.display_name}: 没有付款记录`);
@@ -338,8 +338,10 @@ class InvoicePaymentSyncer {
   /**
    * 获取付款记录
    * 在页面上下文中执行，解析财务发票表格
+   * @param tabId 标签页ID
+   * @param expectedClientId 预期的店铺 client_id，用于校验页面数据是否属于该店铺
    */
-  private async fetchPayments(tabId: number): Promise<InvoicePayment[]> {
+  private async fetchPayments(tabId: number, expectedClientId: string): Promise<InvoicePayment[]> {
     // 强制硬刷新：先导航到目标页，再用 bypassCache 强制刷新（确保 cookie 生效）
     await chrome.tabs.update(tabId, { url: 'https://seller.ozon.ru/app/finances/invoices' });
     await this.waitForTabLoad(tabId);
@@ -347,11 +349,40 @@ class InvoicePaymentSyncer {
     await chrome.tabs.reload(tabId, { bypassCache: true });
     await this.waitForTabLoad(tabId);
 
-    // 在页面上下文中解析表格
+    // 在页面上下文中解析表格，同时校验 company.id
     const results = await chrome.scripting.executeScript({
       target: { tabId },
       world: 'MAIN',
-      func: () => {
+      args: [expectedClientId],
+      func: (expectedClientId: string) => {
+        // 1. 从 window.__INITIAL_STATE__ 提取 company.id 进行校验
+        const windowAny = window as any;
+        const actualCompanyId = windowAny.__INITIAL_STATE__?.store?.company?.id
+          ? String(windowAny.__INITIAL_STATE__.store.company.id)
+          : null;
+
+        // 返回结果包含调试信息
+        const result = {
+          expectedClientId,
+          actualCompanyId,
+          payments: [] as Array<{
+            payment_type: string;
+            amount_cny: string;
+            payment_status: string;
+            scheduled_payment_date: string;
+            actual_payment_date: string | null;
+            period_text: string | null;
+            payment_file_number: string | null;
+            payment_method: string | null;
+          }>
+        };
+
+        // 校验：company.id 必须存在且与预期匹配，否则跳过
+        if (!actualCompanyId || actualCompanyId !== expectedClientId) {
+          return result;
+        }
+
+        // 2. 解析付款表格
         const payments: Array<{
           payment_type: string;
           amount_cny: string;
@@ -412,11 +443,13 @@ class InvoicePaymentSyncer {
           }
         });
 
-        return payments;
+        result.payments = payments;
+        return result;
       }
     });
 
-    return (results && results[0]?.result) ? results[0].result as InvoicePayment[] : [];
+    const data = results?.[0]?.result as { expectedClientId: string; actualCompanyId: string | null; payments: InvoicePayment[] } | undefined;
+    return data?.payments || [];
   }
 
   /**

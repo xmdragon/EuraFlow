@@ -184,6 +184,9 @@ function batchGenerateOfferIds(): void {
     }
   });
 
+  // 保存商品编辑数据缓存
+  saveProductEditCache();
+
   // 重新渲染表格
   renderMainModal();
 }
@@ -206,14 +209,163 @@ let selectedWarehouseIds: number[] = [];
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 let selectedWatermarkId: number | null = null; // 未来功能：水印支持
 
-// 用户选择缓存 key
+// 用户选择缓存 key（全局默认选择，跨商品）
 const SELECTION_CACHE_KEY = 'euraflow_publish_selection';
 
-// 缓存用户选择
+// 商品编辑数据缓存 key 前缀（按商品ID缓存，10分钟有效）
+const PRODUCT_EDIT_CACHE_PREFIX = 'euraflow_product_edit_';
+const PRODUCT_EDIT_CACHE_DURATION = 10 * 60 * 1000; // 10分钟
+
+// 缓存用户选择（全局默认）
 interface SelectionCache {
   shopId: number;
   warehouseId: number;
   watermarkId: number | null;
+}
+
+// 商品编辑数据缓存（按商品ID）
+interface ProductEditCache {
+  productId: string;  // 商品唯一标识（ozon_product_id 或 URL）
+  timestamp: number;  // 缓存时间戳
+  shopId: number | null;
+  warehouseIds: number[];
+  watermarkId: number | null;
+  defaultStock: number;
+  variants: Array<{
+    variant_id: string;
+    custom_price: number;
+    custom_old_price?: number;
+    offer_id: string;
+    stock: number;
+    enabled: boolean;
+  }>;
+  purchaseUrl: string;
+  purchasePrice: number | null;
+  purchaseNote: string;
+  editedDescription: string;
+}
+
+/**
+ * 获取商品唯一标识（用于缓存 key）
+ */
+function getProductCacheKey(product: ProductDetailData | null): string {
+  if (!product) return '';
+  // 优先使用 ozon_product_id，否则使用当前 URL
+  return product.ozon_product_id || window.location.href;
+}
+
+/**
+ * 保存商品编辑数据到缓存
+ */
+function saveProductEditCache(): void {
+  const productId = getProductCacheKey(productData);
+  if (!productId) return;
+
+  const cache: ProductEditCache = {
+    productId,
+    timestamp: Date.now(),
+    shopId: selectedShopId,
+    warehouseIds: selectedWarehouseIds,
+    watermarkId: selectedWatermarkId,
+    defaultStock: (document.getElementById('default-stock') as HTMLInputElement)?.valueAsNumber || 9,
+    variants: variants.map(v => ({
+      variant_id: v.variant_id,
+      custom_price: v.custom_price,
+      custom_old_price: v.custom_old_price,
+      offer_id: v.offer_id,
+      stock: v.stock,
+      enabled: v.enabled,
+    })),
+    purchaseUrl,
+    purchasePrice,
+    purchaseNote,
+    editedDescription,
+  };
+
+  try {
+    localStorage.setItem(PRODUCT_EDIT_CACHE_PREFIX + productId, JSON.stringify(cache));
+  } catch {
+    // 忽略缓存失败
+  }
+}
+
+/**
+ * 加载商品编辑数据缓存
+ */
+function loadProductEditCache(productId: string): ProductEditCache | null {
+  if (!productId) return null;
+
+  try {
+    const cached = localStorage.getItem(PRODUCT_EDIT_CACHE_PREFIX + productId);
+    if (!cached) return null;
+
+    const cache: ProductEditCache = JSON.parse(cached);
+
+    // 检查是否过期（10分钟）
+    if (Date.now() - cache.timestamp > PRODUCT_EDIT_CACHE_DURATION) {
+      localStorage.removeItem(PRODUCT_EDIT_CACHE_PREFIX + productId);
+      return null;
+    }
+
+    // 检查商品ID是否匹配
+    if (cache.productId !== productId) {
+      return null;
+    }
+
+    return cache;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 清除商品编辑数据缓存
+ */
+function clearProductEditCache(productId: string): void {
+  if (!productId) return;
+  try {
+    localStorage.removeItem(PRODUCT_EDIT_CACHE_PREFIX + productId);
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * 应用商品编辑数据缓存到当前状态
+ */
+function applyProductEditCache(cache: ProductEditCache): void {
+  // 恢复店铺和仓库选择（如果在当前可用列表中）
+  if (cache.shopId && shops.some(s => s.id === cache.shopId)) {
+    selectedShopId = cache.shopId;
+  }
+  if (cache.warehouseIds.length > 0 && warehouses.some(w => cache.warehouseIds.includes(w.id))) {
+    selectedWarehouseIds = cache.warehouseIds.filter(id => warehouses.some(w => w.id === id));
+  }
+  if (cache.watermarkId && watermarks.some(w => w.id === cache.watermarkId)) {
+    selectedWatermarkId = cache.watermarkId;
+  }
+
+  // 恢复变体数据
+  if (cache.variants && cache.variants.length > 0) {
+    cache.variants.forEach(cachedVariant => {
+      const variant = variants.find(v => v.variant_id === cachedVariant.variant_id);
+      if (variant) {
+        variant.custom_price = cachedVariant.custom_price;
+        variant.custom_old_price = cachedVariant.custom_old_price;
+        variant.offer_id = cachedVariant.offer_id;
+        variant.stock = cachedVariant.stock;
+        variant.enabled = cachedVariant.enabled && variant.available; // 只有可用的才能启用
+      }
+    });
+  }
+
+  // 恢复采购信息
+  purchaseUrl = cache.purchaseUrl || '';
+  purchasePrice = cache.purchasePrice;
+  purchaseNote = cache.purchaseNote || '';
+
+  // 恢复编辑后的描述
+  editedDescription = cache.editedDescription || '';
 }
 
 async function saveSelectionCache(): Promise<void> {
@@ -298,7 +450,15 @@ export async function showPublishModal(product: any = null, currentRealPrice: nu
     updateLoadingMessage('正在处理变体数据...');
     initializeVariants(currentRealPrice, minFollowPrice);
 
-    // 4. 渲染主弹窗（仅关闭加载弹窗，不重置数据）
+    // 4. 检查是否有商品编辑数据缓存（10分钟内有效）
+    const productId = getProductCacheKey(productData);
+    const productEditCache = loadProductEditCache(productId);
+    if (productEditCache) {
+      updateLoadingMessage('正在恢复编辑数据...');
+      applyProductEditCache(productEditCache);
+    }
+
+    // 5. 渲染主弹窗（仅关闭加载弹窗，不重置数据）
     closeModalElement();
     renderMainModal();
   } catch (error) {
@@ -845,6 +1005,7 @@ function bindMainModalEvents(): void {
     selectedShopId = shopId;
     await loadWarehouses(shopId);
     rerenderWarehouseSelect();
+    saveProductEditCache();
   });
 
   // 仓库选择
@@ -852,6 +1013,7 @@ function bindMainModalEvents(): void {
   warehouseSelect?.addEventListener('change', (e) => {
     const warehouseId = parseInt((e.target as HTMLSelectElement).value);
     selectedWarehouseIds = [warehouseId];
+    saveProductEditCache();
   });
 
   // 水印选择
@@ -859,6 +1021,7 @@ function bindMainModalEvents(): void {
   watermarkSelect?.addEventListener('change', (e) => {
     const value = (e.target as HTMLSelectElement).value;
     selectedWatermarkId = value ? parseInt(value) : null;
+    saveProductEditCache();
   });
 
   // 全选/取消全选
@@ -874,6 +1037,7 @@ function bindMainModalEvents(): void {
       }
     });
     updateSelectedCount();
+    saveProductEditCache();
   });
 
   // 变体勾选
@@ -884,6 +1048,7 @@ function bindMainModalEvents(): void {
       variants[index].enabled = checked;
       toggleVariantInputs(index, checked);
       updateSelectedCount();
+      saveProductEditCache();
     });
   });
 
@@ -892,6 +1057,7 @@ function bindMainModalEvents(): void {
     input.addEventListener('input', (e) => {
       const index = parseInt((e.target as HTMLInputElement).getAttribute('data-index') || '0');
       variants[index].offer_id = (e.target as HTMLInputElement).value;
+      saveProductEditCache();
     });
   });
 
@@ -907,6 +1073,7 @@ function bindMainModalEvents(): void {
       if (oldPriceInput) {
         oldPriceInput.value = (newPrice * 1.6).toFixed(2);
       }
+      saveProductEditCache();
     });
   });
 
@@ -915,6 +1082,7 @@ function bindMainModalEvents(): void {
       const index = parseInt((e.target as HTMLInputElement).getAttribute('data-index') || '0');
       const value = (e.target as HTMLInputElement).value;
       variants[index].custom_old_price = value ? parseFloat(value) : undefined;
+      saveProductEditCache();
     });
   });
 
@@ -922,6 +1090,7 @@ function bindMainModalEvents(): void {
     input.addEventListener('input', (e) => {
       const index = parseInt((e.target as HTMLInputElement).getAttribute('data-index') || '0');
       variants[index].stock = parseInt((e.target as HTMLInputElement).value) || 0;
+      saveProductEditCache();
     });
   });
 
@@ -940,6 +1109,7 @@ function bindMainModalEvents(): void {
         stockInput.value = defaultStock.toString();
       }
     });
+    saveProductEditCache();
   });
 
   // 批量生成Offer ID按钮
@@ -956,23 +1126,27 @@ function bindMainModalEvents(): void {
   const purchaseUrlInput = document.getElementById('purchase-url') as HTMLInputElement;
   purchaseUrlInput?.addEventListener('input', (e) => {
     purchaseUrl = (e.target as HTMLInputElement).value;
+    saveProductEditCache();
   });
 
   const purchasePriceInput = document.getElementById('purchase-price') as HTMLInputElement;
   purchasePriceInput?.addEventListener('input', (e) => {
     const value = (e.target as HTMLInputElement).value;
     purchasePrice = value ? parseFloat(value) : null;
+    saveProductEditCache();
   });
 
   const purchaseNoteInput = document.getElementById('purchase-note') as HTMLInputElement;
   purchaseNoteInput?.addEventListener('input', (e) => {
     purchaseNote = (e.target as HTMLInputElement).value;
+    saveProductEditCache();
   });
 
   // 描述编辑框（仅当检测到外链时存在）
   const descriptionEditInput = document.getElementById('description-edit') as HTMLTextAreaElement;
   descriptionEditInput?.addEventListener('input', (e) => {
     editedDescription = (e.target as HTMLTextAreaElement).value;
+    saveProductEditCache();
   });
 }
 
@@ -1250,6 +1424,9 @@ function applyBatchPricing(config: BatchPricingConfig): void {
     const oldPriceInput = document.querySelector(`.custom-old-price-input[data-index="${index}"]`) as HTMLInputElement;
     if (oldPriceInput) oldPriceInput.value = variant.custom_old_price.toFixed(2);
   });
+
+  // 保存商品编辑数据缓存
+  saveProductEditCache();
 }
 
 // ========== 上架处理 ==========
@@ -1384,6 +1561,10 @@ async function handleFollowPdp(): Promise<void> {
 
     // 保存用户选择（下次自动选中）
     await saveSelectionCache();
+
+    // 跟卖成功后清除商品编辑缓存（避免下次重复提交相同数据）
+    const productId = getProductCacheKey(productData);
+    clearProductEditCache(productId);
 
     // 成功后显示右上角通知
     showToast('跟卖已提交，后续请查看Seller后台是否有错', 'info');

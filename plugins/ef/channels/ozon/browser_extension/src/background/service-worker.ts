@@ -25,6 +25,9 @@ import { promoAutoAddCleaner, registerPromoCleanerHandlers } from './promo-auto-
 // 导入账单付款同步模块
 import { invoicePaymentSyncer, registerInvoicePaymentSyncerHandlers } from './invoice-payment-syncer';
 
+// 导入余额同步模块
+import { balanceSyncer, registerBalanceSyncerHandlers } from './balance-syncer';
+
 // ============================================================================
 // OZON 版本信息动态拦截器
 // ============================================================================
@@ -127,6 +130,11 @@ chrome.runtime.onInstalled.addListener((details: chrome.runtime.InstalledDetails
   invoicePaymentSyncer.run().catch((error) => {
     console.error('[ServiceWorker] 账单付款同步执行失败:', error);
   });
+
+  // 执行余额同步（每小时执行）
+  balanceSyncer.run().catch((error) => {
+    console.error('[ServiceWorker] 余额同步执行失败:', error);
+  });
 });
 
 // Service Worker 启动时也检查执行
@@ -137,6 +145,10 @@ chrome.runtime.onStartup.addListener(() => {
 
   invoicePaymentSyncer.run().catch((error) => {
     console.error('[ServiceWorker] 账单付款同步执行失败:', error);
+  });
+
+  balanceSyncer.run().catch((error) => {
+    console.error('[ServiceWorker] 余额同步执行失败:', error);
   });
 });
 
@@ -687,6 +699,7 @@ async function getEuraflowConfig(): Promise<any> {
 registerAutoCollectorHandlers();
 registerPromoCleanerHandlers();
 registerInvoicePaymentSyncerHandlers();
+registerBalanceSyncerHandlers();
 
 // 导出类型（供TypeScript使用）
 export {};

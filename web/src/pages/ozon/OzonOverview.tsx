@@ -5,6 +5,7 @@
 import {
   ShoppingOutlined,
   LineChartOutlined,
+  WalletOutlined,
 } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { Card, Row, Col, Statistic, Space, Typography, Spin, Select, DatePicker } from 'antd';
@@ -452,7 +453,7 @@ const OzonOverview: React.FC = () => {
 
         {/* 概览统计 */}
         <Row gutter={8} className={styles.statsRow} align="middle">
-          <Col span={6}>
+          <Col flex="1">
             <Card>
               <Statistic
                 title={selectedShop ? shops?.data?.find((s: { id: number; shop_name: string }) => s.id === selectedShop)?.shop_name : '店铺数'}
@@ -472,7 +473,22 @@ const OzonOverview: React.FC = () => {
               />
             </Card>
           </Col>
-          <Col span={6}>
+          <Col flex="1">
+            <Card>
+              <Statistic
+                title="当前余额"
+                value={
+                  selectedShop
+                    ? shops?.data?.find((s: { id: number }) => s.id === selectedShop)?.current_balance_rub ?? 0
+                    : shops?.data?.reduce((sum: number, s: { current_balance_rub?: number }) => sum + (s.current_balance_rub || 0), 0) || 0
+                }
+                precision={2}
+                prefix={<WalletOutlined />}
+                suffix="₽"
+              />
+            </Card>
+          </Col>
+          <Col flex="1">
             <Card>
               <Statistic
                 title="总商品数"
@@ -481,7 +497,7 @@ const OzonOverview: React.FC = () => {
               />
             </Card>
           </Col>
-          <Col span={6}>
+          <Col flex="1">
             <Card>
               <Statistic
                 title="待处理订单"
@@ -490,7 +506,7 @@ const OzonOverview: React.FC = () => {
               />
             </Card>
           </Col>
-          <Col span={6}>
+          <Col flex="1">
             <Card>
               <Statistic
                 title="昨日销售额"
