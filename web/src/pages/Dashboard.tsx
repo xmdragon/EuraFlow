@@ -180,14 +180,19 @@ const Dashboard: React.FC = () => {
   ];
 
   // 创建带添加按钮的菜单项标签
+  // 注意：折叠状态下悬浮菜单需要纯文本label才能正确显示
   const createMenuLabel = (key: string, label: string, path: string) => {
+    // 折叠状态下返回纯文本，确保悬浮菜单正确显示
+    if (collapsed) {
+      return label;
+    }
     const isAdded = isInQuickMenu(key);
     // 仪表板不显示添加按钮，因为登录后默认就在这一页
     const showAddButton = key !== 'dashboard';
     return (
       <div className={styles.menuItemWrapper}>
         <span>{label}</span>
-        {!collapsed && showAddButton && (
+        {showAddButton && (
           <Button
             type="text"
             size="small"
@@ -281,13 +286,14 @@ const Dashboard: React.FC = () => {
         };
 
         // 根据用户自定义顺序生成菜单项
+        // 注意：折叠状态下悬浮菜单需要纯文本label才能正确显示
         return menuOrder.map((key, index) => {
           const config = ozonMenuConfig[key];
           if (!config) return null;
           return {
             key,
             icon: config.icon,
-            label: createOzonMenuLabel(key, config.label, config.path, index),
+            label: collapsed ? config.label : createOzonMenuLabel(key, config.label, config.path, index),
             onClick: () => navigate(config.path),
           };
         }).filter(Boolean);

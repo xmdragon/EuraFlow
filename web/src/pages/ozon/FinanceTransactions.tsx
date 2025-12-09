@@ -230,6 +230,21 @@ const FinanceTransactions: React.FC = () => {
     staleTime: 5 * 60 * 1000, // 5分钟缓存
   });
 
+  // 查询实收款（账单付款）
+  const { data: invoicePaymentData } = useQuery({
+    queryKey: ['invoicePaymentsByPeriod', selectedShop, dateRange?.dateFrom, dateRange?.dateTo],
+    queryFn: async () => {
+      if (!dateRange) return null;
+      return await ozonApi.getInvoicePaymentsByPeriod(
+        selectedShop,
+        dateRange.dateFrom,
+        dateRange.dateTo
+      );
+    },
+    enabled: !!dateRange,
+    staleTime: 60000,
+  });
+
   // offer_id到图片的映射（从订单详情API返回中获取）
   const [offerIdImageMap, setOfferIdImageMap] = useState<Record<string, string>>({});
 
@@ -537,7 +552,23 @@ const FinanceTransactions: React.FC = () => {
                 />
               </Card>
             </Col>
-            <Col span={5}>
+            <Col span={4}>
+              <Card>
+                <Statistic
+                  title="实收款"
+                  value={invoicePaymentData ? parseFloat(invoicePaymentData.total_amount_cny) : 0}
+                  precision={2}
+                  prefix="¥"
+                  valueStyle={{ color: '#52c41a' }}
+                />
+                {invoicePaymentData && parseFloat(invoicePaymentData.pending_amount_cny) > 0 && (
+                  <div style={{ fontSize: '12px', color: '#faad14', marginTop: '4px' }}>
+                    待付款: ¥{parseFloat(invoicePaymentData.pending_amount_cny).toFixed(2)}
+                  </div>
+                )}
+              </Card>
+            </Col>
+            <Col span={4}>
               <Card>
                 <Statistic
                   title="销售收入总额"
@@ -553,7 +584,7 @@ const FinanceTransactions: React.FC = () => {
                 )}
               </Card>
             </Col>
-            <Col span={5}>
+            <Col span={4}>
               <Card>
                 <Statistic
                   title="总金额"
@@ -571,7 +602,7 @@ const FinanceTransactions: React.FC = () => {
                 )}
               </Card>
             </Col>
-            <Col span={5}>
+            <Col span={4}>
               <Card>
                 <Statistic
                   title="销售佣金总额"
@@ -587,7 +618,7 @@ const FinanceTransactions: React.FC = () => {
                 )}
               </Card>
             </Col>
-            <Col span={5}>
+            <Col span={4}>
               <Card>
                 <Statistic
                   title="配送费总额"

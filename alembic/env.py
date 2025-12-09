@@ -13,6 +13,12 @@ from alembic import context
 from ef_core.config import get_settings
 from ef_core.models.base import Base
 
+# 显式导入所有插件模型，确保 Alembic 能检测到它们
+# noqa: F401 - 这些导入是必需的，即使 IDE 显示未使用
+import ef_core.models  # noqa: F401
+import plugins.ef.channels.ozon.models  # noqa: F401
+import plugins.ef.system.sync_service.models  # noqa: F401
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config

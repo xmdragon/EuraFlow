@@ -7,7 +7,8 @@ import type {
   FinanceTransactionsResponse,
   FinanceTransactionsSummary,
   FinanceTransactionsFilter,
-  FinanceTransactionsDailySummaryResponse
+  FinanceTransactionsDailySummaryResponse,
+  InvoicePaymentsByPeriodResponse
 } from '../types/finance';
 
 /**
@@ -54,5 +55,23 @@ export const getFinanceTransactionsDailySummary = async (
   const response = await apiClient.get("/ozon/finance/transactions/daily-summary", {
     params: filter,
   });
+  return response.data;
+};
+
+/**
+ * 按周期查询账单付款
+ */
+export const getInvoicePaymentsByPeriod = async (
+  shopId: number | null,
+  periodStart: string,
+  periodEnd: string
+): Promise<InvoicePaymentsByPeriodResponse> => {
+  const params: Record<string, unknown> = {
+    period_start: periodStart,
+    period_end: periodEnd
+  };
+  if (shopId !== null) params.shop_id = shopId;
+
+  const response = await apiClient.get("/ozon/invoice-payments/by-period", { params });
   return response.data;
 };

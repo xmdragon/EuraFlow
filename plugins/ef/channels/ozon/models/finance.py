@@ -1,13 +1,14 @@
 """
 OZON 财务交易记录数据模型
 """
-from datetime import datetime, timezone
+from calendar import monthrange
+from datetime import datetime, timezone, date, timedelta
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, Tuple
 
 from sqlalchemy import (
     Column, String, Integer, BigInteger, Numeric,
-    DateTime, JSON, ForeignKey, Index, UniqueConstraint, Text
+    DateTime, JSON, ForeignKey, Index, UniqueConstraint, Text, Date
 )
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -142,3 +143,91 @@ class OzonFinanceSyncWatermark(Base):
     __table_args__ = (
         Index("idx_ozon_finance_watermark_shop", "shop_id"),
     )
+
+
+def calculate_billing_period(scheduled_payment_date: date) -> Tuple[date, date]:
+    """
+    根据计划付款日期计算账单周期
+    规则：计划付款日期 - 15 天 = 周期结束日
+
+    示例：
+    - 计划付款日 2025-12-15 → 减15天 → 2025-11-30 → 周期 2025-11-16 至 2025-11-30
+    - 计划付款日 2025-11-25 → 减15天 → 2025-11-10 → 周期 2025-11-01 至 2025-11-15
+    """
+    # 减去15天得到周期结束日附近
+    period_end_approx = scheduled_payment_date - timedelta(days=15)
+
+    if period_end_approx.day <= 15:
+        # 周期是当月 1-15 日
+        period_start = period_end_approx.replace(day=1)
+        period_end = period_end_approx.replace(day=15)
+    else:
+        # 周期是当月 16-月末
+        period_start = period_end_approx.replace(day=16)
+        # 获取月末
+        _, last_day = monthrange(period_end_approx.year, period_end_approx.month)
+        period_end = period_end_approx.replace(day=last_day)
+
+    return period_start, period_end
+
+
+class OzonInvoicePayment(Base):
+    """OZON 账单付款记录"""
+    __tablename__ = "ozon_invoice_payments"
+
+    # 主键
+    id = Column(BigInteger, primary_key=True)
+
+    # 店铺隔离
+    shop_id = Column(Integer, ForeignKey("ozon_shops.id"), nullable=False, index=True)
+
+    # 付款信息
+    payment_type = Column(String(100), nullable=False, comment="付款类型")
+    amount_cny = Column(Numeric(18, 4), nullable=False, comment="金额(CNY)")
+    payment_status = Column(String(50), nullable=False, comment="付款状态: waiting/paid")
+
+    # 日期字段
+    scheduled_payment_date = Column(Date, nullable=False, comment="计划付款日期")
+    actual_payment_date = Column(Date, comment="实际付款日期")
+
+    # 账单周期（根据计划付款日期计算）
+    period_start = Column(Date, nullable=False, comment="周期开始日期")
+    period_end = Column(Date, nullable=False, comment="周期结束日期")
+
+    # 其他信息
+    payment_method = Column(String(100), comment="支付方式")
+    payment_file_number = Column(String(100), comment="付款文件编号")
+    period_text = Column(String(100), comment="原始周期文本")
+
+    # 原始数据
+    raw_data = Column(JSONB, comment="原始数据")
+
+    # 时间戳
+    created_at = Column(DateTime(timezone=True), default=utcnow, comment="记录创建时间")
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, comment="记录更新时间")
+
+    __table_args__ = (
+        # 唯一约束：店铺+计划付款日期+金额（避免重复记录）
+        UniqueConstraint("shop_id", "scheduled_payment_date", "amount_cny", name="uq_ozon_invoice_payment"),
+        # 按周期查询
+        Index("idx_ozon_invoice_payment_shop_period", "shop_id", "period_start", "period_end"),
+    )
+
+    def to_dict(self):
+        """转换为字典"""
+        return {
+            "id": self.id,
+            "shop_id": self.shop_id,
+            "payment_type": self.payment_type,
+            "amount_cny": str(self.amount_cny) if self.amount_cny else "0",
+            "payment_status": self.payment_status,
+            "scheduled_payment_date": self.scheduled_payment_date.isoformat() if self.scheduled_payment_date else None,
+            "actual_payment_date": self.actual_payment_date.isoformat() if self.actual_payment_date else None,
+            "period_start": self.period_start.isoformat() if self.period_start else None,
+            "period_end": self.period_end.isoformat() if self.period_end else None,
+            "payment_method": self.payment_method,
+            "payment_file_number": self.payment_file_number,
+            "period_text": self.period_text,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }

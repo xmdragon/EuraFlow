@@ -16,7 +16,7 @@ from .listing import (
     OzonPriceUpdateLog,
     OzonStockUpdateLog,
 )
-from .finance import OzonFinanceTransaction, OzonFinanceSyncWatermark
+from .finance import OzonFinanceTransaction, OzonFinanceSyncWatermark, OzonInvoicePayment
 from .promotion import OzonPromotionAction, OzonPromotionProduct
 from .global_settings import OzonGlobalSetting
 from .category_commissions import OzonCategoryCommission
@@ -55,6 +55,7 @@ __all__ = [
     # Finance models
     "OzonFinanceTransaction",
     "OzonFinanceSyncWatermark",
+    "OzonInvoicePayment",
     # Promotion models
     "OzonPromotionAction",
     "OzonPromotionProduct",

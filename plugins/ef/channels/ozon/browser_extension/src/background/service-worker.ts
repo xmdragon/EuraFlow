@@ -22,6 +22,9 @@ import { registerAutoCollectorHandlers } from './auto-collector';
 // 导入促销自动拉取清理模块
 import { promoAutoAddCleaner, registerPromoCleanerHandlers } from './promo-auto-add-cleaner';
 
+// 导入账单付款同步模块
+import { invoicePaymentSyncer, registerInvoicePaymentSyncerHandlers } from './invoice-payment-syncer';
+
 // ============================================================================
 // OZON 版本信息动态拦截器
 // ============================================================================
@@ -119,12 +122,21 @@ chrome.runtime.onInstalled.addListener((details: chrome.runtime.InstalledDetails
   promoAutoAddCleaner.run().catch((error) => {
     console.error('[ServiceWorker] 促销清理执行失败:', error);
   });
+
+  // 执行账单付款同步（检查窗口内每天首次执行）
+  invoicePaymentSyncer.run().catch((error) => {
+    console.error('[ServiceWorker] 账单付款同步执行失败:', error);
+  });
 });
 
 // Service Worker 启动时也检查执行
 chrome.runtime.onStartup.addListener(() => {
   promoAutoAddCleaner.run().catch((error) => {
     console.error('[ServiceWorker] 促销清理执行失败:', error);
+  });
+
+  invoicePaymentSyncer.run().catch((error) => {
+    console.error('[ServiceWorker] 账单付款同步执行失败:', error);
   });
 });
 
@@ -674,6 +686,7 @@ async function getEuraflowConfig(): Promise<any> {
 // ============================================================================
 registerAutoCollectorHandlers();
 registerPromoCleanerHandlers();
+registerInvoicePaymentSyncerHandlers();
 
 // 导出类型（供TypeScript使用）
 export {};

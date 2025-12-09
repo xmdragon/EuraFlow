@@ -4,14 +4,17 @@ OZON 财务交易API路由
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, exists
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, date
+from decimal import Decimal
 import logging
 
 from ef_core.database import get_async_session
 from ef_core.models.users import User
-from ef_core.api.auth import get_current_user_flexible
-from ..models.finance import OzonFinanceTransaction
+from ef_core.api.auth import get_current_user_flexible, get_current_user_from_api_key
+from ..models.finance import OzonFinanceTransaction, OzonInvoicePayment, calculate_billing_period
+from ..models.ozon_shops import OzonShop
 from ..models.global_settings import OzonGlobalSetting
 from ..models.orders import OzonPosting
 from ..utils.datetime_utils import parse_date_with_timezone, get_global_timezone
@@ -85,6 +88,63 @@ class FinanceTransactionsDailySummaryResponse(BaseModel):
     page: int
     page_size: int
     total_pages: int
+
+
+# =====================================================
+# Invoice Payment DTOs (账单付款)
+# =====================================================
+
+
+class InvoicePaymentItem(BaseModel):
+    """浏览器扩展上传的单条付款记录"""
+    payment_type: str = Field(..., description="付款类型")
+    amount_cny: str = Field(..., description="金额(CNY)")
+    payment_status: str = Field(..., description="付款状态: waiting/paid")
+    scheduled_payment_date: str = Field(..., description="计划付款日期 (DD.MM.YYYY)")
+    actual_payment_date: Optional[str] = Field(None, description="实际付款日期 (DD.MM.YYYY)")
+    period_text: Optional[str] = Field(None, description="周期文本")
+    payment_file_number: Optional[str] = Field(None, description="付款文件编号")
+    payment_method: Optional[str] = Field(None, description="支付方式")
+
+
+class InvoicePaymentSyncRequest(BaseModel):
+    """浏览器扩展同步请求"""
+    client_id: str = Field(..., description="OZON Client ID")
+    payments: List[InvoicePaymentItem] = Field(..., description="付款记录列表")
+
+
+class InvoicePaymentSyncResponse(BaseModel):
+    """同步响应"""
+    success: bool
+    created: int = 0
+    updated: int = 0
+    message: Optional[str] = None
+
+
+class InvoicePaymentDTO(BaseModel):
+    """账单付款记录 DTO"""
+    id: int
+    shop_id: int
+    payment_type: str
+    amount_cny: str
+    payment_status: str
+    scheduled_payment_date: str
+    actual_payment_date: Optional[str] = None
+    period_start: str
+    period_end: str
+    payment_method: Optional[str] = None
+    payment_file_number: Optional[str] = None
+    period_text: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class InvoicePaymentsByPeriodResponse(BaseModel):
+    """按周期查询付款响应"""
+    items: List[InvoicePaymentDTO]
+    total_amount_cny: str
+    paid_amount_cny: str
+    pending_amount_cny: str
 
 
 @router.get(
@@ -557,3 +617,271 @@ async def get_finance_transactions_daily_summary(
     except Exception as e:
         logger.error(f"获取财务交易按日期汇总失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+# =====================================================
+# Invoice Payment Endpoints (账单付款)
+# =====================================================
+
+
+def parse_ru_date(date_str: str) -> Optional[date]:
+    """
+    解析俄罗斯格式日期 DD.MM.YYYY
+    返回 date 对象
+    """
+    if not date_str or date_str == "—":
+        return None
+    try:
+        parts = date_str.strip().split(".")
+        if len(parts) == 3:
+            day, month, year = int(parts[0]), int(parts[1]), int(parts[2])
+            return date(year, month, day)
+    except (ValueError, IndexError):
+        pass
+    return None
+
+
+def parse_amount_cny(amount_str: str) -> Decimal:
+    """
+    解析金额字符串，支持带空格的千分位分隔符
+    例如: "12 345.67" -> Decimal("12345.67")
+    """
+    if not amount_str:
+        return Decimal("0")
+    # 移除空格和其他非数字字符（保留小数点和负号）
+    cleaned = amount_str.replace(" ", "").replace(",", ".")
+    # 处理负数
+    if cleaned.startswith("−"):  # 俄语负号
+        cleaned = "-" + cleaned[1:]
+    try:
+        return Decimal(cleaned)
+    except Exception:
+        return Decimal("0")
+
+
+@router.post(
+    "/invoice-payments/sync",
+    response_model=InvoicePaymentSyncResponse,
+    summary="同步账单付款数据（浏览器扩展调用）"
+)
+async def sync_invoice_payments(
+    request: InvoicePaymentSyncRequest,
+    db: AsyncSession = Depends(get_async_session),
+    _: User = Depends(get_current_user_from_api_key)
+):
+    """
+    接收浏览器扩展上传的账单付款数据
+
+    1. 根据 client_id 查找 shop_id
+    2. 解析日期和金额
+    3. 计算账单周期
+    4. Upsert 记录（按唯一约束去重）
+    """
+    try:
+        # 1. 根据 client_id 查找店铺
+        result = await db.execute(
+            select(OzonShop).where(OzonShop.client_id == request.client_id)
+        )
+        shop = result.scalar_one_or_none()
+
+        if not shop:
+            logger.warning(f"Invoice payment sync: shop not found for client_id={request.client_id}")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Shop not found for client_id: {request.client_id}"
+            )
+
+        created_count = 0
+        updated_count = 0
+
+        for payment in request.payments:
+            # 2. 解析日期
+            scheduled_date = parse_ru_date(payment.scheduled_payment_date)
+            if not scheduled_date:
+                logger.warning(f"Invalid scheduled_payment_date: {payment.scheduled_payment_date}")
+                continue
+
+            actual_date = parse_ru_date(payment.actual_payment_date)
+
+            # 3. 解析金额
+            amount = parse_amount_cny(payment.amount_cny)
+
+            # 4. 计算账单周期
+            period_start, period_end = calculate_billing_period(scheduled_date)
+
+            # 5. 转换状态
+            # 页面显示 "等待付款" 或 "已付款"
+            status_map = {
+                "等待付款": "waiting",
+                "已付款": "paid",
+                "waiting": "waiting",
+                "paid": "paid",
+            }
+            payment_status = status_map.get(payment.payment_status, "waiting")
+
+            # 6. Upsert
+            stmt = pg_insert(OzonInvoicePayment).values(
+                shop_id=shop.id,
+                payment_type=payment.payment_type,
+                amount_cny=amount,
+                payment_status=payment_status,
+                scheduled_payment_date=scheduled_date,
+                actual_payment_date=actual_date,
+                period_start=period_start,
+                period_end=period_end,
+                payment_method=payment.payment_method if payment.payment_method != "—" else None,
+                payment_file_number=payment.payment_file_number if payment.payment_file_number != "—" else None,
+                period_text=payment.period_text if payment.period_text != "—" else None,
+                raw_data={
+                    "original": payment.model_dump(),
+                    "synced_at": datetime.utcnow().isoformat()
+                }
+            ).on_conflict_do_update(
+                constraint="uq_ozon_invoice_payment",
+                set_={
+                    "payment_status": payment_status,
+                    "actual_payment_date": actual_date,
+                    "payment_method": payment.payment_method if payment.payment_method != "—" else None,
+                    "payment_file_number": payment.payment_file_number if payment.payment_file_number != "—" else None,
+                    "updated_at": func.now(),
+                    "raw_data": {
+                        "original": payment.model_dump(),
+                        "synced_at": datetime.utcnow().isoformat()
+                    }
+                }
+            ).returning(OzonInvoicePayment.id, OzonInvoicePayment.created_at, OzonInvoicePayment.updated_at)
+
+            result = await db.execute(stmt)
+            row = result.one()
+
+            # 判断是新增还是更新（created_at == updated_at 说明是新增）
+            if row.created_at and row.updated_at:
+                # 新记录的 created_at 和 updated_at 应该非常接近
+                time_diff = abs((row.updated_at - row.created_at).total_seconds())
+                if time_diff < 1:
+                    created_count += 1
+                else:
+                    updated_count += 1
+            else:
+                created_count += 1
+
+        await db.commit()
+
+        logger.info(
+            f"Invoice payment sync completed: shop_id={shop.id}, "
+            f"created={created_count}, updated={updated_count}"
+        )
+
+        return InvoicePaymentSyncResponse(
+            success=True,
+            created=created_count,
+            updated=updated_count,
+            message=f"Synced {created_count + updated_count} payments for shop {shop.name}"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Invoice payment sync failed: {e}", exc_info=True)
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")
+
+
+@router.get(
+    "/invoice-payments/by-period",
+    response_model=InvoicePaymentsByPeriodResponse,
+    summary="按周期查询账单付款"
+)
+async def get_invoice_payments_by_period(
+    shop_id: Optional[int] = Query(None, description="店铺ID（不传时查询所有店铺）"),
+    period_start: str = Query(..., description="周期开始日期 (YYYY-MM-DD)"),
+    period_end: str = Query(..., description="周期结束日期 (YYYY-MM-DD)"),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
+):
+    """
+    按周期查询账单付款
+
+    用于前端显示"实收款"统计
+    返回:
+    - items: 付款记录列表
+    - total_amount_cny: 总金额
+    - paid_amount_cny: 已付金额
+    - pending_amount_cny: 待付金额
+    """
+    try:
+        # 权限过滤
+        try:
+            allowed_shop_ids = await filter_by_shop_permission(current_user, db, shop_id)
+        except PermissionError as e:
+            raise HTTPException(status_code=403, detail=str(e))
+
+        # 解析日期
+        try:
+            period_start_date = date.fromisoformat(period_start)
+            period_end_date = date.fromisoformat(period_end)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+
+        # 构建查询条件
+        conditions = [
+            OzonInvoicePayment.period_start >= period_start_date,
+            OzonInvoicePayment.period_end <= period_end_date
+        ]
+
+        # 应用店铺权限过滤
+        shop_filter = build_shop_filter_condition(OzonInvoicePayment, allowed_shop_ids)
+        if shop_filter is not True:
+            conditions.append(shop_filter)
+
+        # 查询记录
+        stmt = select(OzonInvoicePayment).where(and_(*conditions)).order_by(
+            OzonInvoicePayment.scheduled_payment_date.desc()
+        )
+        result = await db.execute(stmt)
+        payments = result.scalars().all()
+
+        # 计算汇总
+        total_amount = Decimal("0")
+        paid_amount = Decimal("0")
+        pending_amount = Decimal("0")
+
+        items = []
+        for payment in payments:
+            amount = payment.amount_cny or Decimal("0")
+            total_amount += amount
+
+            if payment.payment_status == "paid":
+                paid_amount += amount
+            else:
+                pending_amount += amount
+
+            items.append(InvoicePaymentDTO(
+                id=payment.id,
+                shop_id=payment.shop_id,
+                payment_type=payment.payment_type,
+                amount_cny=str(payment.amount_cny),
+                payment_status=payment.payment_status,
+                scheduled_payment_date=payment.scheduled_payment_date.isoformat() if payment.scheduled_payment_date else "",
+                actual_payment_date=payment.actual_payment_date.isoformat() if payment.actual_payment_date else None,
+                period_start=payment.period_start.isoformat() if payment.period_start else "",
+                period_end=payment.period_end.isoformat() if payment.period_end else "",
+                payment_method=payment.payment_method,
+                payment_file_number=payment.payment_file_number,
+                period_text=payment.period_text,
+                created_at=payment.created_at.isoformat() if payment.created_at else None,
+                updated_at=payment.updated_at.isoformat() if payment.updated_at else None,
+            ))
+
+        return InvoicePaymentsByPeriodResponse(
+            items=items,
+            total_amount_cny=str(total_amount),
+            paid_amount_cny=str(paid_amount),
+            pending_amount_cny=str(pending_amount)
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Get invoice payments by period failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Query failed: {str(e)}")

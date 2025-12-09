@@ -89,3 +89,33 @@ export interface FinanceTransactionsDailySummaryResponse {
   page_size: number;
   total_pages: number;
 }
+
+/**
+ * 账单付款记录
+ */
+export interface InvoicePayment {
+  id: number;
+  shop_id: number;
+  payment_type: string;
+  amount_cny: string;
+  payment_status: string;
+  scheduled_payment_date: string;
+  actual_payment_date?: string;
+  period_start: string;
+  period_end: string;
+  payment_method?: string;
+  payment_file_number?: string;
+  period_text?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/**
+ * 账单付款按周期查询响应
+ */
+export interface InvoicePaymentsByPeriodResponse {
+  items: InvoicePayment[];
+  total_amount_cny: string;
+  paid_amount_cny: string;
+  pending_amount_cny: string;
+}
