@@ -18,8 +18,10 @@ import { createEuraflowApi, type EuraflowApi } from '../shared/api/euraflow-api'
 import { configCache } from '../shared/config-cache';
 import type { Shop } from '../shared/types';
 
-// 缓存键：记录最后执行日期
+// 缓存键：记录最后执行时间戳
 const CACHE_KEY = 'invoice_payment_syncer_last_run';
+// 检查间隔：7 天
+const CHECK_INTERVAL_DAYS = 7;
 
 // 付款记录接口
 interface InvoicePayment {
@@ -38,29 +40,29 @@ interface InvoicePayment {
  */
 class InvoicePaymentSyncer {
   /**
-   * 检查今天是否已执行
+   * 检查是否在检查间隔内已执行
    */
-  private async hasRunToday(): Promise<boolean> {
+  private async hasRunRecently(): Promise<boolean> {
     const result = await chrome.storage.local.get(CACHE_KEY);
-    const lastRun = result[CACHE_KEY];
-    if (!lastRun) return false;
+    const lastRunTimestamp = result[CACHE_KEY];
+    if (!lastRunTimestamp) return false;
 
-    const today = new Date().toISOString().split('T')[0];
-    return lastRun === today;
+    const now = Date.now();
+    const intervalMs = CHECK_INTERVAL_DAYS * 24 * 60 * 60 * 1000;
+    return (now - lastRunTimestamp) < intervalMs;
   }
 
   /**
-   * 标记今天已执行
+   * 标记已执行
    */
-  private async markAsRunToday(): Promise<void> {
-    const today = new Date().toISOString().split('T')[0];
-    await chrome.storage.local.set({ [CACHE_KEY]: today });
+  private async markAsRun(): Promise<void> {
+    await chrome.storage.local.set({ [CACHE_KEY]: Date.now() });
   }
 
   /**
-   * 检查是否应该执行（在检查窗口内且北京时间5点后）
+   * 检查是否应该执行（北京时间5点后）
    */
-  private shouldRunToday(): boolean {
+  private shouldRunNow(): boolean {
     const now = new Date();
 
     // 计算北京时间（UTC+8）
@@ -68,18 +70,35 @@ class InvoicePaymentSyncer {
     const beijingHour = (utcHour + 8) % 24;
 
     // 必须在北京时间 5 点后
-    if (beijingHour < 5) {
-      return false;
+    return beijingHour >= 5;
+  }
+
+  /**
+   * 调用后端 API 检查是否需要同步
+   */
+  private async checkShouldSync(api: EuraflowApi): Promise<{ shouldSync: boolean; reason: string }> {
+    try {
+      const response = await fetch(`${(api as any).baseUrl}/api/ef/v1/ozon/invoice-payments/should-sync`, {
+        method: 'GET',
+        headers: {
+          'X-API-Key': (api as any).apiKey
+        }
+      });
+
+      if (!response.ok) {
+        // API 错误时默认执行同步
+        return { shouldSync: true, reason: 'API 检查失败，默认执行同步' };
+      }
+
+      const result = await response.json();
+      return {
+        shouldSync: result.should_sync,
+        reason: result.reason
+      };
+    } catch (error) {
+      // 网络错误时默认执行同步
+      return { shouldSync: true, reason: '网络错误，默认执行同步' };
     }
-
-    // 获取 UTC 日期（用于检查窗口）
-    const day = now.getUTCDate();
-
-    // 检查窗口：1-15 号都可以检查（临时放宽，便于测试）
-    // TODO: 正式上线后改回 (day >= 3 && day <= 5) || (day >= 18 && day <= 20)
-    const inCheckWindow = day >= 1 && day <= 15;
-
-    return inCheckWindow;
   }
 
   /**
@@ -100,46 +119,45 @@ class InvoicePaymentSyncer {
    * 主入口：执行同步
    */
   async run(): Promise<void> {
-    // 检查是否在检查窗口内
-    if (!this.shouldRunToday()) {
-      if (__DEBUG__) {
-        console.log('[InvoicePaymentSyncer] 不在检查窗口内，跳过');
-      }
+    // 检查是否在北京时间 5 点后
+    if (!this.shouldRunNow()) {
       return;
     }
 
-    // 检查今天是否已执行
-    if (await this.hasRunToday()) {
-      if (__DEBUG__) {
-        console.log('[InvoicePaymentSyncer] 今日已执行，跳过');
-      }
+    // 检查是否在 7 天内已执行
+    if (await this.hasRunRecently()) {
       return;
     }
-
-    console.log('[InvoicePaymentSyncer] 开始执行账单付款同步...');
 
     try {
       // 获取 API 配置
       const apiConfig = await this.getApiConfig();
       if (!apiConfig.apiUrl || !apiConfig.apiKey) {
-        console.log('[InvoicePaymentSyncer] 未配置 API，跳过');
         return;
       }
 
       // 创建 API 客户端
       const api = createEuraflowApi(apiConfig.apiUrl, apiConfig.apiKey);
 
+      // 调用后端 API 检查是否需要同步
+      const { shouldSync, reason } = await this.checkShouldSync(api);
+      if (!shouldSync) {
+        // 不需要同步，但仍然标记已执行（避免频繁检查）
+        await this.markAsRun();
+        return;
+      }
+
+      console.log('[InvoicePaymentSyncer] 开始执行账单付款同步...', reason);
+
       // 获取店铺列表（通过 configCache 统一管理）
       const shops = await configCache.getShops(api);
       if (!shops.length) {
-        console.log('[InvoicePaymentSyncer] 没有可用店铺');
         return;
       }
 
       // 过滤有 client_id 的店铺
       const validShops = shops.filter(shop => shop.client_id);
       if (!validShops.length) {
-        console.log('[InvoicePaymentSyncer] 没有店铺配置 client_id');
         return;
       }
 
@@ -149,8 +167,7 @@ class InvoicePaymentSyncer {
       }
 
       // 标记已执行
-      await this.markAsRunToday();
-      console.log('[InvoicePaymentSyncer] 同步完成');
+      await this.markAsRun();
 
     } catch (error) {
       console.error('[InvoicePaymentSyncer] 执行失败:', error);
@@ -208,10 +225,10 @@ class InvoicePaymentSyncer {
       return { tabId: existingTabs[0].id, shouldClose: false };
     }
 
-    // 创建新的标签页（前台打开，便于调试）
+    // 创建新的后台标签页
     const newTab = await chrome.tabs.create({
       url: 'https://seller.ozon.ru/app/finances/invoices',
-      active: true  // TODO: 调试完成后改回 false
+      active: false
     });
 
     if (!newTab.id) {
@@ -229,33 +246,42 @@ class InvoicePaymentSyncer {
    */
   private waitForTabLoad(tabId: number): Promise<void> {
     return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        chrome.tabs.onUpdated.removeListener(listener);
-        reject(new Error('标签页加载超时'));
-      }, 30000);
+      let resolved = false;
 
-      const listener = (updatedTabId: number, changeInfo: chrome.tabs.TabChangeInfo) => {
-        if (updatedTabId === tabId && changeInfo.status === 'complete') {
+      const cleanup = () => {
+        if (!resolved) {
+          resolved = true;
           clearTimeout(timeout);
           chrome.tabs.onUpdated.removeListener(listener);
-          // 额外等待 2 秒确保 JS 执行完毕
-          setTimeout(resolve, 2000);
         }
       };
 
+      const timeout = setTimeout(() => {
+        cleanup();
+        reject(new Error('标签页加载超时'));
+      }, 60000);
+
+      const listener = (updatedTabId: number, changeInfo: chrome.tabs.TabChangeInfo) => {
+        if (updatedTabId === tabId && changeInfo.status === 'complete' && !resolved) {
+          cleanup();
+          // 额外等待 3 秒确保 JS 执行完毕
+          setTimeout(resolve, 3000);
+        }
+      };
+
+      // 先添加 listener，再检查当前状态
+      chrome.tabs.onUpdated.addListener(listener);
+
       // 检查当前状态
       chrome.tabs.get(tabId).then(tab => {
-        if (tab.status === 'complete') {
-          clearTimeout(timeout);
-          chrome.tabs.onUpdated.removeListener(listener);
-          setTimeout(resolve, 2000);
+        if (tab.status === 'complete' && !resolved) {
+          cleanup();
+          setTimeout(resolve, 3000);
         }
       }).catch(() => {
-        clearTimeout(timeout);
+        cleanup();
         reject(new Error('标签页不存在'));
       });
-
-      chrome.tabs.onUpdated.addListener(listener);
     });
   }
 
@@ -300,8 +326,6 @@ class InvoicePaymentSyncer {
       target: { tabId },
       world: 'MAIN',
       func: () => {
-        console.log('[InvoicePaymentSyncer] 开始解析页面...');
-
         const payments: Array<{
           payment_type: string;
           amount_cny: string;
@@ -315,18 +339,15 @@ class InvoicePaymentSyncer {
 
         // 查找发票表格（使用类名匹配）
         const table = document.querySelector('table[class*="invoicesTable"]') || document.querySelector('table');
-        console.log('[InvoicePaymentSyncer] 表格:', table ? '找到' : '未找到');
         if (!table) {
           return payments;
         }
 
         // 查找表格行（跳过表头）
         const rows = table.querySelectorAll('tbody tr');
-        console.log('[InvoicePaymentSyncer] 找到行数:', rows.length);
 
-        rows.forEach((row, index) => {
+        rows.forEach((row) => {
           const cells = row.querySelectorAll('td');
-          console.log(`[InvoicePaymentSyncer] 行 ${index}: ${cells.length} 列`);
 
           // 表格有 10 列，第一列和最后一列是空白占位符
           // 列 0: 空白
@@ -349,10 +370,6 @@ class InvoicePaymentSyncer {
             const fileNumber = cells[7]?.textContent?.trim() || null;
             const paymentMethod = cells[8]?.textContent?.trim() || null;
 
-            console.log(`[InvoicePaymentSyncer] 行 ${index} 数据:`, {
-              paymentType, amountText, statusText, scheduledDate, actualDate, paymentMethod
-            });
-
             // 只处理有效的付款记录
             if (paymentType && amountText && scheduledDate) {
               payments.push({
@@ -369,7 +386,6 @@ class InvoicePaymentSyncer {
           }
         });
 
-        console.log('[InvoicePaymentSyncer] 解析完成，记录数:', payments.length);
         return payments;
       }
     });
