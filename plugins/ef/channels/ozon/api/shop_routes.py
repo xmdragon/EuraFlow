@@ -11,7 +11,7 @@ import logging
 
 from ef_core.database import get_async_session
 from ef_core.models.users import User
-from ef_core.api.auth import get_current_user_flexible
+from ef_core.api.auth import get_current_user_flexible, get_current_user_from_api_key
 from ef_core.middleware.auth import require_role
 from ..models import OzonShop, OzonProduct, OzonPosting
 from ..utils.datetime_utils import utcnow
@@ -1053,5 +1053,205 @@ async def sync_all_warehouses(
             "failed_count": failed_count,
             "total_warehouses": total_warehouses,
             "results": results
+        }
+    }
+
+
+# ============================================================
+# 浏览器扩展 Cookie 上传和同步状态 API
+# ============================================================
+
+class CookieItem(BaseModel):
+    """Cookie 项"""
+    name: str
+    value: str
+    domain: Optional[str] = None
+
+
+class SessionUploadRequest(BaseModel):
+    """Session 上传请求"""
+    cookies: list[CookieItem] = Field(..., description="Cookie 列表")
+    user_agent: Optional[str] = Field(None, description="User-Agent")
+
+
+class SyncStatusResponse(BaseModel):
+    """同步状态响应"""
+    promo_cleaner: Dict[str, Any]
+    invoice_sync: Dict[str, Any]
+    balance_sync: Dict[str, Any]
+
+
+@router.post("/session/upload")
+async def upload_session(
+    request: SessionUploadRequest,
+    db: AsyncSession = Depends(get_async_session),
+    api_key_user: Optional[User] = Depends(get_current_user_from_api_key)
+):
+    """
+    上传浏览器 Session Cookie（API Key 认证）
+
+    浏览器扩展定期调用此接口上传最新的 OZON Cookie，
+    后端使用这些 Cookie 访问 OZON 页面执行同步任务。
+
+    **认证方式**：在 Header 中传递 `X-API-Key`
+    """
+    import json
+
+    # 验证 API Key
+    if not api_key_user:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "code": "UNAUTHORIZED",
+                "message": "需要有效的 API Key（请在 Header 中传递 X-API-Key）"
+            }
+        )
+
+    # 验证 Cookie 列表
+    if not request.cookies:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "EMPTY_COOKIES",
+                "message": "Cookie 列表不能为空"
+            }
+        )
+
+    # 将 Cookie 转换为 JSON 字符串
+    cookies_data = {
+        "cookies": [c.model_dump() for c in request.cookies],
+        "user_agent": request.user_agent,
+        "uploaded_at": utcnow().isoformat()
+    }
+    cookies_json = json.dumps(cookies_data, ensure_ascii=False)
+
+    # 获取用户关联的所有店铺
+    from ef_core.models.users import user_shops as user_shops_table
+
+    if api_key_user.role == "admin":
+        stmt = select(OzonShop).where(OzonShop.status == "active")
+    else:
+        stmt = select(OzonShop).join(
+            user_shops_table, OzonShop.id == user_shops_table.c.shop_id
+        ).where(
+            user_shops_table.c.user_id == api_key_user.id,
+            OzonShop.status == "active"
+        )
+
+    result = await db.execute(stmt)
+    shops = result.scalars().all()
+
+    if not shops:
+        return {
+            "success": True,
+            "message": "没有关联的店铺，Cookie 未存储",
+            "shops_updated": 0
+        }
+
+    # 更新所有店铺的 Cookie
+    # 注意：这里简化处理，所有店铺共享同一份 Cookie
+    # 实际 OZON 通过 sc_company_id Cookie 切换店铺
+    updated_count = 0
+    for shop in shops:
+        shop.ozon_session_enc = cookies_json  # TODO: 加密存储
+        shop.ozon_session_updated_at = utcnow()
+        updated_count += 1
+
+    await db.commit()
+
+    logger.info(
+        f"Session uploaded for user {api_key_user.id}, updated {updated_count} shops"
+    )
+
+    return {
+        "success": True,
+        "message": f"Cookie 已更新到 {updated_count} 个店铺",
+        "shops_updated": updated_count
+    }
+
+
+@router.get("/sync-status")
+async def get_sync_status(
+    db: AsyncSession = Depends(get_async_session),
+    api_key_user: Optional[User] = Depends(get_current_user_from_api_key)
+):
+    """
+    查询后端同步任务执行状态（API Key 认证）
+
+    浏览器扩展在执行任务前调用此接口，检查后端是否已成功执行。
+    如果后端已成功，扩展可以跳过执行。
+
+    **认证方式**：在 Header 中传递 `X-API-Key`
+
+    返回三个任务的执行状态：
+    - promo_cleaner: 促销清理（检查今天是否已执行）
+    - invoice_sync: 账单同步（检查当前窗口期是否已执行）
+    - balance_sync: 余额同步（检查当前小时是否已执行）
+    """
+    from ..models import OzonWebSyncLog
+    from datetime import timedelta
+
+    # 验证 API Key
+    if not api_key_user:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "code": "UNAUTHORIZED",
+                "message": "需要有效的 API Key（请在 Header 中传递 X-API-Key）"
+            }
+        )
+
+    now = utcnow()
+
+    # 查询各任务的最近成功记录
+    async def get_last_success(task_type: str) -> Optional[OzonWebSyncLog]:
+        stmt = select(OzonWebSyncLog).where(
+            OzonWebSyncLog.user_id == api_key_user.id,
+            OzonWebSyncLog.task_type == task_type,
+            OzonWebSyncLog.status == "success"
+        ).order_by(OzonWebSyncLog.completed_at.desc()).limit(1)
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    # 1. 促销清理状态（检查今天是否已执行）
+    promo_log = await get_last_success("promo_cleaner")
+    promo_today_executed = False
+    if promo_log and promo_log.completed_at:
+        # 检查是否在今天执行（UTC+8 北京时间）
+        beijing_now = now + timedelta(hours=8)
+        beijing_completed = promo_log.completed_at + timedelta(hours=8)
+        promo_today_executed = beijing_now.date() == beijing_completed.date()
+
+    # 2. 账单同步状态（检查当前窗口期是否已执行）
+    invoice_log = await get_last_success("invoice_sync")
+    invoice_window_executed = False
+    if invoice_log and invoice_log.completed_at:
+        # 账单同步窗口期：每月 18-20 号和 3-5 号
+        beijing_now = now + timedelta(hours=8)
+        day = beijing_now.day
+        # 简化检查：7天内执行过即认为当前窗口已执行
+        days_since_last = (now - invoice_log.completed_at).days
+        invoice_window_executed = days_since_last < 7
+
+    # 3. 余额同步状态（检查当前小时是否已执行）
+    balance_log = await get_last_success("balance_sync")
+    balance_hour_executed = False
+    if balance_log and balance_log.completed_at:
+        # 检查是否在当前小时执行
+        hours_since_last = (now - balance_log.completed_at).total_seconds() / 3600
+        balance_hour_executed = hours_since_last < 1
+
+    return {
+        "promo_cleaner": {
+            "last_success_at": promo_log.completed_at.isoformat() if promo_log and promo_log.completed_at else None,
+            "today_executed": promo_today_executed
+        },
+        "invoice_sync": {
+            "last_success_at": invoice_log.completed_at.isoformat() if invoice_log and invoice_log.completed_at else None,
+            "current_window_executed": invoice_window_executed
+        },
+        "balance_sync": {
+            "last_success_at": balance_log.completed_at.isoformat() if balance_log and balance_log.completed_at else None,
+            "current_hour_executed": balance_hour_executed
         }
     }
