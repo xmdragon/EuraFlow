@@ -8,14 +8,16 @@
  * 2. 账单付款同步（invoice-payment-syncer）
  * 3. 店铺余额同步（balance-syncer）
  *
- * 执行流程：
- * 1. 获取店铺列表
- * 2. 对于每个店铺：
- *    - 切换 cookie（sc_company_id）
- *    - 创建标签页
- *    - 依次执行各任务（仅切换 URL，不关闭标签）
- *    - 关闭标签页
- * 3. 下一个店铺
+ * 执行流程（后端优先，扩展 Fallback）：
+ * 1. 检查当前时间是否已过"最早执行时间"
+ * 2. 调用后端 /sync-status 检查后端是否已成功
+ * 3. 后端已成功则跳过，否则执行
+ * 4. 按店铺循环执行任务
+ *
+ * 执行时间限制（北京时间）：
+ * - 促销清理：不早于 6:10（后端 6:00 执行）
+ * - 账单同步：不早于 7:00（后端 6:30 执行）
+ * - 余额同步：不早于整点过 15 分（后端整点过 5 分执行）
  */
 
 import { createEuraflowApi, type EuraflowApi } from '../shared/api/euraflow-api';
@@ -68,18 +70,112 @@ const CACHE_KEYS = {
   RUNNER_LAST_RUN: 'shop_task_runner_last_run',
 };
 
+// ========== 后端状态检查 ==========
+
+interface SyncStatus {
+  promo_cleaner: {
+    last_success_at: string | null;
+    today_executed: boolean;
+  };
+  invoice_sync: {
+    last_success_at: string | null;
+    current_window_executed: boolean;
+  };
+  balance_sync: {
+    last_success_at: string | null;
+    current_hour_executed: boolean;
+  };
+}
+
+/**
+ * 获取后端同步状态
+ */
+async function fetchBackendSyncStatus(apiUrl: string, apiKey: string): Promise<SyncStatus | null> {
+  try {
+    const response = await fetch(`${apiUrl}/api/ef/v1/ozon/sync-status`, {
+      method: 'GET',
+      headers: { 'X-API-Key': apiKey },
+    });
+
+    if (!response.ok) {
+      console.warn(`[SyncStatus] 获取状态失败: HTTP ${response.status}`);
+      return null;
+    }
+
+    const result = await response.json();
+    return result.data;
+  } catch (error) {
+    console.warn('[SyncStatus] 获取状态异常:', error);
+    return null;
+  }
+}
+
+/**
+ * 获取北京时间
+ */
+function getBeijingTime(): { hour: number; minute: number; dateStr: string } {
+  const now = new Date();
+  const utcHour = now.getUTCHours();
+  const utcMinute = now.getUTCMinutes();
+
+  // 北京时间 = UTC + 8
+  let beijingHour = (utcHour + 8) % 24;
+  let beijingMinute = utcMinute;
+
+  // 计算北京日期
+  const beijingDate = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  const dateStr = beijingDate.toISOString().split('T')[0];
+
+  return { hour: beijingHour, minute: beijingMinute, dateStr };
+}
+
 // ========== 促销清理任务 ==========
 
 class PromoCleanerTask implements ShopTask {
   name = '促销清理';
+  private backendExecuted = false;
 
+  /**
+   * 检查是否应该执行
+   *
+   * 条件：
+   * 1. 北京时间不早于 6:10
+   * 2. 后端今天未成功执行
+   * 3. 扩展今天未执行过
+   */
   async shouldRun(): Promise<boolean> {
+    // 1. 检查时间限制（北京时间不早于 6:10）
+    const { hour, minute, dateStr } = getBeijingTime();
+    const currentMinutes = hour * 60 + minute;
+    const earliestMinutes = 6 * 60 + 10; // 6:10
+
+    if (currentMinutes < earliestMinutes) {
+      console.log(`[PromoCleanerTask] 跳过：当前北京时间 ${hour}:${minute}，早于 6:10`);
+      return false;
+    }
+
+    // 2. 检查扩展本地缓存
     const result = await chrome.storage.local.get(CACHE_KEYS.PROMO_CLEANER);
     const lastRun = result[CACHE_KEYS.PROMO_CLEANER];
-    if (!lastRun) return true;
+    if (lastRun === dateStr) {
+      console.log('[PromoCleanerTask] 跳过：今天已执行过');
+      return false;
+    }
 
-    const today = new Date().toISOString().split('T')[0];
-    return lastRun !== today;
+    return true;
+  }
+
+  /**
+   * 检查后端状态（在获取 API 配置后调用）
+   */
+  async checkBackendStatus(apiUrl: string, apiKey: string): Promise<boolean> {
+    const status = await fetchBackendSyncStatus(apiUrl, apiKey);
+    if (status?.promo_cleaner?.today_executed) {
+      console.log('[PromoCleanerTask] 跳过：后端今天已成功执行');
+      this.backendExecuted = true;
+      return false;
+    }
+    return true;
   }
 
   async run(ctx: TaskContext): Promise<TaskResult> {
@@ -117,8 +213,8 @@ class PromoCleanerTask implements ShopTask {
   }
 
   async onComplete(): Promise<void> {
-    const today = new Date().toISOString().split('T')[0];
-    await chrome.storage.local.set({ [CACHE_KEYS.PROMO_CLEANER]: today });
+    const { dateStr } = getBeijingTime();
+    await chrome.storage.local.set({ [CACHE_KEYS.PROMO_CLEANER]: dateStr });
   }
 
   private async fetchPromotions(tabId: number): Promise<Array<{

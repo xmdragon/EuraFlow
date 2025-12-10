@@ -79,7 +79,7 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
     const rows: ScanResultItemRow[] = [];
 
     scanResults.forEach((posting) => {
-      const items = posting.items || [];
+      const items = posting.products || [];
       const itemCount = items.length;
 
       if (itemCount === 0) {

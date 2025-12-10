@@ -364,9 +364,8 @@ class OzonPosting(Base):
             # 包裹列表
             'packages': packages,
 
-            # 商品列表（同时返回 products 和 items，保持前端兼容性）
+            # 商品列表
             'products': products,
-            'items': products,
         }
 
     __table_args__ = (

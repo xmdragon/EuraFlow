@@ -259,6 +259,46 @@ async def setup(hooks) -> None:
         description="清理超过7天的标签 PDF 文件"
     )
 
+    # ============================================================
+    # OZON Web 同步定时任务（使用浏览器 Cookie 访问 OZON 页面）
+    # 执行时间（UTC，北京时间 = UTC + 8）：
+    # - 促销清理: 0 22 * * * (UTC 22:00 = 北京 6:00)
+    # - 账单同步: 30 22 * * * (UTC 22:30 = 北京 6:30)
+    # - 余额同步: 5 * * * * (每小时第 5 分钟)
+    # ============================================================
+    from .tasks.web_sync_tasks import (
+        web_promo_cleaner_task,
+        web_invoice_sync_task,
+        web_balance_sync_task,
+    )
+
+    # 促销清理：每天北京时间 6:00 清理所有店铺的促销待拉入商品
+    await hooks.register_cron(
+        name="ef.ozon.web.promo_cleaner",
+        cron="0 22 * * *",
+        task=web_promo_cleaner_task,
+        display_name="促销待拉入商品清理",
+        description="清理 OZON 促销活动中的待自动拉入商品"
+    )
+
+    # 账单同步：每天北京时间 6:30 同步所有店铺的账单付款数据
+    await hooks.register_cron(
+        name="ef.ozon.web.invoice_sync",
+        cron="30 22 * * *",
+        task=web_invoice_sync_task,
+        display_name="账单付款同步",
+        description="从 OZON 同步账单付款数据"
+    )
+
+    # 余额同步：每小时第 5 分钟同步所有店铺的账户余额
+    await hooks.register_cron(
+        name="ef.ozon.web.balance_sync",
+        cron="5 * * * *",
+        task=web_balance_sync_task,
+        display_name="店铺余额同步",
+        description="同步 OZON 店铺账户余额"
+    )
+
     # 订阅事件：发货请求
     await hooks.consume(
         topic="ef.shipments.request",
