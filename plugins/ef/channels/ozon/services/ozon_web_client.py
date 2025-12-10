@@ -111,6 +111,8 @@ class OzonWebClient:
             **self.DEFAULT_HEADERS,
             "User-Agent": self.config.user_agent,
             "Cookie": cookie_str,
+            # 添加 x-o3-company-id 头，OZON 用这个来确定当前店铺
+            "x-o3-company-id": self.config.target_client_id,
         }
 
         # 使用 curl_cffi 模拟 Chrome 浏览器
@@ -126,11 +128,13 @@ class OzonWebClient:
         """
         从 HTML 页面提取当前 company_id
 
-        解析来源：
-        1. window.__INITIAL_STATE__ 中的 company 信息
-        2. window.__MODULE_STATE__ 中的 company 信息
+        解析来源（按优先级）：
+        1. x-o3-company-id header 在页面中的引用
+        2. window.__INITIAL_STATE__ 中的 company.id
+        3. window.__MODULE_STATE__ 中的 companyId
+        4. 正则表达式搜索 companyId 字段
         """
-        # 尝试从 __INITIAL_STATE__ 提取
+        # 方法1: 尝试从 __INITIAL_STATE__ 提取
         match = re.search(r'window\.__INITIAL_STATE__\s*=\s*(\{.*?\});', html, re.DOTALL)
         if match:
             try:
@@ -146,7 +150,7 @@ class OzonWebClient:
             except json.JSONDecodeError:
                 pass
 
-        # 尝试从 __MODULE_STATE__ 提取
+        # 方法2: 尝试从 __MODULE_STATE__ 提取
         match = re.search(r'window\.__MODULE_STATE__\s*=\s*(\{.*?\});', html, re.DOTALL)
         if match:
             try:
@@ -172,6 +176,12 @@ class OzonWebClient:
                     return company_id
             except json.JSONDecodeError:
                 pass
+
+        # 方法3: 直接用正则表达式搜索 "companyId":数字 或 "companyId":"数字"
+        # 这是最可靠的方式，因为 OZON 页面中总会有 companyId 字段
+        match = re.search(r'"companyId"\s*:\s*"?(\d+)"?', html)
+        if match:
+            return match.group(1)
 
         return None
 
@@ -199,11 +209,31 @@ class OzonWebClient:
         return False
 
     async def _validate_company_id(self, html: str) -> None:
-        """验证页面的 company_id 是否与目标一致"""
+        """
+        验证页面的 company_id 是否与目标一致
+
+        必须满足：
+        1. 能从页面中提取到 company_id
+        2. 提取到的 company_id 必须与目标 client_id 一致
+
+        如果不满足，说明用户没有该店铺的访问权限，OZON 返回了默认店铺的数据。
+        """
         page_company_id = self._extract_company_id_from_html(html)
-        if page_company_id and page_company_id != self.config.target_client_id:
+
+        if not page_company_id:
+            # 无法提取 company_id，可能页面结构变化
+            logger.warning(
+                f"无法从页面提取 company_id，目标店铺: {self.config.target_client_id}"
+            )
             raise CompanyIdMismatchError(
-                f"页面 company_id ({page_company_id}) 与目标 ({self.config.target_client_id}) 不匹配"
+                f"无法从页面提取 company_id，无法验证是否为目标店铺 {self.config.target_client_id}"
+            )
+
+        if page_company_id != self.config.target_client_id:
+            # company_id 不匹配，说明没有该店铺的访问权限
+            raise CompanyIdMismatchError(
+                f"页面 company_id ({page_company_id}) 与目标 ({self.config.target_client_id}) 不匹配，"
+                f"可能没有该店铺的访问权限"
             )
 
     async def fetch_page(self, path: str) -> str:
