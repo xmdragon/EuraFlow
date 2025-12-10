@@ -64,6 +64,7 @@ import ScanResultTable from '@/components/ozon/packing/ScanResultTable';
 import PageTitle from '@/components/PageTitle';
 import { useCopy } from '@/hooks/useCopy';
 import { useDateTime } from '@/hooks/useDateTime';
+import { useShopSelection } from '@/hooks/ozon/useShopSelection';
 import { usePermission } from '@/hooks/usePermission';
 import { useQuickMenu } from '@/hooks/useQuickMenu';
 import { useBatchPrint } from '@/hooks/useBatchPrint';
@@ -142,8 +143,8 @@ const PackingShipment: React.FC = () => {
   const [isLoadingMore, setIsLoadingMore] = useState(false); // 是否正在加载更多
   const [hasMoreData, setHasMoreData] = useState(true); // 是否还有更多数据
   const [accumulatedImageMap, setAccumulatedImageMap] = useState<Record<string, string>>({}); // 累积的图片映射
-  // 始终默认为null（全部店铺），不从localStorage读取
-  const [selectedShop, setSelectedShop] = useState<number | null>(null);
+  // 店铺选择（带验证）
+  const { selectedShop, setSelectedShop } = useShopSelection();
   const [filterForm] = Form.useForm();
   const [shipForm] = Form.useForm();
   const [detailModalVisible, setDetailModalVisible] = useState(false);

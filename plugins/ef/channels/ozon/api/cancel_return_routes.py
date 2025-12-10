@@ -128,9 +128,11 @@ async def get_cancellations(
     # 权限校验：过滤用户有权限的店铺
     try:
         allowed_shop_ids = await filter_by_shop_permission(current_user, db, shop_id)
-        if shop_id and shop_id not in allowed_shop_ids:
+        # 用户没有任何店铺权限，直接返回空结果
+        if allowed_shop_ids is not None and len(allowed_shop_ids) == 0:
+            return CancellationListResponse(items=[], total=0, page=page, limit=limit)
+        if shop_id and allowed_shop_ids and shop_id not in allowed_shop_ids:
             problem(403, "SHOP_ACCESS_DENIED", "您没有权限查看该店铺的数据")
-        filtered_shop_id = shop_id
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
 
@@ -150,9 +152,14 @@ async def get_cancellations(
         filters["date_to"] = datetime.fromisoformat(f"{date_to}T23:59:59")
 
     # 调用服务层
+    # 注意：shop_id 用于前端指定的店铺，allowed_shop_ids 用于权限过滤
+    # - 如果用户指定了 shop_id，使用该值
+    # - 如果用户没有指定且 allowed_shop_ids 为 None（admin），不过滤店铺
+    # - 如果用户没有指定且 allowed_shop_ids 为列表，只查询授权的店铺
     service = CancelReturnService()
     result = await service.get_cancellation_list(
-        shop_id=filtered_shop_id,
+        shop_id=shop_id,
+        shop_ids=allowed_shop_ids,  # 权限过滤
         page=page,
         limit=limit,
         filters=filters
@@ -184,9 +191,11 @@ async def get_returns(
     # 权限校验：过滤用户有权限的店铺
     try:
         allowed_shop_ids = await filter_by_shop_permission(current_user, db, shop_id)
-        if shop_id and shop_id not in allowed_shop_ids:
+        # 用户没有任何店铺权限，直接返回空结果
+        if allowed_shop_ids is not None and len(allowed_shop_ids) == 0:
+            return ReturnListResponse(items=[], total=0, page=page, limit=limit)
+        if shop_id and allowed_shop_ids and shop_id not in allowed_shop_ids:
             problem(403, "SHOP_ACCESS_DENIED", "您没有权限查看该店铺的数据")
-        filtered_shop_id = shop_id
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
 
@@ -208,7 +217,8 @@ async def get_returns(
     # 调用服务层
     service = CancelReturnService()
     result = await service.get_return_list(
-        shop_id=filtered_shop_id,
+        shop_id=shop_id,
+        shop_ids=allowed_shop_ids,  # 权限过滤
         page=page,
         limit=limit,
         filters=filters
@@ -251,6 +261,7 @@ async def sync_cancellations(
 
     权限要求：
     - 任何登录用户可触发同步（同步用户有权限的店铺）
+    - 必须指定店铺ID
     """
     import logging
     import uuid
@@ -258,15 +269,30 @@ async def sync_cancellations(
     logger = logging.getLogger(__name__)
     logger.info(f"收到取消申请同步请求，shop_id={request.shop_id}, user={current_user.username}")
 
-    # 校验店铺权限（指定店铺时检查权限，不指定时同步用户有权限的所有店铺）
-    if request.shop_id is not None:
-        try:
-            allowed_shop_ids = await filter_by_shop_permission(current_user, db, request.shop_id)
-            logger.info(f"用户有权限的店铺: {allowed_shop_ids}")
-            if request.shop_id not in allowed_shop_ids:
-                problem(403, "SHOP_ACCESS_DENIED", "您没有权限操作该店铺")
-        except PermissionError as e:
-            raise HTTPException(status_code=403, detail=str(e))
+    # 必须指定店铺
+    if request.shop_id is None:
+        return {
+            "ok": False,
+            "error": "请先选择店铺"
+        }
+
+    # 校验店铺权限
+    try:
+        allowed_shop_ids = await filter_by_shop_permission(current_user, db, request.shop_id)
+        logger.info(f"用户有权限的店铺: {allowed_shop_ids}")
+        if allowed_shop_ids is None:
+            # admin 用户，检查店铺是否存在
+            pass
+        elif len(allowed_shop_ids) == 0 or request.shop_id not in allowed_shop_ids:
+            return {
+                "ok": False,
+                "error": "您没有权限操作该店铺"
+            }
+    except PermissionError as e:
+        return {
+            "ok": False,
+            "error": str(e)
+        }
 
     # 生成任务ID
     task_id = f"cancellation_sync_{uuid.uuid4().hex[:12]}"
@@ -356,6 +382,7 @@ async def sync_returns(
 
     权限要求：
     - 任何登录用户可触发同步（同步用户有权限的店铺）
+    - 必须指定店铺ID
     """
     import logging
     import uuid
@@ -363,15 +390,30 @@ async def sync_returns(
     logger = logging.getLogger(__name__)
     logger.info(f"收到退货申请同步请求，shop_id={request.shop_id}, user={current_user.username}")
 
-    # 校验店铺权限（指定店铺时检查权限，不指定时同步用户有权限的所有店铺）
-    if request.shop_id is not None:
-        try:
-            allowed_shop_ids = await filter_by_shop_permission(current_user, db, request.shop_id)
-            logger.info(f"用户有权限的店铺: {allowed_shop_ids}")
-            if request.shop_id not in allowed_shop_ids:
-                problem(403, "SHOP_ACCESS_DENIED", "您没有权限操作该店铺")
-        except PermissionError as e:
-            raise HTTPException(status_code=403, detail=str(e))
+    # 必须指定店铺
+    if request.shop_id is None:
+        return {
+            "ok": False,
+            "error": "请先选择店铺"
+        }
+
+    # 校验店铺权限
+    try:
+        allowed_shop_ids = await filter_by_shop_permission(current_user, db, request.shop_id)
+        logger.info(f"用户有权限的店铺: {allowed_shop_ids}")
+        if allowed_shop_ids is None:
+            # admin 用户，检查店铺是否存在
+            pass
+        elif len(allowed_shop_ids) == 0 or request.shop_id not in allowed_shop_ids:
+            return {
+                "ok": False,
+                "error": "您没有权限操作该店铺"
+            }
+    except PermissionError as e:
+        return {
+            "ok": False,
+            "error": str(e)
+        }
 
     # 生成任务ID
     task_id = f"return_sync_{uuid.uuid4().hex[:12]}"

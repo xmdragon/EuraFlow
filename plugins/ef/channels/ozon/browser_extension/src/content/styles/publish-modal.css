@@ -76,8 +76,8 @@
 
 /* ========== 操作栏 ========== */
 .ef-operations-bar {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr auto auto;
+  display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   align-items: flex-end;
   margin-bottom: var(--ef-spacing-lg);
@@ -126,6 +126,10 @@
   cursor: pointer;
 }
 
+.ef-operations-bar__select--narrow {
+  width: 150px;
+}
+
 .ef-operations-bar__hint {
   color: #999;
   font-size: 13px;
@@ -156,6 +160,21 @@
   margin-left: 8px;
   padding: 2px 8px;
   font-size: 12px;
+}
+
+.ef-operations-bar__checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-size: 13px;
+  color: #333;
+  padding: 8px 0;
+}
+
+.ef-operations-bar__checkbox-label input[type="checkbox"] {
+  cursor: pointer;
 }
 
 /* ========== 变体列表表格 ========== */
@@ -238,6 +257,14 @@
   opacity: 0.6;
 }
 
+.ef-variants-table__tr--current {
+  background: #e8f5e9;
+}
+
+.ef-variants-table__tr--current:hover {
+  background: #c8e6c9;
+}
+
 .ef-variants-table__td {
   padding: 12px 8px;
   font-size: 13px;
@@ -294,6 +321,13 @@
   color: #f44336;
   font-size: 12px;
   margin-left: 4px;
+}
+
+.ef-variants-table__current-label {
+  color: #2e7d32;
+  font-size: 12px;
+  margin-left: 4px;
+  font-weight: 500;
 }
 
 .ef-variants-table__input {

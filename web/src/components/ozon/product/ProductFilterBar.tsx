@@ -4,7 +4,7 @@
  * 包含店铺选择、搜索、状态过滤等功能
  */
 import { SearchOutlined, PlusOutlined } from '@ant-design/icons';
-import { Card, Form, Input, Select, Button, Space, FormInstance } from 'antd';
+import { Card, Form, Input, Select, Button, Space, FormInstance, Tooltip } from 'antd';
 import React from 'react';
 
 import styles from '../../../pages/ozon/ProductList.module.scss';
@@ -58,7 +58,7 @@ export const ProductFilterBar: React.FC<ProductFilterBarProps> = ({
   return (
     <Card className={styles.filterCard}>
       <Form form={form} layout="inline" onFinish={onFilter}>
-        <Form.Item label="选择店铺">
+        <Form.Item>
           <ShopSelector
             value={selectedShop}
             onChange={onShopChange}
@@ -89,9 +89,16 @@ export const ProductFilterBar: React.FC<ProductFilterBarProps> = ({
               查询
             </Button>
             <Button onClick={onReset}>重置</Button>
-            <Button type="primary" icon={<PlusOutlined />} onClick={onCreateProduct}>
-              新建商品
-            </Button>
+            <Tooltip title={!selectedShop ? '请先选择店铺' : '新建商品'}>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={onCreateProduct}
+                disabled={!selectedShop}
+              >
+                新建商品
+              </Button>
+            </Tooltip>
           </Space>
         </Form.Item>
       </Form>

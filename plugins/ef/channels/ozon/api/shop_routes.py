@@ -238,6 +238,30 @@ async def create_shop(
     from sqlalchemy import insert
     from sqlalchemy.orm import selectinload
 
+    # 检查 client_id 是否已被其他用户绑定
+    existing_shop_stmt = select(OzonShop).where(OzonShop.client_id == shop_data.client_id)
+    existing_shop_result = await db.execute(existing_shop_stmt)
+    existing_shop = existing_shop_result.scalar_one_or_none()
+
+    if existing_shop:
+        # 如果是同一个用户，提示店铺已存在
+        if existing_shop.owner_user_id == current_user.id:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "SHOP_EXISTS",
+                    "message": "您已添加过该店铺"
+                }
+            )
+        # 如果是其他用户，提示已被绑定
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "SHOP_BINDIED",
+                "message": "该店铺已被其他用户绑定"
+            }
+        )
+
     # 检查店铺数量限额（仅对 manager 角色）
     if current_user.role == "manager":
         # 加载 manager_level 关系

@@ -624,7 +624,11 @@ const UserManagement: React.FC = () => {
             role: currentUser?.role === 'admin' ? 'manager' : 'sub_account',
             is_active: true,
             account_status: 'active',
-            expiration_days: 30, // 默认1个月
+            // manager 创建子账号默认"跟随主账号"(-1)
+            // admin 创建 manager 使用第一个级别的默认有效期（选择级别后会自动更新）
+            expiration_days: currentUser?.role === 'manager'
+              ? -1
+              : (managerLevels[0]?.default_expiration_days ?? 30),
           }}
         >
           {!editingUser && (
@@ -842,17 +846,11 @@ const UserManagement: React.FC = () => {
                 <Form.Item
                   name="shop_ids"
                   label="关联店铺"
-                  tooltip="选择用户可访问的店铺"
-                  rules={[
-                    {
-                      required: true,
-                      message: '请选择至少一个店铺',
-                    },
-                  ]}
+                  tooltip="选择用户可访问的店铺，不选则用户可自行添加店铺"
                 >
                   <Select
                     mode="multiple"
-                    placeholder="请选择店铺"
+                    placeholder="请选择店铺（可选）"
                   >
                     {shops.map((shop) => (
                       <Option key={shop.id} value={shop.id}>

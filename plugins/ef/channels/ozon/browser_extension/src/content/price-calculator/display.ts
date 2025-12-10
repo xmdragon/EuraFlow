@@ -35,6 +35,37 @@ const productDataStore: ProductDataStore = {
   realPrice: null,
 };
 
+// ========== 数据加载状态 ==========
+// 跟踪各类数据是否加载完成
+interface DataLoadingStatus {
+  basicDataReady: boolean;   // 基础数据（变体图片、规格、价格）是否就绪
+  allDataReady: boolean;     // 所有数据是否就绪（用于采集）
+}
+
+const dataLoadingStatus: DataLoadingStatus = {
+  basicDataReady: false,
+  allDataReady: false,
+};
+
+/**
+ * 更新数据加载状态
+ */
+export function updateDataLoadingStatus(status: Partial<DataLoadingStatus>): void {
+  if (status.basicDataReady !== undefined) {
+    dataLoadingStatus.basicDataReady = status.basicDataReady;
+  }
+  if (status.allDataReady !== undefined) {
+    dataLoadingStatus.allDataReady = status.allDataReady;
+  }
+}
+
+/**
+ * 获取数据加载状态
+ */
+export function getDataLoadingStatus(): Readonly<DataLoadingStatus> {
+  return dataLoadingStatus;
+}
+
 /**
  * 更新全局数据存储（合并新数据到现有数据）
  */
@@ -407,6 +438,7 @@ export function updateDimensionsData(dimensions: any, spbSales: any): void {
 
 /**
  * 更新按钮区域（配置和 OZON 数据加载完成后调用）
+ * 现在只更新数据存储，按钮在组件注入时已创建
  */
 export function updateButtonsWithConfig(
   euraflowConfig: any,
@@ -422,37 +454,9 @@ export function updateButtonsWithConfig(
     dimensions,
   });
 
-  const buttonRow = document.getElementById('euraflow-button-row');
-  if (!buttonRow) return;
-
-  const hasDimensions = dimensions &&
-    dimensions.weight !== null && dimensions.weight !== undefined;
-  const hasSpbDimensions = spbSales &&
-    spbSales.weight !== null && spbSales.weight !== undefined;
-  const hasAnyDimensions = hasDimensions || hasSpbDimensions;
-
-  // 检查是否已有跟卖按钮
-  const existingFollowButton = buttonRow.querySelector('#euraflow-follow');
-  if (!existingFollowButton && ozonProduct && hasAnyDimensions) {
-    const followButton = createFollowButton();
-    buttonRow.appendChild(followButton);
-  }
-
-  // 检查是否已有采集按钮
-  const existingCollectButton = buttonRow.querySelector('#euraflow-collect');
-  if (!existingCollectButton && ozonProduct && euraflowConfig) {
-    const collectButton = createCollectButton();
-    buttonRow.appendChild(collectButton);
-  }
-
-  // 如果有任何按钮，显示按钮行
-  if (buttonRow.children.length > 0) {
-    buttonRow.style.display = '';
-
-    // 按钮注入完成后，输出最终完整数据
-    if (__DEBUG__) {
-      console.log('[ProductDataStore] 完整数据:', getProductDataStore());
-    }
+  // 输出完整数据（调试模式）
+  if (__DEBUG__) {
+    console.log('[ProductDataStore] 完整数据:', getProductDataStore());
   }
 }
 
@@ -523,12 +527,18 @@ export async function injectCompleteDisplay(data: {
   euraflowContainer.appendChild(createPriceSection(message));
   euraflowContainer.appendChild(await createDataSection(spbSales, dimensions, productId));
 
-  // 阶段1：创建按钮行容器（先隐藏）
+  // 阶段1：创建按钮行容器（立即显示按钮）
   const buttonRow = document.createElement('div');
   buttonRow.id = 'euraflow-button-row';
   buttonRow.setAttribute('data-euraflow-component', 'button-row');
   buttonRow.className = 'ef-button-row';
-  buttonRow.style.display = 'none';  // 初始隐藏
+
+  // 立即创建并显示两个按钮（数据加载状态由点击时检查）
+  const followButton = createFollowButton();
+  const collectButton = createCollectButton();
+  buttonRow.appendChild(followButton);
+  buttonRow.appendChild(collectButton);
+
   euraflowContainer.appendChild(buttonRow);
 
   // 设置高度并注入
@@ -536,40 +546,6 @@ export async function injectCompleteDisplay(data: {
     (rightSide.children[0].firstChild as HTMLElement).classList.add('ef-ozon-right-side-fix');
   }
   targetContainer.insertBefore(euraflowContainer, targetContainer.firstElementChild);
-
-  // 阶段2：检查数据就绪后显示按钮
-  const checkDataAndShowButtons = () => {
-    // 检查跟卖数据是否就绪（需要 ozonProduct 和尺寸信息）
-    const hasDimensions = dimensions &&
-      dimensions.weight !== null && dimensions.weight !== undefined;
-    const hasSpbDimensions = spbSales &&
-      spbSales.weight !== null && spbSales.weight !== undefined;
-    const hasAnyDimensions = hasDimensions || hasSpbDimensions;
-
-    // 检查采集数据是否就绪
-    const hasCollectData = ozonProduct && euraflowConfig;
-
-    // 只要有 ozonProduct 就可以显示按钮
-    if (ozonProduct && hasAnyDimensions) {
-      // 创建跟卖按钮（从全局存储获取数据）
-      const followButton = createFollowButton();
-      buttonRow.appendChild(followButton);
-    }
-
-    if (hasCollectData) {
-      // 创建采集按钮（从全局存储获取数据）
-      const collectButton = createCollectButton();
-      buttonRow.appendChild(collectButton);
-    }
-
-    // 如果有任何按钮，显示按钮行
-    if (buttonRow.children.length > 0) {
-      buttonRow.style.display = '';  // 显示按钮行
-    }
-  };
-
-  // 立即检查一次
-  checkDataAndShowButtons();
 
   // 监听组件是否被移除，如果被移除则重新注入（最多重试3次）
   let retryCount = 0;
@@ -1243,7 +1219,7 @@ function formatDimensions(dimensions: any, spbSales: any): string {
  */
 function createFollowButton(): HTMLButtonElement {
   const followButton = document.createElement('button');
-  followButton.id = 'euraflow-follow-sell';
+  followButton.id = 'euraflow-follow';  // 与 updateButtonsWithConfig 中的检测 ID 保持一致
   followButton.setAttribute('type', 'button');
   followButton.className = 'ef-follow-button';
   followButton.textContent = '跟卖';
@@ -1251,6 +1227,13 @@ function createFollowButton(): HTMLButtonElement {
   // 事件处理
   followButton.addEventListener('click', async () => {
     try {
+      // 检查基础数据是否加载完成
+      const loadingStatus = getDataLoadingStatus();
+      if (!loadingStatus.basicDataReady) {
+        showToast('数据加载中...', 'info');
+        return;
+      }
+
       // 从全局存储获取最新数据
       const store = getProductDataStore();
       const { ozonProduct, spbSales, dimensions, realPrice } = store;
@@ -1269,12 +1252,12 @@ function createFollowButton(): HTMLButtonElement {
         spbSales.depth !== null && spbSales.depth !== undefined;
 
       if (!ozonProduct) {
-        alert('商品数据不完整，请刷新页面重试');
+        showToast('商品数据不完整，请刷新页面重试', 'error');
         return;
       }
 
       if (!hasDimensions && !hasSpbSales) {
-        alert('商品数据不完整（缺少尺寸和重量信息），请通过其它插件上架');
+        showToast('商品数据不完整（缺少尺寸和重量信息），请通过其它插件上架', 'error');
         return;
       }
 
@@ -1308,7 +1291,9 @@ function createFollowButton(): HTMLButtonElement {
         realPrice: realPrice,  // 真实售价（新字段，不覆盖原有价格）
         primary_image: primaryImage
       };
-      showPublishModal(productData, realPrice, minFollowPrice);
+      // 当前页面显示的变体ID（ozon_product_id 是从 URL 提取的当前变体 SKU）
+      const currentVariantId = ozonProduct?.ozon_product_id || null;
+      showPublishModal(productData, realPrice, minFollowPrice, currentVariantId);
     } catch (error) {
       console.error('[EuraFlow] 打开跟卖弹窗失败:', error);
       alert('打开上架配置失败，请稍后重试');
@@ -1332,6 +1317,13 @@ function createCollectButton(): HTMLButtonElement {
   // 事件处理
   collectButton.addEventListener('click', async () => {
     try {
+      // 检查所有数据是否加载完成
+      const loadingStatus = getDataLoadingStatus();
+      if (!loadingStatus.allDataReady) {
+        showToast('数据加载中...', 'info');
+        return;
+      }
+
       // 从全局存储获取最新数据
       const store = getProductDataStore();
       const { ozonProduct, spbSales, dimensions, euraflowConfig, realPrice } = store;
@@ -1350,17 +1342,17 @@ function createCollectButton(): HTMLButtonElement {
         spbSales.depth !== null && spbSales.depth !== undefined;
 
       if (!ozonProduct) {
-        alert('商品数据不完整，请刷新页面重试');
+        showToast('商品数据不完整，请刷新页面重试', 'error');
         return;
       }
 
       if (!hasDimensions && !hasSpbSales) {
-        alert('商品数据不完整（缺少尺寸和重量信息），请通过其它插件上架');
+        showToast('商品数据不完整（缺少尺寸和重量信息），请通过其它插件上架', 'error');
         return;
       }
 
       if (!euraflowConfig?.apiUrl || !euraflowConfig?.apiKey) {
-        alert('API未配置，请先在扩展设置中配置API');
+        showToast('API未配置，请先在扩展设置中配置API', 'error');
         return;
       }
 

@@ -31,6 +31,7 @@ import styles from './OzonOverview.module.scss';
 
 import PageTitle from '@/components/PageTitle';
 import { useCurrency } from '@/hooks/useCurrency';
+import { useShopSelection } from '@/hooks/ozon/useShopSelection';
 
 const { Text } = Typography;
 
@@ -52,8 +53,8 @@ const OzonOverview: React.FC = () => {
   // 获取系统默认货币和时区工具
   const { symbol: currencySymbol } = useCurrency();
 
-  // 初始化为 null 表示"全部店铺"
-  const [selectedShop, setSelectedShop] = useState<number | null>(null);
+  // 店铺选择（带验证）
+  const { selectedShop, setSelectedShop } = useShopSelection();
   const [debouncedShop, setDebouncedShop] = useState<number | null>(null);
   const [timeRangeType, setTimeRangeType] = useState<'7days' | '14days' | 'thisMonth' | 'lastMonth' | 'custom'>('14days');
   const [customDateRange, setCustomDateRange] = useState<[Dayjs | null, Dayjs | null]>([null, null]);

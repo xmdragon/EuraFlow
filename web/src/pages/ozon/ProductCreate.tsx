@@ -49,6 +49,7 @@ import type { TaskStatus } from '@/hooks/useAsyncTaskPolling';
 import { useCategoryManager } from '@/hooks/useCategoryManager';
 import { useTitleTranslation } from '@/hooks/useTitleTranslation';
 import { useDictionaryCache } from '@/hooks/useDictionaryCache';
+import { useShopSelection } from '@/hooks/ozon/useShopSelection';
 import { BasicInfoSection } from './components/BasicInfoSection';
 import { CategoryAttributesSection } from './components/CategoryAttributesSection';
 import { PriceInfoSection } from './components/PriceInfoSection';
@@ -77,7 +78,8 @@ const ProductCreate: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
-  const [selectedShop, setSelectedShop] = useState<number | null>(null);
+  // 店铺选择（带验证）
+  const { selectedShop, setSelectedShop } = useShopSelection();
   const [form] = Form.useForm();
   const [mainProductImages, setMainProductImages] = useState<string[]>([]);
   const [videoModalVisible, setVideoModalVisible] = useState(false);

@@ -1,8 +1,15 @@
 /**
  * 店铺选择 Hook
  * 统一管理店铺选择状态和 localStorage 持久化
+ *
+ * 注意：此 hook 会从 localStorage 读取上次选择的店铺 ID，
+ * 但不会验证该店铺是否仍然可用。验证逻辑在 ShopSelector 组件中进行。
+ * 因此，使用此 hook 时应确保同时渲染 ShopSelector 组件。
  */
 import { useState, useEffect, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
+
+import { getShops } from '@/services/ozon';
 
 export interface UseShopSelectionOptions {
   /**
@@ -22,11 +29,17 @@ export interface UseShopSelectionOptions {
    * @default null
    */
   initialValue?: number | null;
+
+  /**
+   * 是否验证店铺有效性（需要额外的 API 请求）
+   * @default true
+   */
+  validateShop?: boolean;
 }
 
 export interface UseShopSelectionReturn {
   /**
-   * 当前选中的店铺 ID
+   * 当前选中的店铺 ID（已验证有效）
    */
   selectedShop: number | null;
 
@@ -40,6 +53,16 @@ export interface UseShopSelectionReturn {
    * 自动处理数组/单值/null 的归一化
    */
   handleShopChange: (shopId: number | number[] | null) => void;
+
+  /**
+   * 店铺列表是否正在加载
+   */
+  isLoading: boolean;
+
+  /**
+   * 可用的店铺列表
+   */
+  shops: Array<{ id: number; shop_name: string; shop_name_cn?: string; display_name?: string }>;
 }
 
 /**
@@ -69,10 +92,22 @@ export const useShopSelection = (
     persistKey = 'ozon_selected_shop',
     persist = true,
     initialValue = null,
+    validateShop = true,
   } = options;
 
-  // 初始化状态：优先从 localStorage 读取
-  const [selectedShop, setSelectedShop] = useState<number | null>(() => {
+  // 获取店铺列表用于验证
+  const { data: shopsData, isLoading } = useQuery({
+    queryKey: ['ozon', 'shops'],
+    queryFn: () => getShops(),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    enabled: validateShop,
+  });
+
+  const shops = shopsData?.data || [];
+
+  // 初始化状态：优先从 localStorage 读取（但会在 useEffect 中验证）
+  const [selectedShop, setSelectedShopInternal] = useState<number | null>(() => {
     if (!persist) {
       return initialValue;
     }
@@ -92,22 +127,48 @@ export const useShopSelection = (
     return initialValue;
   });
 
-  // 持久化到 localStorage
+  // 验证选中的店铺是否在可用列表中
   useEffect(() => {
-    if (!persist) {
+    if (!validateShop || isLoading) {
       return;
     }
 
-    try {
+    // 如果没有店铺，清除选择
+    if (shops.length === 0) {
       if (selectedShop !== null) {
-        localStorage.setItem(persistKey, selectedShop.toString());
-      } else {
+        setSelectedShopInternal(null);
+        if (persist) {
+          localStorage.removeItem(persistKey);
+        }
+      }
+      return;
+    }
+
+    // 如果选中的店铺不在可用列表中，清除或选择第一个
+    if (selectedShop !== null && !shops.find((s) => s.id === selectedShop)) {
+      console.warn(`店铺 ${selectedShop} 不在授权列表中，自动清除`);
+      if (persist) {
         localStorage.removeItem(persistKey);
       }
-    } catch (error) {
-      console.error(`Failed to save shop selection to localStorage (${persistKey}):`, error);
+      setSelectedShopInternal(null);
     }
-  }, [selectedShop, persistKey, persist]);
+  }, [shops, selectedShop, isLoading, validateShop, persist, persistKey]);
+
+  // 包装 setSelectedShop，同时更新 localStorage
+  const setSelectedShop = useCallback((shopId: number | null) => {
+    setSelectedShopInternal(shopId);
+    if (persist) {
+      try {
+        if (shopId !== null) {
+          localStorage.setItem(persistKey, shopId.toString());
+        } else {
+          localStorage.removeItem(persistKey);
+        }
+      } catch (error) {
+        console.error(`Failed to save shop selection to localStorage (${persistKey}):`, error);
+      }
+    }
+  }, [persist, persistKey]);
 
   /**
    * 处理店铺选择变化
@@ -124,11 +185,18 @@ export const useShopSelection = (
       // 单值或 null
       setSelectedShop(shopId ?? null);
     }
-  }, []);
+  }, [setSelectedShop]);
+
+  // 返回验证后的店铺 ID：如果正在加载或店铺无效，返回 null
+  const validatedShop = isLoading ? null : (
+    selectedShop !== null && shops.find((s) => s.id === selectedShop) ? selectedShop : null
+  );
 
   return {
-    selectedShop,
+    selectedShop: validatedShop,
     setSelectedShop,
     handleShopChange,
+    isLoading,
+    shops,
   };
 };

@@ -216,6 +216,12 @@ const SELECTION_CACHE_KEY = 'euraflow_publish_selection';
 const PRODUCT_EDIT_CACHE_PREFIX = 'euraflow_product_edit_';
 const PRODUCT_EDIT_CACHE_DURATION = 10 * 60 * 1000; // 10分钟
 
+// 当前页面的变体ID（用于排序，让当前SKU排在最前面）
+let currentVariantId: string | null = null;
+
+// 只跟卖当前SKU（复选框状态）
+let onlyCurrentSku: boolean = false;
+
 // 缓存用户选择（全局默认）
 interface SelectionCache {
   shopId: number;
@@ -420,8 +426,11 @@ let editedDescription: string = '';
  * @param product 商品详情数据（包括变体价格信息）
  * @param currentRealPrice 当前页面显示的真实售价
  * @param minFollowPrice 最低跟卖价（可选）
+ * @param variantId 当前页面显示的变体ID（可选，用于排序让当前SKU排在最前面）
  */
-export async function showPublishModal(product: any = null, currentRealPrice: number | null = null, minFollowPrice: number | null = null): Promise<void> {
+export async function showPublishModal(product: any = null, currentRealPrice: number | null = null, minFollowPrice: number | null = null, variantId: string | null = null): Promise<void> {
+  // 保存当前变体ID
+  currentVariantId = variantId;
   // 注入 EuraFlow 样式（仅注入一次）
   injectEuraflowStyles();
 
@@ -752,7 +761,7 @@ function renderMainModal(): void {
     <!-- 商品预览 -->
     ${renderProductPreview()}
 
-    <!-- 操作栏：店铺/仓库/水印/库存/批量定价 -->
+    <!-- 操作栏：店铺/仓库/水印/库存/只跟卖当前SKU/批量定价 -->
     <div class="ef-operations-bar">
       <div class="ef-operations-bar__field">
         <label class="ef-operations-bar__label ef-operations-bar__label--required">店铺</label>
@@ -770,6 +779,14 @@ function renderMainModal(): void {
         <label class="ef-operations-bar__label">默认库存</label>
         <input type="number" id="default-stock" value="9" min="1" class="ef-operations-bar__input">
       </div>
+      ${variants.length > 1 && currentVariantId ? `
+      <div class="ef-operations-bar__field">
+        <label class="ef-operations-bar__checkbox-label">
+          <input type="checkbox" id="only-current-sku" ${onlyCurrentSku ? 'checked' : ''}>
+          <span>只跟卖当前SKU</span>
+        </label>
+      </div>
+      ` : ''}
       <div class="ef-operations-bar__field">
         <button id="batch-pricing-btn" class="ef-operations-bar__button">批量定价</button>
       </div>
@@ -870,6 +887,7 @@ function renderProductPreview(): string {
 
 /**
  * 渲染店铺下拉选择
+ * 使用后端返回的 display_name（已根据用户设置格式化）
  */
 function renderShopSelect(): string {
   if (shops.length === 0) {
@@ -878,13 +896,13 @@ function renderShopSelect(): string {
 
   const options = shops
     .map(shop => {
-      // 显示格式：俄文名 [中文名]，与前端 ShopSelector 保持一致
-      const displayName = shop.shop_name + (shop.shop_name_cn ? ` [${shop.shop_name_cn}]` : '');
+      // 直接使用后端返回的 display_name（已根据用户设置格式化）
+      const displayName = shop.display_name || shop.shop_name;
       return `<option value="${shop.id}" ${shop.id === selectedShopId ? 'selected' : ''}>${displayName}</option>`;
     })
     .join('');
 
-  return `<select id="shop-select" class="ef-operations-bar__select">${options}</select>`;
+  return `<select id="shop-select" class="ef-operations-bar__select ef-operations-bar__select--narrow">${options}</select>`;
 }
 
 /**
@@ -957,14 +975,34 @@ function renderDescriptionWarning(): string {
 
 /**
  * 渲染变体行
+ * 当前SKU排在最前面，其余保持原顺序
  */
 function renderVariantRows(): string {
   if (variants.length === 0) {
     return '<tr><td colspan="8" class="ef-variants-table__td--empty">未检测到变体数据</td></tr>';
   }
 
-  return variants.map((variant, index) => `
-    <tr data-index="${index}" class="ef-variants-table__tr ${!variant.available ? 'ef-variants-table__tr--unavailable' : ''}">
+  // 创建排序后的索引数组：当前SKU排最前，其余保持原顺序
+  const sortedIndices: number[] = [];
+  const otherIndices: number[] = [];
+
+  variants.forEach((variant, index) => {
+    if (currentVariantId && variant.variant_id === currentVariantId) {
+      sortedIndices.unshift(index); // 当前SKU放在最前面
+    } else {
+      otherIndices.push(index);
+    }
+  });
+
+  // 合并：当前SKU + 其他
+  sortedIndices.push(...otherIndices);
+
+  return sortedIndices.map((index) => {
+    const variant = variants[index];
+    const isCurrentSku = currentVariantId && variant.variant_id === currentVariantId;
+
+    return `
+    <tr data-index="${index}" class="ef-variants-table__tr ${!variant.available ? 'ef-variants-table__tr--unavailable' : ''} ${isCurrentSku ? 'ef-variants-table__tr--current' : ''}">
       <td class="ef-variants-table__td ef-variants-table__td--center">
         <input type="checkbox" class="variant-checkbox ef-variants-table__checkbox" data-index="${index}" ${variant.enabled ? 'checked' : ''} ${!variant.available ? 'disabled' : ''}>
       </td>
@@ -991,7 +1029,8 @@ function renderVariantRows(): string {
         <input type="number" class="stock-input ef-variants-table__input ef-variants-table__input--right" data-index="${index}" value="${variant.stock}" min="1" ${!variant.enabled ? 'disabled' : ''}>
       </td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
 }
 
 // ========== 事件处理 ==========
@@ -1128,6 +1167,13 @@ function bindMainModalEvents(): void {
     batchGenerateOfferIds();
   });
 
+  // 只跟卖当前SKU复选框
+  const onlyCurrentSkuCheckbox = document.getElementById('only-current-sku') as HTMLInputElement;
+  onlyCurrentSkuCheckbox?.addEventListener('change', (e) => {
+    onlyCurrentSku = (e.target as HTMLInputElement).checked;
+    applyOnlyCurrentSkuFilter();
+  });
+
   // 批量定价按钮
   const batchPricingBtn = document.getElementById('batch-pricing-btn');
   batchPricingBtn?.addEventListener('click', showBatchPricingModal);
@@ -1188,6 +1234,42 @@ function updateSelectedCount(): void {
   if (countEl) {
     countEl.textContent = `已选择 ${count} 个变体`;
   }
+}
+
+/**
+ * 应用"只跟卖当前SKU"过滤
+ * 勾选后只选中当前页面的SKU，取消勾选后恢复所有可用变体
+ */
+function applyOnlyCurrentSkuFilter(): void {
+  variants.forEach((variant, index) => {
+    if (!variant.available) return; // 不可用的跳过
+
+    if (onlyCurrentSku) {
+      // 只选中当前SKU
+      const shouldEnable = variant.variant_id === currentVariantId;
+      variant.enabled = shouldEnable;
+    } else {
+      // 恢复选中所有可用变体
+      variant.enabled = true;
+    }
+
+    // 更新UI
+    const checkbox = document.querySelector(`.variant-checkbox[data-index="${index}"]`) as HTMLInputElement;
+    if (checkbox) checkbox.checked = variant.enabled;
+    toggleVariantInputs(index, variant.enabled);
+  });
+
+  // 更新全选复选框状态
+  const selectAllCheckbox = document.getElementById('select-all') as HTMLInputElement;
+  if (selectAllCheckbox) {
+    const allEnabled = variants.filter(v => v.available).every(v => v.enabled);
+    const someEnabled = variants.some(v => v.enabled);
+    selectAllCheckbox.checked = allEnabled;
+    selectAllCheckbox.indeterminate = someEnabled && !allEnabled;
+  }
+
+  updateSelectedCount();
+  saveProductEditCache();
 }
 
 /**

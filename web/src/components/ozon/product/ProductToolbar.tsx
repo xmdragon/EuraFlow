@@ -68,9 +68,9 @@ export const ProductToolbar: React.FC<ProductToolbarProps> = ({
         {canSync && (
           <Tooltip
             title={
-              hasSelectedShop
-                ? '同步当前店铺的商品'
-                : '同步所有有管理权限的店铺'
+              !hasSelectedShop
+                ? '请先选择店铺'
+                : '同步当前店铺的商品'
             }
           >
             <Button
@@ -78,6 +78,7 @@ export const ProductToolbar: React.FC<ProductToolbarProps> = ({
               icon={<SyncOutlined />}
               onClick={onIncrementalSync}
               loading={syncLoading}
+              disabled={!hasSelectedShop}
             >
               增量同步
             </Button>
@@ -86,15 +87,16 @@ export const ProductToolbar: React.FC<ProductToolbarProps> = ({
         {canSync && (
           <Tooltip
             title={
-              hasSelectedShop
-                ? '全量同步当前店铺的商品'
-                : '全量同步所有有管理权限的店铺'
+              !hasSelectedShop
+                ? '请先选择店铺'
+                : '全量同步当前店铺的商品'
             }
           >
             <Button
               icon={<ReloadOutlined />}
               onClick={onFullSync}
               loading={syncLoading}
+              disabled={!hasSelectedShop}
             >
               全量同步
             </Button>

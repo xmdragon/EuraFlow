@@ -141,6 +141,19 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
     return <Spin size="small" />;
   }
 
+  // 如果没有店铺，显示空提示
+  if (shops.length === 0) {
+    return (
+      <Select
+        style={style}
+        className={className ? `${styles.shopSelect} ${className}` : styles.shopSelect}
+        placeholder="暂无店铺"
+        disabled
+        value={undefined}
+      />
+    );
+  }
+
   // 如果只有一个店铺且不显示"全部"选项，隐藏选择器
   if (!isMultiple && shops.length === 1 && !showAllOption) {
     const shop = shops[0];

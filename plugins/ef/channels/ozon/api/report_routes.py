@@ -2,6 +2,7 @@
 订单报表 API路由
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, case
@@ -958,16 +959,39 @@ async def get_report_summary(
         raise HTTPException(status_code=500, detail=f"获取报表汇总失败: {str(e)}")
 
 
+class BatchFinanceSyncRequest(BaseModel):
+    shop_id: int
+
+
 @router.post("/reports/batch-sync-finance")
-async def start_batch_finance_sync():
+async def start_batch_finance_sync(
+    request: BatchFinanceSyncRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
+):
     """
     启动批量财务费用同步任务
 
     查询所有已签收但 OZON 佣金为 0 的订单，调用财务交易 API 同步费用
 
+    Args:
+        request: 包含 shop_id 的请求体
+
     Returns:
         任务ID，用于查询进度
     """
+    # 参数验证
+    if not request.shop_id:
+        return {"ok": False, "error": "请先选择店铺"}
+
+    # 权限验证
+    try:
+        allowed_shop_ids = await filter_by_shop_permission(current_user, db, request.shop_id)
+        if not allowed_shop_ids:
+            return {"ok": False, "error": "您没有权限操作该店铺"}
+    except PermissionError:
+        return {"ok": False, "error": "您没有权限操作该店铺"}
+
     try:
         import redis
         from ..tasks.batch_finance_sync_task import batch_finance_sync_task
@@ -979,7 +1003,7 @@ async def start_batch_finance_sync():
         # 尝试获取锁（5分钟过期）
         if not redis_client.set(lock_key, "1", ex=300, nx=True):
             # 锁已存在，说明有任务正在运行
-            raise HTTPException(status_code=409, detail="批量同步任务已在运行中，请稍后再试")
+            return {"ok": False, "error": "批量同步任务已在运行中，请稍后再试"}
 
         # 启动异步任务
         task = batch_finance_sync_task.delay()
@@ -987,11 +1011,10 @@ async def start_batch_finance_sync():
         logger.info(f"Started batch finance sync task: {task.id}")
 
         return {
+            "ok": True,
             "task_id": task.id,
             "message": "批量同步任务已启动"
         }
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Failed to start batch finance sync: {e}")
         # 发生错误时释放锁
@@ -999,7 +1022,7 @@ async def start_batch_finance_sync():
             redis_client.delete(lock_key)
         except:
             pass
-        raise HTTPException(status_code=500, detail=f"启动批量同步失败: {str(e)}")
+        return {"ok": False, "error": f"启动批量同步失败: {str(e)}"}
 
 
 @router.get("/reports/batch-sync-finance/{task_id}")

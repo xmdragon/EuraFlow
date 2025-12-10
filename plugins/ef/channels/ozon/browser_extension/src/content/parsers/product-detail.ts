@@ -933,23 +933,28 @@ export async function extractProductData(): Promise<ProductDetailData> {
         });
       });
 
-      // ✅ 访问其他颜色的详情页，提取尺码（通过页面上下文执行）
-      for (const variantLink of allVariantLinks) {
-        try {
+      // ✅ 并行批量访问变体详情页（参考上品帮策略：每批30个并行，批间隔2秒）
+      const BATCH_SIZE = 30;  // 每批并行请求数
+      const BATCH_DELAY = 2000;  // 批次间隔（毫秒）
 
+      /**
+       * 处理单个变体链接，返回解析后的变体数组
+       */
+      const processVariantLink = async (variantLink: any): Promise<any[]> => {
+        try {
           const apiUrl = `${window.location.origin}/api/entrypoint-api.bx/page/json/v2?url=${encodeURIComponent(variantLink.link)}`;
 
-          // ✅ 通过页面上下文执行请求（避免 403 反爬虫检测）
+          // 通过页面上下文执行请求（避免 403 反爬虫检测）
           const data = await fetchViaPageContext(apiUrl);
           if (!data) {
-            console.warn(`[EuraFlow] ⚠️ 访问 ${variantLink.link} 失败（页面上下文）`);
-            continue;
+            return [];
           }
+
           const variantWidgetStates = data.widgetStates || {};
           const variantAspectsKey = Object.keys(variantWidgetStates).find(k => k.includes('webAspects'));
 
           if (!variantAspectsKey) {
-            continue;
+            return [];
           }
 
           const variantAspectsData = JSON.parse(variantWidgetStates[variantAspectsKey]);
@@ -971,6 +976,8 @@ export async function extractProductData(): Promise<ProductDetailData> {
               });
             }
           }
+
+          const result: any[] = [];
 
           // 从最后一个 aspect 提取变体
           if (variantAspects.length > 0) {
@@ -1025,7 +1032,7 @@ export async function extractProductData(): Promise<ProductDetailData> {
                 }
               });
 
-              allVariants.push({
+              result.push({
                 variant_id: sku,
                 name: title || '',
                 specifications: specText,
@@ -1044,11 +1051,39 @@ export async function extractProductData(): Promise<ProductDetailData> {
             });
           }
 
-          // 延迟，避免请求过快
-          await new Promise(resolve => setTimeout(resolve, 500));
-
+          return result;
         } catch (error: any) {
-          console.error(`[EuraFlow] 访问 ${variantLink.link} 出错:`, error);
+          return [];
+        }
+      };
+
+      // 批量并行请求
+      const totalBatches = Math.ceil(allVariantLinks.length / BATCH_SIZE);
+      if (__DEBUG__) {
+        console.log(`[EuraFlow] 变体链接总数: ${allVariantLinks.length}, 分 ${totalBatches} 批并行处理`);
+      }
+
+      for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+        const batchStart = batchIndex * BATCH_SIZE;
+        const batchEnd = Math.min(batchStart + BATCH_SIZE, allVariantLinks.length);
+        const batchLinks = allVariantLinks.slice(batchStart, batchEnd);
+
+        if (__DEBUG__) {
+          console.log(`[EuraFlow] 处理第 ${batchIndex + 1}/${totalBatches} 批 (${batchLinks.length} 个变体)`);
+        }
+
+        // 并行处理当前批次
+        const batchPromises = batchLinks.map(link => processVariantLink(link));
+        const batchResults = await Promise.all(batchPromises);
+
+        // 合并结果
+        batchResults.forEach(variants => {
+          allVariants.push(...variants);
+        });
+
+        // 批次间延迟（最后一批不需要延迟）
+        if (batchIndex < totalBatches - 1) {
+          await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
         }
       }
 
@@ -1090,6 +1125,296 @@ export async function extractProductData(): Promise<ProductDetailData> {
       images: [],
       has_variants: false,
     };
+  }
+}
+
+/**
+ * 快速提取商品基础数据（仅调用一次 API，用于尽早显示按钮）
+ * 返回价格、标题、图片、基础变体等信息
+ * 变体数据来自 webAspects（当前页面可见的变体，不需要额外 API 请求）
+ */
+export async function extractProductDataFast(): Promise<{
+  baseData: ProductDetailData | null;
+  apiResponse: any;
+  productSku: string | null;
+  productSlug: string | null;
+}> {
+  try {
+    const productUrl = window.location.href;
+
+    // 获取基础数据（完整的 API 响应，包含 widgetStates 和 layoutTrackingInfo）
+    const apiResponse = await fetchProductDataFromOzonAPI(productUrl);
+    const baseData = parseFromWidgetStates(apiResponse);
+
+    if (!baseData) {
+      return { baseData: null, apiResponse: null, productSku: null, productSlug: null };
+    }
+
+    // 提取商品 slug（用于 Page2 API）
+    const slugMatch = productUrl.match(/\/product\/([^\/\?]+)/);
+    const productSlug = slugMatch ? slugMatch[1] : null;
+    const productSku = baseData.ozon_product_id || null;
+
+    // ========== 快速提取变体数据（从 webAspects，无需额外 API）==========
+    const widgetStates = apiResponse?.widgetStates || {};
+    const aspectsKey = Object.keys(widgetStates).find(k => k.includes('webAspects'));
+    let variants: any[] | undefined;
+    let hasVariants = false;
+
+    if (aspectsKey) {
+      const aspectsData = JSON.parse(widgetStates[aspectsKey]);
+      const aspects = aspectsData?.aspects || [];
+
+      if (aspects.length > 0) {
+        hasVariants = true;
+        variants = [];
+
+        // 提取当前页面可见的变体（当前颜色的所有尺码）
+        const lastAspect = aspects[aspects.length - 1];
+        const currentVariants = lastAspect?.variants || [];
+
+        for (const variant of currentVariants) {
+          const variantSku = variant.sku;
+          const variantLink = variant.link?.split('?')[0] || '';
+          const isAvailable = variant.isAvailable !== false;
+
+          // 构建规格描述
+          const specParts: string[] = [];
+          aspects.forEach((aspect: any) => {
+            const selectedVariant = aspect.variants?.find((v: any) => v.isSelected);
+            if (selectedVariant?.data?.searchableText) {
+              specParts.push(selectedVariant.data.searchableText);
+            }
+          });
+          // 替换最后一个规格为当前变体的规格
+          if (variant.data?.searchableText) {
+            specParts[specParts.length - 1] = variant.data.searchableText;
+          }
+          const specifications = specParts.join(' / ') || '默认';
+
+          // 提取变体图片（从 variant.data.image）
+          const variantImageUrl = variant.data?.image?.link || variant.data?.image?.src || '';
+
+          // 使用主商品价格（变体价格需要额外请求，快速模式下使用统一价格）
+          const variantPrice = baseData.price || 0;
+          const variantCardPrice = baseData.cardPrice || 0;
+          const realPrice = calculateRealPriceCore(variantCardPrice, variantPrice);
+
+          variants.push({
+            variant_id: variantSku,
+            sku: variantSku,
+            specifications,
+            image_url: variantImageUrl,
+            images: variantImageUrl ? [{ url: variantImageUrl, is_primary: true }] : undefined,
+            price: variantPrice,
+            cardPrice: variantCardPrice,
+            realPrice,
+            link: variantLink,
+            available: isAvailable,
+          });
+        }
+
+        // 如果是单品（没有变体列表但有 aspects），添加当前商品作为唯一变体
+        if (variants.length === 0 && productSku) {
+          variants.push({
+            variant_id: productSku,
+            sku: productSku,
+            specifications: '单品',
+            image_url: baseData.images?.[0]?.url || '',
+            images: baseData.images,
+            price: baseData.price || 0,
+            cardPrice: baseData.cardPrice || 0,
+            realPrice: calculateRealPriceCore(baseData.cardPrice || 0, baseData.price || 0),
+            available: true,
+          });
+        }
+      }
+    }
+
+    // 如果没有变体数据，创建单品变体
+    if (!variants || variants.length === 0) {
+      variants = [{
+        variant_id: productSku || 'single',
+        sku: productSku || 'single',
+        specifications: '单品',
+        image_url: baseData.images?.[0]?.url || '',
+        images: baseData.images,
+        price: baseData.price || 0,
+        cardPrice: baseData.cardPrice || 0,
+        realPrice: calculateRealPriceCore(baseData.cardPrice || 0, baseData.price || 0),
+        available: true,
+      }];
+    }
+
+    return {
+      baseData: {
+        ...baseData,
+        has_variants: hasVariants,
+        variants,
+      },
+      apiResponse,
+      productSku,
+      productSlug,
+    };
+  } catch (error) {
+    console.error('[EuraFlow] 快速数据提取失败:', error);
+    return { baseData: null, apiResponse: null, productSku: null, productSlug: null };
+  }
+}
+
+/**
+ * 异步加载完整商品数据（变体、描述、尺寸等）
+ * 在按钮显示后后台执行，完成后通过回调更新数据
+ */
+export async function extractProductDataAsync(
+  apiResponse: any,
+  productSku: string,
+  productSlug: string | null,
+  baseData: ProductDetailData,
+  onUpdate?: (data: ProductDetailData) => void
+): Promise<ProductDetailData> {
+  try {
+    const widgetStates = apiResponse?.widgetStates || {};
+
+    // ========== 1. 先获取 Page2 数据（描述、特征、尺寸优先）==========
+    if (productSlug) {
+      const page2Data = await fetchCharacteristicsAndDescription(productSlug);
+      if (page2Data) {
+        if (page2Data.description) {
+          baseData.description = page2Data.description;
+        }
+        if (page2Data.attributes && page2Data.attributes.length > 0) {
+          baseData.attributes = page2Data.attributes;
+        }
+        if (page2Data.typeNameRu) {
+          baseData.typeNameRu = page2Data.typeNameRu;
+        }
+      }
+    }
+
+    // ========== 2. 从特征属性提取尺寸 ==========
+    if (baseData.attributes && baseData.attributes.length > 0) {
+      const dimensionsFromAttrs: { weight?: number; height?: number; width?: number; length?: number } = {};
+
+      for (const attr of baseData.attributes) {
+        const key = ((attr as any).key || '').toLowerCase();
+        const value = parseFloat(attr.value);
+
+        if (isNaN(value)) continue;
+
+        if (key === 'length') {
+          dimensionsFromAttrs.length = Math.round(value * 10);
+        } else if (key === 'width') {
+          dimensionsFromAttrs.width = Math.round(value * 10);
+        } else if (key === 'height') {
+          dimensionsFromAttrs.height = Math.round(value * 10);
+        } else if (key === 'weight') {
+          dimensionsFromAttrs.weight = Math.round(value);
+        }
+      }
+
+      if (dimensionsFromAttrs.length && dimensionsFromAttrs.width && dimensionsFromAttrs.height && dimensionsFromAttrs.weight) {
+        baseData.dimensions = {
+          length: dimensionsFromAttrs.length,
+          width: dimensionsFromAttrs.width,
+          height: dimensionsFromAttrs.height,
+          weight: dimensionsFromAttrs.weight,
+        };
+      }
+    }
+
+    // 尺寸提取完成后立即回调更新（让按钮尽早显示）
+    if (baseData.dimensions && onUpdate) {
+      onUpdate({ ...baseData });
+    }
+
+    // ========== 3. 如果没有尺寸，尝试其他来源 ==========
+    if (!baseData.dimensions && productSku) {
+      const ozonDimensions = await fetchDimensionsFromOzonAPI(productSku);
+      if (ozonDimensions?.weight !== undefined && ozonDimensions?.height !== undefined &&
+          ozonDimensions?.width !== undefined && ozonDimensions?.length !== undefined) {
+        baseData.dimensions = {
+          weight: ozonDimensions.weight,
+          height: ozonDimensions.height,
+          width: ozonDimensions.width,
+          length: ozonDimensions.length,
+        };
+        if (onUpdate) {
+          onUpdate({ ...baseData });
+        }
+      }
+    }
+
+    // ========== 4. 尝试从上品帮 DOM 提取尺寸（降级方案）==========
+    if (!baseData.dimensions) {
+      const hasInjectedDOM = await waitForInjectedDOM();
+      if (hasInjectedDOM) {
+        let injectedData = extractDataFromInjectedDOM();
+
+        if (injectedData && Object.keys(injectedData).length > 0) {
+          if (injectedData.weight !== undefined && injectedData.height !== undefined &&
+              injectedData.width !== undefined && injectedData.length !== undefined &&
+              (injectedData.weight === -1 || injectedData.height === -1 ||
+               injectedData.width === -1 || injectedData.length === -1)) {
+            await waitForDimensionsData();
+            injectedData = extractDataFromInjectedDOM();
+          }
+
+          if (injectedData?.weight !== undefined && injectedData?.height !== undefined &&
+              injectedData?.width !== undefined && injectedData?.length !== undefined) {
+            if (injectedData.weight !== -1 && injectedData.height !== -1 &&
+                injectedData.width !== -1 && injectedData.length !== -1) {
+              baseData.dimensions = {
+                weight: injectedData.weight,
+                height: injectedData.height,
+                width: injectedData.width,
+                length: injectedData.length,
+              };
+              if (onUpdate) {
+                onUpdate({ ...baseData });
+              }
+            }
+          }
+
+          if (injectedData?.brand) {
+            (baseData as any).brand = injectedData.brand;
+          }
+          if (injectedData?.description && !baseData.description) {
+            (baseData as any).description = injectedData.description;
+          }
+        }
+      }
+    }
+
+    // ========== 5. 处理变体数据（最慢的部分，放最后）==========
+    const aspectsKey = Object.keys(widgetStates).find(k => k.includes('webAspects'));
+    let modalAspects: any[] = [];
+
+    if (aspectsKey) {
+      const aspectsData = JSON.parse(widgetStates[aspectsKey]);
+      modalAspects = aspectsData?.aspects || [];
+    }
+
+    // 获取 Modal API 完整变体
+    if (productSku && modalAspects.length > 0) {
+      const modalApiAspects = await fetchFullVariantsFromModal(productSku);
+      if (modalApiAspects && modalApiAspects.length > 0) {
+        modalAspects = modalApiAspects;
+      }
+    }
+
+    // 处理变体数据（复用原有逻辑，这里简化）
+    if (modalAspects && modalAspects.length > 0) {
+      baseData.has_variants = true;
+      // 变体详情处理较复杂，调用原函数处理
+      const fullData = await extractProductData();
+      return fullData;
+    }
+
+    return baseData;
+  } catch (error) {
+    console.error('[EuraFlow] 异步数据加载失败:', error);
+    return baseData;
   }
 }
 

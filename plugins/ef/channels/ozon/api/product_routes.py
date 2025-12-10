@@ -549,16 +549,31 @@ async def sync_products(
     """
     同步商品数据（需要操作员权限）
 
-    支持两种模式：
-    1. 指定 shop_id：同步单个店铺
-    2. 不指定 shop_id：同步用户有权限的所有店铺
+    必须指定店铺ID
     """
     full_sync = request.get("full_sync", False)
-    shop_id = request.get("shop_id")  # 可选，为空时同步所有店铺
+    shop_id = request.get("shop_id")
 
-    # 如果未指定店铺，则同步用户有权限的所有店铺
+    # 必须指定店铺
     if not shop_id:
-        return await _sync_all_shops(db, current_user, full_sync)
+        return {
+            "ok": False,
+            "error": "请先选择店铺"
+        }
+
+    # 校验店铺权限
+    try:
+        allowed_shop_ids = await filter_by_shop_permission(current_user, db, shop_id)
+        if allowed_shop_ids is not None and (len(allowed_shop_ids) == 0 or shop_id not in allowed_shop_ids):
+            return {
+                "ok": False,
+                "error": "您没有权限操作该店铺"
+            }
+    except PermissionError as e:
+        return {
+            "ok": False,
+            "error": str(e)
+        }
 
     # 从数据库获取店铺信息
     result = await db.execute(

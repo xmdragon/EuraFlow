@@ -25,11 +25,15 @@ axios.interceptors.response.use(
   (response) => response,
   async (error) => {
     const status = error.response?.status;
+    const requestUrl = error.config?.url || '';
 
-    // 如果是401错误（未授权）
-    if (status === 401) {
+    // 登录和刷新token接口的401是正常的认证失败，不是token过期
+    const isAuthEndpoint = requestUrl.includes('/auth/login') || requestUrl.includes('/auth/refresh');
+
+    // 如果是401错误（未授权）且不是登录/刷新接口
+    if (status === 401 && !isAuthEndpoint) {
       loggers.auth.warn('检测到401错误，Token可能已过期', {
-        url: error.config?.url,
+        url: requestUrl,
         timestamp: new Date().toISOString(),
       });
 

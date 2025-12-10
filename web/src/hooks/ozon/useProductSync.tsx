@@ -66,6 +66,12 @@ export const useProductSync = (selectedShop: number | null, refetch: () => void)
   const syncProductsMutation = useMutation({
     mutationFn: (fullSync: boolean) => ozonApi.syncProducts(selectedShop, fullSync),
     onSuccess: (data) => {
+      // 检查后端返回的错误
+      if (data?.ok === false) {
+        notifyError('同步失败', data.error || '未知错误');
+        return;
+      }
+
       const taskId = data?.task_id || data?.data?.task_id;
       if (taskId) {
         // 使用新的轮询 Hook 启动后台轮询任务

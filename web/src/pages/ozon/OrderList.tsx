@@ -44,6 +44,7 @@ import { ORDER_STATUS_CONFIG } from '@/config/ozon/orderStatusConfig';
 import { OZON_ORDER_STATUS_MAP } from '@/constants/ozonStatus';
 import { useAsyncTaskPolling } from '@/hooks/useAsyncTaskPolling';
 import { useCopy } from '@/hooks/useCopy';
+import { useShopSelection } from '@/hooks/ozon/useShopSelection';
 import { usePermission } from '@/hooks/usePermission';
 import * as ozonApi from '@/services/ozon';
 import { loggers } from '@/utils/logger';
@@ -130,8 +131,8 @@ const OrderList: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [selectedOrders, _setSelectedOrders] = useState<ozonApi.Order[]>([]);
-  // 始终默认为null（全部店铺），不从localStorage读取
-  const [selectedShop, setSelectedShop] = useState<number | null>(null);
+  // 店铺选择（带验证）
+  const { selectedShop, setSelectedShop } = useShopSelection();
   const [filterForm] = Form.useForm();
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [syncConfirmVisible, setSyncConfirmVisible] = useState(false);
@@ -441,6 +442,12 @@ const OrderList: React.FC = () => {
       return ozonApi.syncOrdersDirect(selectedShop, fullSync ? 'full' : 'incremental');
     },
     onSuccess: (data) => {
+      // 检查后端返回的错误
+      if (data?.ok === false) {
+        notifyError('同步失败', data.error || '未知错误');
+        return;
+      }
+
       const taskId = data?.task_id || data?.data?.task_id;
       if (taskId) {
         // 使用新的轮询 Hook 启动后台轮询任务
@@ -963,23 +970,29 @@ const OrderList: React.FC = () => {
         {/* 操作按钮 */}
         <Space className={styles.actionSpace}>
           {canSync && (
-            <Button
-              type="primary"
-              icon={<SyncOutlined />}
-              onClick={() => handleSync(false)}
-              loading={syncOrdersMutation.isPending || isBatchSyncing}
-            >
-              增量同步
-            </Button>
+            <Tooltip title={!selectedShop ? '请先选择店铺' : '同步当前店铺的订单'}>
+              <Button
+                type="primary"
+                icon={<SyncOutlined />}
+                onClick={() => handleSync(false)}
+                loading={syncOrdersMutation.isPending || isBatchSyncing}
+                disabled={!selectedShop}
+              >
+                增量同步
+              </Button>
+            </Tooltip>
           )}
           {canSync && (
-            <Button
-              icon={<SyncOutlined />}
-              onClick={() => handleSync(true)}
-              loading={syncOrdersMutation.isPending || isBatchSyncing}
-            >
-              全量同步
-            </Button>
+            <Tooltip title={!selectedShop ? '请先选择店铺' : '全量同步当前店铺的订单'}>
+              <Button
+                icon={<SyncOutlined />}
+                onClick={() => handleSync(true)}
+                loading={syncOrdersMutation.isPending || isBatchSyncing}
+                disabled={!selectedShop}
+              >
+                全量同步
+              </Button>
+            </Tooltip>
           )}
         </Space>
 

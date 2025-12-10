@@ -33,6 +33,7 @@ import styles from './ProductListing.module.scss';
 import ProductImage from '@/components/ozon/ProductImage';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import PageTitle from '@/components/PageTitle';
+import { useShopSelection } from '@/hooks/ozon/useShopSelection';
 import * as ozonApi from '@/services/ozon';
 import { notifySuccess, notifyError } from '@/utils/notification';
 
@@ -59,7 +60,8 @@ const STATUS_COLORS: Record<string, string> = {
 
 const ProductListing: React.FC = () => {
   const queryClient = useQueryClient();
-  const [selectedShop, setSelectedShop] = useState<number | null>(null);
+  // 店铺选择（带验证）
+  const { selectedShop, setSelectedShop } = useShopSelection();
   const [selectedProduct, setSelectedProduct] = useState<ozonApi.Product | null>(null);
   const [listingModalVisible, setListingModalVisible] = useState(false);
   const [statusModalVisible, setStatusModalVisible] = useState(false);

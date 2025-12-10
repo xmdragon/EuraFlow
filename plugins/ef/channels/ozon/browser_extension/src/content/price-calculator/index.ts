@@ -203,13 +203,17 @@ export class RealPriceCalculator {
 
   /**
    * 异步加载数据并更新组件
+   * 加载顺序：
+   * 1. 基础 API（价格/图片）+ 配置
+   * 2. 完整变体数据（Modal API）→ 显示跟卖按钮
+   * 3. 其他数据（Page2 描述/特征、尺寸）→ 后台继续
    */
   private loadAsyncData(
     productId: string,
     spbSalesData: any,
     configPromise: Promise<any>
   ): void {
-    // 异步加载 OZON 商品数据
+    // 使用原有的完整提取逻辑（包含完整变体数据）
     const ozonDataPromise = extractProductData().catch(err => {
       console.warn('[EuraFlow] OZON 商品数据获取失败:', err);
       return null;
@@ -225,7 +229,6 @@ export class RealPriceCalculator {
         const blackPrice = (ozonProduct.price ?? 0) > 0 ? ozonProduct.price : null;
         if (blackPrice !== null) {
           const { realPrice } = calculateRealPrice(greenPrice, blackPrice, '¥');
-          // 更新三个价格标签：绿色、黑色、红色（真实售价）
           updatePriceDisplay(greenPrice, blackPrice, realPrice);
         }
 
@@ -258,16 +261,15 @@ export class RealPriceCalculator {
         }).catch(() => {});
       }
 
-      // 5. 最后更新按钮（此时 realPrice 已更新）
+      // 5. 更新按钮（此时变体数据已完整）
       if (euraflowConfig || ozonProduct) {
         updateButtonsWithConfig(euraflowConfig, ozonProduct, spbSalesData);
       }
     }).catch(() => {});
 
-    // 跟卖数据
+    // 跟卖数据（并行加载）
     if (!spbSalesData?.competitorCount && spbSalesData?.competitorCount !== 0) {
       fetchFollowSellerData(productId).then(followSellerData => {
-        // 无论是否有跟卖数据，都更新组件（没有跟卖时显示"无跟卖"）
         const prices = followSellerData?.prices ?? [];
         updateFollowSellerData({
           ...spbSalesData,
@@ -278,9 +280,7 @@ export class RealPriceCalculator {
             ? Math.min(...prices.filter((p: number) => p > 0))
             : null
         });
-      }).catch(() => {
-        // API 失败时保持 ---，不更新（让用户知道是加载失败而非真的无跟卖）
-      });
+      }).catch(() => {});
     }
   }
 

@@ -11,6 +11,7 @@ import {
   EyeOutlined,
   ReloadOutlined,
   LineChartOutlined,
+  PlusOutlined,
 } from '@ant-design/icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -519,6 +520,18 @@ const ListingRecords: React.FC = () => {
               onChange={handleShopChange}
               style={{ width: 200 }}
             />
+          </Form.Item>
+          <Form.Item>
+            <Tooltip title={!selectedShop ? '请先选择店铺' : '新建商品'}>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => navigate('/dashboard/ozon/products/create')}
+                disabled={!selectedShop}
+              >
+                新建商品
+              </Button>
+            </Tooltip>
           </Form.Item>
           <Form.Item>
             <Button

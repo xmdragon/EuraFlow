@@ -82,12 +82,12 @@ body {
 }
 
 .tab-panel {
-  padding: 20px;
+  padding: 12px 16px;
 }
 
 /* 表单样式 */
 .form-group {
-  margin-bottom: 16px;
+  margin-bottom: 10px;
 
   &:last-child {
     margin-bottom: 0;
@@ -96,7 +96,7 @@ body {
 
 .form-label {
   display: block;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   font-size: 13px;
   font-weight: 500;
   color: #374151;
@@ -253,7 +253,7 @@ body {
 /* 数据面板配置 */
 .data-panel-config {
   .field-group {
-    margin-bottom: 20px;
+    margin-bottom: 12px;
 
     &:last-child {
       margin-bottom: 0;
@@ -261,18 +261,18 @@ body {
   }
 
   .group-title {
-    margin: 0 0 10px 0;
+    margin: 0 0 6px 0;
     font-size: 14px;
     font-weight: 600;
     color: #374151;
-    padding-bottom: 6px;
+    padding-bottom: 4px;
     border-bottom: 2px solid #e5e7eb;
   }
 
   .field-list {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
+    gap: 4px;
   }
 
   .field-list-two-columns {
@@ -294,10 +294,10 @@ body {
   .field-item {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 6px 10px;
+    gap: 6px;
+    padding: 4px 8px;
     background: #f9fafb;
-    border-radius: 6px;
+    border-radius: 4px;
     cursor: pointer;
     transition: background 0.2s;
 
@@ -401,7 +401,7 @@ body {
 
 /* 分节标题和分隔线 */
 .section-title {
-  margin: 0 0 12px 0;
+  margin: 0 0 6px 0;
   font-size: 14px;
   font-weight: 600;
   color: #374151;
@@ -410,7 +410,7 @@ body {
 .section-divider {
   height: 1px;
   background: #e5e7eb;
-  margin: 20px 0;
+  margin: 12px 0;
 }
 
 /* 自动采集配置 */

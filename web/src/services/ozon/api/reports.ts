@@ -84,11 +84,13 @@ export const getReportSummary = async (
 /**
  * 启动批量财务同步任务
  */
-export const startBatchFinanceSync = async (): Promise<{
-  task_id: string;
-  message: string;
+export const startBatchFinanceSync = async (shopId: number): Promise<{
+  ok?: boolean;
+  error?: string;
+  task_id?: string;
+  message?: string;
 }> => {
-  const response = await apiClient.post(`/ozon/reports/batch-sync-finance`);
+  const response = await apiClient.post(`/ozon/reports/batch-sync-finance`, { shop_id: shopId });
   return response.data;
 };
 

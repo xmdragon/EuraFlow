@@ -526,7 +526,8 @@ class CancelReturnService:
         shop_id: Optional[int],
         page: int,
         limit: int,
-        filters: Dict[str, Any]
+        filters: Dict[str, Any],
+        shop_ids: Optional[list] = None
     ) -> Dict[str, Any]:
         """
         获取取消申请列表
@@ -536,6 +537,7 @@ class CancelReturnService:
             page: 页码
             limit: 每页数量
             filters: 筛选条件（state/initiator/posting_number/date_from/date_to）
+            shop_ids: 授权的店铺ID列表（用于权限过滤，None表示不过滤，[]表示无权限）
 
         Returns:
             分页数据：{"items": [...], "total": 156, "page": 1, "limit": 50}
@@ -544,8 +546,18 @@ class CancelReturnService:
             # 构建查询条件
             conditions = []
 
+            # 店铺过滤逻辑：
+            # 1. 如果指定了 shop_id，只查该店铺
+            # 2. 否则如果有 shop_ids 列表，只查授权的店铺
+            # 3. 如果 shop_ids 为 None（admin），不过滤店铺
             if shop_id:
                 conditions.append(OzonCancellation.shop_id == shop_id)
+            elif shop_ids is not None:
+                # 有权限列表，过滤为授权的店铺
+                if len(shop_ids) == 0:
+                    # 无任何店铺权限，返回空结果
+                    return {"items": [], "total": 0, "page": page, "limit": limit}
+                conditions.append(OzonCancellation.shop_id.in_(shop_ids))
 
             if filters.get("state"):
                 conditions.append(OzonCancellation.state == filters["state"])
@@ -606,7 +618,8 @@ class CancelReturnService:
         shop_id: Optional[int],
         page: int,
         limit: int,
-        filters: Dict[str, Any]
+        filters: Dict[str, Any],
+        shop_ids: Optional[list] = None
     ) -> Dict[str, Any]:
         """
         获取退货申请列表
@@ -616,6 +629,7 @@ class CancelReturnService:
             page: 页码
             limit: 每页数量
             filters: 筛选条件（group_state/posting_number/offer_id/date_from/date_to）
+            shop_ids: 授权的店铺ID列表（用于权限过滤，None表示不过滤，[]表示无权限）
 
         Returns:
             分页数据：{"items": [...], "total": 89, "page": 1, "limit": 50}
@@ -624,8 +638,18 @@ class CancelReturnService:
             # 构建查询条件
             conditions = []
 
+            # 店铺过滤逻辑：
+            # 1. 如果指定了 shop_id，只查该店铺
+            # 2. 否则如果有 shop_ids 列表，只查授权的店铺
+            # 3. 如果 shop_ids 为 None（admin），不过滤店铺
             if shop_id:
                 conditions.append(OzonReturn.shop_id == shop_id)
+            elif shop_ids is not None:
+                # 有权限列表，过滤为授权的店铺
+                if len(shop_ids) == 0:
+                    # 无任何店铺权限，返回空结果
+                    return {"items": [], "total": 0, "page": page, "limit": limit}
+                conditions.append(OzonReturn.shop_id.in_(shop_ids))
 
             if filters.get("group_state"):
                 conditions.append(OzonReturn.group_state == filters["group_state"])

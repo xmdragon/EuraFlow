@@ -106,6 +106,33 @@ const productDataCache = new Map<string, GlobalProductData>();
 const CACHE_DURATION = 5 * 60 * 1000;
 
 // ============================================================================
+// 定时任务（chrome.alarms）
+// ============================================================================
+// 使用 chrome.alarms API 实现真正的定时任务，不依赖 Service Worker 持续运行
+
+const ALARM_COOKIE_UPLOAD = 'cookie-upload';  // 每小时上传 Cookie
+
+// 注册定时器
+function setupAlarms(): void {
+  // Cookie 上传定时器：每 60 分钟触发一次
+  chrome.alarms.create(ALARM_COOKIE_UPLOAD, {
+    delayInMinutes: 1,         // 1 分钟后首次触发
+    periodInMinutes: 60,       // 之后每 60 分钟触发
+  });
+  console.log('[ServiceWorker] 已注册定时器: Cookie 上传（每小时）');
+}
+
+// 监听定时器触发
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === ALARM_COOKIE_UPLOAD) {
+    console.log('[ServiceWorker] 定时器触发: Cookie 上传');
+    cookieUploader.upload().catch((error) => {
+      console.error('[ServiceWorker] Cookie 定时上传失败:', error);
+    });
+  }
+});
+
+// ============================================================================
 // 扩展安装/更新事件
 // ============================================================================
 
@@ -116,10 +143,13 @@ chrome.runtime.onInstalled.addListener((details: chrome.runtime.InstalledDetails
         chrome.storage.sync.set({ targetCount: 100 });
       }
     });
+
+    // 安装或更新时设置定时器
+    setupAlarms();
   }
 
   // 上传 Cookie 到后端（供后端执行 Web 同步任务）
-  cookieUploader.runIfNeeded().catch((error) => {
+  cookieUploader.upload().catch((error) => {
     console.error('[ServiceWorker] Cookie 上传失败:', error);
   });
 
@@ -132,6 +162,13 @@ chrome.runtime.onInstalled.addListener((details: chrome.runtime.InstalledDetails
 
 // Service Worker 启动时也检查执行
 chrome.runtime.onStartup.addListener(() => {
+  // 确保定时器存在（浏览器重启后定时器会保留，但确保一下）
+  chrome.alarms.get(ALARM_COOKIE_UPLOAD, (alarm) => {
+    if (!alarm) {
+      setupAlarms();
+    }
+  });
+
   // 上传 Cookie 到后端
   cookieUploader.runIfNeeded().catch((error) => {
     console.error('[ServiceWorker] Cookie 上传失败:', error);

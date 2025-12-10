@@ -11,7 +11,6 @@ import {
   SaveOutlined,
   ReloadOutlined,
   PlusOutlined,
-  TruckOutlined,
   ClockCircleOutlined,
   UserOutlined,
   LockOutlined,
@@ -94,7 +93,7 @@ const ShopManagement: React.FC = () => {
   const { modal } = App.useApp();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const { canOperate, canSync, isAdmin } = usePermission();
+  const { canOperate, isAdmin } = usePermission();
   const [form] = Form.useForm();
   const [testingConnection, setTestingConnection] = useState(false);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
@@ -227,30 +226,6 @@ const ShopManagement: React.FC = () => {
     },
   });
 
-  // 批量同步所有店铺仓库
-  const syncAllWarehousesMutation = useMutation({
-    mutationFn: async () => {
-      return ozonApi.syncAllWarehouses();
-    },
-    onSuccess: (data) => {
-      if (data.success) {
-        const { total_shops, success_count, failed_count, total_warehouses } = data.data;
-        notifySuccess(
-          '同步成功',
-          `批量同步完成！共${total_shops}个店铺，成功${success_count}个，失败${failed_count}个，同步了${total_warehouses}个仓库`
-        );
-      } else {
-        notifyWarning('同步失败', data.message || '同步失败');
-      }
-    },
-    onError: (error: Error) => {
-      const errorMsg = axios.isAxiosError(error)
-        ? (error.response?.data?.detail || error.message || '同步失败')
-        : (error.message || '同步失败');
-      notifyError('同步失败', `同步失败: ${errorMsg}`);
-    },
-  });
-
   // 选择店铺
   useEffect(() => {
     if (shopsData?.data?.[0] && !selectedShop) {
@@ -353,15 +328,6 @@ const ShopManagement: React.FC = () => {
           <Button type="primary" icon={<PlusOutlined />} onClick={handleAddShop}>
             添加店铺
           </Button>
-          {canSync && (
-            <Button
-              icon={<TruckOutlined />}
-              loading={syncAllWarehousesMutation.isPending}
-              onClick={() => syncAllWarehousesMutation.mutate()}
-            >
-              同步所有店铺仓库
-            </Button>
-          )}
         </div>
 
         {shops.length === 0 ? (

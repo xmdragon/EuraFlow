@@ -41,6 +41,7 @@ import { useAsyncTaskPolling } from '@/hooks/useAsyncTaskPolling';
 import { useColumnSettings } from '@/hooks/useColumnSettings';
 import { useCopy } from '@/hooks/useCopy';
 import { useDateTime } from '@/hooks/useDateTime';
+import { useShopSelection } from '@/hooks/ozon/useShopSelection';
 import * as ozonApi from '@/services/ozon';
 import { notifyError, notifySuccess } from '@/utils/notification';
 
@@ -76,8 +77,8 @@ const CancelReturn: React.FC = () => {
   const { formatDateTime } = useDateTime();
   const { copyToClipboard } = useCopy();
 
-  // 状态管理（允许null表示"全部店铺"）
-  const [selectedShop, setSelectedShop] = useState<number | null>(null);
+  // 店铺选择（带验证）
+  const { selectedShop, handleShopChange } = useShopSelection();
   const [activeTab, setActiveTab] = useState<string>('returns'); // 默认激活"退货申请"
 
   // 取消申请筛选
@@ -240,18 +241,45 @@ const CancelReturn: React.FC = () => {
 
   // 手动同步（异步）
   const handleSync = async () => {
+    if (!selectedShop) {
+      notifyError('请先选择店铺');
+      return;
+    }
+
     try {
       if (activeTab === 'cancellations') {
         // 启动取消申请同步
-        const response = await ozonApi.syncCancellations(selectedShop) as { data: { task_id: string } };
-        const taskId = response.data.task_id;
+        const response = await ozonApi.syncCancellations(selectedShop) as { ok?: boolean; error?: string; data?: { task_id: string } };
+
+        // 检查后端返回的错误
+        if (response.ok === false) {
+          notifyError(response.error || '同步启动失败');
+          return;
+        }
+
+        const taskId = response.data?.task_id;
+        if (!taskId) {
+          notifyError('未获取到任务ID，请稍后重试');
+          return;
+        }
 
         // 开始轮询任务状态
         startCancellationSync(taskId);
       } else {
         // 启动退货申请同步
-        const response = await ozonApi.syncReturns(selectedShop) as { data: { task_id: string } };
-        const taskId = response.data.task_id;
+        const response = await ozonApi.syncReturns(selectedShop) as { ok?: boolean; error?: string; data?: { task_id: string } };
+
+        // 检查后端返回的错误
+        if (response.ok === false) {
+          notifyError(response.error || '同步启动失败');
+          return;
+        }
+
+        const taskId = response.data?.task_id;
+        if (!taskId) {
+          notifyError('未获取到任务ID，请稍后重试');
+          return;
+        }
 
         // 开始轮询任务状态
         startReturnSync(taskId);
@@ -547,23 +575,22 @@ const CancelReturn: React.FC = () => {
             <Col>
               <ShopSelector
                 value={selectedShop}
-                onChange={(value) => {
-                  // 支持单选和"全部"（null）
-                  const shopId = Array.isArray(value) ? value[0] : value;
-                  setSelectedShop(shopId);
-                }}
+                onChange={handleShopChange}
                 showAllOption={true}
                 style={{ width: 200 }}
               />
             </Col>
             <Col>
-              <Button
-                type="primary"
-                icon={<ReloadOutlined />}
-                onClick={handleSync}
-              >
-                同步数据
-              </Button>
+              <Tooltip title={!selectedShop ? '请先选择店铺' : '同步当前店铺的数据'}>
+                <Button
+                  type="primary"
+                  icon={<ReloadOutlined />}
+                  onClick={handleSync}
+                  disabled={!selectedShop}
+                >
+                  同步数据
+                </Button>
+              </Tooltip>
             </Col>
           </Row>
 

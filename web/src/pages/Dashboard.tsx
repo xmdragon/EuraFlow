@@ -25,6 +25,8 @@ import {
   CaretUpFilled,
   PushpinOutlined,
   HomeOutlined,
+  WarningOutlined,
+  InfoCircleOutlined,
 } from "@ant-design/icons";
 import {
   Layout,
@@ -38,6 +40,8 @@ import {
   Col,
   Spin,
   Button,
+  Space,
+  Modal,
 } from "antd";
 import type { MenuProps } from "antd";
 import React, { Suspense, useState, useEffect } from "react";
@@ -63,6 +67,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQuickMenu } from "@/hooks/useQuickMenu";
 import { useOzonMenuOrder } from "@/hooks/useOzonMenuOrder";
 import type { User } from "@/types/auth";
+import { notifyWarning } from "@/utils/notification";
 
 // 加载中组件
 const PageLoading = () => (
@@ -81,12 +86,92 @@ const PageLoading = () => (
 const { Sider, Content } = Layout;
 const { Title } = Typography;
 
+/**
+ * 无店铺提示弹窗组件
+ * - 子账号：提示添加店铺（显示店铺管理+退出登录）
+ * - 管理员：提示添加店铺或创建子账号（显示店铺管理+用户管理+退出登录）
+ * - 全屏居中显示，不可关闭
+ */
+const NoShopModal: React.FC<{
+  role: string;
+  onLogout: () => void;
+  onNavigate: (path: string) => void;
+}> = ({ role, onLogout, onNavigate }) => {
+  const isSubAccount = role === 'sub_account';
+
+  return (
+    <Modal
+      open={true}
+      closable={false}
+      maskClosable={false}
+      keyboard={false}
+      footer={null}
+      centered
+      width={560}
+      styles={{
+        mask: { backgroundColor: 'rgba(0, 0, 0, 0.65)' },
+        body: { padding: '48px 40px', textAlign: 'center', minHeight: 420 },
+      }}
+    >
+      <div style={{ marginBottom: 24 }}>
+        <InfoCircleOutlined style={{ fontSize: 64, color: '#1890ff' }} />
+      </div>
+      <h2 style={{ fontSize: 24, fontWeight: 600, marginBottom: 16 }}>
+        当前没有添加店铺
+      </h2>
+      {isSubAccount ? (
+        <p style={{ fontSize: 14, color: '#666', marginBottom: 32 }}>
+          请添加店铺
+        </p>
+      ) : (
+        <div style={{ fontSize: 14, color: '#666', marginBottom: 32, textAlign: 'left', display: 'inline-block' }}>
+          <p style={{ margin: '0 0 4px 0' }}>1. 添加店铺</p>
+          <p style={{ margin: 0 }}>2. 添加子账号，在子账号添加店铺</p>
+        </div>
+      )}
+      <Space size={16}>
+        <Button
+          type="primary"
+          size="large"
+          icon={<ShopOutlined />}
+          onClick={() => onNavigate('/dashboard/shops')}
+        >
+          店铺管理
+        </Button>
+        {!isSubAccount && (
+          <Button
+            size="large"
+            icon={<UserOutlined />}
+            onClick={() => onNavigate('/dashboard/users')}
+          >
+            用户管理
+          </Button>
+        )}
+        <Button
+          size="large"
+          danger
+          icon={<LogoutOutlined />}
+          onClick={onLogout}
+        >
+          退出登录
+        </Button>
+      </Space>
+    </Modal>
+  );
+};
+
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { quickMenuItems, addQuickMenu, removeQuickMenu, isInQuickMenu } = useQuickMenu();
   const { menuOrder, moveUp } = useOzonMenuOrder();
+
+  // 检查用户是否有店铺（用于控制 OZON 菜单是否可展开和弹窗显示）
+  const hasShops = user?.shop_ids && user.shop_ids.length > 0;
+
+  // 控制无店铺弹窗是否显示（用户点击导航后关闭）
+  const [showNoShopModal, setShowNoShopModal] = useState(!hasShops);
 
   // 侧边栏折叠状态，从 localStorage 读取初始值
   const [collapsed, setCollapsed] = useState<boolean>(() => {
@@ -95,9 +180,10 @@ const Dashboard: React.FC = () => {
   });
 
   // 菜单展开状态（手风琴效果：同时只能展开一个菜单组）
+  // 如果没有店铺，即使在 ozon 路径也不展开 ozon 菜单
   const [openKeys, setOpenKeys] = useState<string[]>(() => {
     const path = location.pathname;
-    if (path.includes("/ozon")) return ["ozon"];
+    if (path.includes("/ozon")) return hasShops ? ["ozon"] : [];
     if (path.includes("/system")) return ["system"];
     if (path.includes("/users")) return ["users"];
     return [];
@@ -119,6 +205,12 @@ const Dashboard: React.FC = () => {
     // 如果没有新展开的菜单（用户在收起菜单），直接更新状态
     if (!latestOpenKey) {
       setOpenKeys(keys);
+      return;
+    }
+
+    // 如果尝试展开 OZON 菜单但没有店铺，阻止展开并提示
+    if (latestOpenKey === 'ozon' && !hasShops) {
+      notifyWarning('无法展开', '请先添加店铺后再使用 OZON 管理功能');
       return;
     }
 
@@ -417,8 +509,22 @@ const Dashboard: React.FC = () => {
     return "dashboard";
   };
 
+  // 处理弹窗中的导航（关闭弹窗后导航）
+  const handleModalNavigate = (path: string) => {
+    setShowNoShopModal(false);
+    navigate(path);
+  };
+
   return (
     <Layout style={{ minHeight: "100vh" }}>
+      {/* 无店铺时显示全屏弹窗 */}
+      {showNoShopModal && !hasShops && user && (
+        <NoShopModal
+          role={user.role}
+          onLogout={handleLogout}
+          onNavigate={handleModalNavigate}
+        />
+      )}
       <Sider
         theme="light"
         width={240}

@@ -889,9 +889,22 @@ async def sync_orders(
     # 验证同步模式
     if mode not in ["full", "incremental"]:
         return {
-            "success": False,
-            "message": "无效的同步模式",
-            "error": f"Mode must be 'full' or 'incremental', got '{mode}'"
+            "ok": False,
+            "error": "无效的同步模式"
+        }
+
+    # 校验店铺权限
+    try:
+        allowed_shop_ids = await filter_by_shop_permission(current_user, db, shop_id)
+        if allowed_shop_ids is not None and (len(allowed_shop_ids) == 0 or shop_id not in allowed_shop_ids):
+            return {
+                "ok": False,
+                "error": "您没有权限操作该店铺"
+            }
+    except PermissionError as e:
+        return {
+            "ok": False,
+            "error": str(e)
         }
 
     # 生成任务ID

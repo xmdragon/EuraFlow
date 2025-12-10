@@ -13,6 +13,7 @@ from ef_core.models.users import User
 from ef_core.api.auth import get_current_user_flexible
 from ..services.collection_record_service import CollectionRecordService
 from ..utils.datetime_utils import get_global_timezone, calculate_date_range
+from .permissions import filter_by_shop_permission
 
 router = APIRouter(prefix="/collection-records", tags=["Collection Records"])
 logger = logging.getLogger(__name__)
@@ -349,6 +350,23 @@ async def get_listing_daily_stats(
     from sqlalchemy import select, and_
     from zoneinfo import ZoneInfo
 
+    # 店铺权限验证
+    try:
+        allowed_shop_ids = await filter_by_shop_permission(current_user, db, shop_id)
+    except PermissionError as e:
+        return {"ok": False, "error": str(e)}
+
+    # 如果用户没有任何店铺权限，返回空数据
+    if allowed_shop_ids is not None and len(allowed_shop_ids) == 0:
+        return {
+            "ok": True,
+            "data": {
+                "dates": [],
+                "data": {} if shop_id else {"shops": [], "counts": {}},
+                "total_days": 0
+            }
+        }
+
     # 获取全局时区设置
     global_timezone = await get_global_timezone(db)
 
@@ -373,9 +391,10 @@ async def get_listing_daily_stats(
             OzonProduct.ozon_created_at <= end_datetime_utc,
         ]
 
-        # 如果指定了店铺ID，添加店铺筛选条件
-        if shop_id is not None:
-            product_filter.append(OzonProduct.shop_id == shop_id)
+        # 店铺权限过滤
+        if allowed_shop_ids is not None:
+            # 非 admin 用户：只能查看授权的店铺
+            product_filter.append(OzonProduct.shop_id.in_(allowed_shop_ids))
 
         # 查询商品数据（包括 shop_id 用于多店铺分组）
         stats_result = await db.execute(
@@ -411,11 +430,11 @@ async def get_listing_daily_stats(
             }
 
         # 全部店铺模式：返回多店铺格式（与 stats_routes.py 的 daily-stats 保持一致）
-        # 获取店铺列表及名称
-        shops_result = await db.execute(
-            select(OzonShop.id, OzonShop.shop_name)
-            .where(OzonShop.status == "active")
-        )
+        # 获取店铺列表及名称（仅限用户有权限的店铺）
+        shop_query = select(OzonShop.id, OzonShop.shop_name).where(OzonShop.status == "active")
+        if allowed_shop_ids is not None:
+            shop_query = shop_query.where(OzonShop.id.in_(allowed_shop_ids))
+        shops_result = await db.execute(shop_query)
         shops_data = {row[0]: row[1] for row in shops_result.all()}
 
         # 按日期和店铺分组统计

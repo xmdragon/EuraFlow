@@ -63,6 +63,7 @@ import { ORDER_STATUS_CONFIG } from "@/config/ozon/orderStatusConfig";
 import { useCopy } from "@/hooks/useCopy";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useDateTime } from "@/hooks/useDateTime";
+import { useShopSelection } from "@/hooks/ozon/useShopSelection";
 import * as ozonApi from "@/services/ozon";
 import { notifySuccess, notifyError } from "@/utils/notification";
 import { formatDeliveryMethodTextWhite } from "@/utils/packingHelpers";
@@ -198,7 +199,8 @@ const OrderReport: React.FC = () => {
   const [selectedMonth, setSelectedMonth] = useState(
     dayjs().subtract(1, "month").format("YYYY-MM"),
   );
-  const [selectedShop, setSelectedShop] = useState<number | null>(null); // null表示"全部"
+  // 店铺选择（带验证）
+  const { selectedShop, setSelectedShop } = useShopSelection();
   const [statusFilter, setStatusFilter] = useState<"delivered" | "placed">(
     "delivered",
   );
@@ -410,9 +412,28 @@ const OrderReport: React.FC = () => {
 
   // 启动批量同步
   const handleBatchSync = async () => {
+    if (!selectedShop) {
+      notifyError('请先选择店铺');
+      return;
+    }
+
     try {
       setIsBatchSyncing(true);
-      const result = await ozonApi.startBatchFinanceSync();
+      const result = await ozonApi.startBatchFinanceSync(selectedShop);
+
+      // 检查后端返回的错误
+      if (result.ok === false) {
+        notifyError('启动失败', result.error || '无法启动批量同步任务');
+        setIsBatchSyncing(false);
+        return;
+      }
+
+      if (!result.task_id) {
+        notifyError('启动失败', '未获取到任务ID');
+        setIsBatchSyncing(false);
+        return;
+      }
+
       setBatchSyncTaskId(result.task_id);
 
       // 显示进度通知（不自动关闭）
@@ -812,12 +833,12 @@ const OrderReport: React.FC = () => {
               </Button>
             </Col>
             <Col>
-              <Tooltip title="同步最近7天签收但未同步财务的订单">
+              <Tooltip title={!selectedShop ? "请先选择店铺" : "同步最近7天签收但未同步财务的订单"}>
                 <Button
                   type="default"
                   onClick={handleBatchSync}
                   loading={isBatchSyncing}
-                  disabled={isBatchSyncing}
+                  disabled={isBatchSyncing || !selectedShop}
                 >
                   {isBatchSyncing ? `批量同步中... (${batchSyncProgress?.current || 0}/${batchSyncProgress?.total || 0})` : '批量同步佣金'}
                 </Button>

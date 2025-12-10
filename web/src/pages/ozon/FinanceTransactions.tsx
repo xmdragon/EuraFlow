@@ -26,6 +26,7 @@ import { ORDER_STATUS_CONFIG } from '@/config/ozon/orderStatusConfig';
 import { useCopy } from '@/hooks/useCopy';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useDateTime } from '@/hooks/useDateTime';
+import { useShopSelection } from '@/hooks/ozon/useShopSelection';
 import * as ozonApi from '@/services/ozon';
 import { notifyError } from '@/utils/notification';
 
@@ -145,8 +146,8 @@ const FinanceTransactions: React.FC = () => {
   // 生成周期选项
   const periodOptions = useMemo(() => generatePeriodOptions(), []);
 
-  // 状态管理
-  const [selectedShop, setSelectedShop] = useState<number | null>(null);
+  // 店铺选择（带验证）
+  const { selectedShop, setSelectedShop } = useShopSelection();
   const [selectedPeriod, setSelectedPeriod] = useState<string>(periodOptions[0]?.value || '');
   const [transactionType, setTransactionType] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);

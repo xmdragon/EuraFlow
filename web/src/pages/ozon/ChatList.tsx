@@ -38,6 +38,7 @@ import styles from "./ChatList.module.scss";
 import ShopSelector from "@/components/ozon/ShopSelector";
 import PageTitle from "@/components/PageTitle";
 import { useDateTime } from "@/hooks/useDateTime";
+import { useShopSelection } from "@/hooks/ozon/useShopSelection";
 import { usePermission } from "@/hooks/usePermission";
 import { useShopNameFormat } from "@/hooks/useShopNameFormat";
 import * as ozonApi from "@/services/ozon";
@@ -55,11 +56,13 @@ const ChatList: React.FC = () => {
   const { formatShopName } = useShopNameFormat();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // 从URL参数中读取店铺ID
+  // 店铺选择（带验证）
+  const { selectedShop: validatedShop, setSelectedShop, shops, isLoading: isShopsLoading } = useShopSelection();
+
+  // 从URL参数中读取店铺ID，但需要验证有效性
   const shopIdParam = searchParams.get("shopId");
-  const [selectedShopId, setSelectedShopId] = useState<number | null>(
-    shopIdParam ? Number(shopIdParam) : null,
-  );
+  const selectedShopId = shopIdParam ? Number(shopIdParam) : validatedShop;
+
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [unreadFilter, setUnreadFilter] = useState<string>("all");
   const [archiveFilter, setArchiveFilter] = useState<string>("normal"); // 归档筛选：normal/archived/all
@@ -67,25 +70,26 @@ const ChatList: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 20;
 
-  // 当URL参数变化时更新选中的店铺
+  // 当URL参数变化时验证店铺有效性
   useEffect(() => {
+    if (isShopsLoading) return;
+
     const shopIdParam = searchParams.get("shopId");
     if (shopIdParam) {
-      setSelectedShopId(Number(shopIdParam));
-    } else {
-      setSelectedShopId(null);
+      const parsedId = Number(shopIdParam);
+      // 验证店铺是否在可用列表中
+      if (shops.find(s => s.id === parsedId)) {
+        setSelectedShop(parsedId);
+      } else {
+        // 无效店铺ID，清除URL参数
+        searchParams.delete("shopId");
+        setSearchParams(searchParams);
+        setSelectedShop(null);
+      }
     }
-  }, [searchParams]);
+  }, [searchParams, shops, isShopsLoading, setSearchParams, setSelectedShop]);
 
-  // 获取店铺列表
-  const { data: shopsData, isLoading: shopsLoading } = useQuery({
-    queryKey: ["ozon", "shops"],
-    queryFn: () => ozonApi.getShops(),
-  });
-
-  const shops = shopsData?.data || [];
-
-  // 构建shop_ids字符串（逗号分隔）
+  // 构建shop_ids字符串（逗号分隔）- 使用 useShopSelection 提供的店铺列表
   const shopIdsString = shops.map((s) => s.id).join(",");
 
   // 获取聊天统计
@@ -496,7 +500,7 @@ const ChatList: React.FC = () => {
               const normalized = Array.isArray(shopId)
                 ? (shopId[0] ?? null)
                 : shopId;
-              setSelectedShopId(normalized);
+              setSelectedShop(normalized);
               setCurrentPage(1);
               // 更新URL参数以保持店铺选择状态
               if (normalized === null) {
@@ -611,7 +615,7 @@ const ChatList: React.FC = () => {
                   loading={syncMutation.isPending}
                   disabled={
                     selectedShopId === null &&
-                    (shopsLoading || shops.length === 0)
+                    (isShopsLoading || shops.length === 0)
                   }
                   onClick={handleSync}
                   title={

@@ -20,10 +20,32 @@ const LoginPage: React.FC = () => {
       await login(values);
     } catch (err: unknown) {
       const error = err as {
-        response?: { data?: { detail?: { message?: string } } };
+        response?: {
+          data?: {
+            error?: {
+              detail?: { code?: string; message?: string };
+            };
+          };
+        };
         message?: string;
       };
-      setError(error.response?.data?.detail?.message || error.message || 'Login failed');
+      // 后端返回格式: { ok: false, error: { detail: { code: "INVALID_CREDENTIALS", message: "..." } } }
+      const errorDetail = error.response?.data?.error?.detail;
+      let errorMessage = '登录失败';
+
+      if (errorDetail?.code === 'INVALID_CREDENTIALS') {
+        errorMessage = '用户名或密码错误';
+      } else if (errorDetail?.code === 'RATE_LIMIT_EXCEEDED') {
+        errorMessage = '登录尝试次数过多，请稍后再试';
+      } else if (errorDetail?.code === 'ACCOUNT_DISABLED') {
+        errorMessage = '账号已被禁用';
+      } else if (errorDetail?.message) {
+        errorMessage = errorDetail.message;
+      } else if (error.message && error.message !== 'Request failed with status code 401') {
+        errorMessage = error.message;
+      }
+
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
