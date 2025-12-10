@@ -5,6 +5,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { App } from 'antd';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { useAsyncTaskPolling } from '@/hooks/useAsyncTaskPolling';
 import * as ozonApi from '@/services/ozon';
@@ -13,10 +14,10 @@ import { notifySuccess, notifyError } from '@/utils/notification';
 export const useProductOperations = (selectedShop: number | null) => {
   const { modal } = App.useApp();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const [priceModalVisible, setPriceModalVisible] = useState(false);
   const [stockModalVisible, setStockModalVisible] = useState(false);
-  const [editModalVisible, setEditModalVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<ozonApi.Product | null>(null);
 
   // 批量价格更新轮询 Hook
@@ -158,10 +159,15 @@ export const useProductOperations = (selectedShop: number | null) => {
   });
 
 
-  // 编辑商品
+  // 编辑商品 - 跳转到商品创建页面（编辑模式）
   const handleEdit = (product: ozonApi.Product) => {
-    setSelectedProduct(product);
-    setEditModalVisible(true);
+    navigate('/dashboard/ozon/products/create', {
+      state: {
+        editMode: true,
+        productData: product,
+        sourceProductId: product.id,
+      },
+    });
   };
 
   // 更新单个商品价格
@@ -348,8 +354,6 @@ export const useProductOperations = (selectedShop: number | null) => {
     setPriceModalVisible,
     stockModalVisible,
     setStockModalVisible,
-    editModalVisible,
-    setEditModalVisible,
     selectedProduct,
     setSelectedProduct,
 

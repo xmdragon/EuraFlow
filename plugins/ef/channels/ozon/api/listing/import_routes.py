@@ -351,9 +351,11 @@ async def create_product(
         from ...models.collection_record import OzonProductCollectionRecord
 
         source_record_id = request.get("source_record_id")
+        source_type = request.get("source_type")  # 'relist' 表示下架重上
+        source_product_id = request.get("source_product_id")  # 原商品ID
 
         if source_record_id:
-            # 编辑上架：更新原采集记录
+            # 编辑上架（从采集记录）：更新原采集记录
             collection_record = await db.scalar(
                 select(OzonProductCollectionRecord).where(
                     OzonProductCollectionRecord.id == source_record_id
@@ -366,12 +368,67 @@ async def create_product(
                 collection_record.listing_at = datetime.utcnow()
                 collection_record.listing_error_message = None
                 logger.info(f"Updated collection record {source_record_id} as edit listing")
+        elif source_type == "relist" and source_product_id:
+            # 下架重上：创建 relist 类型的上架记录
+            new_record = OzonProductCollectionRecord(
+                user_id=current_user.id,
+                shop_id=shop_id,
+                collection_type="relist",  # 下架重上类型
+                source_url=f"internal://product/{source_product_id}",  # 内部来源，关联原商品
+                product_data={
+                    # 基本信息
+                    "title": title,
+                    "offer_id": offer_id,
+                    "description": request.get("description"),
+                    "barcode": request.get("barcode"),
+                    # 价格信息
+                    "price": float(request["price"]) if request.get("price") else None,
+                    "old_price": float(request["old_price"]) if request.get("old_price") else None,
+                    "premium_price": float(request["premium_price"]) if request.get("premium_price") else None,
+                    "currency_code": request.get("currency_code", "RUB"),
+                    "vat": request.get("vat", "0"),
+                    # 类目信息
+                    "category_id": category_id,
+                    "type_id": type_id,
+                    "description_category_id": description_category_id,
+                    # 媒体资源
+                    "images": request.get("images", []),
+                    "images360": request.get("images360"),
+                    "color_image": request.get("color_image"),
+                    "videos": request.get("videos", []),
+                    "pdf_list": request.get("pdf_list"),
+                    # 尺寸和重量
+                    "height": request.get("height"),
+                    "width": request.get("width"),
+                    "depth": request.get("depth"),
+                    "dimension_unit": request.get("dimension_unit", "mm"),
+                    "weight": request.get("weight"),
+                    "weight_unit": request.get("weight_unit", "g"),
+                    # 属性和变体
+                    "attributes": attributes,
+                    "variants": request.get("variants"),
+                    # 促销活动
+                    "promotions": request.get("promotions"),
+                    # 采购信息
+                    "purchase_url": request.get("purchase_url"),
+                    "suggested_purchase_price": float(request["suggested_purchase_price"]) if request.get("suggested_purchase_price") else None,
+                    "purchase_note": request.get("purchase_note"),
+                    # 原商品信息（下架重上专属）
+                    "source_product_id": source_product_id,
+                },
+                listing_status="success",
+                listing_source="edit",  # 编辑上架
+                listing_product_id=product.id,
+                listing_at=datetime.utcnow(),
+            )
+            db.add(new_record)
+            logger.info(f"Created relist collection record: offer_id={offer_id}, source_product_id={source_product_id}")
         else:
             # 手动上架：创建新的上架记录，包含提交到 OZON API 的所有字段
             new_record = OzonProductCollectionRecord(
                 user_id=current_user.id,
                 shop_id=shop_id,
-                collection_type="follow_pdp",  # 复用类型，通过 listing_source 区分
+                collection_type="manual",  # 手动新建商品
                 source_url="",  # 手动上架没有来源URL
                 product_data={
                     # 基本信息

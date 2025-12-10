@@ -106,6 +106,9 @@ export interface CreateProductRequest {
   purchase_note?: string;
   // 来源采集记录ID（编辑上架时传递）
   source_record_id?: number;
+  // 下架重上（relist）模式参数
+  source_type?: 'relist';  // 上架来源类型
+  source_product_id?: number;  // 原商品ID
 }
 
 /**

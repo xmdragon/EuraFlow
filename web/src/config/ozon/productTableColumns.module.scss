@@ -17,52 +17,11 @@
 }
 
 // ===== SKU 列 =====
-.skuRow {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  width: 100%;
-}
-
 .skuText {
   font-size: 12px;
-  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.copyButton {
-  padding: 0 4px;
-  height: 18px;
-  min-width: 18px;
-}
-
-// ===== 复制图标 =====
-.copyIconContainer {
-  position: relative;
-  width: 12px;
-  height: 12px;
-}
-
-.copyIconBack {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 8px;
-  height: 8px;
-  border: 1px solid #666;
-  background-color: white;
-}
-
-.copyIconFront {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 8px;
-  height: 8px;
-  border: 1px solid #666;
-  background-color: white;
 }
 
 // ===== 价格列 =====

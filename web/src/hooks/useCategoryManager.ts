@@ -50,7 +50,7 @@ export interface UseCategoryManagerReturn {
   setPendingCategoryId: (id: number | null) => void;
 
   // 业务逻辑函数
-  loadCategoryAttributes: (categoryId: number) => Promise<void>;
+  loadCategoryAttributes: (categoryId: number) => Promise<CategoryAttribute[]>;
   handleSyncCategoryAttributes: () => Promise<void>;
 }
 
@@ -72,11 +72,12 @@ export const useCategoryManager = ({
 
   /**
    * 加载类目属性
+   * @returns 加载的属性列表（用于编辑模式恢复）
    */
   const loadCategoryAttributes = useCallback(
-    async (categoryId: number) => {
+    async (categoryId: number): Promise<CategoryAttribute[]> => {
       if (!selectedShop) {
-        return;
+        return [];
       }
 
       setLoadingAttributes(true);
@@ -103,13 +104,17 @@ export const useCategoryManager = ({
           if (aspectAttributes.length > 0) {
             autoAddVariantDimensions(aspectAttributes);
           }
+
+          return result.data;
         } else {
           setCategoryAttributes([]);
           setTypeId(null);
+          return [];
         }
       } catch {
         setCategoryAttributes([]);
         setTypeId(null);
+        return [];
       } finally {
         setLoadingAttributes(false);
       }

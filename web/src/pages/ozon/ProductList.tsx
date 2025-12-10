@@ -38,7 +38,6 @@ import { useProductOperations } from '@/hooks/ozon/useProductOperations';
 import { useProductSync } from '@/hooks/ozon/useProductSync';
 import { useShopSelection } from '@/hooks/ozon/useShopSelection';
 import { useWatermark } from '@/hooks/ozon/useWatermark';
-import { useCopy } from '@/hooks/useCopy';
 import { useCurrency } from '@/hooks/useCurrency';
 import { usePermission } from '@/hooks/usePermission';
 import authService from '@/services/authService';
@@ -54,7 +53,6 @@ const ProductList: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { canOperate, canSync, canDelete } = usePermission();
-  const { copyToClipboard } = useCopy();
   const { symbol: currencySymbol } = useCurrency();
 
   // 状态管理
@@ -247,8 +245,6 @@ const ProductList: React.FC = () => {
     setPriceModalVisible,
     stockModalVisible,
     setStockModalVisible,
-    editModalVisible,
-    setEditModalVisible,
     selectedProduct,
     updatePricesMutation,
     updateStocksMutation,
@@ -364,7 +360,6 @@ const ProductList: React.FC = () => {
     handleWatermark,
     handleDescription,
     handleImageClick,
-    copyToClipboard,
     canOperate,
     canSync,
     canDelete,
@@ -502,193 +497,6 @@ const ProductList: React.FC = () => {
         loading={updateStocksMutation.isPending}
         shopId={selectedShop}
       />
-
-      {/* 商品编辑弹窗 */}
-      <Modal
-        title={`编辑商品 - ${selectedProduct?.ozon_sku || selectedProduct?.offer_id || 'N/A'}`}
-        open={editModalVisible}
-        onCancel={() => setEditModalVisible(false)}
-        footer={null}
-        width={800}
-      >
-        {selectedProduct && (
-          <Form
-            layout="vertical"
-            initialValues={{
-              title: selectedProduct.title,
-              title_cn: selectedProduct.title_cn,
-              description: selectedProduct.description,
-              brand: selectedProduct.brand,
-              barcode: selectedProduct.barcode,
-              price: selectedProduct.price,
-              old_price: selectedProduct.old_price,
-              cost: selectedProduct.cost,
-              weight: selectedProduct.weight,
-              width: selectedProduct.width,
-              height: selectedProduct.height,
-              depth: selectedProduct.depth,
-              purchase_url: selectedProduct.purchase_url,
-              suggested_purchase_price: selectedProduct.suggested_purchase_price,
-              purchase_note: selectedProduct.purchase_note,
-            }}
-            onFinish={async (values) => {
-              try {
-                const authHeaders = authService.getAuthHeader();
-                const response = await fetch(`/api/ef/v1/ozon/products/${selectedProduct.id}`, {
-                  method: 'PUT',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    ...authHeaders,
-                  },
-                  body: JSON.stringify(values),
-                });
-
-                const result = await response.json();
-
-                if (result.success) {
-                  notifySuccess('更新成功', result.message || '商品信息更新成功');
-                  queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
-                  setEditModalVisible(false);
-                } else {
-                  notifyError('更新失败', result.message || '商品信息更新失败');
-                }
-              } catch (error) {
-                notifyError('更新失败', `更新失败: ${error.message}`);
-              }
-            }}
-          >
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Item
-                  name="title"
-                  label="商品标题（俄文）"
-                  rules={[{ required: true, message: '请输入商品标题' }]}
-                >
-                  <Input placeholder="请输入商品标题" />
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item name="title_cn" label="中文名称">
-                  <Input placeholder="请输入中文名称（便于管理）" />
-                </Form.Item>
-              </Col>
-            </Row>
-
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Item name="brand" label="品牌">
-                  <Input placeholder="请输入品牌" />
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item name="barcode" label="主条形码">
-                  <Input placeholder="请输入条形码" disabled />
-                </Form.Item>
-              </Col>
-            </Row>
-
-            <Form.Item name="description" label="商品描述">
-              <Input.TextArea rows={3} placeholder="请输入商品描述" />
-            </Form.Item>
-
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Item name="price" label="售价">
-                  <InputNumber
-                    style={{ width: '100%' }}
-                    min={0}
-                    formatter={getNumberFormatter(2)}
-                    parser={getNumberParser()}
-                    prefix={currencySymbol}
-                    placeholder="请输入售价"
-                  />
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item name="old_price" label="原价">
-                  <InputNumber
-                    style={{ width: '100%' }}
-                    min={0}
-                    formatter={getNumberFormatter(2)}
-                    parser={getNumberParser()}
-                    prefix={currencySymbol}
-                    placeholder="请输入原价"
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
-
-            {/* 采购信息 */}
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Item name="suggested_purchase_price" label="建议采购价">
-                  <InputNumber
-                    style={{ width: '100%' }}
-                    min={0}
-                    formatter={getNumberFormatter(2)}
-                    parser={getNumberParser()}
-                    prefix={currencySymbol}
-                    placeholder="请输入建议采购价"
-                  />
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item name="purchase_url" label="采购地址">
-                  <Input placeholder="https://..." />
-                </Form.Item>
-              </Col>
-            </Row>
-
-            <Form.Item name="purchase_note" label="采购备注">
-              <Input.TextArea rows={2} placeholder="请输入采购备注（可选）" />
-            </Form.Item>
-
-            <Row gutter={16}>
-              <Col span={6}>
-                <Form.Item name="cost" label="成本价">
-                  <InputNumber
-                    style={{ width: '100%' }}
-                    min={0}
-                    formatter={getNumberFormatter(2)}
-                    parser={getNumberParser()}
-                    prefix={currencySymbol}
-                    placeholder="成本价"
-                  />
-                </Form.Item>
-              </Col>
-              <Col span={6}>
-                <Form.Item name="weight" label="重量(g)">
-                  <InputNumber style={{ width: '100%' }} min={0} placeholder="重量" />
-                </Form.Item>
-              </Col>
-              <Col span={4}>
-                <Form.Item name="width" label="宽(mm)">
-                  <InputNumber style={{ width: '100%' }} min={0} placeholder="宽度" />
-                </Form.Item>
-              </Col>
-              <Col span={4}>
-                <Form.Item name="height" label="高(mm)">
-                  <InputNumber style={{ width: '100%' }} min={0} placeholder="高度" />
-                </Form.Item>
-              </Col>
-              <Col span={4}>
-                <Form.Item name="depth" label="深(mm)">
-                  <InputNumber style={{ width: '100%' }} min={0} placeholder="深度" />
-                </Form.Item>
-              </Col>
-            </Row>
-
-            <Form.Item>
-              <Space>
-                <Button type="primary" htmlType="submit">
-                  保存更改
-                </Button>
-                <Button onClick={() => setEditModalVisible(false)}>取消</Button>
-              </Space>
-            </Form.Item>
-          </Form>
-        )}
-      </Modal>
 
       {/* 水印应用模态框 */}
       <WatermarkApplyModal

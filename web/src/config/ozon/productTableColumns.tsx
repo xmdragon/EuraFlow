@@ -13,9 +13,11 @@ import {
   FileImageOutlined,
   FileTextOutlined,
 } from '@ant-design/icons';
-import { Button, Tag, Dropdown, Switch } from 'antd';
+import { Button, Tag, Dropdown, Switch, Typography } from 'antd';
 import { ColumnsType } from 'antd/es/table';
 import React from 'react';
+
+const { Text } = Typography;
 
 import ProductImage from '@/components/ozon/ProductImage';
 import type * as ozonApi from '@/services/ozon';
@@ -37,7 +39,6 @@ export interface ProductTableColumnsParams {
   handleWatermark?: (product: ozonApi.Product) => void;
   handleDescription?: (product: ozonApi.Product) => void;
   handleImageClick: (product: ozonApi.Product, images: string[], index?: number) => void;
-  copyToClipboard: (text: string, label: string) => void;
   canOperate: boolean;
   canSync: boolean;
   canDelete: boolean;
@@ -73,7 +74,6 @@ export const getProductTableColumns = (
     handleWatermark,
     handleDescription,
     handleImageClick,
-    copyToClipboard,
     canOperate,
     canSync,
     canDelete,
@@ -112,47 +112,25 @@ export const getProductTableColumns = (
       },
     },
     // 第二列：SKU信息（100px）
-    // 使用原生 div 替代 Space 提升性能
     {
       title: 'SKU',
       key: 'sku',
       width: 100,
       render: (_, record) => {
-        const copyIcon = (
-          <div className={styles.copyIconContainer}>
-            <div className={styles.copyIconBack} />
-            <div className={styles.copyIconFront} />
-          </div>
-        );
-
         return (
           <div className={styles.columnContainer}>
             {/* 商品货号 */}
-            <div className={styles.skuRow}>
-              <span className={styles.skuText}>{record.offer_id}</span>
-              <Button
-                type="text"
-                size="small"
-                icon={copyIcon}
-                onClick={() => copyToClipboard(record.offer_id, '商品货号')}
-                className={styles.copyButton}
-                title="复制商品货号"
-              />
-            </div>
+            <Text copyable={{ text: record.offer_id }} className={styles.skuText}>
+              {record.offer_id}
+            </Text>
             {/* SKU */}
-            <div className={styles.skuRow}>
-              <span className={styles.skuText}>{record.ozon_sku || '-'}</span>
-              {record.ozon_sku && (
-                <Button
-                  type="text"
-                  size="small"
-                  icon={copyIcon}
-                  onClick={() => copyToClipboard(String(record.ozon_sku), 'SKU')}
-                  className={styles.copyButton}
-                  title="复制SKU"
-                />
-              )}
-            </div>
+            {record.ozon_sku ? (
+              <Text copyable={{ text: String(record.ozon_sku) }} className={styles.skuText}>
+                {record.ozon_sku}
+              </Text>
+            ) : (
+              <span className={styles.skuText}>-</span>
+            )}
           </div>
         );
       },

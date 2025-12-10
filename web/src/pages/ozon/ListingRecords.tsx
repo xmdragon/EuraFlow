@@ -175,7 +175,7 @@ const ListingRecords: React.FC = () => {
     queryKey: ['listing-records', selectedShop, currentPage, pageSize],
     queryFn: async () => {
       const params: Record<string, unknown> = {
-        collection_type: 'follow_pdp',
+        collection_type: 'follow_pdp,relist,manual',  // 跟卖上架、下架重上、手动新建
         page: currentPage,
         page_size: pageSize,
       };
@@ -399,8 +399,11 @@ const ListingRecords: React.FC = () => {
       key: 'source_url',
       width: 60,
       align: 'center' as const,
-      render: (url: string) => {
-        if (!url) return '-';
+      render: (url: string, record: ListingRecord) => {
+        // 下架重上（relist）或手动上架没有外部链接
+        if (!url || url.startsWith('internal://') || record.collection_type === 'relist') {
+          return '-';
+        }
         return (
           <Tooltip title="查看原商品">
             <a href={url} target="_blank" rel="noopener noreferrer">

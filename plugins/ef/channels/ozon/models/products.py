@@ -76,11 +76,11 @@ class OzonProduct(Base):
     available = Column(Integer, default=0)
     warehouse_stocks = Column(JSONB, comment="按仓库分组的库存详情: [{warehouse_id, warehouse_name, present, reserved}]")
     
-    # 商品属性
-    weight = Column(Numeric(10, 3), comment="重量(kg)")
-    width = Column(Numeric(10, 2), comment="宽度(cm)")
-    height = Column(Numeric(10, 2), comment="高度(cm)")
-    depth = Column(Numeric(10, 2), comment="深度(cm)")
+    # 商品属性（尺寸使用OZON API原生单位）
+    weight = Column(Numeric(10, 1), comment="重量(g)")
+    width = Column(Numeric(10, 1), comment="宽度(mm)")
+    height = Column(Numeric(10, 1), comment="高度(mm)")
+    depth = Column(Numeric(10, 1), comment="深度(mm)")
 
     # OZON详细属性字段
     dimension_unit = Column(String(10), comment="尺寸单位(mm/cm/in)")

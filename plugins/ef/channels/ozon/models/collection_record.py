@@ -40,7 +40,7 @@ class OzonProductCollectionRecord(Base):
     collection_type = Column(
         String(20),
         nullable=False,
-        comment="采集类型：follow_pdp（跟卖上架）| collect_only（仅采集）"
+        comment="采集类型：follow_pdp（跟卖上架）| collect_only（仅采集）| relist（下架重上）| manual（手动新建）"
     )
 
     # 采集来源
@@ -159,7 +159,7 @@ class OzonProductCollectionRecord(Base):
 
         # 检查约束
         CheckConstraint(
-            "collection_type IN ('follow_pdp', 'collect_only')",
+            "collection_type IN ('follow_pdp', 'collect_only', 'relist', 'manual')",
             name="chk_collection_type"
         ),
     )

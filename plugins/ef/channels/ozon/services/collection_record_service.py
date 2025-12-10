@@ -125,7 +125,7 @@ class CollectionRecordService:
         Args:
             db: 数据库会话
             user_id: 用户ID
-            collection_type: 采集类型
+            collection_type: 采集类型，支持逗号分隔的多个类型（如 'follow_pdp,relist'）
             shop_id: 店铺ID（可选）
             page: 页码
             page_size: 每页数量
@@ -135,8 +135,15 @@ class CollectionRecordService:
             (记录列表, 总数)
         """
         # 构建查询条件
+        # 支持多个 collection_type，用逗号分隔
+        type_list = [t.strip() for t in collection_type.split(',') if t.strip()]
+        if len(type_list) == 1:
+            type_condition = OzonProductCollectionRecord.collection_type == type_list[0]
+        else:
+            type_condition = OzonProductCollectionRecord.collection_type.in_(type_list)
+
         conditions = [
-            OzonProductCollectionRecord.collection_type == collection_type,
+            type_condition,
             OzonProductCollectionRecord.is_deleted == False  # noqa: E712
         ]
         # 非管理员只能查看自己的记录

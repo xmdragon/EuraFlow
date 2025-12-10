@@ -179,13 +179,12 @@ const ProductCreate: React.FC = () => {
     notificationKey: 'product-import',
     initialMessage: '商品导入中',
     formatSuccessMessage: (result) => {
-      const r = result as { sku?: string } | undefined;
       return {
         title: '导入成功',
-        description: `商品已成功导入OZON平台！SKU: ${r?.sku || 'N/A'}`,
+        description: '商品已成功提交到OZON平台，请稍后在商品列表查看状态',
       };
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       // 刷新商品列表
       queryClient.invalidateQueries({ queryKey: ['products'] });
       // 跳转到商品列表
@@ -507,6 +506,51 @@ const ProductCreate: React.FC = () => {
   }, [location.state]);
 
   /**
+   * 编辑模式检测（从商品列表点击编辑跳转）
+   * 编辑模式下：
+   * - 页面标题显示"编辑商品"
+   * - 从商品数据恢复表单
+   * - 不显示草稿加载提示
+   * - 提交时先归档原商品，再创建新商品
+   * - 写入上架记录表（类型为 relist）
+   */
+  // 使用 useRef 保存编辑模式状态，避免 location.state 被清除后丢失
+  const editModeRef = useRef<{
+    isEditMode: boolean;
+    sourceProductId: number | undefined;
+    sourceProductData: ozonApi.Product | undefined;
+  }>(() => {
+    const state = location.state as {
+      editMode?: boolean;
+      sourceProductId?: number;
+      productData?: ozonApi.Product;
+    };
+    return {
+      isEditMode: state?.editMode === true,
+      sourceProductId: state?.sourceProductId,
+      sourceProductData: state?.productData,
+    };
+  });
+
+  // 初始化时保存编辑模式状态（只执行一次）
+  if (editModeRef.current === undefined || typeof editModeRef.current === 'function') {
+    const state = location.state as {
+      editMode?: boolean;
+      sourceProductId?: number;
+      productData?: ozonApi.Product;
+    };
+    editModeRef.current = {
+      isEditMode: state?.editMode === true,
+      sourceProductId: state?.sourceProductId,
+      sourceProductData: state?.productData,
+    };
+  }
+
+  const isEditMode = editModeRef.current.isEditMode;
+  const sourceProductId = editModeRef.current.sourceProductId;
+  const sourceProductData = editModeRef.current.sourceProductData;
+
+  /**
    * 草稿模板管理 Hook
    */
   const draftTemplate = useDraftTemplate({
@@ -514,7 +558,7 @@ const ProductCreate: React.FC = () => {
     deserializeFormData,
     selectedShop,
     selectedCategory: categoryManager.selectedCategory,
-    skipDraftLoading: isFromCollectionRecord,
+    skipDraftLoading: isFromCollectionRecord || isEditMode,  // 编辑模式也跳过草稿加载
   });
 
   /**
@@ -625,6 +669,296 @@ const ProductCreate: React.FC = () => {
       }
     })();
   }, [pendingCategoryTypeRu, selectedShop, categoryManager.hasCategoryData]);
+
+  /**
+   * 编辑模式：从商品数据恢复表单
+   * 当从商品列表点击编辑跳转过来时，自动填充表单数据
+   */
+  const editModeRestoredRef = useRef(false);
+  // 保存待恢复的类目ID（等店铺选择和类目数据加载后再恢复）
+  const [pendingCategoryId, setPendingCategoryId] = useState<number | null>(null);
+
+  // 第一步：恢复表单数据，提取类目ID
+  useEffect(() => {
+    if (editModeRestoredRef.current || !isEditMode || !sourceProductData) {
+      return;
+    }
+    editModeRestoredRef.current = true;
+
+    loggers.ozon.info('[EditMode] 从商品数据恢复表单', {
+      productId: sourceProductId,
+      title: sourceProductData.title,
+      descriptionCategoryId: sourceProductData.description_category_id,
+      typeId: sourceProductData.type_id,
+    });
+
+    // 设置店铺
+    if (sourceProductData.shop_id) {
+      setSelectedShop(sourceProductData.shop_id);
+    }
+
+    // 填充基本表单字段（不包括 offer_id，让系统自动生成新货号）
+    // 注意：尺寸字段需要转换为数字类型，否则表单验证会失败
+    const parseNumber = (val: unknown): number | undefined => {
+      if (val === null || val === undefined || val === '') return undefined;
+      const num = typeof val === 'string' ? parseFloat(val) : Number(val);
+      return isNaN(num) ? undefined : num;
+    };
+
+    form.setFieldsValue({
+      title: sourceProductData.title || '',
+      description: sourceProductData.description || '',
+      barcode: sourceProductData.barcode || '',
+      price: parseNumber(sourceProductData.price),
+      old_price: parseNumber(sourceProductData.old_price),
+      vat: sourceProductData.vat || '0',
+      weight: parseNumber(sourceProductData.weight),
+      width: parseNumber(sourceProductData.width),
+      height: parseNumber(sourceProductData.height),
+      depth: parseNumber(sourceProductData.depth),
+      // 采购信息
+      purchase_url: sourceProductData.purchase_url || '',
+      suggested_purchase_price: parseNumber(sourceProductData.suggested_purchase_price),
+      purchase_note: sourceProductData.purchase_note || '',
+      // 展开属性字段
+      color_image: sourceProductData.color_image || '',
+      premium_price: parseNumber(sourceProductData.premium_price),
+    });
+
+    // 恢复图片
+    if (sourceProductData.images) {
+      const images: string[] = [];
+      if (sourceProductData.images.primary) {
+        images.push(sourceProductData.images.primary);
+      }
+      if (sourceProductData.images.additional) {
+        images.push(...sourceProductData.images.additional);
+      }
+      if (images.length > 0) {
+        setMainProductImages(images);
+      }
+    }
+
+    // 保存待恢复的类目ID（等店铺选择和类目数据加载后再恢复）
+    if (sourceProductData.type_id) {
+      setPendingCategoryId(sourceProductData.type_id);
+    }
+
+    // 清除 location.state，避免刷新页面时重复恢复
+    window.history.replaceState({}, document.title);
+
+    notifySuccess('数据已加载', '已从原商品加载数据，请检查并完善信息');
+  }, [isEditMode, sourceProductData, sourceProductId, form]);
+
+  // 第二步：当店铺选择后，恢复类目和属性
+  useEffect(() => {
+    if (!pendingCategoryId || !selectedShop || !categoryManager.hasCategoryData || !sourceProductData) {
+      return;
+    }
+
+    const categoryId = pendingCategoryId;
+    setPendingCategoryId(null);
+
+    (async () => {
+      try {
+        loggers.ozon.info('[EditMode] 开始恢复类目和属性', { categoryId, selectedShop });
+
+        // 从类目树中查找完整路径（Cascader需要完整路径才能正确显示）
+        const fullPath = categoryService.getCategoryPath(categoryId, categoryManager.categoryTree);
+
+        if (fullPath) {
+          loggers.ozon.info('[EditMode] 找到类目路径', { categoryId, fullPath });
+
+          // 设置完整的类目路径
+          categoryManager.setCategoryPath(fullPath);
+          categoryManager.setSelectedCategory(categoryId);
+          categoryManager.setTypeId(categoryId);
+
+          // 同时设置表单的 category_id 字段（Cascader 使用路径数组作为值）
+          form.setFieldValue('category_id', fullPath);
+
+          // 加载类目属性
+          const loadedAttributes = await categoryManager.loadCategoryAttributes(categoryId);
+
+          // 恢复属性值（等属性加载完成后再设置，传入已加载的属性）
+          setTimeout(() => {
+            restoreAttributeValues(loadedAttributes || []);
+          }, 500);
+        } else {
+          loggers.ozon.warn('[EditMode] 未找到类目路径，可能类目数据不完整', { categoryId });
+        }
+      } catch (error) {
+        loggers.ozon.error('[EditMode] 恢复类目失败', error);
+      }
+    })();
+  }, [pendingCategoryId, selectedShop, categoryManager.hasCategoryData, sourceProductData, categoryManager.categoryTree]);
+
+  // 恢复属性值到表单
+  // 接受 categoryAttributes 参数，避免闭包问题
+  const restoreAttributeValues = useCallback((categoryAttributes: import('@/services/ozon').CategoryAttribute[]) => {
+    if (!sourceProductData?.ozon_attributes || !Array.isArray(sourceProductData.ozon_attributes)) {
+      return;
+    }
+
+    loggers.ozon.info('[EditMode] 恢复属性值', {
+      attributeCount: (sourceProductData.ozon_attributes as unknown[]).length,
+      categoryAttributesCount: categoryAttributes.length,
+    });
+
+    // OZON 属性格式: [{id: number, values: [{dictionary_value_id?: number, value?: string}], complex_id: number}]
+    // 注意：字段名是 "id" 不是 "attribute_id"
+    // 特殊属性ID: 4191=简介(description), 4180=名称(title)
+    const ATTR_DESCRIPTION = 4191;
+    const attributeValues: Record<string, unknown> = {};
+    let descriptionFromAttr = '';
+
+    // 检测是否为"类型名称"或"型号名称"字段（需要生成新值以避免商品卡合并）
+    const isTypeNameField = (name: string): boolean => {
+      const lowerName = name.toLowerCase();
+      return lowerName.includes('类型名称') ||
+             lowerName.includes('型号名称') ||
+             lowerName.includes('типовое название') ||
+             lowerName.includes('type name') ||
+             lowerName.includes('модельное название') ||
+             lowerName.includes('model name');
+    };
+
+    // 生成随机字符串（大小写字母混合）
+    const generateRandomString = (length: number = 16): string => {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+      let result = '';
+      for (let i = 0; i < length; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return result;
+    };
+
+    // 收集需要添加到字典缓存的值（用于 Select 组件正确显示文字）
+    // key: attribute_id, value: [{value_id, value}]
+    const dictionaryValuesToCache: Record<number, Array<{ value_id: number; value: string }>> = {};
+
+    for (const attr of sourceProductData.ozon_attributes as Array<{
+      id: number;
+      values?: Array<{ dictionary_value_id?: number; value?: string }>;
+      complex_id?: number;
+    }>) {
+      const attrId = attr.id;
+      const values = attr.values || [];
+
+      if (values.length === 0) continue;
+
+      // 检查是否是"型号名称"字段，需要生成新值
+      const catAttr = categoryAttributes.find(a => a.attribute_id === attrId);
+      if (catAttr && isTypeNameField(catAttr.name)) {
+        // 生成新的型号名称，避免与原商品合并到同一商品卡
+        attributeValues[`attr_${attrId}`] = generateRandomString(16);
+        loggers.ozon.info('[EditMode] 型号名称生成新值', { attrId, attrName: catAttr.name });
+        continue;
+      }
+
+      // 如果只有一个值，直接设置；如果有多个值，设置为数组
+      if (values.length === 1) {
+        const val = values[0];
+        // 如果有 dictionary_value_id 且不为 0，使用它；否则使用 value
+        const valueToSet = (val.dictionary_value_id && val.dictionary_value_id !== 0)
+          ? val.dictionary_value_id
+          : val.value || '';
+
+        // 特殊处理：4191 是简介属性，需要设置到 description 表单字段
+        if (attrId === ATTR_DESCRIPTION && typeof valueToSet === 'string') {
+          descriptionFromAttr = valueToSet;
+        }
+
+        attributeValues[`attr_${attrId}`] = valueToSet;
+
+        // 如果是字典值，收集到缓存列表（需要后续根据 attribute_id 找到 dictionary_id）
+        if (val.dictionary_value_id && val.dictionary_value_id !== 0 && val.value) {
+          // 暂存：attribute_id -> {value_id, value}
+          // 后面会根据 categoryAttributes 转换为 dictionary_id
+          if (!dictionaryValuesToCache[attrId]) {
+            dictionaryValuesToCache[attrId] = [];
+          }
+          dictionaryValuesToCache[attrId].push({
+            value_id: val.dictionary_value_id,
+            value: val.value,
+          });
+        }
+      } else {
+        // 多值属性
+        attributeValues[`attr_${attrId}`] = values.map(v => {
+          // 收集字典值
+          if (v.dictionary_value_id && v.dictionary_value_id !== 0 && v.value) {
+            if (!dictionaryValuesToCache[attrId]) {
+              dictionaryValuesToCache[attrId] = [];
+            }
+            dictionaryValuesToCache[attrId].push({
+              value_id: v.dictionary_value_id,
+              value: v.value,
+            });
+          }
+          return (v.dictionary_value_id && v.dictionary_value_id !== 0)
+            ? v.dictionary_value_id
+            : v.value;
+        }).filter(Boolean);
+      }
+    }
+
+    // 将字典值添加到缓存（根据 attribute_id 查找 dictionary_id）
+    if (Object.keys(dictionaryValuesToCache).length > 0 && categoryAttributes.length > 0) {
+      const cacheUpdates: Record<number, Array<{ value_id: number; value: string }>> = {};
+
+      for (const [attrIdStr, values] of Object.entries(dictionaryValuesToCache)) {
+        const attrId = parseInt(attrIdStr);
+        const catAttr = categoryAttributes.find(a => a.attribute_id === attrId);
+
+        if (catAttr?.dictionary_id) {
+          if (!cacheUpdates[catAttr.dictionary_id]) {
+            cacheUpdates[catAttr.dictionary_id] = [];
+          }
+          cacheUpdates[catAttr.dictionary_id].push(...values);
+        }
+      }
+
+      // 更新字典缓存
+      if (Object.keys(cacheUpdates).length > 0) {
+        dictionaryCache.setDictionaryValuesCache(prev => {
+          const updated = { ...prev };
+          for (const [dictIdStr, values] of Object.entries(cacheUpdates)) {
+            const dictId = parseInt(dictIdStr);
+            const existing = updated[dictId] || [];
+            // 合并并去重
+            const merged = [...existing];
+            for (const v of values) {
+              if (!merged.some(e => e.value_id === v.value_id)) {
+                merged.push(v);
+              }
+            }
+            updated[dictId] = merged;
+          }
+          return updated;
+        });
+        loggers.ozon.info('[EditMode] 字典值已添加到缓存', {
+          dictionaryCount: Object.keys(cacheUpdates).length,
+        });
+      }
+    }
+
+    if (Object.keys(attributeValues).length > 0) {
+      form.setFieldsValue(attributeValues);
+      loggers.ozon.info('[EditMode] 属性值已恢复', {
+        count: Object.keys(attributeValues).length,
+        keys: Object.keys(attributeValues).slice(0, 5),  // 只打印前5个
+      });
+    }
+
+    // 如果商品 description 字段为空但 4191 属性有值，则恢复到 description 表单字段
+    if (!sourceProductData.description && descriptionFromAttr) {
+      form.setFieldsValue({ description: descriptionFromAttr });
+      loggers.ozon.info('[EditMode] 从属性4191恢复简介', {
+        length: descriptionFromAttr.length,
+      });
+    }
+  }, [sourceProductData, form, dictionaryCache]);
 
   /**
    * 检查表单是否有实质性内容（排除初始状态和只有Offer ID的情况）
@@ -819,6 +1153,25 @@ const ProductCreate: React.FC = () => {
     }
 
     try {
+      // 编辑模式：先归档原商品，归档成功后再提交新商品
+      if (editModeRef.current?.isEditMode && editModeRef.current?.sourceProductId) {
+        const sourceId = editModeRef.current.sourceProductId;
+        loggers.ozon.info('[EditMode] 开始归档原商品', { sourceProductId: sourceId });
+        try {
+          const archiveResult = await ozonApi.archiveProduct(sourceId);
+          if (!archiveResult.success) {
+            notifyError('归档失败', `原商品归档失败: ${archiveResult.message || '未知错误'}，无法继续提交新商品`);
+            return; // 归档失败，不继续提交
+          }
+          loggers.ozon.info('[EditMode] 原商品归档成功，继续提交新商品', { sourceProductId: sourceId });
+        } catch (archiveError) {
+          const errorMsg = archiveError instanceof Error ? archiveError.message : '归档失败';
+          loggers.ozon.error('[EditMode] 原商品归档异常', { sourceProductId: sourceId, error: errorMsg });
+          notifyError('归档失败', `原商品归档失败: ${errorMsg}，无法继续提交新商品`);
+          return; // 归档失败，不继续提交
+        }
+      }
+
       // 获取所有表单字段（包括 attr_*）
       const allFormValues = form.getFieldsValue(true);
 
@@ -860,7 +1213,9 @@ const ProductCreate: React.FC = () => {
         category_id: categoryManager.selectedCategory,
         type_id: categoryManager.typeId,
         description_category_id: descriptionCategoryId,
-        categoryPath: categoryManager.categoryPath
+        categoryPath: categoryManager.categoryPath,
+        isEditMode,
+        sourceProductId: isEditMode ? sourceProductId : undefined,
       });
 
       // 创建商品（使用已上传的图片 URL 和视频）
@@ -899,6 +1254,9 @@ const ProductCreate: React.FC = () => {
         purchase_note: allFormValues.purchase_note || undefined,
         // 来源采集记录ID（编辑上架时传递）
         source_record_id: sourceRecordId || undefined,
+        // 编辑模式：标记为下架重上（relist）
+        source_type: isEditMode ? 'relist' : undefined,
+        source_product_id: isEditMode ? sourceProductId : undefined,
       });
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : '操作失败';
@@ -982,12 +1340,12 @@ const ProductCreate: React.FC = () => {
     <div className={styles.container}>
       <div className={styles.titleBar}>
         <h2 className={styles.pageTitle}>
-          <PlusOutlined />
-          新建商品
+          {isEditMode ? <EditOutlined /> : <PlusOutlined />}
+          {isEditMode ? '编辑商品' : '新建商品'}
         </h2>
 
-        {/* 保存状态指示器（从采集记录进入时不显示） */}
-        {autosaveEnabled && draftTemplate.draftLoaded && !isFromCollectionRecord && (
+        {/* 保存状态指示器（从采集记录或编辑模式进入时不显示） */}
+        {autosaveEnabled && draftTemplate.draftLoaded && !isFromCollectionRecord && !isEditMode && (
           <div className={styles.saveStatusIndicator}>
             {saveStatus === 'saving' && (
               <>
@@ -1020,6 +1378,16 @@ const ProductCreate: React.FC = () => {
           form={form}
           layout="horizontal"
           onFinish={handleProductSubmit}
+          onFinishFailed={({ errorFields }) => {
+            // 表单验证失败时，显示第一个错误字段的提示
+            if (errorFields && errorFields.length > 0) {
+              const firstError = errorFields[0];
+              const fieldName = Array.isArray(firstError.name) ? firstError.name.join('.') : firstError.name;
+              const errorMsg = firstError.errors?.[0] || '请检查表单填写';
+              notifyError('表单验证失败', `${errorMsg}（字段：${fieldName}）`);
+            }
+          }}
+          scrollToFirstError={{ behavior: 'smooth', block: 'center' }}
           onValuesChange={(changedValues) => {
             // 表单值变化时：1) 设置未保存标志 2) 触发防抖保存
             setHasUnsavedChanges(true);
