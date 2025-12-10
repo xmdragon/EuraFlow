@@ -16,7 +16,7 @@ OZON Web 同步定时任务
 import logging
 from typing import Dict, Any
 
-from sqlalchemy import select, distinct
+from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ async def web_promo_cleaner_task(**kwargs) -> Dict[str, Any]:
     logger.info("开始执行促销清理任务")
 
     from ef_core.database import get_db_manager
-    from ..models import OzonShop
+    from ef_core.models.users import User
     from ..services.ozon_web_sync_service import OzonWebSyncService
 
     db_manager = get_db_manager()
@@ -46,11 +46,8 @@ async def web_promo_cleaner_task(**kwargs) -> Dict[str, Any]:
 
     try:
         async with db_manager.get_session() as db:
-            # 获取所有有 Cookie 的用户 ID（去重）
-            stmt = select(distinct(OzonShop.owner_user_id)).where(
-                OzonShop.status == "active",
-                OzonShop.ozon_session_enc.isnot(None),
-            )
+            # 获取所有有 Cookie 的用户 ID（Cookie 存储在 users 表）
+            stmt = select(User.id).where(User.ozon_session_enc.isnot(None))
             result = await db.execute(stmt)
             user_ids = [row[0] for row in result.fetchall()]
 
@@ -109,7 +106,7 @@ async def web_invoice_sync_task(**kwargs) -> Dict[str, Any]:
     logger.info("开始执行账单同步任务")
 
     from ef_core.database import get_db_manager
-    from ..models import OzonShop
+    from ef_core.models.users import User
     from ..services.ozon_web_sync_service import OzonWebSyncService
 
     db_manager = get_db_manager()
@@ -122,11 +119,8 @@ async def web_invoice_sync_task(**kwargs) -> Dict[str, Any]:
 
     try:
         async with db_manager.get_session() as db:
-            # 获取所有有 Cookie 的用户 ID（去重）
-            stmt = select(distinct(OzonShop.owner_user_id)).where(
-                OzonShop.status == "active",
-                OzonShop.ozon_session_enc.isnot(None),
-            )
+            # 获取所有有 Cookie 的用户 ID（Cookie 存储在 users 表）
+            stmt = select(User.id).where(User.ozon_session_enc.isnot(None))
             result = await db.execute(stmt)
             user_ids = [row[0] for row in result.fetchall()]
 
@@ -185,7 +179,7 @@ async def web_balance_sync_task(**kwargs) -> Dict[str, Any]:
     logger.info("开始执行余额同步任务")
 
     from ef_core.database import get_db_manager
-    from ..models import OzonShop
+    from ef_core.models.users import User
     from ..services.ozon_web_sync_service import OzonWebSyncService
 
     db_manager = get_db_manager()
@@ -198,11 +192,8 @@ async def web_balance_sync_task(**kwargs) -> Dict[str, Any]:
 
     try:
         async with db_manager.get_session() as db:
-            # 获取所有有 Cookie 的用户 ID（去重）
-            stmt = select(distinct(OzonShop.owner_user_id)).where(
-                OzonShop.status == "active",
-                OzonShop.ozon_session_enc.isnot(None),
-            )
+            # 获取所有有 Cookie 的用户 ID（Cookie 存储在 users 表）
+            stmt = select(User.id).where(User.ozon_session_enc.isnot(None))
             result = await db.execute(stmt)
             user_ids = [row[0] for row in result.fetchall()]
 
