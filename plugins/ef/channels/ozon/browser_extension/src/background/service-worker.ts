@@ -22,6 +22,9 @@ import { registerAutoCollectorHandlers } from './auto-collector';
 // 导入统一的店铺任务协调器（整合促销清理、账单同步、余额同步）
 import { shopTaskRunner, registerShopTaskRunnerHandlers } from './shop-task-runner';
 
+// 导入 Cookie 上传器（定期上传 Cookie 到后端）
+import { cookieUploader, registerCookieUploaderHandlers } from './cookie-uploader';
+
 // ============================================================================
 // OZON 版本信息动态拦截器
 // ============================================================================
@@ -115,7 +118,13 @@ chrome.runtime.onInstalled.addListener((details: chrome.runtime.InstalledDetails
     });
   }
 
+  // 上传 Cookie 到后端（供后端执行 Web 同步任务）
+  cookieUploader.runIfNeeded().catch((error) => {
+    console.error('[ServiceWorker] Cookie 上传失败:', error);
+  });
+
   // 执行店铺任务（促销清理 + 账单同步 + 余额同步）
+  // 作为后端的 Fallback，先检查后端状态再决定是否执行
   shopTaskRunner.run().catch((error) => {
     console.error('[ServiceWorker] 店铺任务执行失败:', error);
   });
@@ -123,6 +132,12 @@ chrome.runtime.onInstalled.addListener((details: chrome.runtime.InstalledDetails
 
 // Service Worker 启动时也检查执行
 chrome.runtime.onStartup.addListener(() => {
+  // 上传 Cookie 到后端
+  cookieUploader.runIfNeeded().catch((error) => {
+    console.error('[ServiceWorker] Cookie 上传失败:', error);
+  });
+
+  // 执行店铺任务
   shopTaskRunner.run().catch((error) => {
     console.error('[ServiceWorker] 店铺任务执行失败:', error);
   });
@@ -674,6 +689,7 @@ async function getEuraflowConfig(): Promise<any> {
 // ============================================================================
 registerAutoCollectorHandlers();
 registerShopTaskRunnerHandlers();
+registerCookieUploaderHandlers();
 
 // 导出类型（供TypeScript使用）
 export {};

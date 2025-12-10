@@ -51,8 +51,10 @@ interface TaskResult {
  */
 interface ShopTask {
   name: string;
-  /** 检查任务是否应该执行（全局级别，如：今天是否已执行） */
+  /** 检查任务是否应该执行（全局级别，如：今天是否已执行、时间限制） */
   shouldRun(): Promise<boolean>;
+  /** 检查后端是否已执行（在获取 API 配置后调用） */
+  checkBackendStatus?(apiUrl: string, apiKey: string): Promise<boolean>;
   /** 检查特定店铺是否需要执行此任务 */
   shouldRunForShop?(shop: Shop, api: EuraflowApi): Promise<boolean>;
   /** 执行任务 */
@@ -133,7 +135,6 @@ function getBeijingTime(): { hour: number; minute: number; dateStr: string } {
 
 class PromoCleanerTask implements ShopTask {
   name = '促销清理';
-  private backendExecuted = false;
 
   /**
    * 检查是否应该执行
@@ -172,7 +173,6 @@ class PromoCleanerTask implements ShopTask {
     const status = await fetchBackendSyncStatus(apiUrl, apiKey);
     if (status?.promo_cleaner?.today_executed) {
       console.log('[PromoCleanerTask] 跳过：后端今天已成功执行');
-      this.backendExecuted = true;
       return false;
     }
     return true;
@@ -321,21 +321,49 @@ class InvoiceSyncerTask implements ShopTask {
   name = '账单同步';
   private shopsToSync: string[] = [];
 
+  /**
+   * 检查是否应该执行
+   *
+   * 条件：
+   * 1. 北京时间不早于 7:00（后端 6:30 执行）
+   * 2. 后端当前窗口期未成功执行
+   * 3. 满足原有的 7 天间隔
+   */
   async shouldRun(): Promise<boolean> {
-    // 检查间隔
+    // 1. 检查时间限制（北京时间不早于 7:00）
+    const { hour, minute } = getBeijingTime();
+    const currentMinutes = hour * 60 + minute;
+    const earliestMinutes = 7 * 60; // 7:00
+
+    if (currentMinutes < earliestMinutes) {
+      console.log(`[InvoiceSyncerTask] 跳过：当前北京时间 ${hour}:${minute}，早于 7:00`);
+      return false;
+    }
+
+    // 2. 检查间隔
     const result = await chrome.storage.local.get(CACHE_KEYS.INVOICE_SYNCER);
     const lastRunTimestamp = result[CACHE_KEYS.INVOICE_SYNCER];
     if (lastRunTimestamp) {
       const intervalMs = 7 * 24 * 60 * 60 * 1000; // 7天
       if ((Date.now() - lastRunTimestamp) < intervalMs) {
+        console.log('[InvoiceSyncerTask] 跳过：距上次执行不足 7 天');
         return false;
       }
     }
 
-    // 检查北京时间5点后
-    const now = new Date();
-    const beijingHour = (now.getUTCHours() + 8) % 24;
-    return beijingHour >= 5;
+    return true;
+  }
+
+  /**
+   * 检查后端状态（在获取 API 配置后调用）
+   */
+  async checkBackendStatus(apiUrl: string, apiKey: string): Promise<boolean> {
+    const status = await fetchBackendSyncStatus(apiUrl, apiKey);
+    if (status?.invoice_sync?.current_window_executed) {
+      console.log('[InvoiceSyncerTask] 跳过：后端当前窗口期已成功执行');
+      return false;
+    }
+    return true;
   }
 
   async shouldRunForShop(shop: Shop, api: EuraflowApi): Promise<boolean> {
@@ -446,13 +474,46 @@ class InvoiceSyncerTask implements ShopTask {
 class BalanceSyncerTask implements ShopTask {
   name = '余额同步';
 
+  /**
+   * 检查是否应该执行
+   *
+   * 条件：
+   * 1. 北京时间不早于整点过 15 分（后端整点过 5 分执行）
+   * 2. 后端当前小时未成功执行
+   * 3. 距上次执行超过 1 小时
+   */
   async shouldRun(): Promise<boolean> {
+    // 1. 检查时间限制（北京时间不早于整点过 15 分）
+    const { hour, minute } = getBeijingTime();
+    if (minute < 15) {
+      console.log(`[BalanceSyncerTask] 跳过：当前北京时间 ${hour}:${minute}，早于整点过 15 分`);
+      return false;
+    }
+
+    // 2. 检查间隔
     const result = await chrome.storage.local.get(CACHE_KEYS.BALANCE_SYNCER);
     const lastRunTimestamp = result[CACHE_KEYS.BALANCE_SYNCER];
-    if (!lastRunTimestamp) return true;
+    if (lastRunTimestamp) {
+      const intervalMs = 60 * 60 * 1000; // 1小时
+      if ((Date.now() - lastRunTimestamp) < intervalMs) {
+        console.log('[BalanceSyncerTask] 跳过：距上次执行不足 1 小时');
+        return false;
+      }
+    }
 
-    const intervalMs = 60 * 60 * 1000; // 1小时
-    return (Date.now() - lastRunTimestamp) >= intervalMs;
+    return true;
+  }
+
+  /**
+   * 检查后端状态（在获取 API 配置后调用）
+   */
+  async checkBackendStatus(apiUrl: string, apiKey: string): Promise<boolean> {
+    const status = await fetchBackendSyncStatus(apiUrl, apiKey);
+    if (status?.balance_sync?.current_hour_executed) {
+      console.log('[BalanceSyncerTask] 跳过：后端当前小时已成功执行');
+      return false;
+    }
+    return true;
   }
 
   async run(ctx: TaskContext): Promise<TaskResult> {
@@ -693,14 +754,25 @@ class ShopTaskRunner {
       // 创建 API 客户端
       const api = createEuraflowApi(apiConfig.apiUrl, apiConfig.apiKey);
 
-      // 过滤出需要执行的任务
+      // 过滤出需要执行的任务（两步过滤：本地条件 + 后端状态）
       const tasksToRun: ShopTask[] = [];
       for (const task of this.tasks) {
-        if (await task.shouldRun()) {
-          tasksToRun.push(task);
-        } else {
-          console.log(`[ShopTaskRunner] 跳过任务: ${task.name}`);
+        // 第一步：检查本地条件（时间限制、本地缓存）
+        if (!(await task.shouldRun())) {
+          console.log(`[ShopTaskRunner] 跳过任务: ${task.name}（本地条件不满足）`);
+          continue;
         }
+
+        // 第二步：检查后端状态（后端是否已成功执行）
+        if (task.checkBackendStatus) {
+          const shouldRun = await task.checkBackendStatus(apiConfig.apiUrl, apiConfig.apiKey);
+          if (!shouldRun) {
+            console.log(`[ShopTaskRunner] 跳过任务: ${task.name}（后端已执行）`);
+            continue;
+          }
+        }
+
+        tasksToRun.push(task);
       }
 
       if (tasksToRun.length === 0) {

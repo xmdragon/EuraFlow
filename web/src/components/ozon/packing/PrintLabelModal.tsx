@@ -1,8 +1,14 @@
 /**
  * 打印标签弹窗组件
  * 显示PDF格式的快递面单，并支持包装重量录入
+ *
+ * 快捷操作流程：
+ * 1. 弹窗打开 → 自动聚焦重量输入框
+ * 2. 输入重量 → 按回车 → 自动点击"打印"按钮
+ * 3. 打印后 → "标记已打印"按钮获得焦点
+ * 4. 再次按回车 → 自动执行标记并关闭弹窗
  */
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { Modal, Button, Spin, Table, InputNumber, Tooltip } from "antd";
 import { PrinterOutlined, CopyOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
@@ -46,6 +52,7 @@ const PrintLabelModal: React.FC<PrintLabelModalProps> = ({
   const [weights, setWeights] = useState<Record<string, number | undefined>>({});
   const { copyToClipboard } = useCopy();
   const firstInputRef = useRef<HTMLInputElement>(null);
+  const markPrintedButtonRef = useRef<HTMLButtonElement>(null);
 
   // 弹窗打开时从 posting 读取已有重量，关闭时清空
   useEffect(() => {
@@ -66,10 +73,10 @@ const PrintLabelModal: React.FC<PrintLabelModalProps> = ({
   // 弹窗打开时聚焦第一个重量输入框
   useEffect(() => {
     if (visible && postings.length > 0) {
-      // 延迟聚焦，等待 Modal 和 Table 渲染完成
+      // 延迟聚焦，等待 Modal 和 Table 渲染完成（确认框关闭后需要更长时间）
       const timer = setTimeout(() => {
         firstInputRef.current?.focus();
-      }, 100);
+      }, 300);
       return () => clearTimeout(timer);
     }
   }, [visible, postings.length]);
@@ -180,13 +187,14 @@ const PrintLabelModal: React.FC<PrintLabelModalProps> = ({
           placeholder="必填"
           value={record.weight}
           onChange={(value) => handleWeightChange(record.posting_number, value)}
+          onKeyDown={handleWeightKeyDown}
           style={{ width: 120 }}
         />
       ),
     },
   ];
 
-  const handlePrint = () => {
+  const handlePrint = useCallback(() => {
     if (!allWeightsFilled) return;
 
     // 构建重量数据
@@ -208,7 +216,20 @@ const PrintLabelModal: React.FC<PrintLabelModalProps> = ({
     if (iframe?.contentWindow) {
       iframe.contentWindow.print();
     }
-  };
+
+    // 打印后聚焦到"标记已打印"按钮，方便回车操作
+    setTimeout(() => {
+      markPrintedButtonRef.current?.focus();
+    }, 100);
+  }, [allWeightsFilled, postings, weights, onPrint]);
+
+  // 处理重量输入框的回车事件
+  const handleWeightKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && allWeightsFilled) {
+      e.preventDefault();
+      handlePrint();
+    }
+  }, [allWeightsFilled, handlePrint]);
 
   return (
     <Modal
@@ -240,6 +261,7 @@ const PrintLabelModal: React.FC<PrintLabelModalProps> = ({
           title={!allWeightsFilled ? "请先填写所有货件的包装重量" : undefined}
         >
           <Button
+            ref={markPrintedButtonRef}
             key="mark-printed"
             type="primary"
             onClick={onMarkPrinted}

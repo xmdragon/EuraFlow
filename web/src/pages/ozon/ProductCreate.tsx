@@ -515,11 +515,8 @@ const ProductCreate: React.FC = () => {
    * - 写入上架记录表（类型为 relist）
    */
   // 使用 useRef 保存编辑模式状态，避免 location.state 被清除后丢失
-  const editModeRef = useRef<{
-    isEditMode: boolean;
-    sourceProductId: number | undefined;
-    sourceProductData: ozonApi.Product | undefined;
-  }>(() => {
+  // 注意：useRef 不支持懒初始化函数，直接计算初始值
+  const initialEditState = (() => {
     const state = location.state as {
       editMode?: boolean;
       sourceProductId?: number;
@@ -530,7 +527,12 @@ const ProductCreate: React.FC = () => {
       sourceProductId: state?.sourceProductId,
       sourceProductData: state?.productData,
     };
-  });
+  })();
+  const editModeRef = useRef<{
+    isEditMode: boolean;
+    sourceProductId: number | undefined;
+    sourceProductData: ozonApi.Product | undefined;
+  }>(initialEditState);
 
   // 初始化时保存编辑模式状态（只执行一次）
   if (editModeRef.current === undefined || typeof editModeRef.current === 'function') {

@@ -4,8 +4,7 @@ OZON Web 同步服务
 使用浏览器 Cookie 执行促销清理、账单同步、余额同步任务
 """
 import logging
-from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Optional, List, Dict, Any
 
 from sqlalchemy import select
@@ -14,11 +13,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..models import OzonShop, OzonWebSyncLog, OzonInvoicePayment
 from ..utils.datetime_utils import utcnow
 from .ozon_web_client import (
-    OzonWebClient,
     create_client_from_shop,
     CookieExpiredError,
     CompanyIdMismatchError,
-    OzonWebClientError,
 )
 
 logger = logging.getLogger(__name__)
@@ -366,7 +363,7 @@ class OzonWebSyncService:
         amount_str = amount_str.replace(',', '.').replace(' ', '')
         try:
             amount = Decimal(amount_str)
-        except:
+        except (ValueError, InvalidOperation):
             amount = Decimal(0)
 
         # 解析日期（格式：DD.MM.YYYY）
@@ -377,7 +374,7 @@ class OzonWebSyncService:
                 parts = date_str.strip().split('.')
                 if len(parts) == 3:
                     return date(int(parts[2]), int(parts[1]), int(parts[0]))
-            except:
+            except (ValueError, IndexError):
                 pass
             return None
 

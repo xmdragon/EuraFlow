@@ -9,7 +9,6 @@ import re
 import logging
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
-from datetime import datetime
 
 import httpx
 from bs4 import BeautifulSoup

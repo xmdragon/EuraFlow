@@ -7,8 +7,7 @@ OZON Web 同步日志模型
 from datetime import datetime
 from typing import Optional, Dict, Any
 from sqlalchemy import (
-    BigInteger, String, Text, DateTime, Boolean,
-    ForeignKey, func
+    BigInteger, String, Text, DateTime, ForeignKey, func
 )
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import JSONB

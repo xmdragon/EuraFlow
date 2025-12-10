@@ -227,6 +227,10 @@ const PackingShipment: React.FC = () => {
 
   // 扫描输入框的 ref，用于重新聚焦
   const scanInputRef = React.useRef<InputRef>(null);
+  // 批量打印按钮的 ref，用于回车触发
+  const batchPrintButtonRef = React.useRef<HTMLButtonElement>(null);
+  // 延迟聚焦的 timer ref，用于在打印弹窗打开时取消
+  const delayedFocusTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 图片预览状态
   const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
@@ -283,6 +287,14 @@ const PackingShipment: React.FC = () => {
     // 标签切换时，平滑滚动到顶部
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [operationStatus]);
+
+  // 打印弹窗打开时，取消延迟聚焦的 timer，避免抢夺焦点
+  useEffect(() => {
+    if (showPrintLabelModal && delayedFocusTimerRef.current) {
+      clearTimeout(delayedFocusTimerRef.current);
+      delayedFocusTimerRef.current = null;
+    }
+  }, [showPrintLabelModal]);
 
   // 查询店铺列表（用于显示店铺名称）
   // 使用与 ShopSelector 相同的 queryKey，共享缓存避免重复请求
@@ -886,12 +898,47 @@ const PackingShipment: React.FC = () => {
         setScanHasMore(result.has_more || false);
         setScanOffset(result.data.length); // 下次加载从这里开始
         setScanError('');
+        // 自动全选所有结果
+        setScanSelectedPostings(result.data.map((p: ozonApi.PostingWithOrder) => p.posting_number));
+        // 清空输入框并聚焦到批量打印按钮
+        setScanTrackingNumber('');
+        setIsScanning(false);
+        setTimeout(() => {
+          batchPrintButtonRef.current?.focus();
+        }, 100);
+        // 查询成功：延迟10秒后才聚焦回输入框，给用户时间打印
+        // 如果在此期间打开了打印弹窗，会取消这个 timer
+        if (delayedFocusTimerRef.current) {
+          clearTimeout(delayedFocusTimerRef.current);
+        }
+        delayedFocusTimerRef.current = setTimeout(() => {
+          scanInputRef.current?.focus();
+          delayedFocusTimerRef.current = null;
+        }, 10000);
+        return; // 提前返回
       } else if (result.data && !Array.isArray(result.data)) {
         // 兼容旧版API（返回单个对象），转为数组
         setScanResults([result.data]);
         setScanTotal(1);
         setScanHasMore(false);
         setScanError('');
+        // 自动全选
+        setScanSelectedPostings([result.data.posting_number]);
+        // 清空输入框并聚焦到批量打印按钮
+        setScanTrackingNumber('');
+        setIsScanning(false);
+        setTimeout(() => {
+          batchPrintButtonRef.current?.focus();
+        }, 100);
+        // 查询成功：延迟10秒后才聚焦回输入框
+        if (delayedFocusTimerRef.current) {
+          clearTimeout(delayedFocusTimerRef.current);
+        }
+        delayedFocusTimerRef.current = setTimeout(() => {
+          scanInputRef.current?.focus();
+          delayedFocusTimerRef.current = null;
+        }, 10000);
+        return; // 提前返回
       } else {
         setScanResults([]);
         setScanError('未找到对应的订单');
@@ -899,15 +946,13 @@ const PackingShipment: React.FC = () => {
     } catch (_error: unknown) {
       setScanResults([]);
       setScanError(`查询失败: ${(_error as { response?: { data?: { error?: { title?: string } } }; message?: string })?.response?.data?.error?.title || (_error as { message?: string })?.message}`);
-    } finally {
-      // 无论成功失败都清空输入框
-      setScanTrackingNumber('');
-      setIsScanning(false);
-      // 重新聚焦到输入框，方便下次扫描
-      setTimeout(() => {
-        scanInputRef.current?.focus();
-      }, 100);
     }
+    // 查询失败或无结果：立即聚焦回输入框
+    setScanTrackingNumber('');
+    setIsScanning(false);
+    setTimeout(() => {
+      scanInputRef.current?.focus();
+    }, 100);
   };
 
   // 扫描结果加载更多
@@ -1426,6 +1471,7 @@ const PackingShipment: React.FC = () => {
                     {scanSelectedPostings.length === filteredScanResults.length && filteredScanResults.length > 0 ? '取消全选' : '全选'}
                   </Button>
                   <Button
+                    ref={batchPrintButtonRef}
                     type="primary"
                     icon={<PrinterOutlined />}
                     loading={isPrinting}

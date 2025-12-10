@@ -1085,7 +1085,7 @@ async def split_posting(
     """
     from ..api.client import OzonAPIClient
     from ..models import OzonShop
-    from ..services.posting_processor import PostingProcessor
+    from ..services.sync.order_sync.posting_processor import PostingProcessor
 
     try:
         # 1. 查找原始 posting
