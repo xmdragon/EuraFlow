@@ -107,6 +107,18 @@ class User(Base):
         comment="当前活跃会话令牌"
     )
 
+    # OZON 浏览器 Session（用户登录 OZON 后可以切换多个店铺，所以存储在用户级别）
+    ozon_session_enc: Mapped[Optional[str]] = mapped_column(
+        String,
+        nullable=True,
+        comment="加密的 OZON 浏览器 Cookie JSON"
+    )
+    ozon_session_updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="浏览器 Cookie 更新时间"
+    )
+
     # 店铺关联
     # 注意：外键已迁移为指向 ozon_shops.id（详见迁移脚本 20251023_1810_ec18764825d6）
     primary_shop_id: Mapped[Optional[int]] = mapped_column(

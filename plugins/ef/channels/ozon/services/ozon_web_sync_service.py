@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..models import OzonShop, OzonWebSyncLog, OzonInvoicePayment
 from ..utils.datetime_utils import utcnow
 from .ozon_web_client import (
-    create_client_from_shop,
+    create_client_from_session,
     CookieExpiredError,
     CompanyIdMismatchError,
 )
@@ -61,8 +61,22 @@ class OzonWebSyncService:
         log.details = details
         await self.db.commit()
 
-    async def _get_shops_with_session(self) -> List[OzonShop]:
-        """获取有 Cookie 的店铺列表"""
+    async def _get_user_session(self) -> Optional[str]:
+        """获取用户的 OZON Session Cookie"""
+        from ef_core.models.users import User
+
+        user_result = await self.db.execute(
+            select(User).where(User.id == self.user_id)
+        )
+        user = user_result.scalar_one_or_none()
+
+        if not user or not user.ozon_session_enc:
+            return None
+
+        return user.ozon_session_enc
+
+    async def _get_shops_for_user(self) -> List[OzonShop]:
+        """获取用户关联的店铺列表"""
         from ef_core.models.users import user_shops as user_shops_table, User
 
         # 获取用户信息
@@ -76,17 +90,13 @@ class OzonWebSyncService:
 
         # 根据用户角色获取店铺
         if user.role == "admin":
-            stmt = select(OzonShop).where(
-                OzonShop.status == "active",
-                OzonShop.ozon_session_enc.isnot(None),
-            )
+            stmt = select(OzonShop).where(OzonShop.status == "active")
         else:
             stmt = select(OzonShop).join(
                 user_shops_table, OzonShop.id == user_shops_table.c.shop_id
             ).where(
                 user_shops_table.c.user_id == self.user_id,
                 OzonShop.status == "active",
-                OzonShop.ozon_session_enc.isnot(None),
             )
 
         result = await self.db.execute(stmt)
@@ -103,18 +113,25 @@ class OzonWebSyncService:
         清理所有店铺的促销活动中待自动拉入的商品
         """
         log = await self._create_log("promo_cleaner")
-        shops = await self._get_shops_with_session()
 
+        # 检查用户是否有 Cookie
+        session_json = await self._get_user_session()
+        if not session_json:
+            await self._complete_log(log, "skipped", error_message="用户没有上传 OZON Cookie")
+            return {"success": False, "message": "用户没有上传 OZON Cookie"}
+
+        # 获取用户关联的店铺
+        shops = await self._get_shops_for_user()
         if not shops:
-            await self._complete_log(log, "skipped", error_message="没有有效的店铺或 Cookie")
-            return {"success": False, "message": "没有有效的店铺或 Cookie"}
+            await self._complete_log(log, "skipped", error_message="没有关联的店铺")
+            return {"success": False, "message": "没有关联的店铺"}
 
         results = []
         success_count = 0
         failed_count = 0
 
         for shop in shops:
-            shop_result = await self._sync_promo_cleaner_for_shop(shop)
+            shop_result = await self._sync_promo_cleaner_for_shop(shop, session_json)
             results.append(shop_result)
 
             if shop_result["success"]:
@@ -139,9 +156,11 @@ class OzonWebSyncService:
             "results": results,
         }
 
-    async def _sync_promo_cleaner_for_shop(self, shop: OzonShop) -> Dict[str, Any]:
+    async def _sync_promo_cleaner_for_shop(
+        self, shop: OzonShop, session_json: str
+    ) -> Dict[str, Any]:
         """为单个店铺执行促销清理"""
-        client = await create_client_from_shop(shop)
+        client = await create_client_from_session(session_json, shop.client_id)
         if not client:
             return {
                 "shop_id": shop.id,
@@ -251,18 +270,25 @@ class OzonWebSyncService:
         同步所有店铺的账单付款数据
         """
         log = await self._create_log("invoice_sync")
-        shops = await self._get_shops_with_session()
 
+        # 检查用户是否有 Cookie
+        session_json = await self._get_user_session()
+        if not session_json:
+            await self._complete_log(log, "skipped", error_message="用户没有上传 OZON Cookie")
+            return {"success": False, "message": "用户没有上传 OZON Cookie"}
+
+        # 获取用户关联的店铺
+        shops = await self._get_shops_for_user()
         if not shops:
-            await self._complete_log(log, "skipped", error_message="没有有效的店铺或 Cookie")
-            return {"success": False, "message": "没有有效的店铺或 Cookie"}
+            await self._complete_log(log, "skipped", error_message="没有关联的店铺")
+            return {"success": False, "message": "没有关联的店铺"}
 
         results = []
         success_count = 0
         failed_count = 0
 
         for shop in shops:
-            shop_result = await self._sync_invoice_payments_for_shop(shop)
+            shop_result = await self._sync_invoice_payments_for_shop(shop, session_json)
             results.append(shop_result)
 
             if shop_result["success"]:
@@ -287,9 +313,11 @@ class OzonWebSyncService:
             "results": results,
         }
 
-    async def _sync_invoice_payments_for_shop(self, shop: OzonShop) -> Dict[str, Any]:
+    async def _sync_invoice_payments_for_shop(
+        self, shop: OzonShop, session_json: str
+    ) -> Dict[str, Any]:
         """为单个店铺同步账单"""
-        client = await create_client_from_shop(shop)
+        client = await create_client_from_session(session_json, shop.client_id)
         if not client:
             return {
                 "shop_id": shop.id,
@@ -476,18 +504,25 @@ class OzonWebSyncService:
         同步所有店铺的账户余额
         """
         log = await self._create_log("balance_sync")
-        shops = await self._get_shops_with_session()
 
+        # 检查用户是否有 Cookie
+        session_json = await self._get_user_session()
+        if not session_json:
+            await self._complete_log(log, "skipped", error_message="用户没有上传 OZON Cookie")
+            return {"success": False, "message": "用户没有上传 OZON Cookie"}
+
+        # 获取用户关联的店铺
+        shops = await self._get_shops_for_user()
         if not shops:
-            await self._complete_log(log, "skipped", error_message="没有有效的店铺或 Cookie")
-            return {"success": False, "message": "没有有效的店铺或 Cookie"}
+            await self._complete_log(log, "skipped", error_message="没有关联的店铺")
+            return {"success": False, "message": "没有关联的店铺"}
 
         results = []
         success_count = 0
         failed_count = 0
 
         for shop in shops:
-            shop_result = await self._sync_balance_for_shop(shop)
+            shop_result = await self._sync_balance_for_shop(shop, session_json)
             results.append(shop_result)
 
             if shop_result["success"]:
@@ -512,9 +547,11 @@ class OzonWebSyncService:
             "results": results,
         }
 
-    async def _sync_balance_for_shop(self, shop: OzonShop) -> Dict[str, Any]:
+    async def _sync_balance_for_shop(
+        self, shop: OzonShop, session_json: str
+    ) -> Dict[str, Any]:
         """为单个店铺同步余额"""
-        client = await create_client_from_shop(shop)
+        client = await create_client_from_session(session_json, shop.client_id)
         if not client:
             return {
                 "shop_id": shop.id,

@@ -1125,48 +1125,38 @@ async def upload_session(
     }
     cookies_json = json.dumps(cookies_data, ensure_ascii=False)
 
-    # 获取用户关联的所有店铺
-    from ef_core.models.users import user_shops as user_shops_table
+    # 直接更新用户的 Cookie（用户登录 OZON 后可以切换多个店铺）
+    from ef_core.models.users import User
 
-    if api_key_user.role == "admin":
-        stmt = select(OzonShop).where(OzonShop.status == "active")
-    else:
-        stmt = select(OzonShop).join(
-            user_shops_table, OzonShop.id == user_shops_table.c.shop_id
-        ).where(
-            user_shops_table.c.user_id == api_key_user.id,
-            OzonShop.status == "active"
+    stmt = select(User).where(User.id == api_key_user.id)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "USER_NOT_FOUND",
+                "message": "用户不存在"
+            }
         )
 
-    result = await db.execute(stmt)
-    shops = result.scalars().all()
-
-    if not shops:
-        return {
-            "success": True,
-            "message": "没有关联的店铺，Cookie 未存储",
-            "shops_updated": 0
-        }
-
-    # 更新所有店铺的 Cookie
-    # 注意：这里简化处理，所有店铺共享同一份 Cookie
-    # 实际 OZON 通过 sc_company_id Cookie 切换店铺
-    updated_count = 0
-    for shop in shops:
-        shop.ozon_session_enc = cookies_json  # TODO: 加密存储
-        shop.ozon_session_updated_at = utcnow()
-        updated_count += 1
+    # 更新用户的 OZON Session
+    user.ozon_session_enc = cookies_json  # TODO: 加密存储
+    user.ozon_session_updated_at = utcnow()
 
     await db.commit()
 
     logger.info(
-        f"Session uploaded for user {api_key_user.id}, updated {updated_count} shops"
+        f"Session uploaded for user {api_key_user.id} ({api_key_user.username})"
     )
 
     return {
-        "success": True,
-        "message": f"Cookie 已更新到 {updated_count} 个店铺",
-        "shops_updated": updated_count
+        "ok": True,
+        "data": {
+            "message": f"Cookie 已保存到用户 {api_key_user.username}",
+            "shops_updated": 1  # 保持接口兼容
+        }
     }
 
 

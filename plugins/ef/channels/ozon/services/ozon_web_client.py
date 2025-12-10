@@ -434,21 +434,21 @@ class OzonWebClient:
         return None
 
 
-async def create_client_from_shop(shop) -> Optional[OzonWebClient]:
+async def create_client_from_session(
+    session_json: str, target_client_id: str
+) -> Optional[OzonWebClient]:
     """
-    从店铺对象创建 Web 客户端
+    从 Session JSON 创建 Web 客户端
 
     Args:
-        shop: OzonShop 对象
+        session_json: 用户存储的 Session JSON 字符串
+        target_client_id: 目标店铺的 client_id
 
     Returns:
-        OzonWebClient 或 None（如果没有 Cookie）
+        OzonWebClient 或 None（如果解析失败）
     """
-    if not shop.ozon_session_enc:
-        return None
-
     try:
-        session_data = json.loads(shop.ozon_session_enc)
+        session_data = json.loads(session_json)
         cookies = session_data.get("cookies", [])
         user_agent = session_data.get("user_agent", OzonWebClient.DEFAULT_HEADERS["User-Agent"])
 
@@ -458,10 +458,26 @@ async def create_client_from_shop(shop) -> Optional[OzonWebClient]:
         config = OzonWebClientConfig(
             cookies=cookies,
             user_agent=user_agent,
-            target_client_id=shop.client_id,
+            target_client_id=target_client_id,
         )
 
         return OzonWebClient(config)
     except json.JSONDecodeError:
-        logger.error(f"解析店铺 {shop.id} 的 Cookie 失败")
+        logger.error("解析 Session JSON 失败")
         return None
+
+
+async def create_client_from_shop(shop) -> Optional[OzonWebClient]:
+    """
+    从店铺对象创建 Web 客户端（已废弃，Cookie 现在存储在用户表）
+
+    Args:
+        shop: OzonShop 对象
+
+    Returns:
+        OzonWebClient 或 None（如果没有 Cookie）
+    """
+    if not hasattr(shop, 'ozon_session_enc') or not shop.ozon_session_enc:
+        return None
+
+    return await create_client_from_session(shop.ozon_session_enc, shop.client_id)

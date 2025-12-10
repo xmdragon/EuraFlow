@@ -486,6 +486,17 @@
   }
 }
 
+// 斑马线效果（按货件交替）
+.zebraRow {
+  td {
+    background-color: #fafafa !important;
+  }
+
+  &:hover td {
+    background-color: #e6f4ff !important;
+  }
+}
+
 // 逾期订单行（超过10天）淡红色背景
 .overdueRow {
   td {
@@ -493,7 +504,7 @@
   }
 
   &:hover td {
-    background-color: #ffccc7 !important;
+    background-color: #e6f4ff !important;
   }
 }
 

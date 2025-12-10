@@ -36,6 +36,7 @@ interface ScanResultItemRow {
   posting: ozonApi.PostingWithOrder;
   isFirstItem: boolean;
   itemCount: number;
+  postingIndex: number; // 货件在列表中的索引（用于斑马线效果）
 }
 
 interface ScanResultTableProps {
@@ -78,7 +79,7 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
   const scanItemRows = useMemo<ScanResultItemRow[]>(() => {
     const rows: ScanResultItemRow[] = [];
 
-    scanResults.forEach((posting) => {
+    scanResults.forEach((posting, postingIndex) => {
       const items = posting.products || [];
       const itemCount = items.length;
 
@@ -91,6 +92,7 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
           posting: posting,
           isFirstItem: true,
           itemCount: 1,
+          postingIndex,
         });
       } else {
         // 为每个商品创建一行
@@ -102,6 +104,7 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
             posting: posting,
             isFirstItem: index === 0,
             itemCount: itemCount,
+            postingIndex,
           });
         });
       }
@@ -123,9 +126,19 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
         } as React.CSSProperties
       }
       className={styles.scanResultTable}
-      rowClassName={(row: ScanResultItemRow) =>
-        isOrderOverdue(row.posting.in_process_at) ? styles.overdueRow : ''
-      }
+      rowClassName={(row: ScanResultItemRow) => {
+        const classes: string[] = [];
+        // 斑马线效果：按货件索引奇偶交替（动态查找索引，确保滚动加载后仍正确）
+        const postingIdx = scanResults.findIndex(p => p.posting_number === row.posting.posting_number);
+        if (postingIdx % 2 === 1) {
+          classes.push(styles.zebraRow);
+        }
+        // 逾期订单高亮
+        if (isOrderOverdue(row.posting.in_process_at)) {
+          classes.push(styles.overdueRow);
+        }
+        return classes.join(' ');
+      }}
       rowSelection={
         canOperate
           ? {
@@ -388,7 +401,7 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
             const opStatusCfg = operationStatusConfig[posting.operation_status];
 
             // 解析配送方式，提取括号前和括号内的内容
-            const deliveryMethod = posting.delivery_method || "";
+            const deliveryMethod = posting.delivery_method_name || "";
             const match = deliveryMethod.match(/^(.+?)[（(](.+?)[）)]$/);
             const mainText = match ? match[1].trim() : deliveryMethod;
             const detailText = match ? match[2].trim() : "";

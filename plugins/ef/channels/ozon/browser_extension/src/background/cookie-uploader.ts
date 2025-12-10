@@ -132,6 +132,12 @@ class CookieUploader {
       // 记录上传时间
       await chrome.storage.local.set({ [CACHE_KEY]: Date.now() });
 
+      // 使用后端返回的消息（新版）或兼容旧版格式
+      const serverMessage = result.data?.message;
+      if (serverMessage) {
+        return { success: true, message: serverMessage };
+      }
+      // 兼容旧版返回格式
       const shopsUpdated = result.data?.shops_updated || 0;
       return { success: true, message: `成功上传，更新 ${shopsUpdated} 个店铺` };
 

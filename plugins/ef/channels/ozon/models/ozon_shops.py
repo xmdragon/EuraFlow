@@ -126,18 +126,7 @@ class OzonShop(Base):
         comment="余额更新时间"
     )
 
-    # 浏览器 Session 存储（用于后端访问 OZON 页面）
-    ozon_session_enc: Mapped[Optional[str]] = mapped_column(
-        Text,
-        nullable=True,
-        comment="加密的 OZON 浏览器 Cookie JSON"
-    )
-
-    ozon_session_updated_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
-        comment="浏览器 Cookie 更新时间"
-    )
+    # 注意：浏览器 Session Cookie 存储在 users 表，因为一个用户登录后可以切换多个店铺
 
     # 关系
     owner = relationship("User", backref="ozon_shops", foreign_keys=[owner_user_id])
