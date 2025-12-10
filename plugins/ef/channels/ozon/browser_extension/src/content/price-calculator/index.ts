@@ -6,7 +6,7 @@
 
 import { calculateRealPrice } from './calculator';
 import { injectCompleteDisplay, updatePriceDisplay, updateFollowSellerData, updateCategoryData, updateRatingData, updateDimensionsData, updateButtonsWithConfig, updateDataLoadingStatus } from './display';
-import { extractProductData, fetchFollowSellerData } from '../parsers/product-detail';
+import { extractProductData, extractProductDataFast, fetchFollowSellerData } from '../parsers/product-detail';
 
 /**
  * 预加载数据类型
@@ -175,26 +175,51 @@ export class RealPriceCalculator {
         type: 'GET_CONFIG_PREFETCH'
       }).catch(() => ({ success: false, data: null }));
 
-      // 3. 只等待 SPB 数据 + DOM 稳定，立即注入
-      const [spbSalesResponse, _domReady] = await Promise.all([
+      // 3. 并行获取：SPB 数据 + 快速价格数据 + DOM 稳定
+      // 快速价格数据只调用一次 API，不获取完整变体，速度很快
+      const fastDataPromise = extractProductDataFast().catch(() => ({
+        baseData: null, apiResponse: null, productSku: null, productSlug: null
+      }));
+
+      const [spbSalesResponse, fastData, _domReady] = await Promise.all([
         spbSalesPromise,
+        fastDataPromise,
         this.waitForContainerReady()
       ]);
 
       const spbSalesData = spbSalesResponse?.success ? spbSalesResponse.data : null;
+      const { baseData: fastBaseData, apiResponse, productSlug } = fastData;
 
-      // 4. 立即注入组件，真实售价显示 ---，等异步数据完整后再更新
+      // 4. 计算真实售价（如果快速数据获取成功）
+      let realPrice: number | null = null;
+      let greenPrice: number | null = null;
+      let blackPrice: number | null = null;
+      if (fastBaseData) {
+        greenPrice = (fastBaseData.cardPrice ?? 0) > 0 ? fastBaseData.cardPrice : null;
+        blackPrice = (fastBaseData.price ?? 0) > 0 ? fastBaseData.price : null;
+        if (blackPrice !== null) {
+          const result = calculateRealPrice(greenPrice, blackPrice, '¥');
+          realPrice = result.realPrice;
+        }
+      }
+
+      // 5. 立即注入组件，真实售价已计算好
       await injectCompleteDisplay({
-        message: '---',
-        price: null,
-        ozonProduct: null,
+        message: realPrice !== null ? `${realPrice.toFixed(2)}¥` : '---',
+        price: realPrice,
+        ozonProduct: fastBaseData,
         spbSales: spbSalesData,
         euraflowConfig: null,
         productId  // SKU（从 URL 提取的商品ID）
       });
 
-      // 6. 异步加载所有其他数据并更新组件
-      this.loadAsyncData(productId, spbSalesData, configPromise);
+      // 6. 如果有快速价格数据，立即更新价格显示
+      if (fastBaseData && blackPrice !== null) {
+        updatePriceDisplay(greenPrice, blackPrice, realPrice);
+      }
+
+      // 7. 异步加载完整数据（变体、尺寸、描述等）并更新组件
+      this.loadAsyncData(productId, spbSalesData, configPromise, apiResponse, productSlug, fastBaseData);
 
     } catch (error) {
       console.error('[EuraFlow] 初始化失败:', error);
@@ -204,14 +229,17 @@ export class RealPriceCalculator {
   /**
    * 异步加载数据并更新组件
    * 加载顺序：
-   * 1. 基础 API（价格/图片）+ 配置
+   * 1. 基础 API（价格/图片）+ 配置 - 已在 init 中完成
    * 2. 完整变体数据（Modal API）→ 显示跟卖按钮
    * 3. 其他数据（Page2 描述/特征、尺寸）→ 后台继续
    */
   private loadAsyncData(
     productId: string,
     spbSalesData: any,
-    configPromise: Promise<any>
+    configPromise: Promise<any>,
+    _apiResponse?: any,
+    _productSlug?: string | null,
+    fastBaseData?: any
   ): void {
     // 使用原有的完整提取逻辑（包含完整变体数据）
     const ozonDataPromise = extractProductData().catch(err => {
@@ -219,41 +247,37 @@ export class RealPriceCalculator {
       return null;
     });
 
-    // 配置和OZON数据加载完成后：更新真实售价、评分、尺寸、按钮
+    // 配置和OZON数据加载完成后：更新评分、尺寸、按钮
+    // 价格已在 init 中通过快速 API 更新，这里不再重复更新
     Promise.all([configPromise, ozonDataPromise]).then(([configResponse, ozonProduct]) => {
       const euraflowConfig = configResponse?.success ? configResponse.data : null;
 
-      if (ozonProduct) {
-        // 1. 先计算并更新价格显示
-        const greenPrice = (ozonProduct.cardPrice ?? 0) > 0 ? ozonProduct.cardPrice : null;
-        const blackPrice = (ozonProduct.price ?? 0) > 0 ? ozonProduct.price : null;
-        if (blackPrice !== null) {
-          const { realPrice } = calculateRealPrice(greenPrice, blackPrice, '¥');
-          updatePriceDisplay(greenPrice, blackPrice, realPrice);
-        }
+      // 使用完整数据或快速数据
+      const finalOzonProduct = ozonProduct || fastBaseData;
 
-        // 2. 更新评分
+      if (finalOzonProduct) {
+        // 1. 更新评分
         const ratingData = extractRatingFromJsonLd();
         if (ratingData.rating !== null || ratingData.reviewCount !== null) {
           updateRatingData(ratingData.rating, ratingData.reviewCount);
         }
 
-        // 3. 更新尺寸和重量
-        if (ozonProduct.dimensions) {
-          updateDimensionsData(ozonProduct.dimensions, spbSalesData);
+        // 2. 更新尺寸和重量
+        if (finalOzonProduct.dimensions) {
+          updateDimensionsData(finalOzonProduct.dimensions, spbSalesData);
         }
 
         // ✅ 基础数据加载完成（变体图片、规格、价格已就绪）
         // 跟卖按钮可以使用了
         updateDataLoadingStatus({ basicDataReady: true });
 
-        // 4. 获取类目数据
+        // 3. 获取类目数据
         chrome.runtime.sendMessage({
           type: 'FETCH_ALL_PRODUCT_DATA',
           data: {
             url: window.location.href,
             productSku: productId,
-            productDetail: ozonProduct,
+            productDetail: finalOzonProduct,
             ratingData: ratingData,
             spbSalesData: spbSalesData,
             followSellerData: null
@@ -265,14 +289,14 @@ export class RealPriceCalculator {
         }).catch(() => {});
       }
 
-      // 5. 更新按钮（此时变体数据已完整）
-      if (euraflowConfig || ozonProduct) {
-        updateButtonsWithConfig(euraflowConfig, ozonProduct, spbSalesData);
+      // 4. 更新按钮（此时变体数据已完整）
+      if (euraflowConfig || finalOzonProduct) {
+        updateButtonsWithConfig(euraflowConfig, finalOzonProduct, spbSalesData);
       }
 
       // ✅ 所有数据加载完成（包括配置）
       // 采集按钮可以使用了
-      if (ozonProduct && euraflowConfig) {
+      if (finalOzonProduct && euraflowConfig) {
         updateDataLoadingStatus({ allDataReady: true });
       }
     }).catch(() => {});

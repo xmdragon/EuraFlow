@@ -5,11 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && BUILD_MODE=production vite build",
-    "build:debug": "tsc && BUILD_MODE=debug vite build",
+    "build": "tsc && BUILD_MODE=production vite build && npm run pack",
+    "build:debug": "tsc && BUILD_MODE=debug vite build && npm run pack:debug",
     "build:dev": "tsc && vite build",
     "preview": "vite preview",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "pack": "rm -f ../../../../../web/public/downloads/euraflow.zip && cd dist && zip -r ../../../../../../web/public/downloads/euraflow.zip manifest.json service-worker-loader.js assets/ src/ -x '*.map'",
+    "pack:debug": "rm -f ../../../../../web/public/downloads/euraflow-debug.zip && cd dist && zip -r ../../../../../../web/public/downloads/euraflow-debug.zip manifest.json service-worker-loader.js assets/ src/ -x '*.map'"
   },
   "dependencies": {
     "react": "^18.2.0",

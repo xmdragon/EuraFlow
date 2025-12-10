@@ -638,12 +638,9 @@ export const useProductSelection = (): UseProductSelectionReturn => {
       if (result.success) {
         notifySuccess('标记成功', `成功标记 ${result.marked_count} 个商品为已读`);
 
-        if (searchParams.is_read === false) {
-          setAllProducts((prev) => prev.filter((p) => !selectedProductIds.has(p.id)));
-        }
-
+        // 从当前显示列表中移除已标记的商品（无论 is_read 筛选条件）
+        setAllProducts((prev) => prev.filter((p) => !selectedProductIds.has(p.id)));
         setSelectedProductIds(new Set());
-        refetchProducts();
       } else {
         notifyError('标记失败', '标记失败');
       }

@@ -10,6 +10,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from ef_core.services.auth_service import get_auth_service
 from ef_core.services.api_key_service import get_api_key_service
 from ef_core.services.audit_service import AuditService
+from ef_core.services.captcha_service import get_captcha_service
 from ef_core.database import get_async_session, get_db_manager
 from ef_core.models.users import User, UserSettings
 from ef_core.utils.logger import get_logger
@@ -33,6 +34,7 @@ class LoginRequest(BaseModel):
     """登录请求"""
     username: str = Field(..., description="邮箱或用户名")
     password: str = Field(..., description="密码")
+    captcha_token: Optional[str] = Field(None, description="滑块验证码 token")
 
 
 class TokenResponse(BaseModel):
@@ -341,10 +343,32 @@ async def login(
     用户登录
 
     - 支持邮箱或用户名登录
+    - 需要先通过滑块验证码验证
     - 返回访问令牌和刷新令牌
     - 实施登录限流（5次/分钟）
     - 单设备登录：新设备登录会踢出旧设备
     """
+    # 验证滑块验证码 token
+    if not login_request.captcha_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "CAPTCHA_REQUIRED",
+                "message": "请先完成滑块验证"
+            }
+        )
+
+    captcha_service = get_captcha_service()
+    is_valid = await captcha_service.validate_token(login_request.captcha_token)
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "CAPTCHA_INVALID",
+                "message": "验证码已过期或无效，请重新验证"
+            }
+        )
+
     auth_service = get_auth_service()
 
     # 获取客户端信息
@@ -1276,3 +1300,77 @@ async def admin_reset_user_password(
     )
 
     return None
+
+
+# ========== 滑块验证码端点 ==========
+
+class CaptchaResponse(BaseModel):
+    """验证码响应"""
+    captcha_id: str
+    bg_url: str
+    puzzle_url: str
+    y: int
+
+
+class CaptchaVerifyRequest(BaseModel):
+    """验证码验证请求"""
+    captcha_id: str = Field(..., description="验证码 ID")
+    x: int = Field(..., description="用户滑动的 X 坐标")
+    duration: Optional[int] = Field(None, description="滑动耗时（毫秒）")
+    trail: Optional[list] = Field(None, description="滑动轨迹")
+
+
+class CaptchaVerifyResponse(BaseModel):
+    """验证码验证响应"""
+    success: bool
+    token: Optional[str] = None
+    message: Optional[str] = None
+
+
+@router.get("/captcha", response_model=CaptchaResponse)
+async def create_captcha():
+    """
+    创建滑块验证码
+
+    返回背景图、拼图块和拼图 Y 坐标
+    """
+    try:
+        captcha_service = get_captcha_service()
+        result = await captcha_service.create_captcha()
+        return CaptchaResponse(**result)
+    except Exception as e:
+        logger.error(f"创建验证码失败: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "CAPTCHA_ERROR",
+                "message": "创建验证码失败，请刷新重试"
+            }
+        )
+
+
+@router.post("/captcha/verify", response_model=CaptchaVerifyResponse)
+async def verify_captcha(request: CaptchaVerifyRequest):
+    """
+    验证滑块位置
+
+    验证成功后返回 token，用于登录时提交
+    """
+    try:
+        captcha_service = get_captcha_service()
+        result = await captcha_service.verify_captcha(
+            captcha_id=request.captcha_id,
+            x=request.x,
+            duration=request.duration,
+            trail=request.trail
+        )
+        return CaptchaVerifyResponse(**result)
+    except Exception as e:
+        logger.error(f"验证码验证失败: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "CAPTCHA_ERROR",
+                "message": "验证失败，请刷新重试"
+            }
+        )

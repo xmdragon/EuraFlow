@@ -235,6 +235,27 @@ class AuthService {
     // }
     // console.groupEnd();
   }
+
+  // 滑块验证码相关
+  async getCaptcha(): Promise<{
+    captcha_id: string;
+    bg_url: string;
+    puzzle_url: string;
+    y: number;
+  }> {
+    const response = await axios.get(`${API_BASE_URL}/auth/captcha`);
+    return response.data;
+  }
+
+  async verifyCaptcha(data: {
+    captcha_id: string;
+    x: number;
+    duration?: number;
+    trail?: number[][];
+  }): Promise<{ success: boolean; token?: string; message?: string }> {
+    const response = await axios.post(`${API_BASE_URL}/auth/captcha/verify`, data);
+    return response.data;
+  }
 }
 
 export const authService = new AuthService();

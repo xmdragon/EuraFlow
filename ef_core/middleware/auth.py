@@ -23,6 +23,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
         "/openapi.json",
         "/api/ef/v1/auth/login",
         "/api/ef/v1/auth/refresh",
+        "/api/ef/v1/auth/captcha",  # 滑块验证码
+        "/api/ef/v1/auth/captcha/verify",  # 验证码验证
         "/api/ef/v1/ozon/webhook"  # Ozon webhook回调端点
     }
 
