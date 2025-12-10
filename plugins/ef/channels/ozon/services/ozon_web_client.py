@@ -3,6 +3,8 @@ OZON Web 客户端服务
 
 使用浏览器 Cookie 直接访问 OZON 卖家中心页面，
 实现促销清理、账单同步、余额同步等功能。
+
+使用 curl_cffi 模拟 Chrome 浏览器的 TLS 指纹，绕过 OZON 的反爬虫检测。
 """
 import json
 import re
@@ -10,7 +12,7 @@ import logging
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 
-import httpx
+from curl_cffi.requests import AsyncSession
 from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
@@ -39,11 +41,17 @@ class CompanyIdMismatchError(OzonWebClientError):
     pass
 
 
+class AntibotDetectedError(OzonWebClientError):
+    """检测到反爬虫挑战"""
+    pass
+
+
 class OzonWebClient:
     """
     OZON Web 客户端
 
     使用浏览器 Cookie 访问 OZON 卖家中心页面，执行同步任务。
+    使用 curl_cffi 模拟 Chrome 浏览器的 TLS 指纹。
     """
 
     BASE_URL = "https://seller.ozon.ru"
@@ -76,7 +84,8 @@ class OzonWebClient:
 
     def __init__(self, config: OzonWebClientConfig):
         self.config = config
-        self._client: Optional[httpx.AsyncClient] = None
+        self._session: Optional[AsyncSession] = None
+        self._headers: Optional[Dict[str, str]] = None
 
     async def __aenter__(self):
         """进入上下文"""
@@ -89,33 +98,29 @@ class OzonWebClient:
 
     async def _create_client(self):
         """创建 HTTP 客户端"""
-        # 构建 Cookie 字符串
+        # 构建 Cookie 字符串（排除 sc_company_id，因为我们要强制设置为目标店铺）
         cookie_str = "; ".join(
             f"{c['name']}={c['value']}" for c in self.config.cookies
+            if c['name'] != 'sc_company_id'
         )
 
-        # 设置 sc_company_id 以切换到目标店铺
-        if not any(c['name'] == 'sc_company_id' for c in self.config.cookies):
-            cookie_str += f"; sc_company_id={self.config.target_client_id}"
+        # 强制设置 sc_company_id 为目标店铺（即使 cookies 中已有也覆盖）
+        cookie_str += f"; sc_company_id={self.config.target_client_id}"
 
-        headers = {
+        self._headers = {
             **self.DEFAULT_HEADERS,
             "User-Agent": self.config.user_agent,
             "Cookie": cookie_str,
         }
 
-        self._client = httpx.AsyncClient(
-            base_url=self.BASE_URL,
-            headers=headers,
-            timeout=30.0,
-            follow_redirects=True,
-        )
+        # 使用 curl_cffi 模拟 Chrome 浏览器
+        self._session = AsyncSession(impersonate="chrome131")
 
     async def close(self):
         """关闭客户端"""
-        if self._client:
-            await self._client.aclose()
-            self._client = None
+        if self._session:
+            await self._session.close()
+            self._session = None
 
     def _extract_company_id_from_html(self, html: str) -> Optional[str]:
         """
@@ -183,6 +188,16 @@ class OzonWebClient:
         ]
         return any(indicator in html for indicator in login_indicators)
 
+    def _check_antibot(self, html: str, status_code: int) -> bool:
+        """检查是否触发反爬虫挑战"""
+        if status_code == 403:
+            return True
+        if 'antibot' in html.lower():
+            return True
+        if 'Antibot Challenge Page' in html:
+            return True
+        return False
+
     async def _validate_company_id(self, html: str) -> None:
         """验证页面的 company_id 是否与目标一致"""
         page_company_id = self._extract_company_id_from_html(html)
@@ -204,14 +219,21 @@ class OzonWebClient:
         Raises:
             CookieExpiredError: Cookie 已过期
             CompanyIdMismatchError: company_id 不匹配
+            AntibotDetectedError: 触发反爬虫挑战
         """
-        if not self._client:
+        if not self._session:
             await self._create_client()
 
-        response = await self._client.get(path)
-        response.raise_for_status()
+        url = f"{self.BASE_URL}{path}"
+        response = await self._session.get(url, headers=self._headers, timeout=30)
 
         html = response.text
+
+        # 检查是否触发反爬虫
+        if self._check_antibot(html, response.status_code):
+            raise AntibotDetectedError(
+                f"触发 OZON 反爬虫挑战 (status={response.status_code})"
+            )
 
         # 检查是否需要登录
         if self._check_login_required(html):
@@ -241,23 +263,40 @@ class OzonWebClient:
         Returns:
             JSON 响应
         """
-        if not self._client:
+        if not self._session:
             await self._create_client()
 
-        # 设置 API 请求头
+        url = f"{self.BASE_URL}{path}"
+
+        # 合并 API 请求头
         headers = {
+            **self._headers,
             **self.API_HEADERS,
             "x-o3-company-id": self.config.target_client_id,
         }
 
         if method.upper() == "GET":
-            response = await self._client.get(path, params=params, headers=headers)
+            response = await self._session.get(
+                url, params=params, headers=headers, timeout=30
+            )
         elif method.upper() == "POST":
-            response = await self._client.post(path, json=json_data, params=params, headers=headers)
+            response = await self._session.post(
+                url, json=json_data, params=params, headers=headers, timeout=30
+            )
         else:
             raise ValueError(f"Unsupported method: {method}")
 
-        response.raise_for_status()
+        # 检查是否触发反爬虫
+        if self._check_antibot(response.text, response.status_code):
+            raise AntibotDetectedError(
+                f"触发 OZON 反爬虫挑战 (status={response.status_code})"
+            )
+
+        if response.status_code >= 400:
+            raise OzonWebClientError(
+                f"API 请求失败: {response.status_code} {response.text[:200]}"
+            )
+
         return response.json()
 
     # ============================================================

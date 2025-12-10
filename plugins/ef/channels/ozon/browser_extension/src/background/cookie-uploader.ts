@@ -13,7 +13,6 @@
 
 const CACHE_KEY = 'cookie_uploader_last_run';
 const UPLOAD_INTERVAL_MS = 60 * 60 * 1000; // 1 小时
-const OZON_DOMAIN = '.ozon.ru';
 
 // ========== 类型定义 ==========
 
@@ -65,20 +64,97 @@ class CookieUploader {
 
   /**
    * 获取 OZON Cookies
+   *
+   * 同时使用两种方式获取 cookie：
+   * 1. chrome.cookies API - 获取 httpOnly 的 cookie（如 access-token）
+   * 2. document.cookie - 获取 JS 设置的 cookie（如 rfuid、xcid）
    */
   private async getOzonCookies(): Promise<CookieData[]> {
-    const cookies = await chrome.cookies.getAll({ domain: OZON_DOMAIN });
+    const seenNames = new Set<string>();
+    const allCookies: CookieData[] = [];
 
-    return cookies.map(c => ({
-      name: c.name,
-      value: c.value,
-      domain: c.domain,
-      path: c.path,
-      secure: c.secure,
-      httpOnly: c.httpOnly,
-      sameSite: c.sameSite,
-      expirationDate: c.expirationDate,
-    }));
+    // 1. 先从 chrome.cookies API 获取（包含 httpOnly 的认证 cookie）
+    const domains = ['.ozon.ru', 'seller.ozon.ru', 'finance.ozon.ru'];
+    for (const domain of domains) {
+      const cookies = await chrome.cookies.getAll({ domain });
+      for (const c of cookies) {
+        if (!seenNames.has(c.name)) {
+          seenNames.add(c.name);
+          allCookies.push({
+            name: c.name,
+            value: c.value,
+            domain: c.domain,
+            path: c.path,
+            secure: c.secure,
+            httpOnly: c.httpOnly,
+            sameSite: c.sameSite,
+            expirationDate: c.expirationDate,
+          });
+        }
+      }
+    }
+
+    // 2. 再从 document.cookie 获取（JS 设置的 cookie，如 rfuid、xcid）
+    const documentCookies = await this.getDocumentCookies();
+    for (const c of documentCookies) {
+      if (!seenNames.has(c.name)) {
+        seenNames.add(c.name);
+        allCookies.push(c);
+      }
+    }
+
+    console.log('[CookieUploader] 合并后共', allCookies.length, '个 cookie');
+    return allCookies;
+  }
+
+  /**
+   * 通过 content script 获取 document.cookie
+   */
+  private async getDocumentCookies(): Promise<CookieData[]> {
+    try {
+      // 查找一个 OZON seller 页面的 tab
+      const tabs = await chrome.tabs.query({ url: 'https://seller.ozon.ru/*' });
+      if (tabs.length === 0) {
+        console.log('[CookieUploader] 没有打开的 seller.ozon.ru 页面，无法获取 document.cookie');
+        return [];
+      }
+
+      const tab = tabs[0];
+      if (!tab.id) return [];
+
+      // 在页面中执行脚本获取 document.cookie
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: () => document.cookie,
+      });
+
+      if (!results || results.length === 0 || !results[0].result) {
+        return [];
+      }
+
+      const cookieString = results[0].result as string;
+      console.log('[CookieUploader] 从 document.cookie 获取到:', cookieString.length, '字符');
+
+      // 解析 cookie 字符串
+      const cookies: CookieData[] = [];
+      const pairs = cookieString.split(';');
+      for (const pair of pairs) {
+        const [name, ...valueParts] = pair.trim().split('=');
+        if (name) {
+          cookies.push({
+            name: name.trim(),
+            value: valueParts.join('='), // value 中可能包含 =
+            domain: '.ozon.ru',
+          });
+        }
+      }
+
+      console.log('[CookieUploader] 解析得到', cookies.length, '个 cookie');
+      return cookies;
+    } catch (error) {
+      console.warn('[CookieUploader] 获取 document.cookie 失败:', error);
+      return [];
+    }
   }
 
   /**

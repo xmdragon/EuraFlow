@@ -13,6 +13,7 @@
   ],
   "host_permissions": [
     "https://*.ozon.ru/*",
+    "https://seller.ozon.ru/*",
     "https://euraflow.hjdtrading.com/*",
     "http://localhost/*",
     "https://*.shopbang.cn/*"
