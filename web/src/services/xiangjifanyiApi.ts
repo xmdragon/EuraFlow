@@ -126,12 +126,45 @@ export const translateSingleImage = async (
 
     return result;
   } catch (error: unknown) {
-    // 返回错误信息
-    const err = error as { response?: { data?: { detail?: { detail?: string } } }; message?: string };
+    // 解析错误信息
+    const err = error as {
+      response?: {
+        data?: {
+          error?: { detail?: { message?: string }; message?: string };
+          detail?: { message?: string } | string;
+        };
+      };
+      message?: string;
+    };
+
+    // 尝试多种路径获取错误消息
+    let errorMsg = '翻译失败';
+    const responseData = err.response?.data;
+    if (responseData) {
+      // 格式1: { error: { detail: { message: "..." } } }
+      if (responseData.error?.detail?.message) {
+        errorMsg = responseData.error.detail.message;
+      }
+      // 格式2: { error: { message: "..." } }
+      else if (responseData.error?.message) {
+        errorMsg = responseData.error.message;
+      }
+      // 格式3: { detail: { message: "..." } }
+      else if (typeof responseData.detail === 'object' && responseData.detail?.message) {
+        errorMsg = responseData.detail.message;
+      }
+      // 格式4: { detail: "..." }
+      else if (typeof responseData.detail === 'string') {
+        errorMsg = responseData.detail;
+      }
+    } else if (err.message) {
+      errorMsg = err.message;
+    }
+
     return {
       url: imageUrl,
       success: false,
-      error: err.response?.data?.detail?.detail || err.message || '翻译失败',
+      error: errorMsg,
     };
   }
 };
@@ -207,13 +240,39 @@ export const mattingSingleImage = async (
 
     return result;
   } catch (error: unknown) {
-    // 返回错误信息
-    const err = error as { response?: { data?: { detail?: { detail?: string } } }; message?: string };
+    // 解析错误信息
+    const err = error as {
+      response?: {
+        data?: {
+          error?: { detail?: { message?: string }; message?: string };
+          detail?: { message?: string } | string;
+        };
+      };
+      message?: string;
+    };
+
+    // 尝试多种路径获取错误消息
+    let errorMsg = '抠图失败';
+    const responseData = err.response?.data;
+    if (responseData) {
+      if (responseData.error?.detail?.message) {
+        errorMsg = responseData.error.detail.message;
+      } else if (responseData.error?.message) {
+        errorMsg = responseData.error.message;
+      } else if (typeof responseData.detail === 'object' && responseData.detail?.message) {
+        errorMsg = responseData.detail.message;
+      } else if (typeof responseData.detail === 'string') {
+        errorMsg = responseData.detail;
+      }
+    } else if (err.message) {
+      errorMsg = err.message;
+    }
+
     return {
       url: '',
       original_url: imageUrl,
       success: false,
-      error: err.response?.data?.detail?.detail || err.message || '抠图失败',
+      error: errorMsg,
     };
   }
 };

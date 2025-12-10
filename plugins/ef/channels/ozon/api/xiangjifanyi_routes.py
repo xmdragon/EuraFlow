@@ -307,11 +307,8 @@ async def translate_single_image(
             raise HTTPException(
                 status_code=400,
                 detail={
-                    "type": "about:blank",
-                    "title": "Translation Failed",
-                    "status": 400,
-                    "detail": result.get("error", "翻译失败"),
-                    "code": "TRANSLATION_FAILED"
+                    "code": "TRANSLATION_FAILED",
+                    "message": result.get("error", "翻译失败")
                 }
             )
 
@@ -322,11 +319,8 @@ async def translate_single_image(
         raise HTTPException(
             status_code=500,
             detail={
-                "type": "about:blank",
-                "title": "Internal Server Error",
-                "status": 500,
-                "detail": str(e),
-                "code": "INTERNAL_ERROR"
+                "code": "INTERNAL_ERROR",
+                "message": str(e)
             }
         )
 
@@ -363,11 +357,8 @@ async def translate_batch_images(
             raise HTTPException(
                 status_code=400,
                 detail={
-                    "type": "about:blank",
-                    "title": "Translation Failed",
-                    "status": 400,
-                    "detail": result.get("error", "翻译失败"),
-                    "code": "TRANSLATION_FAILED"
+                    "code": "TRANSLATION_FAILED",
+                    "message": result.get("error", "翻译失败")
                 }
             )
 
@@ -378,11 +369,8 @@ async def translate_batch_images(
         raise HTTPException(
             status_code=500,
             detail={
-                "type": "about:blank",
-                "title": "Internal Server Error",
-                "status": 500,
-                "detail": str(e),
-                "code": "INTERNAL_ERROR"
+                "code": "INTERNAL_ERROR",
+                "message": str(e)
             }
         )
 

@@ -5,7 +5,7 @@
  */
 
 import { calculateRealPrice } from './calculator';
-import { injectCompleteDisplay, updatePriceDisplay, updateFollowSellerData, updateCategoryData, updateRatingData, updateDimensionsData, updateButtonsWithConfig } from './display';
+import { injectCompleteDisplay, updatePriceDisplay, updateFollowSellerData, updateCategoryData, updateRatingData, updateDimensionsData, updateButtonsWithConfig, updateDataLoadingStatus } from './display';
 import { extractProductData, fetchFollowSellerData } from '../parsers/product-detail';
 
 /**
@@ -243,6 +243,10 @@ export class RealPriceCalculator {
           updateDimensionsData(ozonProduct.dimensions, spbSalesData);
         }
 
+        // ✅ 基础数据加载完成（变体图片、规格、价格已就绪）
+        // 跟卖按钮可以使用了
+        updateDataLoadingStatus({ basicDataReady: true });
+
         // 4. 获取类目数据
         chrome.runtime.sendMessage({
           type: 'FETCH_ALL_PRODUCT_DATA',
@@ -264,6 +268,12 @@ export class RealPriceCalculator {
       // 5. 更新按钮（此时变体数据已完整）
       if (euraflowConfig || ozonProduct) {
         updateButtonsWithConfig(euraflowConfig, ozonProduct, spbSalesData);
+      }
+
+      // ✅ 所有数据加载完成（包括配置）
+      // 采集按钮可以使用了
+      if (ozonProduct && euraflowConfig) {
+        updateDataLoadingStatus({ allDataReady: true });
       }
     }).catch(() => {});
 

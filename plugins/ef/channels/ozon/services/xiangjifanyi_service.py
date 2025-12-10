@@ -37,18 +37,28 @@ class XiangjifanyiService:
         sign_str = f"{commit_time}_{user_key}_{img_trans_key}"
         return hashlib.md5(sign_str.encode('utf-8')).hexdigest().lower()
 
-    def get_img_trans_key(self, config: XiangjifanyiConfig, engine_type: int = 1) -> str:
+    def get_img_trans_key_and_engine(self, config: XiangjifanyiConfig, engine_type: int = 1) -> tuple[str, str, int | None]:
         """
-        根据引擎类型获取对应的翻译密钥
-        ImgTransKey 本身就决定了使用哪个翻译引擎，不需要额外传 EngineType 参数
+        根据引擎类型获取对应的翻译密钥和引擎参数
+
+        根据象寄 API 文档：
+        - 默认使用阿里云标识码（img_trans_key_ali）
+        - 当需要使用 ChatGPT 时，传递 EngineType=5 参数
+        - 其他引擎需要使用对应的标识码
+
+        Returns:
+            (img_trans_key, engine_name, engine_type_param): 密钥、引擎名称、EngineType参数（None表示不传）
         """
         if engine_type == 5:  # ChatGPT
-            return config.img_trans_key_chatgpt or ""
+            key = config.img_trans_key_chatgpt or ""
+            return (key, "ChatGPT", 5)
         elif engine_type == 1:  # 阿里云（默认）
-            return config.img_trans_key_ali or ""
+            key = config.img_trans_key_ali or ""
+            return (key, "阿里云", None)  # 不传 EngineType，默认使用阿里云
         else:
             # 未知引擎，使用阿里云兜底
-            return config.img_trans_key_ali or ""
+            key = config.img_trans_key_ali or ""
+            return (key, "阿里云", None)
 
     async def translate_single_image(
         self,
@@ -88,13 +98,14 @@ class XiangjifanyiService:
             if not config or not config.user_key:
                 return {"success": False, "error": "象寄服务未配置"}
 
-            img_trans_key = self.get_img_trans_key(config, engine_type)
+            # 获取翻译引擎密钥、名称和 EngineType 参数
+            img_trans_key, engine_name, engine_type_param = self.get_img_trans_key_and_engine(config, engine_type)
             if not img_trans_key:
-                return {"success": False, "error": "翻译服务标识码未配置"}
+                return {"success": False, "error": f"图片翻译服务标识码未配置，请在系统配置中填写"}
 
             # 使用配置的 API URL，如果没有则使用默认值
             api_base = config.api_url or self.default_api_base
-            logger.info(f"使用 API URL: {api_base}")
+            logger.info(f"使用翻译引擎: {engine_name}, EngineType: {engine_type_param}, API URL: {api_base}")
 
             # 生成签名
             commit_time = str(int(time.time()))
@@ -114,7 +125,9 @@ class XiangjifanyiService:
                 "Qos": qos,
             }
 
-            # 注意：不需要传 EngineType 参数，ImgTransKey 本身就决定了使用哪个引擎
+            # 如果需要使用 ChatGPT 引擎，添加 EngineType 参数
+            if engine_type_param is not None:
+                params["EngineType"] = engine_type_param
 
             # 打印完整的请求信息
             logger.info(f"🔍 象寄API请求 URL: {api_base}")
@@ -207,13 +220,14 @@ class XiangjifanyiService:
             if not config or not config.user_key:
                 return {"success": False, "error": "象寄服务未配置"}
 
-            img_trans_key = self.get_img_trans_key(config, engine_type)
+            # 获取翻译引擎密钥、名称和 EngineType 参数
+            img_trans_key, engine_name, engine_type_param = self.get_img_trans_key_and_engine(config, engine_type)
             if not img_trans_key:
-                return {"success": False, "error": "翻译服务标识码未配置"}
+                return {"success": False, "error": f"图片翻译服务标识码未配置，请在系统配置中填写"}
 
             # 使用配置的 API URL，如果没有则使用默认值
             api_base = config.api_url or self.default_api_base
-            logger.info(f"批量翻译使用 API URL: {api_base}")
+            logger.info(f"批量翻译使用引擎: {engine_name}, EngineType: {engine_type_param}, API URL: {api_base}")
 
             # 生成签名
             commit_time = str(int(time.time()))
@@ -237,7 +251,9 @@ class XiangjifanyiService:
                 "Qos": qos,
             }
 
-            # 注意：不需要传 EngineType 参数，ImgTransKey 本身就决定了使用哪个引擎
+            # 如果需要使用 ChatGPT 引擎，添加 EngineType 参数
+            if engine_type_param is not None:
+                params["EngineType"] = engine_type_param
 
             logger.info(f"🚀 [批量翻译请求] API URL: {api_base}")
             logger.info(f"🚀 [批量翻译请求] 图片数量: {len(image_urls)}")
