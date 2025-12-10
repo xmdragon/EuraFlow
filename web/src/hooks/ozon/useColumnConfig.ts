@@ -1,10 +1,10 @@
 /**
  * 列配置管理 Hook
- * 管理表格列的可见性配置，支持localStorage持久化
+ * 管理表格列的可见性配置，支持localStorage持久化（按用户隔离）
  */
 import { useState, useEffect } from 'react';
 
-import { loggers } from '@/utils/logger';
+import { useUserStorage } from '@/hooks/useUserStorage';
 
 export interface ColumnVisibility {
   sku?: boolean;
@@ -35,30 +35,29 @@ const STORAGE_KEY = 'ozon_product_visible_columns';
 
 /**
  * 列配置管理 Hook
- * 从localStorage加载配置，并自动保存修改
+ * 从localStorage加载配置，并自动保存修改（按用户隔离）
  */
 export const useColumnConfig = () => {
+  const { getValue, setValue, userId } = useUserStorage();
+
   // 列显示配置状态管理（从localStorage加载）
   const [visibleColumns, setVisibleColumns] = useState<ColumnVisibility>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        loggers.product.error('Failed to parse visible columns config:', e);
-      }
-    }
-    // 默认显示所有列
-    return DEFAULT_COLUMNS;
+    return getValue<ColumnVisibility>(STORAGE_KEY, DEFAULT_COLUMNS);
   });
 
   // Modal显示状态
   const [columnConfigVisible, setColumnConfigVisible] = useState(false);
 
+  // 当用户切换时，重新加载配置
+  useEffect(() => {
+    const saved = getValue<ColumnVisibility>(STORAGE_KEY, DEFAULT_COLUMNS);
+    setVisibleColumns(saved);
+  }, [userId]);
+
   // 保存列配置到localStorage
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(visibleColumns));
-  }, [visibleColumns]);
+    setValue(STORAGE_KEY, visibleColumns);
+  }, [visibleColumns, setValue]);
 
   // 列显示配置变更处理
   const handleColumnVisibilityChange = (key: string, visible: boolean) => {

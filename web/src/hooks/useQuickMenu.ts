@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
+import { useUserStorageState } from './useUserStorage';
 
 export interface QuickMenuItem {
   key: string;
@@ -11,23 +12,10 @@ const STORAGE_KEY = 'quickMenuItems';
 
 /**
  * 快捷菜单管理 Hook
- * 使用 localStorage 永久存储快捷菜单数据
+ * 使用 localStorage 永久存储快捷菜单数据（按用户隔离）
  */
 export const useQuickMenu = () => {
-  const [quickMenuItems, setQuickMenuItems] = useState<QuickMenuItem[]>([]);
-
-  // 初始化：从 localStorage 加载
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const items = JSON.parse(stored) as QuickMenuItem[];
-        setQuickMenuItems(items);
-      }
-    } catch (error) {
-      console.error('加载快捷菜单失败:', error);
-    }
-  }, []);
+  const [quickMenuItems, setQuickMenuItems] = useUserStorageState<QuickMenuItem[]>(STORAGE_KEY, []);
 
   // 添加快捷菜单项
   const addQuickMenu = useCallback((item: QuickMenuItem) => {
@@ -36,22 +24,14 @@ export const useQuickMenu = () => {
       if (prev.some((i) => i.key === item.key)) {
         return prev;
       }
-      const updated = [...prev, item];
-      // 持久化到 localStorage
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-      return updated;
+      return [...prev, item];
     });
-  }, []);
+  }, [setQuickMenuItems]);
 
   // 删除快捷菜单项
   const removeQuickMenu = useCallback((key: string) => {
-    setQuickMenuItems((prev) => {
-      const updated = prev.filter((item) => item.key !== key);
-      // 持久化到 localStorage
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-      return updated;
-    });
-  }, []);
+    setQuickMenuItems((prev) => prev.filter((item) => item.key !== key));
+  }, [setQuickMenuItems]);
 
   // 检查是否已添加
   const isInQuickMenu = useCallback(

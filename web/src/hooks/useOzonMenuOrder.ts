@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
+import { useUserStorageState } from './useUserStorage';
 
 const STORAGE_KEY = 'ozonMenuOrder';
 
@@ -20,44 +21,42 @@ const DEFAULT_ORDER = [
   'ozon-chats',              // 聊天管理
 ];
 
+/**
+ * OZON 菜单顺序管理 Hook
+ * 使用 localStorage 永久存储菜单排序数据（按用户隔离）
+ */
 export const useOzonMenuOrder = () => {
-  const [menuOrder, setMenuOrder] = useState<string[]>(DEFAULT_ORDER);
+  const [menuOrder, setMenuOrder] = useUserStorageState<string[]>(STORAGE_KEY, DEFAULT_ORDER);
 
-  // 从 localStorage 加载
-  useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved) as string[];
-        // 确保所有默认菜单项都存在（处理新增菜单项的情况）
-        const validOrder = parsed.filter(key => DEFAULT_ORDER.includes(key));
-        const missingItems = DEFAULT_ORDER.filter(key => !parsed.includes(key));
-        setMenuOrder([...validOrder, ...missingItems]);
-      } catch {
-        setMenuOrder(DEFAULT_ORDER);
-      }
-    }
-  }, []);
+  // 确保所有默认菜单项都存在（处理新增菜单项的情况）
+  const normalizedOrder = (() => {
+    const validOrder = menuOrder.filter(key => DEFAULT_ORDER.includes(key));
+    const missingItems = DEFAULT_ORDER.filter(key => !menuOrder.includes(key));
+    return [...validOrder, ...missingItems];
+  })();
 
   // 上移菜单项
   const moveUp = useCallback((key: string) => {
     setMenuOrder((prev) => {
-      const index = prev.indexOf(key);
+      // 先规范化
+      const validOrder = prev.filter(k => DEFAULT_ORDER.includes(k));
+      const missingItems = DEFAULT_ORDER.filter(k => !prev.includes(k));
+      const currentOrder = [...validOrder, ...missingItems];
+
+      const index = currentOrder.indexOf(key);
       if (index > 0) {
-        const newOrder = [...prev];
+        const newOrder = [...currentOrder];
         [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]];
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(newOrder));
         return newOrder;
       }
-      return prev;
+      return currentOrder;
     });
-  }, []);
+  }, [setMenuOrder]);
 
   // 重置为默认顺序
   const resetOrder = useCallback(() => {
     setMenuOrder(DEFAULT_ORDER);
-    localStorage.removeItem(STORAGE_KEY);
-  }, []);
+  }, [setMenuOrder]);
 
-  return { menuOrder, moveUp, resetOrder };
+  return { menuOrder: normalizedOrder, moveUp, resetOrder };
 };

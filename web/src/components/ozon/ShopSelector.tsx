@@ -21,6 +21,17 @@ interface ShopSelectorProps {
   id?: string;
 }
 
+/**
+ * 店铺选择器组件
+ *
+ * 注意：此组件仅负责 UI 展示，不负责持久化。
+ * 持久化逻辑由 useShopSelection hook 处理。
+ * 使用时请配合 useShopSelection hook：
+ *
+ * @example
+ * const { selectedShop, handleShopChange } = useShopSelection();
+ * <ShopSelector value={selectedShop} onChange={handleShopChange} />
+ */
 const ShopSelector: React.FC<ShopSelectorProps> = ({
   value,
   onChange,
@@ -59,7 +70,6 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
       if (selectedShop !== shopId) {
         setSelectedShop(shopId);
         onChange?.(shopId);
-        localStorage.setItem('ozon_selected_shop', shopId.toString());
       }
       return;
     }
@@ -77,9 +87,8 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
 
     // 检查当前选中的店铺是否在授权列表中
     if (!isMultiple && selectedShop !== null && !shops.find((s) => s.id === selectedShop)) {
-      // 当前选中的店铺不在授权列表中，清除localStorage并重置
+      // 当前选中的店铺不在授权列表中，重置
       console.warn(`店铺 ${selectedShop} 不在授权列表中，自动清除`);
-      localStorage.removeItem('ozon_selected_shop');
       setSelectedShop(null);
       // 触发onChange，让父组件知道需要重置
       onChange?.(null);
@@ -96,19 +105,7 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
         const shopId = shops[0].id;
         setSelectedShop(shopId);
         onChange?.(shopId);
-        localStorage.setItem('ozon_selected_shop', shopId.toString());
         return;
-      }
-
-      // 如果有多个店铺，尝试使用保存的店铺ID
-      const savedShopId = localStorage.getItem('ozon_selected_shop');
-      if (savedShopId && savedShopId !== 'all') {
-        const shopId = parseInt(savedShopId, 10);
-        if (shops.find((s) => s.id === shopId)) {
-          setSelectedShop(shopId);
-          onChange?.(shopId);
-          return;
-        }
       }
 
       // 如果有多个店铺且不显示"全部"选项，自动选择第一个店铺
@@ -116,7 +113,6 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
         const shopId = shops[0].id;
         setSelectedShop(shopId);
         onChange?.(shopId);
-        localStorage.setItem('ozon_selected_shop', shopId.toString());
       }
     }
   }, [shops, selectedShop, onChange, value, isMultiple, showAllOption]);
@@ -133,7 +129,8 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
       const actualShopId = shopId === 'all' ? null : (shopId as number);
       setSelectedShop(actualShopId);
       onChange?.(actualShopId);
-      localStorage.setItem('ozon_selected_shop', shopId.toString());
+      // 注意：不再在这里直接操作 localStorage
+      // 持久化由 useShopSelection hook 的 handleShopChange 处理
     }
   };
 

@@ -933,9 +933,26 @@ export async function extractProductData(): Promise<ProductDetailData> {
         });
       });
 
-      // ✅ 并行批量访问变体详情页（参考上品帮策略：每批30个并行，批间隔2秒）
-      const BATCH_SIZE = 30;  // 每批并行请求数
-      const BATCH_DELAY = 2000;  // 批次间隔（毫秒）
+      // ✅ 滑动窗口模式访问变体详情页（保持10个并发，每完成一个立即发起下一个）
+      const CONCURRENCY = 10;  // 最大并发数
+
+      // 从 storage 获取用户配置的请求间隔
+      const rateLimitResult = await chrome.storage.sync.get(
+        ['rateLimitMode', 'rateLimitFixedDelay', 'rateLimitRandomMin', 'rateLimitRandomMax']
+      );
+      const rateLimitMode = rateLimitResult.rateLimitMode || 'random';
+      const fixedDelay = rateLimitResult.rateLimitFixedDelay || 100;
+      const randomDelayMin = rateLimitResult.rateLimitRandomMin || 50;
+      const randomDelayMax = rateLimitResult.rateLimitRandomMax || 150;
+
+      // 根据配置计算延迟
+      const getDelay = (): number => {
+        if (rateLimitMode === 'fixed') {
+          return fixedDelay;
+        }
+        // random 模式：在 min 和 max 之间随机
+        return Math.floor(Math.random() * (randomDelayMax - randomDelayMin + 1)) + randomDelayMin;
+      };
 
       /**
        * 处理单个变体链接，返回解析后的变体数组
@@ -1057,35 +1074,65 @@ export async function extractProductData(): Promise<ProductDetailData> {
         }
       };
 
-      // 批量并行请求
-      const totalBatches = Math.ceil(allVariantLinks.length / BATCH_SIZE);
+      // 滑动窗口并发请求
       if (__DEBUG__) {
-        console.log(`[EuraFlow] 变体链接总数: ${allVariantLinks.length}, 分 ${totalBatches} 批并行处理`);
+        console.log(`[EuraFlow] 变体链接总数: ${allVariantLinks.length}, 滑动窗口并发数: ${CONCURRENCY}, 请求间隔: ${rateLimitMode === 'fixed' ? fixedDelay + 'ms' : randomDelayMin + '-' + randomDelayMax + 'ms'}`);
       }
 
-      for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
-        const batchStart = batchIndex * BATCH_SIZE;
-        const batchEnd = Math.min(batchStart + BATCH_SIZE, allVariantLinks.length);
-        const batchLinks = allVariantLinks.slice(batchStart, batchEnd);
+      // 滑动窗口执行器
+      const executeWithSlidingWindow = async <T, R>(
+        items: T[],
+        processor: (item: T) => Promise<R>,
+        concurrency: number,
+        delayFn: () => number
+      ): Promise<R[]> => {
+        const results: R[] = new Array(items.length);
+        let nextIndex = 0;
+        let completed = 0;
 
-        if (__DEBUG__) {
-          console.log(`[EuraFlow] 处理第 ${batchIndex + 1}/${totalBatches} 批 (${batchLinks.length} 个变体)`);
-        }
+        const runNext = async (): Promise<void> => {
+          while (nextIndex < items.length) {
+            const currentIndex = nextIndex++;
+            const item = items[currentIndex];
 
-        // 并行处理当前批次
-        const batchPromises = batchLinks.map(link => processVariantLink(link));
-        const batchResults = await Promise.all(batchPromises);
+            try {
+              results[currentIndex] = await processor(item);
+            } catch (e) {
+              results[currentIndex] = [] as unknown as R;
+            }
 
-        // 合并结果
-        batchResults.forEach(variants => {
-          allVariants.push(...variants);
-        });
+            completed++;
+            if (__DEBUG__ && completed % 10 === 0) {
+              console.log(`[EuraFlow] 变体处理进度: ${completed}/${items.length}`);
+            }
 
-        // 批次间延迟（最后一批不需要延迟）
-        if (batchIndex < totalBatches - 1) {
-          await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
-        }
-      }
+            // 每完成一个请求后等待配置的间隔
+            if (nextIndex < items.length) {
+              await new Promise(resolve => setTimeout(resolve, delayFn()));
+            }
+          }
+        };
+
+        // 启动初始并发任务
+        const workers = Array(Math.min(concurrency, items.length))
+          .fill(null)
+          .map(() => runNext());
+
+        await Promise.all(workers);
+        return results;
+      };
+
+      const variantResults = await executeWithSlidingWindow(
+        allVariantLinks,
+        processVariantLink,
+        CONCURRENCY,
+        getDelay
+      );
+
+      // 合并结果
+      variantResults.forEach(variants => {
+        allVariants.push(...variants);
+      });
 
     }
 

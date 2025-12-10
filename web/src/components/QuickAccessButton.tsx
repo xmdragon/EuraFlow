@@ -17,6 +17,7 @@ import {
   ThunderboltOutlined,
 } from '@ant-design/icons';
 import { useQuickMenu } from '@/hooks/useQuickMenu';
+import { useUserStorage } from '@/hooks/useUserStorage';
 import { logger } from '@/utils/logger';
 import styles from './QuickAccessButton.module.scss';
 
@@ -33,9 +34,10 @@ const BOTTOM_MARGIN_PX = 48; // 底部边距
 const QuickAccessButton: React.FC = () => {
   const navigate = useNavigate();
   const { quickMenuItems } = useQuickMenu();
+  const { getValue, setValue, userId } = useUserStorage();
 
   // 拖动状态
-  const [topPosition, setTopPosition] = useState<number>(DEFAULT_TOP_VH); // vh 单位
+  const [topPosition, setTopPosition] = useState<number>(() => getValue(STORAGE_KEY, DEFAULT_TOP_VH));
   const [isDragging, setIsDragging] = useState(false);
   const dragStartY = useRef<number>(0);
   const dragStartTop = useRef<number>(0);
@@ -58,17 +60,12 @@ const QuickAccessButton: React.FC = () => {
     UserOutlined: <UserOutlined />,
   };
 
-  // 从 localStorage 加载保存的位置
+  // 当用户切换时，重新从 localStorage 加载位置
   useEffect(() => {
-    const savedPosition = localStorage.getItem(STORAGE_KEY);
-    if (savedPosition) {
-      const position = parseFloat(savedPosition);
-      if (!isNaN(position)) {
-        setTopPosition(position);
-        logger.info('快捷菜单加载保存位置', { position });
-      }
-    }
-  }, []);
+    const position = getValue(STORAGE_KEY, DEFAULT_TOP_VH);
+    setTopPosition(position);
+    logger.info('快捷菜单加载保存位置', { position, userId });
+  }, [userId]); // userId 变化时重新加载
 
   // 拖动开始
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -109,9 +106,9 @@ const QuickAccessButton: React.FC = () => {
       e.preventDefault();
       setIsDragging(false);
 
-      // 保存位置到 localStorage
+      // 保存位置到 localStorage（用户隔离）
       const finalPosition = topPosition;
-      localStorage.setItem(STORAGE_KEY, finalPosition.toString());
+      setValue(STORAGE_KEY, finalPosition);
 
       logger.info('快捷菜单拖动结束', { finalPosition });
     };

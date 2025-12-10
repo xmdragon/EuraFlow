@@ -53,6 +53,38 @@ mutation.mutate(data, {
 
 ---
 
+### 用户隔离存储
+
+#### `useUserStorage`
+**路径**：`web/src/hooks/useUserStorage.ts`
+**用途**：用户隔离的 localStorage 操作，确保不同用户数据互不干扰
+**特性**：
+- ✅ 自动在 key 前加用户 ID 前缀
+- ✅ 用户切换时自动重新加载数据
+- ✅ 支持状态管理版本 `useUserStorageState`
+
+**使用示例**：
+```typescript
+// 基础版本
+const { getValue, setValue, removeValue, userId } = useUserStorage();
+const items = getValue<MyType[]>('myKey', []);
+setValue('myKey', items);
+
+// 状态管理版本（推荐）
+const [items, setItems] = useUserStorageState<MyType[]>('myKey', []);
+```
+
+**已应用场景**：
+- 快捷菜单（useQuickMenu.ts）
+- 菜单排序（useOzonMenuOrder.ts）
+- 列配置（useColumnSettings.ts, useColumnConfig.ts）
+- 店铺选择（useShopSelection.ts）
+- 选品助手配置（useProductSelection.tsx）
+
+**禁止**：直接使用 `localStorage.getItem/setItem` 存储用户相关配置
+
+---
+
 ### 权限管理
 
 #### `usePermission`

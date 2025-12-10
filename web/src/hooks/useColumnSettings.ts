@@ -1,9 +1,10 @@
 /**
  * 表格列配置 Hook
- * 用于管理表格列的显示/隐藏状态，支持 localStorage 持久化
+ * 用于管理表格列的显示/隐藏状态，支持 localStorage 持久化（按用户隔离）
  */
 import { useState, useEffect, useMemo } from 'react';
 import type { ColumnsType } from 'antd/es/table';
+import { useUserStorage } from './useUserStorage';
 
 export interface ColumnConfig {
   key: string;
@@ -35,21 +36,18 @@ export function useColumnSettings<T>({
   storageKey,
   defaultHiddenKeys = [],
 }: UseColumnSettingsOptions<T>) {
-  // 初始化列配置
-  const initialConfig = useMemo(() => {
-    const saved = localStorage.getItem(storageKey);
-    if (saved) {
-      try {
-        const savedConfig = JSON.parse(saved) as Record<string, boolean>;
-        return columns.map((col) => ({
-          key: col.key as string,
-          title: col.title as string,
-          visible: savedConfig[col.key as string] ?? true,
-          fixed: false,
-        }));
-      } catch {
-        // 解析失败，使用默认配置
-      }
+  const { getValue, setValue, userId } = useUserStorage();
+
+  // 从存储加载配置的函数
+  const loadConfig = () => {
+    const savedConfig = getValue<Record<string, boolean> | null>(storageKey, null);
+    if (savedConfig) {
+      return columns.map((col) => ({
+        key: col.key as string,
+        title: col.title as string,
+        visible: savedConfig[col.key as string] ?? true,
+        fixed: false,
+      }));
     }
 
     // 没有保存的配置，使用默认配置
@@ -59,9 +57,14 @@ export function useColumnSettings<T>({
       visible: !defaultHiddenKeys.includes(col.key as string),
       fixed: false,
     }));
-  }, [columns, storageKey, defaultHiddenKeys]);
+  };
 
-  const [columnConfig, setColumnConfig] = useState<ColumnConfig[]>(initialConfig);
+  const [columnConfig, setColumnConfig] = useState<ColumnConfig[]>(loadConfig);
+
+  // 当用户切换时，重新加载配置
+  useEffect(() => {
+    setColumnConfig(loadConfig());
+  }, [userId]);
 
   // 保存到 localStorage
   useEffect(() => {
@@ -70,8 +73,8 @@ export function useColumnSettings<T>({
       return acc;
     }, {} as Record<string, boolean>);
 
-    localStorage.setItem(storageKey, JSON.stringify(configMap));
-  }, [columnConfig, storageKey]);
+    setValue(storageKey, configMap);
+  }, [columnConfig, storageKey, setValue]);
 
   // 切换列的显示/隐藏
   const toggleColumn = (key: string) => {

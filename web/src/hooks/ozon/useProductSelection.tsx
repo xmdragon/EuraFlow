@@ -17,24 +17,7 @@ import type { FieldConfig } from '@/components/ozon/selection/FieldConfigModal';
 import { defaultFieldConfig, FIELD_CONFIG_VERSION } from '@/components/ozon/selection/FieldConfigModal';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
 import { logger } from '@/utils/logger';
-
-// 【立即执行】检查并清除不兼容的字段配置（在任何组件加载前执行）
-(() => {
-  const saved = localStorage.getItem('productFieldConfig');
-  if (saved) {
-    try {
-      const config = JSON.parse(saved);
-      // 如果没有 _version 字段或版本不匹配，立即清除
-      if (!config._version || config._version !== FIELD_CONFIG_VERSION) {
-        console.warn('[ProductSelection] 检测到不兼容的字段配置(v' + (config._version || '旧版') + ')，已自动清除。当前版本: v' + FIELD_CONFIG_VERSION);
-        localStorage.removeItem('productFieldConfig');
-      }
-    } catch (e) {
-      console.error('[ProductSelection] 解析配置失败，已清除', e);
-      localStorage.removeItem('productFieldConfig');
-    }
-  }
-})();
+import { useUserStorage } from '@/hooks/useUserStorage';
 
 /**
  * useProductSelection Hook 返回值接口
@@ -137,6 +120,7 @@ export const useProductSelection = (): UseProductSelectionReturn => {
   const { modal } = App.useApp();
   const queryClient = useQueryClient();
   const [form] = Form.useForm();
+  const { getValue, setValue, removeValue, userId } = useUserStorage();
 
   // ==================== 状态管理 ====================
 
@@ -177,73 +161,71 @@ export const useProductSelection = (): UseProductSelectionReturn => {
   // 搜索版本号，用于强制触发数据更新
   const [searchVersion, setSearchVersion] = useState(0);
 
-  // 字段配置状态
-  const [fieldConfig, setFieldConfig] = useState<FieldConfig>(() => {
-    const saved = localStorage.getItem('productFieldConfig');
+  // 加载字段配置的函数
+  const loadFieldConfig = (): FieldConfig => {
+    const saved = getValue<FieldConfig | null>('productFieldConfig', null);
     if (saved) {
-      try {
-        const savedConfig = JSON.parse(saved);
-        // 检查版本号，如果版本不匹配，清除旧配置
-        if (savedConfig._version !== FIELD_CONFIG_VERSION) {
-          logger.info('字段配置版本不匹配，清除旧配置', {
-            savedVersion: savedConfig._version,
-            currentVersion: FIELD_CONFIG_VERSION,
-          });
-          localStorage.removeItem('productFieldConfig');
-          return defaultFieldConfig;
-        }
-        // 版本匹配，使用保存的配置
-        return savedConfig;
-      } catch (e) {
-        logger.error('解析字段配置失败，使用默认配置', e);
-        localStorage.removeItem('productFieldConfig');
+      // 检查版本号，如果版本不匹配，清除旧配置
+      if (saved._version !== FIELD_CONFIG_VERSION) {
+        logger.info('字段配置版本不匹配，清除旧配置', {
+          savedVersion: saved._version,
+          currentVersion: FIELD_CONFIG_VERSION,
+        });
+        removeValue('productFieldConfig');
         return defaultFieldConfig;
       }
+      // 版本匹配，使用保存的配置
+      return saved;
     }
     return defaultFieldConfig;
-  });
+  };
+
+  // 字段配置状态
+  const [fieldConfig, setFieldConfig] = useState<FieldConfig>(loadFieldConfig);
   const [fieldConfigVisible, setFieldConfigVisible] = useState(false);
 
   // 成本计算相关状态
   const [enableCostEstimation, setEnableCostEstimation] = useState<boolean>(() => {
-    const saved = localStorage.getItem('productSelectionEnableCostEstimation');
-    return saved ? JSON.parse(saved) : true;
+    return getValue<boolean>('productSelectionEnableCostEstimation', true);
   });
   const [targetProfitRate, setTargetProfitRate] = useState<number>(() => {
-    const saved = localStorage.getItem('productSelectionProfitRate');
-    return saved ? parseFloat(saved) : 20;
+    return getValue<number>('productSelectionProfitRate', 20);
   });
   const [packingFee, setPackingFee] = useState<number>(() => {
-    const saved = localStorage.getItem('productSelectionPackingFee');
-    return saved ? parseFloat(saved) : 0;
+    return getValue<number>('productSelectionPackingFee', 0);
   });
 
   // 记住我的选择状态
   const [rememberFilters, setRememberFilters] = useState<boolean>(() => {
-    const saved = localStorage.getItem('productSelectionRememberFilters');
-    return saved ? JSON.parse(saved) : false;
+    return getValue<boolean>('productSelectionRememberFilters', false);
   });
 
   // ==================== useEffect - localStorage 持久化 ====================
 
+  // 当用户切换时，重新加载配置
   useEffect(() => {
-    localStorage.setItem(
-      'productSelectionEnableCostEstimation',
-      JSON.stringify(enableCostEstimation)
-    );
-  }, [enableCostEstimation]);
+    setFieldConfig(loadFieldConfig());
+    setEnableCostEstimation(getValue<boolean>('productSelectionEnableCostEstimation', true));
+    setTargetProfitRate(getValue<number>('productSelectionProfitRate', 20));
+    setPackingFee(getValue<number>('productSelectionPackingFee', 0));
+    setRememberFilters(getValue<boolean>('productSelectionRememberFilters', false));
+  }, [userId]);
 
   useEffect(() => {
-    localStorage.setItem('productSelectionProfitRate', targetProfitRate.toString());
-  }, [targetProfitRate]);
+    setValue('productSelectionEnableCostEstimation', enableCostEstimation);
+  }, [enableCostEstimation, setValue]);
 
   useEffect(() => {
-    localStorage.setItem('productSelectionPackingFee', packingFee.toString());
-  }, [packingFee]);
+    setValue('productSelectionProfitRate', targetProfitRate);
+  }, [targetProfitRate, setValue]);
 
   useEffect(() => {
-    localStorage.setItem('productSelectionRememberFilters', JSON.stringify(rememberFilters));
-  }, [rememberFilters]);
+    setValue('productSelectionPackingFee', packingFee);
+  }, [packingFee, setValue]);
+
+  useEffect(() => {
+    setValue('productSelectionRememberFilters', rememberFilters);
+  }, [rememberFilters, setValue]);
 
   // ==================== useEffect - URL参数和筛选条件恢复 ====================
 
@@ -252,23 +234,22 @@ export const useProductSelection = (): UseProductSelectionReturn => {
     const batchId = params.get('batch_id');
     const isReadParam = params.get('is_read');
 
-    const savedFilters = localStorage.getItem('productSelectionFilters');
-    const shouldRemember = localStorage.getItem('productSelectionRememberFilters');
+    const savedFilters = getValue<Record<string, unknown> | null>('productSelectionFilters', null);
+    const shouldRemember = getValue<boolean>('productSelectionRememberFilters', false);
     let restoredParams: api.ProductSearchParams = {};
 
-    if (savedFilters && shouldRemember === 'true') {
+    if (savedFilters && shouldRemember) {
       try {
-        const parsed = JSON.parse(savedFilters);
-        const { _batch_id, _is_read, ...filters } = parsed;
-        restoredParams = filters;
+        const { _batch_id, _is_read, ...filters } = savedFilters;
+        restoredParams = filters as api.ProductSearchParams;
 
-        if (parsed.listing_date) {
+        if (savedFilters.listing_date) {
           form.setFieldsValue({
-            ...parsed,
-            listing_date: parsed.listing_date ? dayjs(parsed.listing_date) : undefined,
+            ...savedFilters,
+            listing_date: savedFilters.listing_date ? dayjs(savedFilters.listing_date as string) : undefined,
           });
         } else {
-          form.setFieldsValue(parsed);
+          form.setFieldsValue(savedFilters);
         }
       } catch (e) {
         logger.error('恢复筛选条件失败:', e);
@@ -287,7 +268,7 @@ export const useProductSelection = (): UseProductSelectionReturn => {
         setSearchParams((prev) => ({ ...prev, ...restoredParams }));
       }
     }
-  }, []);
+  }, [userId]);
 
   // ==================== useEffect - 动态计算布局 ====================
 
@@ -567,7 +548,7 @@ export const useProductSelection = (): UseProductSelectionReturn => {
         ...values,
         listing_date: listingDate?.format ? listingDate.format('YYYY-MM-DD') : undefined,
       };
-      localStorage.setItem('productSelectionFilters', JSON.stringify(filtersToSave));
+      setValue('productSelectionFilters', filtersToSave);
     }
 
     setSearchParams(params);
@@ -584,7 +565,7 @@ export const useProductSelection = (): UseProductSelectionReturn => {
 
   const handleReset = () => {
     form.resetFields();
-    localStorage.removeItem('productSelectionFilters');
+    removeValue('productSelectionFilters');
 
     setSearchParams({ is_read: false });
     setCurrentPage(1);
@@ -680,15 +661,13 @@ export const useProductSelection = (): UseProductSelectionReturn => {
 
   const saveFieldConfig = (config: FieldConfig) => {
     setFieldConfig(config);
-    localStorage.setItem('productFieldConfig', JSON.stringify(config));
-    notifySuccess('配置已保存', '字段配置已保存');
+    setValue('productFieldConfig', config);
     setFieldConfigVisible(false);
   };
 
   const resetFieldConfig = () => {
     setFieldConfig(defaultFieldConfig);
-    localStorage.removeItem('productFieldConfig');
-    notifySuccess('恢复成功', '已恢复默认配置');
+    removeValue('productFieldConfig');
   };
 
   const handleDeleteBatch = (batchId: number) => {
