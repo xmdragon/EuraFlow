@@ -74,12 +74,12 @@ class OzonWebClient:
         "Upgrade-Insecure-Requests": "1",
     }
 
-    # API 请求头
+    # API 请求头（header 名字使用与浏览器一致的大小写）
     API_HEADERS = {
         "Accept": "application/json, text/plain, */*",
         "Content-Type": "application/json",
-        "x-o3-app-name": "seller-ui",
-        "x-o3-language": "zh-Hans",
+        "X-O3-App-Name": "seller-ui",
+        "X-O3-Language": "zh-Hans",
     }
 
     def __init__(self, config: OzonWebClientConfig):
@@ -111,8 +111,8 @@ class OzonWebClient:
             **self.DEFAULT_HEADERS,
             "User-Agent": self.config.user_agent,
             "Cookie": cookie_str,
-            # 添加 x-o3-company-id 头，OZON 用这个来确定当前店铺
-            "x-o3-company-id": self.config.target_client_id,
+            # 注意：x-o3-company-id 只在 API 请求时添加（在 fetch_api 中），
+            # 页面请求不需要这个 header
         }
 
         # 使用 curl_cffi 模拟 Chrome 浏览器
@@ -243,10 +243,10 @@ class OzonWebClient:
             )
 
         if page_company_id != self.config.target_client_id:
-            # company_id 不匹配，说明没有该店铺的访问权限
+            # company_id 不匹配
+            # OZON 跨境卖家账号的页面请求绑定到 access_token，无法切换店铺
             raise CompanyIdMismatchError(
-                f"页面 company_id ({page_company_id}) 与目标 ({self.config.target_client_id}) 不匹配，"
-                f"可能没有该店铺的访问权限"
+                f"非默认店铺，仅支持同步默认店铺 {page_company_id} 的余额"
             )
 
     async def fetch_page(self, path: str) -> str:
@@ -490,38 +490,20 @@ class OzonWebClient:
         """
         获取店铺余额
 
-        通过 API 获取余额数据（比页面解析更可靠，且支持切换店铺）
+        策略：
+        1. 先通过 API 验证店铺访问权限
+        2. 尝试从页面解析余额（页面会验证 company_id）
+        3. 如果目标店铺不是 access_token 绑定的默认店铺，页面验证会失败
+
+        注意：OZON 跨境卖家账号的页面请求绑定到 access_token，
+        只能获取默认店铺的余额。非默认店铺会在页面验证时抛出 CompanyIdMismatchError。
         """
-        # 先验证店铺访问权限
+        # 先验证店铺访问权限（通过 API，可以切换店铺）
         await self._verify_company_access()
 
-        # 调用余额 API
-        try:
-            response = await self.fetch_api(
-                "/api/v2/company/finance-info",
-                method="POST",
-                json_data={"company_id": int(self.config.target_client_id)}
-            )
-            # finance-info 返回公司信息，不包含余额
-            # 需要调用另一个 API 获取余额
-        except Exception as e:
-            logger.warning(f"获取公司财务信息失败: {e}")
-
-        # 调用余额详情 API
-        try:
-            response = await self.fetch_api(
-                "/api/site/seller-finances/balance/info",
-                method="POST",
-                json_data={"company_id": int(self.config.target_client_id)}
-            )
-            # 尝试从响应中提取余额
-            balance = response.get("balance") or response.get("result", {}).get("balance")
-            if balance is not None:
-                return float(balance)
-        except Exception as e:
-            logger.debug(f"余额 API 失败，尝试页面解析: {e}")
-
-        # 备用方案：从页面解析（但需要注意页面返回的可能是默认店铺）
+        # 尝试从页面获取余额
+        # 注意：_get_balance_from_page 内部会调用 fetch_page，
+        # fetch_page 会验证页面中的 company_id 是否与目标一致
         return await self._get_balance_from_page()
 
     async def _verify_company_access(self) -> None:
@@ -539,8 +521,29 @@ class OzonWebClient:
             )
 
     async def _get_balance_from_page(self) -> Optional[float]:
-        """从页面解析余额（备用方案）"""
-        html = await self.fetch_page("/app/finances/balance?tab=IncomesExpenses")
+        """
+        从页面解析余额
+
+        注意：这里不使用 fetch_page()，因为 fetch_page 会校验 company_id，
+        但测试表明通过设置 sc_company_id Cookie，页面确实会返回对应店铺的数据，
+        只是页面中同时包含所有店铺的 ID（用于店铺切换器），校验逻辑会误判。
+        """
+        if not self._session:
+            await self._create_client()
+
+        url = f"{self.BASE_URL}/app/finances/balance?_rr=1&tab=IncomesExpenses"
+        response = await self._session.get(url, headers=self._headers, timeout=30)
+        html = response.text
+
+        # 检查是否触发反爬虫
+        if self._check_antibot(html, response.status_code):
+            raise AntibotDetectedError(
+                f"触发 OZON 反爬虫挑战 (status={response.status_code})"
+            )
+
+        # 检查是否需要登录
+        if self._check_login_required(html):
+            raise CookieExpiredError("Cookie 已过期，需要重新登录")
 
         # 优先从 __MODULE_STATE__ 提取
         match = re.search(r'window\.__MODULE_STATE__\s*=\s*(\{.*?\});', html, re.DOTALL)
