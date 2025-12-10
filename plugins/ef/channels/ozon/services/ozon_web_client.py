@@ -200,12 +200,25 @@ class OzonWebClient:
 
     def _check_antibot(self, html: str, status_code: int) -> bool:
         """检查是否触发反爬虫挑战"""
-        if status_code == 403:
-            return True
+        # 检查响应内容中是否包含反爬虫特征
         if 'antibot' in html.lower():
             return True
         if 'Antibot Challenge Page' in html:
             return True
+        if 'ozon-antibot' in html.lower():
+            return True
+        # 403 状态码需要结合内容判断：
+        # - 如果是 JSON 格式的权限错误，不是 antibot
+        # - 如果是 HTML 页面且包含 antibot 特征，才是 antibot
+        if status_code == 403:
+            # JSON 响应（API 权限错误）不是 antibot
+            if html.strip().startswith('{') and 'PermissionDenied' in html:
+                return False
+            if html.strip().startswith('{') and 'error' in html:
+                return False
+            # HTML 响应且不包含 antibot 特征
+            if '<html' in html.lower() and 'antibot' not in html.lower():
+                return False
         return False
 
     async def _validate_company_id(self, html: str) -> None:
@@ -298,11 +311,15 @@ class OzonWebClient:
 
         url = f"{self.BASE_URL}{path}"
 
-        # 合并 API 请求头
+        # 合并 API 请求头（关键：X-O3-Company-Id 用于切换店铺）
         headers = {
             **self._headers,
             **self.API_HEADERS,
-            "x-o3-company-id": self.config.target_client_id,
+            "X-O3-Company-Id": self.config.target_client_id,
+            "Origin": self.BASE_URL,
+            "Referer": f"{self.BASE_URL}/app/finances/balance?_rr=1",
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
         }
 
         if method.upper() == "GET":
@@ -321,6 +338,15 @@ class OzonWebClient:
             raise AntibotDetectedError(
                 f"触发 OZON 反爬虫挑战 (status={response.status_code})"
             )
+
+        # 检查权限错误
+        if response.status_code == 403:
+            error_text = response.text
+            if "PermissionDenied" in error_text or "no access" in error_text:
+                raise CompanyIdMismatchError(
+                    f"没有店铺 {self.config.target_client_id} 的访问权限"
+                )
+            raise OzonWebClientError(f"API 请求被拒绝: {error_text[:200]}")
 
         if response.status_code >= 400:
             raise OzonWebClientError(
@@ -464,8 +490,56 @@ class OzonWebClient:
         """
         获取店铺余额
 
-        从 /app/finances/balance 页面解析余额数据
+        通过 API 获取余额数据（比页面解析更可靠，且支持切换店铺）
         """
+        # 先验证店铺访问权限
+        await self._verify_company_access()
+
+        # 调用余额 API
+        try:
+            response = await self.fetch_api(
+                "/api/v2/company/finance-info",
+                method="POST",
+                json_data={"company_id": int(self.config.target_client_id)}
+            )
+            # finance-info 返回公司信息，不包含余额
+            # 需要调用另一个 API 获取余额
+        except Exception as e:
+            logger.warning(f"获取公司财务信息失败: {e}")
+
+        # 调用余额详情 API
+        try:
+            response = await self.fetch_api(
+                "/api/site/seller-finances/balance/info",
+                method="POST",
+                json_data={"company_id": int(self.config.target_client_id)}
+            )
+            # 尝试从响应中提取余额
+            balance = response.get("balance") or response.get("result", {}).get("balance")
+            if balance is not None:
+                return float(balance)
+        except Exception as e:
+            logger.debug(f"余额 API 失败，尝试页面解析: {e}")
+
+        # 备用方案：从页面解析（但需要注意页面返回的可能是默认店铺）
+        return await self._get_balance_from_page()
+
+    async def _verify_company_access(self) -> None:
+        """验证是否有该店铺的访问权限"""
+        response = await self.fetch_api(
+            "/api/v2/company/finance-info",
+            method="POST",
+            json_data={"company_id": int(self.config.target_client_id)}
+        )
+        # 如果能成功调用，说明有权限
+        result_company_id = response.get("result", {}).get("company_id")
+        if result_company_id and str(result_company_id) != self.config.target_client_id:
+            raise CompanyIdMismatchError(
+                f"返回的 company_id ({result_company_id}) 与目标 ({self.config.target_client_id}) 不匹配"
+            )
+
+    async def _get_balance_from_page(self) -> Optional[float]:
+        """从页面解析余额（备用方案）"""
         html = await self.fetch_page("/app/finances/balance?tab=IncomesExpenses")
 
         # 优先从 __MODULE_STATE__ 提取
