@@ -1154,6 +1154,13 @@ async def split_posting(
         # 5. 处理响应 - 更新原 posting 和创建新 posting
         processor = PostingProcessor()
 
+        # 保存原订单的业务字段，用于继承给新订单
+        original_business_fields = {
+            "source_platform": posting.source_platform,
+            "order_notes": posting.order_notes,
+            "operation_status": "awaiting_stock",  # 新拆分的订单回到待备货状态
+        }
+
         # 5.1 更新原 posting (parent_posting)
         parent_posting = split_response.get("result", {}).get("parent_posting", {})
         if parent_posting.get("posting_number"):
@@ -1167,6 +1174,8 @@ async def split_posting(
                 posting_data = detail_response["result"]
                 ozon_order_id = str(posting_data.get("order_id", posting.ozon_order_id or ""))
                 await processor.sync_posting(db, posting_data, shop_id, ozon_order_id)
+                # 拆分后原订单也回到待备货状态
+                posting.operation_status = "awaiting_stock"
 
         # 5.2 创建新的 postings
         new_postings = split_response.get("result", {}).get("postings", [])
@@ -1184,7 +1193,14 @@ async def split_posting(
                 if detail_response.get("result"):
                     posting_data = detail_response["result"]
                     ozon_order_id = str(posting_data.get("order_id", posting.ozon_order_id or ""))
-                    await processor.sync_posting(db, posting_data, shop_id, ozon_order_id)
+                    new_posting_obj = await processor.sync_posting(db, posting_data, shop_id, ozon_order_id)
+
+                    # 继承原订单的业务字段
+                    if new_posting_obj:
+                        new_posting_obj.source_platform = original_business_fields["source_platform"]
+                        new_posting_obj.order_notes = original_business_fields["order_notes"]
+                        new_posting_obj.operation_status = original_business_fields["operation_status"]
+
                     created_posting_numbers.append(new_posting_number)
 
         await db.commit()
