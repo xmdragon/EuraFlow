@@ -2,6 +2,7 @@ import { UserOutlined, LockOutlined, ReloadOutlined } from '@ant-design/icons';
 import { Form, Input, Button, Alert, Typography, Space, Spin } from 'antd';
 import SliderCaptcha from 'rc-slider-captcha';
 import React, { useState, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '@/hooks/useAuth';
 import authService from '@/services/authService';
@@ -19,6 +20,7 @@ interface CaptchaData {
 
 const LoginPage: React.FC = () => {
   const { login } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
@@ -153,7 +155,7 @@ const LoginPage: React.FC = () => {
                 },
               ]}
             >
-              <Input prefix={<UserOutlined />} placeholder="用户名" autoComplete="username" />
+              <Input prefix={<UserOutlined />} placeholder="用户名或手机号" autoComplete="username" />
             </Form.Item>
 
             <Form.Item
@@ -227,15 +229,23 @@ const LoginPage: React.FC = () => {
             </Form.Item>
 
             <Form.Item>
-              <Button
-                type="primary"
-                htmlType="submit"
-                loading={loading}
-                disabled={!captchaVerified}
-                style={{ width: '100%' }}
-              >
-                登录
-              </Button>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 16 }}>
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  loading={loading}
+                  disabled={!captchaVerified}
+                  style={{ width: 120 }}
+                >
+                  登录
+                </Button>
+                <Button
+                  style={{ width: 120 }}
+                  onClick={() => navigate('/register')}
+                >
+                  注册
+                </Button>
+              </div>
             </Form.Item>
           </Form>
         </Space>

@@ -220,14 +220,8 @@ class CatalogService:
             logger.warning(f"Category data missing ID, skipping: {category_data}")
             return {'count': 0, 'new': 0, 'updated': 0}
 
-        # 检查类目是否已存在（使用 category_id + parent_id 组合查询）
-        stmt = select(OzonCategory).where(
-            and_(
-                OzonCategory.category_id == category_id,
-                OzonCategory.parent_id == parent_id if parent_id is not None
-                else OzonCategory.parent_id.is_(None)
-            )
-        )
+        # 检查类目是否已存在（仅用 category_id 查询，因为 OZON 可能会调整类目的父级关系）
+        stmt = select(OzonCategory).where(OzonCategory.category_id == category_id)
         result = await self.db.execute(stmt)
         existing = result.scalar_one_or_none()
 
@@ -249,6 +243,7 @@ class CatalogService:
 
             # 仅在中文同步时更新结构字段
             if language == "zh":
+                existing.parent_id = parent_id  # 更新父类目ID（OZON可能会调整类目结构）
                 existing.is_leaf = is_leaf
                 existing.is_disabled = is_disabled
                 existing.is_deprecated = False  # 重新激活已废弃的类目

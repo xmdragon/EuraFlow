@@ -5,9 +5,9 @@
   line-height: 1.5;
   font-weight: 400;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  color-scheme: light;
+  color: rgba(0, 0, 0, 0.88);
+  background-color: #f0f2f5;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -19,7 +19,9 @@
 html, body {
   margin: 0;
   padding: 0;
-  min-height: 100vh;
+  height: 100%;
+  background-color: #f0f2f5;
+  overflow: hidden;
 }
 
 #root {
@@ -78,4 +80,18 @@ main > div > div {
 /* 滑块验证码拼图块阴影效果 */
 .rc-slider-captcha-jigsaw-puzzle {
   filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.5)) drop-shadow(-1px -1px 2px rgba(0, 0, 0, 0.3));
+}
+
+/* Tabs 标签靠左对齐，不平均分布，增加间距 */
+.ant-tabs-nav-list {
+  justify-content: flex-start !important;
+}
+
+.ant-tabs-tab {
+  flex: none !important;
+  margin-right: 24px !important;
+}
+
+.ant-tabs-tab:last-child {
+  margin-right: 0 !important;
 }

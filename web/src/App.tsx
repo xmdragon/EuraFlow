@@ -1,10 +1,12 @@
 import { Spin, App as AntApp } from 'antd';
 import { Routes, Route, Navigate } from 'react-router-dom';
 
+import CreditBalanceWarning from '@/components/CreditBalanceWarning';
 import NotificationProvider from '@/components/NotificationProvider';
 import { useAuth } from '@/hooks/useAuth';
 import Dashboard from '@/pages/Dashboard';
 import LoginPage from '@/pages/LoginPage';
+import RegisterPage from '@/pages/RegisterPage';
 
 function App() {
   const { user, isLoading } = useAuth();
@@ -35,11 +37,17 @@ function App() {
             element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />}
           />
           <Route
+            path="/register"
+            element={user ? <Navigate to="/dashboard" replace /> : <RegisterPage />}
+          />
+          <Route
             path="/dashboard/*"
             element={user ? <Dashboard /> : <Navigate to="/login" replace />}
           />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
         </Routes>
+        {/* 额度余额预警弹窗 - 登录后检查余额 */}
+        <CreditBalanceWarning isLoggedIn={!!user} />
       </NotificationProvider>
     </AntApp>
   );

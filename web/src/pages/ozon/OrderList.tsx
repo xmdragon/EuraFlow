@@ -7,6 +7,13 @@ import {
   ShoppingCartOutlined,
   CopyOutlined,
   ScissorOutlined,
+  ClockCircleOutlined,
+  SendOutlined,
+  CarOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  DeleteOutlined,
+  UnorderedListOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -937,31 +944,31 @@ const OrderList: React.FC = () => {
           destroyInactiveTabPane
           items={[
             {
-              label: `等待备货 ${stats.awaiting_packaging || 0}`,
+              label: <span><ClockCircleOutlined /> 等待备货 ({stats.awaiting_packaging || 0})</span>,
               key: 'awaiting_packaging',
             },
             {
-              label: `等待发运 ${stats.awaiting_deliver || 0}`,
+              label: <span><SendOutlined /> 等待发运 ({stats.awaiting_deliver || 0})</span>,
               key: 'awaiting_deliver',
             },
             {
-              label: `运输中 ${stats.delivering || 0}`,
+              label: <span><CarOutlined /> 运输中 ({stats.delivering || 0})</span>,
               key: 'delivering',
             },
             {
-              label: `已签收 ${stats.delivered || 0}`,
+              label: <span><CheckCircleOutlined /> 已签收 ({stats.delivered || 0})</span>,
               key: 'delivered',
             },
             {
-              label: `已取消 ${stats.cancelled || 0}`,
+              label: <span><CloseCircleOutlined /> 已取消 ({stats.cancelled || 0})</span>,
               key: 'cancelled',
             },
             {
-              label: `已废弃 ${stats.discarded || 0}`,
+              label: <span><DeleteOutlined /> 已废弃 ({stats.discarded || 0})</span>,
               key: 'discarded',
             },
             {
-              label: `所有 ${stats.total || 0}`,
+              label: <span><UnorderedListOutlined /> 所有 ({stats.total || 0})</span>,
               key: 'all',
             },
           ]}

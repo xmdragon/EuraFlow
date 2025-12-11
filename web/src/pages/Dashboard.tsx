@@ -14,6 +14,7 @@ import {
   SyncOutlined,
   DollarOutlined,
   CloudUploadOutlined,
+  CloudOutlined,
   DatabaseOutlined,
   AppstoreOutlined,
   PlusOutlined,
@@ -27,6 +28,9 @@ import {
   HomeOutlined,
   WarningOutlined,
   InfoCircleOutlined,
+  WalletOutlined,
+  TruckOutlined,
+  GiftOutlined,
 } from "@ant-design/icons";
 import {
   Layout,
@@ -53,7 +57,7 @@ import { lazyWithRetry } from "@/utils/lazyWithRetry";
 const FinanceCalculator = lazyWithRetry(() => import("./finance"));
 const OzonManagement = lazyWithRetry(() => import("./ozon"));
 const SystemManagement = lazyWithRetry(() => import("./system"));
-const Profile = lazyWithRetry(() => import("./Profile"));
+const UserPages = lazyWithRetry(() => import("./user"));
 const ApiKeys = lazyWithRetry(() => import("./ApiKeys"));
 const UserManagement = lazyWithRetry(() => import("./users"));
 const ShopManagement = lazyWithRetry(() => import("./shops"));
@@ -68,6 +72,8 @@ import { useQuickMenu } from "@/hooks/useQuickMenu";
 import { useOzonMenuOrder } from "@/hooks/useOzonMenuOrder";
 import type { User } from "@/types/auth";
 import { notifyWarning } from "@/utils/notification";
+import { setOzonImageCdn } from "@/utils/ozonImageOptimizer";
+import { getGlobalSettings } from "@/services/ozon";
 
 // 加载中组件
 const PageLoading = () => (
@@ -83,7 +89,7 @@ const PageLoading = () => (
   </div>
 );
 
-const { Sider, Content } = Layout;
+const { Header, Sider, Content } = Layout;
 const { Title } = Typography;
 
 /**
@@ -194,6 +200,28 @@ const Dashboard: React.FC = () => {
     localStorage.setItem("sidebarCollapsed", JSON.stringify(collapsed));
   }, [collapsed]);
 
+  // 初始化 OZON 图片 CDN 设置
+  useEffect(() => {
+    const initImageCdn = async () => {
+      try {
+        const response = await getGlobalSettings() as {
+          settings?: {
+            ozon_image_cdn?: {
+              setting_value?: { selected_cdn?: string };
+            };
+          };
+        };
+        const selectedCdn = response?.settings?.ozon_image_cdn?.setting_value?.selected_cdn;
+        if (selectedCdn) {
+          setOzonImageCdn(selectedCdn);
+        }
+      } catch {
+        // 忽略错误，使用默认 CDN
+      }
+    };
+    initImageCdn();
+  }, []);
+
   // 处理菜单展开/收起（手风琴效果）
   const handleOpenChange = (keys: string[]) => {
     // 定义有子菜单的根级菜单组
@@ -239,6 +267,7 @@ const Dashboard: React.FC = () => {
     FilterOutlined: <FilterOutlined />,
     ShoppingOutlined: <ShoppingOutlined />,
     CloudUploadOutlined: <CloudUploadOutlined />,
+    CloudOutlined: <CloudOutlined />,
     DollarOutlined: <DollarOutlined />,
     ShoppingCartOutlined: <ShoppingCartOutlined />,
     FileTextOutlined: <FileTextOutlined />,
@@ -247,6 +276,13 @@ const Dashboard: React.FC = () => {
     SyncOutlined: <SyncOutlined />,
     SettingOutlined: <SettingOutlined />,
     UserOutlined: <UserOutlined />,
+    TruckOutlined: <TruckOutlined />,
+    GiftOutlined: <GiftOutlined />,
+    DatabaseOutlined: <DatabaseOutlined />,
+    CloseCircleOutlined: <CloseCircleOutlined />,
+    HomeOutlined: <HomeOutlined />,
+    WalletOutlined: <WalletOutlined />,
+    CrownOutlined: <CrownOutlined />,
   };
 
   const userMenuItems: MenuProps['items'] = [
@@ -257,17 +293,29 @@ const Dashboard: React.FC = () => {
       onClick: () => navigate("/dashboard/profile"),
     },
     {
+      key: "settings",
+      icon: <SettingOutlined />,
+      label: "个人设置",
+      onClick: () => navigate("/dashboard/profile/settings"),
+    },
+    {
+      key: "password",
+      icon: <KeyOutlined />,
+      label: "修改密码",
+      onClick: () => navigate("/dashboard/profile/password"),
+    },
+    {
+      key: "credits",
+      icon: <WalletOutlined />,
+      label: "额度中心",
+      onClick: () => navigate("/dashboard/profile/credits"),
+    },
+    { type: "divider", key: "divider-1" },
+    {
       key: "api-keys",
       icon: <KeyOutlined />,
       label: "API KEY",
       onClick: () => navigate("/dashboard/api-keys"),
-    },
-    { type: "divider", key: "divider-1" },
-    {
-      key: "logout",
-      icon: <LogoutOutlined />,
-      label: "退出登录",
-      onClick: handleLogout,
     },
   ];
 
@@ -312,7 +360,7 @@ const Dashboard: React.FC = () => {
     {
       key: "finance",
       icon: <CalculatorOutlined />,
-      label: createMenuLabel("finance", "财务计算", "/dashboard/finance"),
+      label: createMenuLabel("finance", "计算器", "/dashboard/finance"),
       onClick: () => navigate("/dashboard/finance"),
     },
     {
@@ -323,7 +371,7 @@ const Dashboard: React.FC = () => {
         // Ozon 子菜单配置（使用新名称）
         const ozonMenuConfig: Record<string, { icon: React.ReactNode; label: string; path: string }> = {
           'ozon-overview': { icon: <DashboardOutlined />, label: '店铺概览', path: '/dashboard/ozon/overview' },
-          'ozon-packing': { icon: <ShoppingCartOutlined />, label: '打包发货', path: '/dashboard/ozon/packing' },
+          'ozon-packing': { icon: <TruckOutlined />, label: '打包发货', path: '/dashboard/ozon/packing' },
           'ozon-orders': { icon: <ShoppingCartOutlined />, label: '订单管理', path: '/dashboard/ozon/orders' },
           'ozon-products-list': { icon: <ShoppingOutlined />, label: '商品列表', path: '/dashboard/ozon/products' },
           'ozon-reports': { icon: <FileTextOutlined />, label: '订单报表', path: '/dashboard/ozon/reports' },
@@ -334,7 +382,7 @@ const Dashboard: React.FC = () => {
           'ozon-cancel-return': { icon: <CloseCircleOutlined />, label: '取消退货', path: '/dashboard/ozon/cancel-return' },
           'ozon-finance-transactions': { icon: <DollarOutlined />, label: '财务记录', path: '/dashboard/ozon/finance-transactions' },
           'ozon-warehouses': { icon: <HomeOutlined />, label: '仓库列表', path: '/dashboard/ozon/warehouses' },
-          'ozon-promotions': { icon: <DollarOutlined />, label: '促销活动', path: '/dashboard/ozon/promotions' },
+          'ozon-promotions': { icon: <GiftOutlined />, label: '促销活动', path: '/dashboard/ozon/promotions' },
           'ozon-chats': { icon: <MessageOutlined />, label: '聊天管理', path: '/dashboard/ozon/chats' },
         };
 
@@ -392,48 +440,6 @@ const Dashboard: React.FC = () => {
         }).filter(Boolean);
       })(),
     },
-    // 系统管理菜单 - 仅超级管理员可见
-    ...(user?.role === "admin"
-      ? [
-          {
-            key: "system",
-            icon: <AppstoreOutlined />,
-            label: "系统管理",
-            children: [
-              {
-                key: "system-sync-services",
-                icon: <SyncOutlined />,
-                label: createMenuLabel("system-sync-services", "后台服务", "/dashboard/system/sync-services"),
-                onClick: () => navigate("/dashboard/system/sync-services"),
-              },
-              {
-                key: "system-configuration",
-                icon: <SettingOutlined />,
-                label: createMenuLabel("system-configuration", "系统配置", "/dashboard/system/configuration"),
-                onClick: () => navigate("/dashboard/system/configuration"),
-              },
-              {
-                key: "system-watermark",
-                icon: <PictureOutlined />,
-                label: createMenuLabel("system-watermark", "水印管理", "/dashboard/system/watermark"),
-                onClick: () => navigate("/dashboard/system/watermark"),
-              },
-              {
-                key: "system-image-storage",
-                icon: <CloudUploadOutlined />,
-                label: createMenuLabel("system-image-storage", "图床资源", "/dashboard/system/image-storage"),
-                onClick: () => navigate("/dashboard/system/image-storage"),
-              },
-              {
-                key: "system-logs",
-                icon: <FileTextOutlined />,
-                label: createMenuLabel("system-logs", "日志管理", "/dashboard/system/logs"),
-                onClick: () => navigate("/dashboard/system/logs"),
-              },
-            ],
-          },
-        ]
-      : []),
     // 店铺管理 - admin、manager 和 sub_account 可见
     {
       key: "shops",
@@ -470,13 +476,54 @@ const Dashboard: React.FC = () => {
           },
         ]
       : []),
-    // 退出登录
-    {
-      key: "logout",
-      icon: <LogoutOutlined />,
-      label: "退出登录",
-      onClick: handleLogout,
-    },
+    // 系统管理菜单 - 仅超级管理员可见
+    ...(user?.role === "admin"
+      ? [
+          {
+            key: "system",
+            icon: <AppstoreOutlined />,
+            label: "系统管理",
+            children: [
+              {
+                key: "system-sync-services",
+                icon: <SyncOutlined />,
+                label: createMenuLabel("system-sync-services", "后台服务", "/dashboard/system/sync-services"),
+                onClick: () => navigate("/dashboard/system/sync-services"),
+              },
+              {
+                key: "system-configuration",
+                icon: <SettingOutlined />,
+                label: createMenuLabel("system-configuration", "系统配置", "/dashboard/system/configuration"),
+                onClick: () => navigate("/dashboard/system/configuration"),
+              },
+              {
+                key: "system-watermark",
+                icon: <PictureOutlined />,
+                label: createMenuLabel("system-watermark", "水印管理", "/dashboard/system/watermark"),
+                onClick: () => navigate("/dashboard/system/watermark"),
+              },
+              {
+                key: "system-image-storage",
+                icon: <CloudOutlined />,
+                label: createMenuLabel("system-image-storage", "图床资源", "/dashboard/system/image-storage"),
+                onClick: () => navigate("/dashboard/system/image-storage"),
+              },
+              {
+                key: "system-logs",
+                icon: <FileTextOutlined />,
+                label: createMenuLabel("system-logs", "日志管理", "/dashboard/system/logs"),
+                onClick: () => navigate("/dashboard/system/logs"),
+              },
+              {
+                key: "system-credits",
+                icon: <WalletOutlined />,
+                label: createMenuLabel("system-credits", "额度管理", "/dashboard/system/credits"),
+                onClick: () => navigate("/dashboard/system/credits"),
+              },
+            ],
+          },
+        ]
+      : []),
   ];
 
   // 根据路径获取选中的菜单项
@@ -501,10 +548,12 @@ const Dashboard: React.FC = () => {
     if (path.includes("/system/watermark")) return "system-watermark";
     if (path.includes("/system/image-storage")) return "system-image-storage";
     if (path.includes("/system/sync-services")) return "system-sync-services";
+    if (path.includes("/system/credits")) return "system-credits";
     if (path.includes("/finance")) return "finance";
     if (path.includes("/shops")) return "shops";
     if (path.includes("/users/levels")) return "users-levels";
     if (path.includes("/users")) return "users-list";
+    if (path.includes("/profile/credits")) return "credits";
     if (path.includes("/profile")) return "profile";
     return "dashboard";
   };
@@ -525,41 +574,54 @@ const Dashboard: React.FC = () => {
           onNavigate={handleModalNavigate}
         />
       )}
-      <Sider
-        theme="light"
-        width={240}
-        collapsible
-        collapsed={collapsed}
-        onCollapse={setCollapsed}
-        collapsedWidth={80}
-        style={{
-          overflow: "auto",
-          height: "100vh",
-          position: "fixed",
-          left: 0,
-          top: 0,
-          bottom: 0,
-          background: "#f0f2f5",
-          borderRight: "1px solid #e8e8e8",
-        }}
-      >
-        <div className={collapsed ? styles.logoCollapsed : styles.logo}>
-          {collapsed ? "EF" : "EuraFlow"}
-        </div>
 
-        <Menu
+      {/* T字型布局：顶部 Header */}
+      <Header className={styles.header}>
+        <div className={styles.headerLogo}>EuraFlow</div>
+        <Space size={16}>
+          <Dropdown
+            menu={{ items: userMenuItems }}
+            placement="bottomRight"
+            arrow
+            trigger={["click"]}
+          >
+            <div className={styles.headerUser}>
+              <span className={styles.headerUsername}>
+                {user?.username || "未设置"}
+              </span>
+            </div>
+          </Dropdown>
+          <Tooltip title="退出登录">
+            <LogoutOutlined
+              className={styles.headerLogout}
+              onClick={handleLogout}
+            />
+          </Tooltip>
+        </Space>
+      </Header>
+
+      <Layout className={styles.mainLayout}>
+        <Sider
           theme="light"
-          mode="inline"
-          selectedKeys={[getSelectedKey()]}
-          openKeys={openKeys}
-          onOpenChange={handleOpenChange}
-          items={menuItems}
-          style={{ background: "transparent", borderRight: "none" }}
-        />
-      </Sider>
+          width={240}
+          collapsible
+          collapsed={collapsed}
+          onCollapse={setCollapsed}
+          collapsedWidth={80}
+          className={styles.sider}
+        >
+          <Menu
+            theme="light"
+            mode="inline"
+            selectedKeys={[getSelectedKey()]}
+            openKeys={openKeys}
+            onOpenChange={handleOpenChange}
+            items={menuItems}
+            style={{ background: "transparent", borderRight: "none" }}
+          />
+        </Sider>
 
-      <Layout style={{ marginLeft: collapsed ? 80 : 240 }}>
-        <Content style={{ margin: "0 8px 0 0", padding: 0, background: "#f5f5f5" }}>
+        <Content className={styles.content}>
           {/* 路由级错误边界：隔离各页面错误，防止单个页面崩溃影响整体导航 */}
           <ErrorBoundary name="页面路由">
             <Suspense fallback={<PageLoading />}>
@@ -568,29 +630,16 @@ const Dashboard: React.FC = () => {
                   path="/"
                   element={
                     <DashboardHome
-                      user={
-                        user || {
-                          id: 0,
-                          username: "Guest",
-                          role: "sub_account" as const,
-                          permissions: [],
-                          is_active: false,
-                          account_status: "active" as const,
-                          created_at: new Date().toISOString(),
-                          updated_at: new Date().toISOString(),
-                        }
-                      }
                       quickMenuItems={quickMenuItems}
                       removeQuickMenu={removeQuickMenu}
                       navigate={navigate}
                       iconMap={iconMap}
-                      userMenuItems={userMenuItems}
                     />
                   }
                 />
                 <Route path="ozon/*" element={<OzonManagement />} />
                 <Route path="finance" element={<FinanceCalculator />} />
-                <Route path="profile" element={<Profile />} />
+                <Route path="profile/*" element={<UserPages />} />
                 <Route path="api-keys" element={<ApiKeys />} />
                 {/* 系统管理路由 - 仅超级管理员可访问 */}
                 {user?.role === "admin" && (
@@ -606,52 +655,33 @@ const Dashboard: React.FC = () => {
             </Suspense>
           </ErrorBoundary>
         </Content>
-        {/* 全局悬浮快捷按钮 */}
-        <QuickAccessButton />
       </Layout>
+      {/* 全局悬浮快捷按钮 */}
+      <QuickAccessButton />
     </Layout>
   );
 };
 
 // 仪表板首页组件
 interface DashboardHomeProps {
-  user: User;
   quickMenuItems: Array<{ key: string; label: string; path: string }>;
   removeQuickMenu: (key: string) => void;
   navigate: (path: string) => void;
   iconMap: Record<string, React.ReactNode>;
-  userMenuItems: MenuProps['items'];
 }
 
 const DashboardHome: React.FC<DashboardHomeProps> = ({
-  user,
   quickMenuItems,
   removeQuickMenu,
   navigate,
   iconMap,
-  userMenuItems,
 }) => {
   return (
     <div className={styles.pageWrapper}>
-      {/* 欢迎标题行，右侧显示用户信息 */}
-      <div className={styles.welcomeHeader}>
-        <Title level={2} className={styles.welcomeTitle}>
-          欢迎使用 EuraFlow 跨境电商管理平台
-        </Title>
-        <Dropdown
-          menu={{ items: userMenuItems }}
-          placement="bottomRight"
-          arrow
-          trigger={["click"]}
-        >
-          <div className={styles.headerUserInfo}>
-            <span className={styles.headerUsername}>
-              {user?.username || "未设置"}
-            </span>
-            <Avatar size={32} icon={<UserOutlined />} />
-          </div>
-        </Dropdown>
-      </div>
+      {/* 欢迎标题 */}
+      <Title level={2} className={styles.welcomeTitle}>
+        欢迎使用 EuraFlow 跨境电商管理平台
+      </Title>
 
       {/* 快捷菜单区域 */}
       {quickMenuItems.length > 0 && (

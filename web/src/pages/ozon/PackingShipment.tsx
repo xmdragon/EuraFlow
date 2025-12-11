@@ -13,6 +13,7 @@ import {
   PlusOutlined,
   RocketOutlined,
   CloseCircleOutlined,
+  WalletOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -71,6 +72,7 @@ import { useBatchPrint } from '@/hooks/useBatchPrint';
 import { useBatchSync } from '@/hooks/useBatchSync';
 import { readAndValidateClipboard, markClipboardRejected } from '@/hooks/useClipboard';
 import * as ozonApi from '@/services/ozon';
+import * as creditApi from '@/services/credit';
 import { logger } from '@/utils/logger';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
 
@@ -304,6 +306,47 @@ const PackingShipment: React.FC = () => {
     queryFn: () => ozonApi.getShops(),
     staleTime: 5 * 60 * 1000, // 5分钟缓存
   });
+
+  // 获取额度余额信息
+  const { data: creditBalance } = useQuery({
+    queryKey: ['credit-balance'],
+    queryFn: creditApi.getBalance,
+    staleTime: 30 * 1000, // 30秒缓存
+    retry: 1,
+  });
+
+  // 计算选中订单的打印费用
+  // 只有首次打印（label_print_count === 0）才计费
+  const printCostInfo = useMemo(() => {
+    if (!creditBalance || scanSelectedPostings.length === 0) {
+      return null;
+    }
+
+    // 筛选出首次打印的订单（补打印不计费）
+    const billablePostings = scanResults.filter(
+      (p) => scanSelectedPostings.includes(p.posting_number) && (p.label_print_count || 0) === 0
+    );
+    const reprintPostings = scanResults.filter(
+      (p) => scanSelectedPostings.includes(p.posting_number) && (p.label_print_count || 0) > 0
+    );
+
+    const billableCount = billablePostings.length;
+    const reprintCount = reprintPostings.length;
+    const unitCost = 1; // 默认单价，实际应从模块配置获取
+    const totalCost = billableCount * unitCost;
+    const currentBalance = parseFloat(creditBalance.balance);
+    const sufficient = currentBalance >= totalCost;
+
+    return {
+      billableCount,
+      reprintCount,
+      unitCost,
+      totalCost,
+      currentBalance,
+      sufficient,
+      creditName: creditBalance.credit_name,
+    };
+  }, [creditBalance, scanSelectedPostings, scanResults]);
 
   // 建立 shop_id → shop_name 的映射（根据用户设置格式化）
   const shopNameMap = React.useMemo(() => {
@@ -1458,6 +1501,21 @@ const PackingShipment: React.FC = () => {
               </Space>
               {canOperate && (
                 <>
+                  {/* 打印费用提示 */}
+                  {printCostInfo && printCostInfo.billableCount > 0 && (
+                    <Space size={4}>
+                      <WalletOutlined style={{ color: printCostInfo.sufficient ? '#1890ff' : '#ff4d4f' }} />
+                      <Text style={{ fontSize: 13 }}>
+                        本次消耗 <Text strong style={{ color: printCostInfo.sufficient ? undefined : '#ff4d4f' }}>{printCostInfo.totalCost}</Text> {printCostInfo.creditName}
+                        {printCostInfo.reprintCount > 0 && (
+                          <Text type="secondary">（{printCostInfo.reprintCount}个补打印免费）</Text>
+                        )}
+                      </Text>
+                      {!printCostInfo.sufficient && (
+                        <Text type="danger" style={{ fontSize: 13 }}>余额不足</Text>
+                      )}
+                    </Space>
+                  )}
                   <Button
                     type={scanSelectedPostings.length === filteredScanResults.length && filteredScanResults.length > 0 ? 'primary' : 'default'}
                     onClick={() => {
@@ -1476,7 +1534,7 @@ const PackingShipment: React.FC = () => {
                     type="primary"
                     icon={<PrinterOutlined />}
                     loading={isPrinting}
-                    disabled={scanSelectedPostings.length === 0}
+                    disabled={scanSelectedPostings.length === 0 || (printCostInfo && !printCostInfo.sufficient)}
                     onClick={handleScanBatchPrint}
                   >
                     批量打印 ({scanSelectedPostings.length}/{filteredScanResults.length})

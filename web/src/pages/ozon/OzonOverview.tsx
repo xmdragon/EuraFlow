@@ -3,7 +3,7 @@
  * Ozon 管理概览页面
  */
 import {
-  ShoppingOutlined,
+  DashboardOutlined,
   LineChartOutlined,
   WalletOutlined,
 } from '@ant-design/icons';
@@ -442,7 +442,7 @@ const OzonOverview: React.FC = () => {
 
   return (
     <div>
-      <PageTitle icon={<ShoppingOutlined />} title="店铺概览" />
+      <PageTitle icon={<DashboardOutlined />} title="店铺概览" />
 
       <div className={styles.contentContainer}>
         <Row className={styles.titleRow} align="middle">

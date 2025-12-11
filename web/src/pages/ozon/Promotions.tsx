@@ -9,6 +9,8 @@ import {
   MinusOutlined,
   CopyOutlined,
   GiftOutlined,
+  ShoppingOutlined,
+  CheckCircleOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -814,7 +816,7 @@ const Promotions: React.FC = () => {
             items={[
               {
                 key: 'candidates',
-                label: `可用促销商品 (${selectedAction.candidate_count || 0})`,
+                label: <span><ShoppingOutlined /> 可用促销商品 ({selectedAction.candidate_count || 0})</span>,
                 children: (
                   <Space direction="vertical" className={styles.fullWidth} size="middle">
                     {/* 操作按钮 */}
@@ -847,7 +849,7 @@ const Promotions: React.FC = () => {
               },
               {
                 key: 'active',
-                label: `参与活动商品 (${selectedAction.active_count || 0})`,
+                label: <span><CheckCircleOutlined /> 参与活动商品 ({selectedAction.active_count || 0})</span>,
                 children: (
                   <Space direction="vertical" className={styles.fullWidth} size="middle">
                     {/* 操作按钮 */}

@@ -15,7 +15,7 @@ const ConfigGuideTab: React.FC = () => {
   const isManager = user?.role === 'manager';
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+    <div>
       <Alert
         message="配置说明"
         description="本页面提供各项配置的获取方法、使用说明和常见问题解答"

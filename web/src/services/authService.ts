@@ -256,6 +256,24 @@ class AuthService {
     const response = await axios.post(`${API_BASE_URL}/auth/captcha/verify`, data);
     return response.data;
   }
+
+  async register(data: {
+    phone: string;
+    password: string;
+    captcha_token: string;
+  }): Promise<LoginResponse> {
+    const response = await axios.post<LoginResponse>(`${API_BASE_URL}/auth/register`, data);
+    const { access_token, refresh_token } = response.data;
+    this.setTokens(access_token, refresh_token);
+    return response.data;
+  }
+
+  async changeUsername(newUsername: string): Promise<User> {
+    const response = await axios.put<User>(`${API_BASE_URL}/auth/me/username`, {
+      new_username: newUsername,
+    });
+    return response.data;
+  }
 }
 
 export const authService = new AuthService();

@@ -1,6 +1,7 @@
 """
 认证API路由
 """
+import re
 from typing import Optional
 from pydantic import BaseModel, Field, EmailStr, validator
 
@@ -20,6 +21,39 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 logger = get_logger(__name__)
+
+
+# ========== 工具函数 ==========
+
+def is_phone_number(value: str) -> bool:
+    """判断是否为手机号格式（11位数字，首位为1）"""
+    return bool(re.match(r'^1\d{10}$', value))
+
+
+def is_pure_digits(value: str) -> bool:
+    """判断是否为纯数字"""
+    return bool(re.match(r'^\d+$', value))
+
+
+def validate_username_format(username: str) -> tuple[bool, str]:
+    """验证用户名格式，返回 (是否有效, 错误消息)"""
+    if is_pure_digits(username):
+        return False, "用户名不能为纯数字"
+    if len(username) < 3:
+        return False, "用户名至少3个字符"
+    if len(username) > 30:
+        return False, "用户名最多30个字符"
+    return True, ""
+
+
+def mask_phone(phone: Optional[str]) -> Optional[str]:
+    """手机号脱敏，第5-8位用*代替
+
+    例如：13812345678 -> 138****5678
+    """
+    if not phone or len(phone) != 11:
+        return phone
+    return f"{phone[:3]}****{phone[7:]}"
 
 # 创建路由器
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -79,6 +113,8 @@ class UserResponse(BaseModel):
     """用户信息响应"""
     id: int
     username: str
+    phone: Optional[str] = None  # 手机号码
+    username_changed: bool = False  # 用户名是否已修改过
     role: str
     is_active: bool
     account_status: str = "active"  # active/suspended/disabled
@@ -96,8 +132,9 @@ class UserResponse(BaseModel):
 
 class CreateUserRequest(BaseModel):
     """创建用户请求"""
-    username: str = Field(..., min_length=3, max_length=50, description="用户名")
+    username: str = Field(..., min_length=3, max_length=30, description="用户名")
     password: str = Field(..., min_length=8, description="密码")
+    phone: Optional[str] = Field(None, max_length=20, description="手机号码（仅admin可设置）")
     role: str = Field("sub_account", description="角色：manager/sub_account")
     is_active: bool = Field(True, description="是否激活")
     account_status: str = Field("active", description="账号状态：active/suspended/disabled")
@@ -106,6 +143,12 @@ class CreateUserRequest(BaseModel):
     shop_ids: Optional[list[int]] = Field(None, description="关联店铺ID列表")
     permissions: list = Field(default_factory=list, description="权限列表")
     manager_level_id: Optional[int] = Field(None, description="管理员级别ID（仅manager角色）")
+
+    @validator('username')
+    def validate_username(cls, v):
+        if is_pure_digits(v):
+            raise ValueError('用户名不能为纯数字')
+        return v
 
     @validator('role')
     def validate_role(cls, v):
@@ -123,6 +166,7 @@ class CreateUserRequest(BaseModel):
 class UpdateUserRequest(BaseModel):
     """更新用户请求"""
     username: Optional[str] = Field(None, description="用户名")
+    phone: Optional[str] = Field(None, max_length=20, description="手机号码（仅admin可修改）")
     role: Optional[str] = Field(None, description="角色")
     is_active: Optional[bool] = Field(None, description="是否激活")
     account_status: Optional[str] = Field(None, description="账号状态：active/suspended/disabled")
@@ -147,7 +191,31 @@ class ChangePasswordRequest(BaseModel):
 
 class UpdateProfileRequest(BaseModel):
     """更新个人资料请求"""
-    username: Optional[str] = Field(None, min_length=3, max_length=50, description="用户名")
+    username: Optional[str] = Field(None, min_length=3, max_length=30, description="用户名")
+
+
+class RegisterRequest(BaseModel):
+    """用户注册请求"""
+    phone: str = Field(..., min_length=11, max_length=11, description="手机号（11位）")
+    password: str = Field(..., min_length=8, description="密码（至少8位）")
+    captcha_token: str = Field(..., description="滑块验证码 token")
+
+    @validator('phone')
+    def validate_phone(cls, v):
+        if not re.match(r'^1\d{10}$', v):
+            raise ValueError('手机号格式不正确（需要11位，首位为1）')
+        return v
+
+
+class ChangeUsernameRequest(BaseModel):
+    """修改用户名请求（注册用户仅可修改一次）"""
+    new_username: str = Field(..., min_length=3, max_length=30, description="新用户名")
+
+    @validator('new_username')
+    def validate_new_username(cls, v):
+        if is_pure_digits(v):
+            raise ValueError('用户名不能为纯数字')
+        return v
 
 
 # ========== 依赖函数 ==========
@@ -528,6 +596,7 @@ async def get_current_user_info(request: Request):
 
                 if user:
                     user_data = user.to_dict()
+                    user_data["phone"] = mask_phone(user_data.get("phone"))  # 手机号脱敏
                     user_data["shop_ids"] = [shop.id for shop in user.shops] if user.shops else []
                     user_data["settings"] = await _get_user_settings(session, user.id)
                     logger.info("API Key认证成功")
@@ -559,6 +628,7 @@ async def get_current_user_info(request: Request):
 
             # 构建响应（包含用户设置）
             user_data = user.to_dict()
+            user_data["phone"] = mask_phone(user_data.get("phone"))  # 手机号脱敏
             user_data["shop_ids"] = [shop.id for shop in user.shops] if user.shops else []
             user_data["settings"] = await _get_user_settings(session, user.id)
 
@@ -706,10 +776,29 @@ async def create_user(
                 }
             )
 
+    # 处理手机号（仅 admin 可以设置）
+    phone = None
+    if user_data.phone:
+        if current_user.role != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"code": "PHONE_ADMIN_ONLY", "message": "只有超级管理员可以设置手机号"}
+            )
+        # 检查手机号是否已被使用
+        stmt = select(User).where(User.phone == user_data.phone)
+        result = await session.execute(stmt)
+        if result.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"code": "PHONE_EXISTS", "message": "该手机号已被使用"}
+            )
+        phone = user_data.phone
+
     # 创建新用户
     new_user = User(
         username=user_data.username,
         password_hash=auth_service.hash_password(user_data.password),
+        phone=phone,
         role=user_data.role,
         is_active=user_data.is_active,
         account_status=user_data.account_status,
@@ -737,6 +826,15 @@ async def create_user(
     await session.refresh(new_user, attribute_names=["shops", "manager_level"])
 
     # 记录审计日志
+    audit_changes = {
+        "username": {"new": new_user.username},
+        "role": {"new": new_user.role},
+        "is_active": {"new": new_user.is_active},
+        "manager_level_id": {"new": new_user.manager_level_id},
+        "shop_ids": {"new": [shop.id for shop in new_user.shops]}
+    }
+    if new_user.phone:
+        audit_changes["phone"] = {"new": new_user.phone}
     await AuditService.log_action(
         db=session,
         user_id=current_user.id,
@@ -746,13 +844,7 @@ async def create_user(
         action_display="创建用户",
         table_name="users",
         record_id=str(new_user.id),
-        changes={
-            "username": {"new": new_user.username},
-            "role": {"new": new_user.role},
-            "is_active": {"new": new_user.is_active},
-            "manager_level_id": {"new": new_user.manager_level_id},
-            "shop_ids": {"new": [shop.id for shop in new_user.shops]}
-        },
+        changes=audit_changes,
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
         request_id=getattr(request.state, 'trace_id', None),
@@ -866,6 +958,7 @@ async def update_user(
 
     # 保存旧值用于审计日志
     old_username = user.username
+    old_phone = user.phone
     old_role = user.role
     old_is_active = user.is_active
     old_account_status = user.account_status
@@ -884,6 +977,27 @@ async def update_user(
                 detail={"code": "USERNAME_EXISTS", "message": "该用户名已被使用"}
             )
         user.username = update_data.username
+
+    # 更新手机号（仅 admin 可以修改）
+    if update_data.phone is not None:
+        if current_user.role != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"code": "PHONE_ADMIN_ONLY", "message": "只有超级管理员可以修改手机号"}
+            )
+        # 空字符串表示清除手机号
+        if update_data.phone == "":
+            user.phone = None
+        else:
+            # 检查手机号是否已被使用
+            stmt = select(User).where(User.phone == update_data.phone, User.id != user_id)
+            result = await session.execute(stmt)
+            if result.scalar_one_or_none():
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={"code": "PHONE_EXISTS", "message": "该手机号已被使用"}
+                )
+            user.phone = update_data.phone
 
     # 更新角色
     if update_data.role is not None:
@@ -991,6 +1105,8 @@ async def update_user(
     changes = {}
     if old_username != user.username:
         changes["username"] = {"old": old_username, "new": user.username}
+    if old_phone != user.phone:
+        changes["phone"] = {"old": old_phone, "new": user.phone}
     if old_role != user.role:
         changes["role"] = {"old": old_role, "new": user.role}
     if old_is_active != user.is_active:
@@ -1374,3 +1490,212 @@ async def verify_captcha(request: CaptchaVerifyRequest):
                 "message": "验证失败，请刷新重试"
             }
         )
+
+
+# ========== 用户注册端点 ==========
+
+@router.post("/register", response_model=LoginResponse)
+async def register(
+    request: Request,
+    register_data: RegisterRequest
+):
+    """
+    用户注册
+
+    - 使用手机号注册
+    - 需要先通过滑块验证码验证
+    - 用户名默认为手机号后8位
+    - 账号级别为当前默认级别
+    - 注册成功后自动登录
+    """
+    from datetime import datetime, timezone as tz
+    from ef_core.services.manager_level_service import ManagerLevelService
+
+    # 验证滑块验证码 token
+    captcha_service = get_captcha_service()
+    is_valid = await captcha_service.validate_token(register_data.captcha_token)
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "CAPTCHA_INVALID",
+                "message": "验证码已过期或无效，请重新验证"
+            }
+        )
+
+    auth_service = get_auth_service()
+    db_manager = get_db_manager()
+
+    async with db_manager.get_session() as session:
+        # 检查手机号是否已注册
+        stmt = select(User).where(User.phone == register_data.phone)
+        result = await session.execute(stmt)
+        if result.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"code": "PHONE_EXISTS", "message": "该手机号已注册"}
+            )
+
+        # 生成默认用户名（手机号后8位）
+        default_username = register_data.phone[-8:]
+        # 检查用户名是否已存在，如果存在则添加随机后缀
+        stmt = select(User).where(User.username == default_username)
+        result = await session.execute(stmt)
+        if result.scalar_one_or_none():
+            import secrets
+            default_username = f"{default_username}{secrets.randbelow(1000):03d}"
+
+        # 获取默认管理员级别
+        default_level = await ManagerLevelService.get_default(session)
+        manager_level_id = default_level.id if default_level else None
+
+        # 计算过期时间
+        expires_at = None
+        if default_level and default_level.default_expiration_days > 0:
+            from datetime import timedelta
+            expires_at = datetime.now(tz.utc) + timedelta(days=default_level.default_expiration_days)
+
+        # 创建用户
+        new_user = User(
+            username=default_username,
+            phone=register_data.phone,
+            password_hash=auth_service.hash_password(register_data.password),
+            role="manager",  # 注册用户为主账号
+            is_active=True,
+            account_status="active",
+            expires_at=expires_at,
+            manager_level_id=manager_level_id,
+            username_changed=False  # 用户名未修改过
+        )
+
+        session.add(new_user)
+        await session.commit()
+        await session.refresh(new_user, attribute_names=["manager_level"])
+
+        logger.info(f"用户注册成功: phone={register_data.phone}, username={default_username}")
+
+        # 记录注册审计日志
+        await AuditService.log_action(
+            db=session,
+            user_id=new_user.id,
+            username=new_user.username,
+            module="user",
+            action="create",
+            action_display="用户注册",
+            table_name="users",
+            record_id=str(new_user.id),
+            changes={
+                "phone": {"new": new_user.phone},
+                "username": {"new": new_user.username},
+                "role": {"new": "manager"},
+                "manager_level_id": {"new": manager_level_id}
+            },
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            request_id=getattr(request.state, 'trace_id', None),
+            notes="用户自助注册"
+        )
+
+    # 自动登录
+    client_ip = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+
+    try:
+        result = await auth_service.login(
+            email_or_username=register_data.phone,
+            password=register_data.password,
+            ip_address=client_ip,
+            user_agent=user_agent
+        )
+        result.pop("kicked_session_token", None)
+        return LoginResponse(**result)
+    except Exception as e:
+        logger.error(f"注册后自动登录失败: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "LOGIN_ERROR", "message": "注册成功，但自动登录失败，请手动登录"}
+        )
+
+
+@router.put("/me/username", status_code=status.HTTP_200_OK)
+async def change_username(
+    request: Request,
+    username_data: ChangeUsernameRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    """
+    修改用户名（注册用户仅可修改一次）
+
+    - 用户名不能为纯数字
+    - 用户名不能已存在
+    - 注册用户（通过手机号注册的）只能修改一次
+    """
+    # 重新获取用户信息
+    stmt = select(User).where(User.id == current_user.id)
+    result = await session.execute(stmt)
+    user = result.scalar_one()
+
+    # 检查是否已修改过用户名（仅限注册用户，即有手机号的用户）
+    if user.phone and user.username_changed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "USERNAME_ALREADY_CHANGED",
+                "message": "用户名已修改过，不能再次修改"
+            }
+        )
+
+    # 检查新用户名格式
+    if is_pure_digits(username_data.new_username):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "INVALID_USERNAME",
+                "message": "用户名不能为纯数字"
+            }
+        )
+
+    # 检查用户名是否已存在
+    stmt = select(User).where(User.username == username_data.new_username, User.id != user.id)
+    result = await session.execute(stmt)
+    if result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "USERNAME_EXISTS",
+                "message": "该用户名已被使用"
+            }
+        )
+
+    # 保存旧用户名用于审计
+    old_username = user.username
+
+    # 更新用户名
+    user.username = username_data.new_username
+    # 如果是注册用户（有手机号），标记为已修改
+    if user.phone:
+        user.username_changed = True
+
+    await session.commit()
+
+    # 记录审计日志
+    await AuditService.log_action(
+        db=session,
+        user_id=current_user.id,
+        username=user.username,
+        module="user",
+        action="update",
+        action_display="修改用户名",
+        table_name="users",
+        record_id=str(current_user.id),
+        changes={
+            "username": {"old": old_username, "new": user.username},
+            "username_changed": {"old": False, "new": True} if user.phone else {}
+        },
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+        request_id=getattr(request.state, 'trace_id', None)
+    )
+
+    return {"message": "用户名修改成功", "username": user.username}

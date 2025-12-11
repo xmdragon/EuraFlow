@@ -18,6 +18,8 @@ from .exchange_rate import router as exchange_rate_router
 from .notification_routes import router as notification_router
 from .audit_routes import router as audit_router
 from .manager_level_routes import router as manager_level_router
+from .credit import router as credit_router
+from .admin_credit import router as admin_credit_router
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +34,8 @@ api_router.include_router(settings_router, tags=["Settings"])
 api_router.include_router(exchange_rate_router, tags=["Exchange Rates"])
 api_router.include_router(notification_router, tags=["Notifications"])
 api_router.include_router(audit_router, tags=["Audit Logs"])
+api_router.include_router(credit_router, tags=["Credit"])
+api_router.include_router(admin_credit_router, tags=["Admin Credit"])
 api_router.include_router(orders_router, prefix="/orders", tags=["Orders"])
 api_router.include_router(shipments_router, prefix="/shipments", tags=["Shipments"])
 api_router.include_router(inventory_router, prefix="/inventory", tags=["Inventory"])

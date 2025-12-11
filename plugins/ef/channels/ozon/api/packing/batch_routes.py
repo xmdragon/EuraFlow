@@ -298,6 +298,80 @@ async def batch_print_labels(
                 }
             )
 
+        # 3.5 额度检查和扣费（首次打印才计费，补打印不扣费）
+        from ef_core.services.credit_service import CreditService, InsufficientCreditError
+
+        # 筛选需要计费的 posting（label_print_count == 0 或 None 表示首次打印）
+        billable_postings = [
+            pn for pn in posting_numbers
+            if pn in postings and (postings[pn].label_print_count or 0) == 0
+        ]
+
+        if billable_postings:
+            # 计算费用
+            cost_info = await CreditService.calculate_print_cost(
+                db, billable_postings, exclude_reprints=False  # 已经筛选过了
+            )
+
+            if cost_info["total_cost"] > 0:
+                # 获取主账号ID
+                master_user_id = current_user.parent_user_id or current_user.id
+
+                # 检查余额
+                sufficient, balance = await CreditService.check_balance(
+                    db, master_user_id, cost_info["total_cost"]
+                )
+
+                if not sufficient:
+                    credit_name = await CreditService.get_credit_name(db)
+                    raise HTTPException(
+                        status_code=402,  # Payment Required
+                        detail={
+                            "error": "INSUFFICIENT_CREDIT",
+                            "message": f"{credit_name}不足，当前余额 {balance}，需要 {cost_info['total_cost']}",
+                            "required": str(cost_info["total_cost"]),
+                            "balance": str(balance),
+                            "credit_name": credit_name
+                        }
+                    )
+
+                # 生成幂等键
+                idempotency_key = f"print:{','.join(sorted(billable_postings))}:{int(datetime.now().timestamp())}"
+
+                # 获取客户端IP
+                ip_address = request.client.host if request.client else None
+
+                # 扣费
+                try:
+                    await CreditService.consume(
+                        db=db,
+                        user_id=master_user_id,
+                        operator_user_id=current_user.id,
+                        module="print_label",
+                        amount=cost_info["total_cost"],
+                        details={
+                            "posting_numbers": billable_postings,
+                            "billable_count": len(billable_postings),
+                            "reprint_count": len(posting_numbers) - len(billable_postings)
+                        },
+                        idempotency_key=idempotency_key,
+                        ip_address=ip_address,
+                        notes=f"打印 {len(billable_postings)} 个面单"
+                    )
+                    logger.info(f"打印扣费成功: user={current_user.id}, amount={cost_info['total_cost']}, postings={billable_postings}")
+                except InsufficientCreditError as e:
+                    credit_name = await CreditService.get_credit_name(db)
+                    raise HTTPException(
+                        status_code=402,
+                        detail={
+                            "error": "INSUFFICIENT_CREDIT",
+                            "message": f"{credit_name}不足，当前余额 {e.balance}，需要 {e.required}",
+                            "required": str(e.required),
+                            "balance": str(e.balance),
+                            "credit_name": credit_name
+                        }
+                    )
+
         # 4. 获取所有涉及的店铺信息
         shop_ids = {p.shop_id for p in postings.values()}
         shops_result = await db.execute(

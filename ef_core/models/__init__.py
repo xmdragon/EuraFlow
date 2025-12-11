@@ -12,6 +12,7 @@ from .api_keys import APIKey
 from .exchange_rate import ExchangeRateConfig, ExchangeRate
 from .manager_level import ManagerLevel
 from .user_login_session import UserLoginSession
+from .credit import CreditAccount, CreditTransaction, CreditModuleConfig
 
 __all__ = [
     "Base",
@@ -30,4 +31,7 @@ __all__ = [
     "ExchangeRate",
     "ManagerLevel",
     "UserLoginSession",
+    "CreditAccount",
+    "CreditTransaction",
+    "CreditModuleConfig",
 ]

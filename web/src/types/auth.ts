@@ -47,6 +47,9 @@ export interface UserSettings {
     auto_sync: boolean;
     sync_interval: number;
     sync_on_login: boolean;
+    promotions: boolean;
+    finance_transactions: boolean;
+    balance: boolean;
   };
   security: {
     two_factor_auth: boolean;
@@ -56,7 +59,9 @@ export interface UserSettings {
 
 export interface User {
   id: number;
-  username: string;
+  username: string;  // 用户名（3-30个字符，不能为纯数字）
+  phone?: string;  // 手机号码（已脱敏，如 138****5678）
+  username_changed?: boolean;  // 用户名是否已修改过（手机号注册用户仅可修改一次）
   role: UserRole;
   permissions: string[];
   is_active: boolean;

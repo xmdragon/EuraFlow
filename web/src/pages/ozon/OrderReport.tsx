@@ -12,6 +12,8 @@ import {
   DownOutlined,
   LinkOutlined,
   FileTextOutlined,
+  UnorderedListOutlined,
+  PieChartOutlined,
 } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -735,13 +737,13 @@ const OrderReport: React.FC = () => {
 
   return (
     <div>
-      {/* 页面标题 */}
-      <PageTitle icon={<FileTextOutlined />} title="订单报表" />
+      {/* Sticky头部区域：标题 + 筛选 */}
+      <div className={styles.stickyHeader}>
+        {/* 页面标题 */}
+        <PageTitle icon={<FileTextOutlined />} title="订单报表" />
 
-      <Card className={styles.mainCard}>
-        <div className={styles.contentContainer}>
-          {/* 筛选区域（sticky固定） */}
-          <div className={styles.stickyHeader}>
+        {/* 筛选区域 */}
+        <div className={styles.filterWrapper}>
           <Row gutter={12} className={styles.filterRow} align="middle">
             <Col>
               <ShopSelector
@@ -845,8 +847,12 @@ const OrderReport: React.FC = () => {
               </Tooltip>
             </Col>
           </Row>
-          </div>
+        </div>
+      </div>
 
+      {/* 内容区域 */}
+      <Card className={styles.mainCard}>
+        <div className={styles.contentContainer}>
           {/* Tab切换 */}
           <Tabs
             activeKey={activeTab}
@@ -860,7 +866,7 @@ const OrderReport: React.FC = () => {
           >
             {/* 订单明细Tab */}
             <Tabs.TabPane
-              tab={`订单明细 (${postingReportData?.total || 0})`}
+              tab={<span><UnorderedListOutlined /> 订单明细 ({postingReportData?.total || 0})</span>}
               key="details"
             >
               <Spin spinning={isLoadingPostings}>
@@ -885,7 +891,7 @@ const OrderReport: React.FC = () => {
             </Tabs.TabPane>
 
             {/* 订单汇总Tab */}
-            <Tabs.TabPane tab="订单汇总" key="summary">
+            <Tabs.TabPane tab={<span><PieChartOutlined /> 订单汇总</span>} key="summary">
               <Spin spinning={isLoadingSummary}>
                 {summaryData && (
                   <>

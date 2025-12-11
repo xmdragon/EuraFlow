@@ -1,7 +1,7 @@
 /**
  * OZON 取消和退货申请管理页面
  */
-import { CloseCircleOutlined, ReloadOutlined, SearchOutlined, CopyOutlined } from '@ant-design/icons';
+import { CloseCircleOutlined, ReloadOutlined, SearchOutlined, CopyOutlined, RollbackOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import {
   Card,
@@ -726,7 +726,7 @@ const CancelReturn: React.FC = () => {
           }
         >
           <TabPane
-            tab={`取消申请 (${cancellationData?.total || 0})`}
+            tab={<span><CloseCircleOutlined /> 取消申请 ({cancellationData?.total || 0})</span>}
             key="cancellations"
           >
             <Table
@@ -749,7 +749,7 @@ const CancelReturn: React.FC = () => {
             />
           </TabPane>
 
-          <TabPane tab={`退货申请 (${returnData?.total || 0})`} key="returns">
+          <TabPane tab={<span><RollbackOutlined /> 退货申请 ({returnData?.total || 0})</span>} key="returns">
             <Table
               className={styles.compactTable}
               columns={returnColumnSettings.visibleColumns}

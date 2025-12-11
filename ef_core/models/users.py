@@ -42,6 +42,17 @@ class User(Base):
         nullable=False,
         comment="用户名"
     )
+    phone: Mapped[Optional[str]] = mapped_column(
+        String(20),
+        nullable=True,
+        comment="手机号码（可用于登录）"
+    )
+    username_changed: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        comment="用户名是否已修改过（注册用户仅可修改一次）"
+    )
     password_hash: Mapped[str] = mapped_column(
         String(255),
         nullable=False,
@@ -159,11 +170,14 @@ class User(Base):
     manager_level = relationship("ManagerLevel", back_populates="users")
     # 登录会话
     login_sessions = relationship("UserLoginSession", back_populates="user", cascade="all, delete-orphan")
+    # 额度账户（仅 manager/admin 拥有，子账号通过 parent_user 访问）
+    credit_account = relationship("CreditAccount", back_populates="user", uselist=False, cascade="all, delete-orphan")
     
     # 索引
     __table_args__ = (
         Index("ix_users_role", "role"),
         Index("ix_users_is_active", "is_active"),
+        Index("ix_users_phone", "phone", unique=True, postgresql_where="phone IS NOT NULL"),
     )
     
     def __repr__(self) -> str:
@@ -186,6 +200,8 @@ class User(Base):
         return {
             "id": self.id,
             "username": self.username,
+            "phone": self.phone,
+            "username_changed": self.username_changed,
             "role": self.role,
             "permissions": self.permissions,
             "is_active": self.is_active,
@@ -359,6 +375,25 @@ class UserSettings(Base):
         nullable=False,
         comment="登录时同步"
     )
+    # 新增同步开关（控制后台定时任务和插件是否执行同步）
+    sync_promotions: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+        comment="自动同步促销活动"
+    )
+    sync_finance_transactions: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+        comment="自动同步财务账单"
+    )
+    sync_balance: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+        comment="自动同步余额"
+    )
 
     # 安全设置
     security_two_factor_auth: Mapped[bool] = mapped_column(
@@ -424,6 +459,9 @@ class UserSettings(Base):
                 "auto_sync": self.sync_auto_sync,
                 "sync_interval": self.sync_interval,
                 "sync_on_login": self.sync_on_login,
+                "promotions": self.sync_promotions,
+                "finance_transactions": self.sync_finance_transactions,
+                "balance": self.sync_balance,
             },
             "security": {
                 "two_factor_auth": self.security_two_factor_auth,
@@ -457,6 +495,9 @@ class UserSettings(Base):
             sync_auto_sync=sync.get("auto_sync", True),
             sync_interval=sync.get("sync_interval", 60),
             sync_on_login=sync.get("sync_on_login", True),
+            sync_promotions=sync.get("promotions", True),
+            sync_finance_transactions=sync.get("finance_transactions", True),
+            sync_balance=sync.get("balance", True),
             # 安全设置
             security_two_factor_auth=security.get("two_factor_auth", False),
             security_session_timeout=security.get("session_timeout", 30),
@@ -500,6 +541,12 @@ class UserSettings(Base):
             self.sync_interval = sync["sync_interval"]
         if "sync_on_login" in sync:
             self.sync_on_login = sync["sync_on_login"]
+        if "promotions" in sync:
+            self.sync_promotions = sync["promotions"]
+        if "finance_transactions" in sync:
+            self.sync_finance_transactions = sync["finance_transactions"]
+        if "balance" in sync:
+            self.sync_balance = sync["balance"]
 
         # 更新安全设置
         if "two_factor_auth" in security:

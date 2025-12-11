@@ -47,6 +47,7 @@ const { Option } = Select;
 interface UserFormValues {
   username: string;
   password?: string;
+  phone?: string;
   role: UserRole;
   is_active: boolean;
   account_status?: AccountStatus;
@@ -64,6 +65,7 @@ interface PasswordFormValues {
 interface User {
   id: number;
   username: string;
+  phone?: string;
   role: UserRole;
   is_active: boolean;
   account_status: AccountStatus;
@@ -106,7 +108,7 @@ const UserManagement: React.FC = () => {
   // 角色显示配置
   const roleConfig: Record<UserRole, { color: string; label: string }> = {
     admin: { color: 'gold', label: '超级管理员' },
-    manager: { color: 'blue', label: '管理员' },
+    manager: { color: 'blue', label: '主账号' },
     sub_account: { color: 'green', label: '子账号' },
   };
 
@@ -239,6 +241,10 @@ const UserManagement: React.FC = () => {
           is_active: values.is_active,
         };
         if (shopIds) updateData.shop_ids = shopIds;
+        // admin 可以修改手机号
+        if (currentUser?.role === 'admin' && values.phone !== undefined) {
+          updateData.phone = values.phone || '';  // 空字符串表示清除
+        }
         // admin 创建 manager 时可设置级别
         if (currentUser?.role === 'admin' && values.role === 'manager' && values.manager_level_id) {
           updateData.manager_level_id = values.manager_level_id;
@@ -359,6 +365,7 @@ const UserManagement: React.FC = () => {
     setEditingUser(user);
     form.setFieldsValue({
       username: user.username,
+      phone: user.phone || '',
       role: user.role,
       is_active: user.is_active,
       account_status: user.account_status || 'active',
@@ -417,6 +424,12 @@ const UserManagement: React.FC = () => {
       key: 'username',
     },
     {
+      title: '手机号',
+      dataIndex: 'phone',
+      key: 'phone',
+      render: (phone: string) => phone || '-',
+    },
+    {
       title: '角色',
       dataIndex: 'role',
       key: 'role',
@@ -458,7 +471,7 @@ const UserManagement: React.FC = () => {
         }
         // 子账号显示继承自父账号
         if (record.role === 'sub_account') {
-          return <Tag color="cyan">继承管理员</Tag>;
+          return <Tag color="cyan">继承主账号</Tag>;
         }
         const config = accountStatusConfig[status] || accountStatusConfig.active;
         return (
@@ -479,7 +492,7 @@ const UserManagement: React.FC = () => {
         }
         // 子账号继承自父账号
         if (record.role === 'sub_account') {
-          return <Tag color="cyan">继承管理员</Tag>;
+          return <Tag color="cyan">继承主账号</Tag>;
         }
         if (!expiresAt) {
           return <Tag color="blue">永不过期</Tag>;
@@ -574,7 +587,7 @@ const UserManagement: React.FC = () => {
             </Button>
           )}
           <Button type="primary" icon={<UserAddOutlined />} onClick={handleCreate}>
-            {currentUser?.role === 'admin' ? '添加管理员' : '添加子账号'}
+            {currentUser?.role === 'admin' ? '添加主账号' : '添加子账号'}
           </Button>
         </Space>
       </div>
@@ -607,7 +620,7 @@ const UserManagement: React.FC = () => {
       </Card>
 
       <Modal
-        title={editingUser ? '编辑用户' : (currentUser?.role === 'admin' ? '创建管理员' : '创建子账号')}
+        title={editingUser ? '编辑用户' : (currentUser?.role === 'admin' ? '创建主账号' : '创建子账号')}
         open={modalVisible}
         onCancel={() => {
           setModalVisible(false);
@@ -671,11 +684,26 @@ const UserManagement: React.FC = () => {
             </Form.Item>
           )}
 
+          {/* 手机号：仅 admin 可设置/修改 */}
+          {currentUser?.role === 'admin' && (
+            <Form.Item
+              name="phone"
+              label="手机号"
+              tooltip="设置后用户可使用手机号登录，留空表示不设置"
+              rules={[
+                { max: 20, message: '手机号最多20个字符' },
+                { pattern: /^[0-9+\-\s]*$/, message: '手机号格式不正确' },
+              ]}
+            >
+              <Input placeholder="可选，设置后可用于登录" />
+            </Form.Item>
+          )}
+
           {/* 角色选择：admin 只能创建 manager，manager 只能创建 sub_account */}
           <Form.Item name="role" label="角色" rules={[{ required: true, message: '请选择角色' }]}>
             <Select disabled>
               {currentUser?.role === 'admin' && (
-                <Option value="manager">管理员</Option>
+                <Option value="manager">主账号</Option>
               )}
               {currentUser?.role === 'manager' && (
                 <Option value="sub_account">子账号</Option>

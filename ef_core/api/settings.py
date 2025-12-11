@@ -45,6 +45,9 @@ class SyncSettings(BaseModel):
     auto_sync: bool = True
     sync_interval: int = Field(60, description="同步间隔（分钟）")
     sync_on_login: bool = True
+    promotions: bool = Field(True, description="自动同步促销活动")
+    finance_transactions: bool = Field(True, description="自动同步财务账单")
+    balance: bool = Field(True, description="自动同步余额")
 
 
 class SecuritySettings(BaseModel):

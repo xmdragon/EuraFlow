@@ -20,7 +20,7 @@ from ef_core.database import get_db_manager
 from ef_core.models.users import User
 from ef_core.utils.logger import get_logger
 from ef_core.utils.errors import UnauthorizedError, ValidationError
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.orm import selectinload
 
 # 延迟导入避免循环依赖
@@ -160,13 +160,16 @@ class AuthService:
     # ========== 用户认证 ==========
     
     async def authenticate_user(self, email_or_username: str, password: str) -> Optional[User]:
-        """认证用户"""
+        """认证用户（支持用户名或手机号登录）"""
         db_manager = get_db_manager()
 
         async with db_manager.get_session() as session:
-            # 查询用户（包含 parent_user 用于子账号继承状态）
+            # 查询用户（支持用户名或手机号，包含 parent_user 用于子账号继承状态）
             stmt = select(User).where(
-                User.username == email_or_username
+                or_(
+                    User.username == email_or_username,
+                    User.phone == email_or_username
+                )
             ).options(
                 selectinload(User.primary_shop),
                 selectinload(User.shops),
@@ -277,9 +280,16 @@ class AuthService:
             user = result.scalar_one()
 
             # 在会话内构建用户数据，避免detached instance错误
+            # 手机号脱敏：第5-8位用*代替
+            masked_phone = None
+            if user.phone and len(user.phone) == 11:
+                masked_phone = f"{user.phone[:3]}****{user.phone[7:]}"
+
             user_data = {
                 "id": user.id,
                 "username": user.username,
+                "phone": masked_phone,  # 脱敏后的手机号
+                "username_changed": user.username_changed,
                 "role": user.role,
                 "permissions": user.permissions,
                 "is_active": user.is_active,

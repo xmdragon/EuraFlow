@@ -35,6 +35,10 @@ import {
   GlobalOutlined,
   DownOutlined,
   BookOutlined,
+  PictureOutlined,
+  ThunderboltOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { UploadFile } from 'antd/es/upload/interface';
@@ -45,6 +49,7 @@ import { usePermission } from '@/hooks/usePermission';
 import * as ozonApi from '@/services/ozon';
 import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
 import { isColorAttribute, getColorValue, getTextColor } from '@/utils/colorMapper';
+import { setOzonImageCdn } from '@/utils/ozonImageOptimizer';
 
 const { Title, Paragraph } = Typography;
 const { Option } = Select;
@@ -77,6 +82,15 @@ interface GlobalSettingsResponse {
     };
     api_rate_limit?: {
       setting_value?: { value?: number };
+    };
+    system_name?: {
+      setting_value?: { value?: string };
+    };
+    credit_name?: {
+      setting_value?: { value?: string };
+    };
+    credit_cny_rate?: {
+      setting_value?: { value?: string };
     };
   };
 }
@@ -182,6 +196,15 @@ const GlobalSettingsTab: React.FC = () => {
             key: 'category-commissions',
             children: <CategoryCommissionsSection isAdmin={isAdmin} />,
           },
+          {
+            label: (
+              <span>
+                <PictureOutlined /> 图片CDN
+              </span>
+            ),
+            key: 'image-cdn',
+            children: <ImageCdnSection isAdmin={isAdmin} />,
+          },
         ]}
       />
     </Card>
@@ -242,19 +265,79 @@ const TimeCurrencySection: React.FC<TimeCurrencySectionProps> = ({ isAdmin }) =>
     },
   });
 
+  // 更新系统名称
+  const updateSystemNameMutation = useMutation({
+    mutationFn: async (systemName: string) => {
+      await ozonApi.updateGlobalSetting('system_name', {
+        value: systemName,
+      });
+    },
+    onSuccess: () => {
+      notifySuccess('保存成功', '系统名称已更新');
+      queryClient.invalidateQueries({ queryKey: ['ozon', 'global-settings'] });
+    },
+    onError: (error: unknown) => {
+      notifyError('保存失败', (error as Error).message || '更新系统名称失败');
+    },
+  });
+
+  // 更新积分名称
+  const updateCreditNameMutation = useMutation({
+    mutationFn: async (creditName: string) => {
+      await ozonApi.updateGlobalSetting('credit_name', {
+        value: creditName,
+      });
+    },
+    onSuccess: () => {
+      notifySuccess('保存成功', '积分名称已更新');
+      queryClient.invalidateQueries({ queryKey: ['ozon', 'global-settings'] });
+    },
+    onError: (error: unknown) => {
+      notifyError('保存失败', (error as Error).message || '更新积分名称失败');
+    },
+  });
+
+  // 更新CNY兑换比例
+  const updateCreditCnyRateMutation = useMutation({
+    mutationFn: async (rate: string) => {
+      await ozonApi.updateGlobalSetting('credit_cny_rate', {
+        value: rate,
+      });
+    },
+    onSuccess: () => {
+      notifySuccess('保存成功', 'CNY兑换比例已更新');
+      queryClient.invalidateQueries({ queryKey: ['ozon', 'global-settings'] });
+    },
+    onError: (error: unknown) => {
+      notifyError('保存失败', (error as Error).message || '更新CNY兑换比例失败');
+    },
+  });
+
   // 初始化表单值
   React.useEffect(() => {
     if (settings?.settings) {
       form.setFieldsValue({
         default_timezone: settings.settings.default_timezone?.setting_value?.value || 'Asia/Shanghai',
         default_currency: settings.settings.default_currency?.setting_value?.value || 'CNY',
+        system_name: settings.settings.system_name?.setting_value?.value || 'EuraFlow',
+        credit_name: settings.settings.credit_name?.setting_value?.value || '积分',
+        credit_cny_rate: settings.settings.credit_cny_rate?.setting_value?.value || '1.0',
       });
     }
   }, [settings, form]);
 
-  const handleSave = (values: { default_timezone: string; default_currency: string }) => {
+  const handleSave = (values: {
+    default_timezone: string;
+    default_currency: string;
+    system_name: string;
+    credit_name: string;
+    credit_cny_rate: string;
+  }) => {
     updateTimezoneMutation.mutate(values.default_timezone);
     updateCurrencyMutation.mutate(values.default_currency);
+    updateSystemNameMutation.mutate(values.system_name);
+    updateCreditNameMutation.mutate(values.credit_name);
+    updateCreditCnyRateMutation.mutate(values.credit_cny_rate);
   };
 
   if (isLoading) {
@@ -305,6 +388,39 @@ const TimeCurrencySection: React.FC<TimeCurrencySectionProps> = ({ isAdmin }) =>
         </Form.Item>
 
         <Form.Item
+          label="系统名称"
+          name="system_name"
+          rules={[{ required: true, message: '请输入系统名称' }]}
+          extra="系统显示名称，用于页面标题、通知等"
+        >
+          <Input style={{ width: 300 }} placeholder="EuraFlow" disabled={!isAdmin} />
+        </Form.Item>
+
+        <Form.Item
+          label="积分名称"
+          name="credit_name"
+          rules={[{ required: true, message: '请输入积分名称' }]}
+          extra="额度系统中的点数显示名称"
+        >
+          <Input style={{ width: 300 }} placeholder="积分" disabled={!isAdmin} />
+        </Form.Item>
+
+        <Form.Item
+          label="CNY兑换比例"
+          name="credit_cny_rate"
+          rules={[
+            { required: true, message: '请输入CNY兑换比例' },
+            {
+              pattern: /^\d+(\.\d{1,4})?$/,
+              message: '请输入有效数字（最多4位小数）',
+            },
+          ]}
+          extra="1 CNY 兑换多少积分（如 1.0 表示 1元=1积分）"
+        >
+          <Input style={{ width: 300 }} placeholder="1.0" addonAfter="积分/CNY" disabled={!isAdmin} />
+        </Form.Item>
+
+        <Form.Item
           label="系统 Webhook 地址"
           extra="OZON 后台配置 Webhook 时使用此地址（订单状态变更通知）"
         >
@@ -329,7 +445,13 @@ const TimeCurrencySection: React.FC<TimeCurrencySectionProps> = ({ isAdmin }) =>
               type="primary"
               htmlType="submit"
               icon={<SaveOutlined />}
-              loading={updateTimezoneMutation.isPending || updateCurrencyMutation.isPending}
+              loading={
+                updateTimezoneMutation.isPending ||
+                updateCurrencyMutation.isPending ||
+                updateSystemNameMutation.isPending ||
+                updateCreditNameMutation.isPending ||
+                updateCreditCnyRateMutation.isPending
+              }
             >
               保存设置
             </Button>
@@ -1267,6 +1389,326 @@ const CategoryCommissionsSection: React.FC<CategoryCommissionsSectionProps> = ({
           </Upload>
         </Space>
       </Modal>
+    </div>
+  );
+};
+
+// ========== 子组件：图片CDN设置 ==========
+interface ImageCdnSectionProps {
+  isAdmin: boolean;
+}
+
+// CDN测试结果类型
+interface CdnTestResult {
+  cdn: string;
+  time: number;
+  success: boolean;
+  testing: boolean;
+}
+
+const ImageCdnSection: React.FC<ImageCdnSectionProps> = ({ isAdmin }) => {
+  const queryClient = useQueryClient();
+  const [cdnList, setCdnList] = useState<string>('cdn1.ozone.ru\ncdn2.ozone.ru\ncdn3.ozone.ru');
+  const [selectedCdn, setSelectedCdn] = useState<string>('');
+  const [testResults, setTestResults] = useState<CdnTestResult[]>([]);
+  const [testing, setTesting] = useState(false);
+  const [testImageUrl, setTestImageUrl] = useState<string>('');
+
+  // 获取全局设置
+  const { data: settings, isLoading } = useQuery<GlobalSettingsResponse>({
+    queryKey: ['ozon', 'global-settings'],
+    queryFn: async () => {
+      const response = await ozonApi.getGlobalSettings();
+      return response as GlobalSettingsResponse;
+    },
+  });
+
+  // 初始化CDN设置
+  React.useEffect(() => {
+    if (settings?.settings) {
+      const cdnSettings = settings.settings as Record<string, { setting_value?: { cdn_list?: string[]; selected_cdn?: string } }>;
+      if (cdnSettings.ozon_image_cdn?.setting_value) {
+        const { cdn_list, selected_cdn } = cdnSettings.ozon_image_cdn.setting_value;
+        if (cdn_list && cdn_list.length > 0) {
+          setCdnList(cdn_list.join('\n'));
+        }
+        if (selected_cdn) {
+          setSelectedCdn(selected_cdn);
+        }
+      }
+    }
+  }, [settings]);
+
+  // 更新CDN设置
+  const updateCdnMutation = useMutation({
+    mutationFn: async (data: { cdn_list: string[]; selected_cdn: string }) => {
+      await ozonApi.updateGlobalSetting('ozon_image_cdn', data);
+      return data;
+    },
+    onSuccess: (data) => {
+      // 同步更新图片优化器的 CDN 设置
+      setOzonImageCdn(data.selected_cdn || null);
+      notifySuccess('保存成功', '图片CDN设置已更新');
+      queryClient.invalidateQueries({ queryKey: ['ozon', 'global-settings'] });
+    },
+    onError: (error: unknown) => {
+      notifyError('保存失败', (error as Error).message || '更新图片CDN设置失败');
+    },
+  });
+
+  // 加载图片的辅助函数
+  const loadImage = (url: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error('图片加载失败'));
+      // 添加时间戳避免缓存
+      img.src = url + (url.includes('?') ? '&' : '?') + '_t=' + Date.now();
+    });
+  };
+
+  // 测试单个CDN速度
+  const testSingleCdn = async (cdn: string, imageUrl: string): Promise<CdnTestResult> => {
+    // 替换CDN域名
+    const testUrl = imageUrl.replace(/https?:\/\/[^/]+/, `https://${cdn}`);
+    // 添加wc800缩放参数
+    const wc800Url = testUrl.includes('/wc') ? testUrl : testUrl.replace(/(\/s3\/multimedia-[^/]+\/)/, '$1wc800/');
+
+    const start = performance.now();
+    try {
+      await loadImage(wc800Url);
+      return { cdn, time: Math.round(performance.now() - start), success: true, testing: false };
+    } catch {
+      return { cdn, time: -1, success: false, testing: false };
+    }
+  };
+
+  // 测试所有CDN速度
+  const handleTestSpeed = async () => {
+    // 先获取测试图片
+    try {
+      setTesting(true);
+      const testImageResponse = await ozonApi.getTestImage();
+
+      if (testImageResponse.error) {
+        notifyError('获取测试图片失败', testImageResponse.error);
+        setTesting(false);
+        return;
+      }
+
+      if (!testImageResponse.image_url) {
+        notifyError('获取测试图片失败', '没有可用的测试图片');
+        setTesting(false);
+        return;
+      }
+
+      setTestImageUrl(testImageResponse.image_url);
+
+      // 解析CDN列表
+      const cdns = cdnList
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
+
+      if (cdns.length === 0) {
+        notifyWarning('测试失败', '请先输入CDN地址');
+        setTesting(false);
+        return;
+      }
+
+      // 初始化测试结果
+      setTestResults(cdns.map(cdn => ({ cdn, time: 0, success: false, testing: true })));
+
+      // 并行测试所有CDN
+      const results = await Promise.all(
+        cdns.map(cdn => testSingleCdn(cdn, testImageResponse.image_url!))
+      );
+
+      setTestResults(results);
+      setTesting(false);
+    } catch (error) {
+      notifyError('测试失败', (error as Error).message || '网络错误');
+      setTesting(false);
+    }
+  };
+
+  // 选择CDN
+  const handleSelectCdn = (cdn: string) => {
+    setSelectedCdn(cdn);
+    // 选择后自动保存
+    const cdns = cdnList
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0);
+    updateCdnMutation.mutate({
+      cdn_list: cdns,
+      selected_cdn: cdn,
+    });
+  };
+
+  // 保存设置
+  const handleSave = () => {
+    const cdns = cdnList
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0);
+
+    updateCdnMutation.mutate({
+      cdn_list: cdns,
+      selected_cdn: selectedCdn,
+    });
+  };
+
+  if (isLoading) {
+    return <div>加载中...</div>;
+  }
+
+  // 找到最快的CDN
+  const fastestCdn = testResults
+    .filter(r => r.success)
+    .sort((a, b) => a.time - b.time)[0];
+
+  return (
+    <div style={{ maxWidth: 800 }}>
+      <Alert
+        message="图片CDN配置"
+        description="配置 OZON 图片的 CDN 地址，可以测试不同 CDN 的加载速度，选择最快的 CDN 提升图片加载体验。"
+        type="info"
+        showIcon
+        style={{ marginBottom: 24 }}
+      />
+
+      <div style={{ marginBottom: 16 }}>
+        <Typography.Text strong>CDN 地址列表（每行一个域名）：</Typography.Text>
+        <Input.TextArea
+          value={cdnList}
+          onChange={(e) => setCdnList(e.target.value)}
+          onBlur={() => {
+            // 失去焦点时自动保存 CDN 列表
+            if (isAdmin) {
+              const cdns = cdnList
+                .split('\n')
+                .map(line => line.trim())
+                .filter(line => line.length > 0);
+              updateCdnMutation.mutate({
+                cdn_list: cdns,
+                selected_cdn: selectedCdn,
+              });
+            }
+          }}
+          placeholder="cdn1.ozone.ru&#10;cdn2.ozone.ru&#10;cdn3.ozone.ru"
+          rows={4}
+          style={{ marginTop: 8, fontFamily: 'monospace' }}
+          disabled={!isAdmin}
+        />
+      </div>
+
+      <Button
+        type="primary"
+        icon={<ThunderboltOutlined />}
+        onClick={handleTestSpeed}
+        loading={testing}
+        style={{ marginBottom: 24 }}
+      >
+        测试速度
+      </Button>
+
+      {testResults.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
+            测试结果：
+          </Typography.Text>
+          <Table
+            dataSource={testResults}
+            rowKey="cdn"
+            pagination={false}
+            size="small"
+            columns={[
+              {
+                title: 'CDN 地址',
+                dataIndex: 'cdn',
+                key: 'cdn',
+                render: (cdn: string) => (
+                  <span style={{ fontFamily: 'monospace' }}>{cdn}</span>
+                ),
+              },
+              {
+                title: '加载时间',
+                dataIndex: 'time',
+                key: 'time',
+                width: 120,
+                render: (time: number, record: CdnTestResult) => {
+                  if (record.testing) {
+                    return <Spin size="small" />;
+                  }
+                  if (!record.success) {
+                    return <span style={{ color: '#999' }}>-</span>;
+                  }
+                  const isFastest = fastestCdn && fastestCdn.cdn === record.cdn;
+                  return (
+                    <span style={{ color: isFastest ? '#52c41a' : undefined, fontWeight: isFastest ? 'bold' : undefined }}>
+                      {time}ms {isFastest && '(最快)'}
+                    </span>
+                  );
+                },
+              },
+              {
+                title: '状态',
+                dataIndex: 'success',
+                key: 'success',
+                width: 100,
+                render: (success: boolean, record: CdnTestResult) => {
+                  if (record.testing) {
+                    return <span style={{ color: '#1890ff' }}>测试中...</span>;
+                  }
+                  return success ? (
+                    <span style={{ color: '#52c41a' }}><CheckCircleOutlined /> 成功</span>
+                  ) : (
+                    <span style={{ color: '#ff4d4f' }}><CloseCircleOutlined /> 失败</span>
+                  );
+                },
+              },
+              {
+                title: '操作',
+                key: 'action',
+                width: 100,
+                render: (_: unknown, record: CdnTestResult) => {
+                  if (!record.success || record.testing || !isAdmin) {
+                    return null;
+                  }
+                  const isSelected = selectedCdn === record.cdn;
+                  return (
+                    <Button
+                      type={isSelected ? 'primary' : 'default'}
+                      size="small"
+                      onClick={() => handleSelectCdn(record.cdn)}
+                    >
+                      {isSelected ? '已选择' : '选择'}
+                    </Button>
+                  );
+                },
+              },
+            ]}
+          />
+        </div>
+      )}
+
+      {selectedCdn && (
+        <Alert
+          message={`当前使用: ${selectedCdn}`}
+          type="success"
+          showIcon
+          style={{ marginBottom: 24 }}
+        />
+      )}
+
+      {testImageUrl && (
+        <div style={{ marginBottom: 16 }}>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            测试图片: {testImageUrl.substring(0, 80)}...
+          </Typography.Text>
+        </div>
+      )}
     </div>
   );
 };

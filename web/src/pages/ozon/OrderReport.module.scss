@@ -13,24 +13,28 @@
   }
 }
 
-// ===== Sticky 头部区域（筛选区域） =====
+// ===== Sticky 头部区域（标题 + 筛选） =====
 .stickyHeader {
   position: sticky;
-  top: 0;
+  top: 0; // 相对于滚动容器顶部
   z-index: 100;
-  background: #fff;
-  padding: $spacing-md 0;
+  background: #f5f5f5;
+  padding: 0 8px;
   padding-bottom: 8px;
   margin-bottom: 0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
-// ===== Tabs导航也sticky =====
+// 筛选区域包装
+.filterWrapper {
+  background: #fff;
+  padding: $spacing-md;
+  border-radius: 8px;
+}
+
+// ===== Tabs导航 =====
 .reportTabs {
   :global(.ant-tabs-nav) {
-    position: sticky;
-    top: 60px; // 筛选区域高度
-    z-index: 99;
     background: #fff;
     margin-bottom: $spacing-md;
   }

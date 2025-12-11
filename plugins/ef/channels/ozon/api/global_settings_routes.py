@@ -3,16 +3,20 @@ Ozon全局设置API路由
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import logging
+import re
 
 from ef_core.database import get_async_session
 from ef_core.models.users import User
 from ef_core.api.auth import get_current_user_flexible
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, desc
 
 from plugins.ef.channels.ozon.models.global_settings import OzonGlobalSetting
+from plugins.ef.channels.ozon.models.ozon_shops import OzonShop
+from plugins.ef.channels.ozon.models.orders import OzonPosting
+from plugins.ef.channels.ozon.models.products import OzonProduct
 
 router = APIRouter(prefix="/global-settings", tags=["Ozon Global Settings"])
 logger = logging.getLogger(__name__)
@@ -55,6 +59,13 @@ class GlobalSettingsListResponse(BaseModel):
     settings: Dict[str, GlobalSettingResponse]
 
 
+class TestImageResponse(BaseModel):
+    """测试图片响应"""
+    image_url: Optional[str] = None
+    original_cdn: Optional[str] = None
+    error: Optional[str] = None
+
+
 # === API端点 ===
 
 @router.get(
@@ -85,6 +96,89 @@ async def get_global_settings(
         )
 
     return GlobalSettingsListResponse(settings=settings_dict)
+
+
+@router.get(
+    "/test-image",
+    response_model=TestImageResponse,
+    summary="获取测试图片URL"
+)
+async def get_test_image(
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible),
+):
+    """
+    获取测试图片URL（用于CDN速度测试）
+
+    从最新订单的商品SKU关联商品表获取图片，确保图片有效
+
+    权限：所有登录用户
+    """
+    # 1. 获取第一个店铺
+    shop_result = await db.execute(
+        select(OzonShop).where(OzonShop.status == "active").limit(1)
+    )
+    shop = shop_result.scalar_one_or_none()
+
+    if not shop:
+        return TestImageResponse(error="没有可用的店铺")
+
+    # 2. 获取该店铺最新订单
+    posting_result = await db.execute(
+        select(OzonPosting)
+        .where(OzonPosting.shop_id == shop.id)
+        .where(OzonPosting.raw_payload.isnot(None))
+        .order_by(desc(OzonPosting.created_at))
+        .limit(20)
+    )
+    postings = posting_result.scalars().all()
+
+    if not postings:
+        return TestImageResponse(error="该店铺没有订单数据")
+
+    # 3. 遍历订单，通过SKU关联商品表获取有效图片
+    image_url = None
+    for posting in postings:
+        raw_payload = posting.raw_payload
+        if not raw_payload:
+            continue
+
+        products = raw_payload.get("products", [])
+        for product in products:
+            sku = product.get("sku")
+            if not sku:
+                continue
+
+            # 通过SKU查询商品表获取图片
+            product_result = await db.execute(
+                select(OzonProduct)
+                .where(OzonProduct.ozon_sku == int(sku))
+                .where(OzonProduct.primary_image.isnot(None))
+            )
+            ozon_product = product_result.scalar_one_or_none()
+
+            if ozon_product and ozon_product.primary_image:
+                img = ozon_product.primary_image
+                if "/s3/multimedia-" in img:
+                    image_url = img
+                    break
+
+        if image_url:
+            break
+
+    if not image_url:
+        return TestImageResponse(error="未找到包含图片的商品")
+
+    # 4. 提取原始 CDN 域名
+    original_cdn = None
+    cdn_match = re.search(r"https?://([^/]+)", image_url)
+    if cdn_match:
+        original_cdn = cdn_match.group(1)
+
+    return TestImageResponse(
+        image_url=image_url,
+        original_cdn=original_cdn
+    )
 
 
 @router.get(
@@ -169,16 +263,30 @@ async def update_global_setting(
     )
     setting = result.scalar_one_or_none()
 
+    # 如果设置不存在，自动创建（upsert 模式）
     if not setting:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={
-                "type": "about:blank",
-                "title": "Setting not found",
-                "status": 404,
-                "detail": f"Global setting '{setting_key}' does not exist",
-                "code": "SETTING_NOT_FOUND"
+        setting = OzonGlobalSetting(
+            setting_key=setting_key,
+            setting_value=request.setting_value,
+            description=f"Auto-created setting: {setting_key}",
+        )
+        db.add(setting)
+        await db.commit()
+        await db.refresh(setting)
+
+        logger.info(
+            f"Global setting created",
+            extra={
+                "setting_key": setting_key,
+                "new_value": request.setting_value,
+                "user_id": current_user.id
             }
+        )
+
+        return GlobalSettingResponse(
+            setting_key=setting.setting_key,
+            setting_value=setting.setting_value,
+            description=setting.description
         )
 
     # 更新设置值

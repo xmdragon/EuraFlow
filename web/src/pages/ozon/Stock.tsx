@@ -1,7 +1,7 @@
 /**
  * Ozon 库存管理页面
  */
-import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
+import { DeleteOutlined, EditOutlined, PlusOutlined, DatabaseOutlined } from '@ant-design/icons';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import {
   Table,
@@ -379,7 +379,7 @@ const Stock: React.FC = () => {
 
   return (
     <div>
-      <PageTitle icon={<PlusOutlined />} title="库存管理" />
+      <PageTitle icon={<DatabaseOutlined />} title="库存管理" />
 
       <Card>
         {/* 工具栏 */}

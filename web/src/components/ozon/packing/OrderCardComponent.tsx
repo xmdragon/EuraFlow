@@ -325,28 +325,24 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
             </div>
 
             {/* 追踪 */}
-            <div className={styles.infoRow}>
+            <div className={styles.skuRow}>
               <Text type="secondary" className={styles.label}>
                 追踪:
               </Text>
               {isFirstProduct ? (
                 trackingNumber ? (
                   <>
-                    <span className={styles.value}>{trackingNumber}</span>
+                    <span className={styles.link}>{trackingNumber}</span>
                     <CopyOutlined
                       className={styles.copyIcon}
                       onClick={() => onCopy(trackingNumber, '追踪号码')}
                     />
                   </>
                 ) : (
-                  <Text type="secondary" className={styles.value}>
-                    -
-                  </Text>
+                  <Text type="secondary">-</Text>
                 )
               ) : (
-                <Text type="secondary" className={styles.value}>
-                  -
-                </Text>
+                <Text type="secondary">-</Text>
               )}
             </div>
 

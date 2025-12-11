@@ -9,6 +9,7 @@ import { Input, Card, Tag, Alert, Spin, Empty, Typography } from 'antd';
 import { LinkOutlined, ShopOutlined, TagsOutlined } from '@ant-design/icons';
 
 import { tagLookup, TagLookupProduct, ProductTag } from '@/services/productSelectionApi';
+import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 
 import styles from './TagLookupTab.module.scss';
 
@@ -176,7 +177,7 @@ export const TagLookupTab: React.FC = () => {
             {/* 商品图片 */}
             <div className={styles.productImage}>
               {product.image_url ? (
-                <img src={product.image_url} alt={product.name} />
+                <img src={optimizeOzonImageUrl(product.image_url, 160)} alt={product.name} />
               ) : (
                 <div className={styles.noImage}>
                   <ShopOutlined />

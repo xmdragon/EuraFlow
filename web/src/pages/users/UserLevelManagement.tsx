@@ -248,7 +248,7 @@ const UserLevelManagement: React.FC = () => {
 
       <Card bordered={false}>
         <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
-          用户级别决定了管理员可以创建的子账号和店铺数量上限。创建新管理员时需要选择一个级别。
+          用户级别决定了主账号可以创建的子账号和店铺数量上限。创建新主账号时需要选择一个级别。
         </Typography.Text>
         <Table
           columns={columns}
@@ -299,14 +299,14 @@ const UserLevelManagement: React.FC = () => {
             rules={[{ max: 50, message: '别名最多50个字符' }]}
             tooltip="用于界面显示的友好名称"
           >
-            <Input placeholder="如: 标准管理员, 高级管理员" />
+            <Input placeholder="如: 标准主账号, 高级主账号" />
           </Form.Item>
 
           <Form.Item
             name="max_sub_accounts"
             label="子账号限额"
             rules={[{ required: true, message: '请输入子账号限额' }]}
-            tooltip="此级别的管理员最多可创建的子账号数量"
+            tooltip="此级别的主账号最多可创建的子账号数量"
           >
             <InputNumber min={0} max={1000} style={{ width: '100%' }} />
           </Form.Item>
@@ -315,7 +315,7 @@ const UserLevelManagement: React.FC = () => {
             name="max_shops"
             label="店铺限额"
             rules={[{ required: true, message: '请输入店铺限额' }]}
-            tooltip="此级别的管理员（含其子账号）最多可拥有的店铺数量"
+            tooltip="此级别的主账号（含其子账号）最多可拥有的店铺数量"
           >
             <InputNumber min={0} max={1000} style={{ width: '100%' }} />
           </Form.Item>
@@ -324,7 +324,7 @@ const UserLevelManagement: React.FC = () => {
             name="default_expiration_days"
             label="默认有效期"
             rules={[{ required: true, message: '请选择默认有效期' }]}
-            tooltip="创建此级别的管理员时，默认设置的账号有效期"
+            tooltip="创建此级别的主账号时，默认设置的账号有效期"
           >
             <Select>
               {expirationOptions.map(opt => (
@@ -339,7 +339,7 @@ const UserLevelManagement: React.FC = () => {
             name="is_default"
             valuePropName="checked"
             label="设为默认级别"
-            tooltip="新创建的管理员将默认使用此级别"
+            tooltip="新创建的主账号将默认使用此级别"
           >
             <Switch />
           </Form.Item>
