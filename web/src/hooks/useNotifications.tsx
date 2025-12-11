@@ -151,7 +151,7 @@ export const useNotifications = (shopId: number | null) => {
 
       notification.success({
         key,
-        message: '订单已妥投',
+        message: '订单已送达',
         description: `订单 ${data.posting_number}\n已成功送达客户`,
         icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />,
         placement: 'bottomRight',

@@ -33,6 +33,7 @@ import styles from './OzonOverview.module.scss';
 import PageTitle from '@/components/PageTitle';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useShopSelection } from '@/hooks/ozon/useShopSelection';
+import { useShopNameFormat } from '@/hooks/useShopNameFormat';
 
 const { Text } = Typography;
 
@@ -53,6 +54,9 @@ const CHART_COLORS = [
 const OzonOverview: React.FC = () => {
   // 获取系统默认货币和时区工具
   const { symbol: currencySymbol } = useCurrency();
+
+  // 店铺名称格式化
+  const { formatShopName } = useShopNameFormat();
 
   // 店铺选择（带验证）
   const { selectedShop, setSelectedShop } = useShopSelection();
@@ -87,6 +91,17 @@ const OzonOverview: React.FC = () => {
   // 等待ShopSelector完成初始化后再请求数据
   // 允许 debouncedShop 为 null（表示全部店铺）
   const shouldFetchData = !!shops?.data?.length && debouncedShop !== undefined;
+
+  // 创建店铺名称映射：shop_name -> 格式化后的显示名称
+  const shopNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    if (shops?.data) {
+      shops.data.forEach((shop: { shop_name: string; shop_name_cn?: string }) => {
+        map[shop.shop_name] = formatShopName(shop);
+      });
+    }
+    return map;
+  }, [shops?.data, formatShopName]);
 
   // 获取统计数据（使用防抖后的店铺ID）
   const { data: statisticsData } = useQuery({
@@ -265,14 +280,111 @@ const OzonOverview: React.FC = () => {
     return null;
   }, [tooltipStyle, currencySymbol]);
 
-  // 自定义柱状图标签 - 显示销售额（外部显示，带引导线和背景色）- memoized
-  const renderBarLabel = useCallback((props: { x: number; y: number; width: number; value: number; fill: string }) => {
+  // 自定义柱状图标签 - 显示销售额（外部显示，带引导线和背景色）
+  // 当相邻柱子值接近时，较大值的标签会往上移动避免重叠
+  const createBarLabel = useCallback(
+    (barColor: string, shopKey: string) => {
+      return (props: { x: number; y: number; width: number; value: number; fill: string; index: number }) => {
+        const { x, y, width, value, fill, index } = props;
+        const color = barColor || fill;
+
+        // 如果值为0或太小，不显示标签
+        if (!value || value < 1) return null;
+
+        // 格式化显示：大于1000显示为 1.2k，否则显示整数
+        let displayValue: string;
+        if (value >= 1000) {
+          displayValue = (value / 1000).toFixed(1) + 'k';
+        } else {
+          displayValue = Math.round(value).toString();
+        }
+
+        const padding = 4;
+        const textWidth = displayValue.length * 6.5;
+        const bgWidth = textWidth + padding * 2;
+        const bgHeight = 16;
+
+        // 计算垂直偏移：以最大值为基准，其他值依次往下错开1.5个标签高度
+        let extraOffset = 0;
+        try {
+          const currentDataPoint = revenueChartData[index];
+          if (currentDataPoint) {
+            // 收集当前日期所有店铺的值
+            const valuesAtSameX: Array<{ shop: string; value: number }> = [];
+            Object.keys(currentDataPoint).forEach((key) => {
+              if (key !== 'date') {
+                const val = currentDataPoint[key];
+                if (val && typeof val === 'number' && val > 0) {
+                  valuesAtSameX.push({ shop: key, value: val });
+                }
+              }
+            });
+
+            // 按值从大到小排序（最大值排第一）
+            valuesAtSameX.sort((a, b) => b.value - a.value);
+
+            // 找到当前店铺的排名（0=最大，1=第二大...）
+            const rank = valuesAtSameX.findIndex(item => item.shop === shopKey);
+
+            if (rank > 0) {
+              // 非最大值，往下偏移：每级1.5个标签高度（约24px）
+              extraOffset = -rank * 24;
+            }
+          }
+        } catch {
+          // 忽略错误
+        }
+
+        const labelX = x + width / 2;
+        const labelY = y - 25 + extraOffset;
+        const lineY = y - 5;
+
+        return (
+          <g>
+            {/* 引导线：从标签底部到柱子顶部 */}
+            <line
+              x1={labelX}
+              y1={labelY + bgHeight / 2}
+              x2={labelX}
+              y2={lineY}
+              stroke={color}
+              strokeWidth={1}
+            />
+            {/* 背景矩形：与柱子同色 */}
+            <rect
+              x={labelX - bgWidth / 2}
+              y={labelY - bgHeight / 2}
+              width={bgWidth}
+              height={bgHeight}
+              fill={color}
+              rx={3}
+              ry={3}
+            />
+            {/* 文本标签 */}
+            <text
+              x={labelX}
+              y={labelY}
+              fill="#fff"
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fontSize={11}
+              fontWeight="bold"
+            >
+              {displayValue}
+            </text>
+          </g>
+        );
+      };
+    },
+    [revenueChartData]
+  );
+
+  // 汇总模式的简单标签（单柱，不需要避免重叠）
+  const renderBarLabelSimple = useCallback((props: { x: number; y: number; width: number; value: number; fill: string }) => {
     const { x, y, width, value, fill } = props;
 
-    // 如果值为0或太小，不显示标签
     if (!value || value < 1) return null;
 
-    // 格式化显示：大于1000显示为 1.2k，否则显示整数
     let displayValue: string;
     if (value >= 1000) {
       displayValue = (value / 1000).toFixed(1) + 'k';
@@ -281,44 +393,18 @@ const OzonOverview: React.FC = () => {
     }
 
     const labelX = x + width / 2;
-    const labelY = y - 25; // 标签显示在柱子上方
-    const lineY = y - 5; // 引导线终点
+    const labelY = y - 25;
+    const lineY = y - 5;
     const padding = 4;
-    const textWidth = displayValue.length * 6.5; // 估算文本宽度
+    const textWidth = displayValue.length * 6.5;
     const bgWidth = textWidth + padding * 2;
     const bgHeight = 16;
 
     return (
       <g>
-        {/* 引导线：从标签底部到柱子顶部 */}
-        <line
-          x1={labelX}
-          y1={labelY + bgHeight / 2}
-          x2={labelX}
-          y2={lineY}
-          stroke={fill}
-          strokeWidth={1}
-        />
-        {/* 背景矩形：与柱子同色 */}
-        <rect
-          x={labelX - bgWidth / 2}
-          y={labelY - bgHeight / 2}
-          width={bgWidth}
-          height={bgHeight}
-          fill={fill}
-          rx={3}
-          ry={3}
-        />
-        {/* 文本标签 */}
-        <text
-          x={labelX}
-          y={labelY}
-          fill="#fff"
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fontSize={11}
-          fontWeight="bold"
-        >
+        <line x1={labelX} y1={labelY + bgHeight / 2} x2={labelX} y2={lineY} stroke={fill} strokeWidth={1} />
+        <rect x={labelX - bgWidth / 2} y={labelY - bgHeight / 2} width={bgWidth} height={bgHeight} fill={fill} rx={3} ry={3} />
+        <text x={labelX} y={labelY} fill="#fff" textAnchor="middle" dominantBaseline="middle" fontSize={11} fontWeight="bold">
           {displayValue}
         </text>
       </g>
@@ -619,6 +705,7 @@ const OzonOverview: React.FC = () => {
                       key={shop}
                       type="monotone"
                       dataKey={shop}
+                      name={shopNameMap[shop] || shop}
                       stroke={CHART_COLORS[index % CHART_COLORS.length]}
                       strokeWidth={2}
                       dot={{ r: 3 }}
@@ -652,14 +739,15 @@ const OzonOverview: React.FC = () => {
             </div>
           ) : revenueChartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={400}>
-              <BarChart data={revenueChartData} margin={{ top: 40, right: 80, bottom: 20, left: 20 }}>
+              <BarChart data={revenueChartData} margin={{ top: 40, right: 30, bottom: 20, left: 20 }} barCategoryGap="10%">
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
                   dataKey="date"
                   angle={-45}
                   textAnchor="end"
-                  height={80}
-                  tick={{ fontSize: 12 }}
+                  height={60}
+                  tick={{ fontSize: 11 }}
+                  interval={0}
                 />
                 <YAxis domain={[0, (dataMax: number) => Math.ceil(dataMax * 1.15)]} />
                 <Tooltip content={<RevenueTooltip />} />
@@ -671,17 +759,18 @@ const OzonOverview: React.FC = () => {
                     dataKey={dateRangeLabel}
                     fill="#f5222d"
                     radius={[4, 4, 0, 0]}
-                    label={renderBarLabel}
+                    label={renderBarLabelSimple}
                   />
                 ) : (
-                  // 单店模式：显示各店铺的柱（多种颜色）
+                  // 单店模式：显示各店铺的柱（多种颜色），标签交替显示避免重叠
                   dailyStatsData?.shops.map((shop, index) => (
                     <Bar
                       key={shop}
                       dataKey={shop}
+                      name={shopNameMap[shop] || shop}
                       fill={CHART_COLORS[index % CHART_COLORS.length]}
                       radius={[4, 4, 0, 0]}
-                      label={renderBarLabel}
+                      label={createBarLabel(CHART_COLORS[index % CHART_COLORS.length], shop)}
                     />
                   ))
                 )}

@@ -60,14 +60,7 @@ export default defineConfig({
   },
   // 优化依赖预构建
   optimizeDeps: {
-    include: [
-      'react', 'react-dom', 'react-router-dom',
-      'antd', '@ant-design/icons',
-      '@tanstack/react-query',
-      'recharts',
-      'dayjs',
-      'axios',
-    ],
+    include: ['react', 'react-dom', 'react-router-dom', 'antd'],
   },
   css: {
     preprocessorOptions: {
@@ -84,21 +77,14 @@ export default defineConfig({
       // 开发专用依赖不打包到生产构建
       external: ['react-scan', 'stats.js'],
       output: {
+        // 让Vite自动处理代码分割，避免手动分割导致的依赖问题
+        // Vite会自动分析依赖关系，确保加载顺序正确
         // 用于命名代码拆分的块
         chunkFileNames: 'assets/js/[name]-[hash].js',
         // 用于命名入口文件
         entryFileNames: 'assets/js/[name]-[hash].js',
         // 用于命名静态资源
         assetFileNames: 'assets/[ext]/[name]-[hash].[ext]',
-        // 手动代码分割
-        // 注意：所有依赖 React 的库必须在 vendor-ui 之后加载
-        // 使用函数形式无法保证加载顺序，改用对象形式
-        manualChunks: {
-          // 纯工具库（无 React 依赖，可以独立）
-          'vendor-utils': ['dayjs', 'axios', 'loglevel', 'md5'],
-          // d3 图表底层库（无 React 依赖）
-          'vendor-d3': ['d3-shape', 'd3-scale', 'd3-interpolate', 'd3-color', 'd3-path', 'd3-time', 'd3-time-format', 'd3-format', 'd3-array'],
-        },
       },
     },
     // 压缩配置
