@@ -5,6 +5,7 @@
 import {
   DashboardOutlined,
   LineChartOutlined,
+  ShoppingOutlined,
   WalletOutlined,
 } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
