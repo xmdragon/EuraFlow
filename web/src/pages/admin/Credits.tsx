@@ -25,7 +25,6 @@ import {
   Tabs,
   DatePicker,
   Typography,
-  message,
   Popconfirm,
   Switch,
 } from 'antd';
@@ -41,6 +40,7 @@ import type {
   ModuleConfig,
   RechargeRequest,
 } from '@/types/credit';
+import { notifySuccess, notifyError } from '@/utils/notification';
 
 const { Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -108,14 +108,14 @@ const AdminCredits: React.FC = () => {
   const rechargeMutation = useMutation({
     mutationFn: creditApi.recharge,
     onSuccess: (data) => {
-      message.success(`充值成功！余额: ${data.balance_before} → ${data.balance_after}`);
+      notifySuccess('充值成功', `余额: ${data.balance_before} → ${data.balance_after}`);
       setRechargeModalVisible(false);
       rechargeForm.resetFields();
       queryClient.invalidateQueries({ queryKey: ['admin-credit-accounts'] });
       queryClient.invalidateQueries({ queryKey: ['admin-recharge-records'] });
     },
     onError: (error: Error & { response?: { data?: { detail?: string } } }) => {
-      message.error(error.response?.data?.detail || '充值失败');
+      notifyError('充值失败', error.response?.data?.detail || '充值失败');
     },
   });
 
@@ -124,13 +124,13 @@ const AdminCredits: React.FC = () => {
     mutationFn: ({ moduleKey, data }: { moduleKey: string; data: { cost_per_unit?: string; is_enabled?: boolean } }) =>
       creditApi.updateModuleConfig(moduleKey, data),
     onSuccess: () => {
-      message.success('配置更新成功');
+      notifySuccess('更新成功', '配置更新成功');
       setConfigModalVisible(false);
       configForm.resetFields();
       queryClient.invalidateQueries({ queryKey: ['admin-module-configs'] });
     },
     onError: (error: Error & { response?: { data?: { detail?: string } } }) => {
-      message.error(error.response?.data?.detail || '更新失败');
+      notifyError('更新失败', error.response?.data?.detail || '更新失败');
     },
   });
 

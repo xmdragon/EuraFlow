@@ -66,6 +66,7 @@ import { useCopy } from "@/hooks/useCopy";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useDateTime } from "@/hooks/useDateTime";
 import { useShopSelection } from "@/hooks/ozon/useShopSelection";
+import { useShopNameFormat } from "@/hooks/useShopNameFormat";
 import * as ozonApi from "@/services/ozon";
 import { notifySuccess, notifyError } from "@/utils/notification";
 import { formatDeliveryMethodTextWhite } from "@/utils/packingHelpers";
@@ -86,6 +87,45 @@ const COLORS = [
   "#4ECDC4",
   "#45B7D1",
 ];
+
+// 饼图自定义标签渲染 - 根据索引调整距离避免重叠
+const renderPieLabel = (props: {
+  cx: number;
+  cy: number;
+  midAngle: number;
+  innerRadius: number;
+  outerRadius: number;
+  percent: number;
+  index: number;
+}) => {
+  const { cx, cy, midAngle, outerRadius, percent, index } = props;
+
+  const RADIAN = Math.PI / 180;
+
+  // 根据索引调整标签距离，奇偶交替，避免相邻标签重叠
+  const radiusOffset = index % 2 === 0 ? 20 : 35;
+  const radius = outerRadius + radiusOffset;
+
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+  const percentValue = Math.round(percent * 100);
+  if (percentValue === 0) return null;
+
+  return (
+    <text
+      x={x}
+      y={y}
+      fill={COLORS[index % COLORS.length]}
+      textAnchor={x > cx ? "start" : "end"}
+      dominantBaseline="central"
+      fontSize={12}
+      fontWeight="bold"
+    >
+      {`${percentValue}%`}
+    </text>
+  );
+};
 
 // ===== 类型定义 =====
 
@@ -196,6 +236,7 @@ const OrderReport: React.FC = () => {
   const { copyToClipboard } = useCopy();
   const { formatDate } = useDateTime();
   const { currency: userCurrency } = useCurrency();
+  const { formatShopName } = useShopNameFormat();
 
   // ===== 状态管理 =====
   const [selectedMonth, setSelectedMonth] = useState(
@@ -318,9 +359,27 @@ const OrderReport: React.FC = () => {
     }
   }, [postingReportData, page]);
 
+  // 查询店铺列表（用于格式化店铺名称）
+  const { data: shopsData } = useQuery({
+    queryKey: ['ozon', 'shops'],
+    queryFn: () => ozonApi.getShops(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // 创建店铺名称映射：shop_name -> 格式化后的显示名称
+  const shopNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    if (shopsData?.data) {
+      shopsData.data.forEach((shop: { shop_name: string; shop_name_cn?: string }) => {
+        map[shop.shop_name] = formatShopName(shop);
+      });
+    }
+    return map;
+  }, [shopsData?.data, formatShopName]);
+
   // 查询报表汇总数据（仅在订单汇总Tab激活时查询）
   const {
-    data: summaryData,
+    data: rawSummaryData,
     isLoading: isLoadingSummary,
     refetch: refetchSummary,
   } = useQuery<ReportSummary>({
@@ -338,6 +397,18 @@ const OrderReport: React.FC = () => {
     retry: 1,
     staleTime: 2 * 60 * 1000,
   });
+
+  // 处理 summaryData，格式化店铺名称
+  const summaryData = useMemo(() => {
+    if (!rawSummaryData) return undefined;
+    return {
+      ...rawSummaryData,
+      shop_breakdown: rawSummaryData.shop_breakdown.map(item => ({
+        ...item,
+        shop_name: shopNameMap[item.shop_name] || item.shop_name,
+      })),
+    };
+  }, [rawSummaryData, shopNameMap]);
 
   // ===== 工具函数 =====
 
@@ -1014,9 +1085,8 @@ const OrderReport: React.FC = () => {
                                     cx="50%"
                                     cy="50%"
                                     outerRadius={80}
-                                    label={(entry) =>
-                                      `${Math.round(entry.percent * 100)}%`
-                                    }
+                                    label={renderPieLabel}
+                                    labelLine={true}
                                   >
                                     {summaryData.cost_breakdown.map(
                                       (entry, index) => (
@@ -1045,9 +1115,8 @@ const OrderReport: React.FC = () => {
                                     cx="50%"
                                     cy="50%"
                                     outerRadius={80}
-                                    label={(entry) =>
-                                      `${Math.round(entry.percent * 100)}%`
-                                    }
+                                    label={renderPieLabel}
+                                    labelLine={true}
                                   >
                                     {summaryData.shop_breakdown.map(
                                       (entry, index) => (
@@ -1088,9 +1157,8 @@ const OrderReport: React.FC = () => {
                                     cx="50%"
                                     cy="50%"
                                     outerRadius={80}
-                                    label={(entry) =>
-                                      `${Math.round(entry.percent * 100)}%`
-                                    }
+                                    label={renderPieLabel}
+                                    labelLine={true}
                                   >
                                     {summaryData.shop_breakdown.map(
                                       (entry, index) => (

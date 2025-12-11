@@ -1,5 +1,5 @@
 import { KeyOutlined, SettingOutlined, UserOutlined, RightOutlined, EditOutlined } from '@ant-design/icons';
-import { Card, Space, Typography, Button, Modal, Input, message } from 'antd';
+import { Card, Space, Typography, Button, Modal, Input } from 'antd';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -8,6 +8,7 @@ import styles from './user/UserPages.module.scss';
 import PageTitle from '@/components/PageTitle';
 import { useAuth } from '@/hooks/useAuth';
 import authService from '@/services/authService';
+import { notifySuccess, notifyError } from '@/utils/notification';
 
 const { Text } = Typography;
 
@@ -23,25 +24,25 @@ const Profile: React.FC = () => {
 
   const handleChangeUsername = async () => {
     if (!newUsername.trim()) {
-      message.error('请输入新用户名');
+      notifyError('输入错误', '请输入新用户名');
       return;
     }
 
     if (newUsername.trim().length < 3 || newUsername.trim().length > 30) {
-      message.error('用户名需要3-30个字符');
+      notifyError('输入错误', '用户名需要3-30个字符');
       return;
     }
 
     // 检查是否为纯数字
     if (/^\d+$/.test(newUsername.trim())) {
-      message.error('用户名不能为纯数字');
+      notifyError('输入错误', '用户名不能为纯数字');
       return;
     }
 
     setChangingUsername(true);
     try {
       await authService.changeUsername(newUsername.trim());
-      message.success('用户名修改成功');
+      notifySuccess('修改成功', '用户名修改成功');
       setIsUsernameModalOpen(false);
       setNewUsername('');
       await refreshUser();
@@ -57,13 +58,13 @@ const Profile: React.FC = () => {
       };
       const errorDetail = error.response?.data?.error?.detail;
       if (errorDetail?.code === 'USERNAME_ALREADY_CHANGED') {
-        message.error('用户名只能修改一次');
+        notifyError('修改失败', '用户名只能修改一次');
       } else if (errorDetail?.code === 'USERNAME_EXISTS') {
-        message.error('该用户名已被使用');
+        notifyError('修改失败', '该用户名已被使用');
       } else if (errorDetail?.code === 'INVALID_USERNAME') {
-        message.error(errorDetail.message || '用户名格式不正确');
+        notifyError('修改失败', errorDetail.message || '用户名格式不正确');
       } else {
-        message.error(errorDetail?.message || '修改失败，请重试');
+        notifyError('修改失败', errorDetail?.message || '修改失败，请重试');
       }
     } finally {
       setChangingUsername(false);

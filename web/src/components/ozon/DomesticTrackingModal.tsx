@@ -3,7 +3,7 @@
  * 用于"已分配"状态，填写国内物流单号
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Modal, Form, Input, message, Select } from 'antd';
+import { Modal, Form, Input, Select } from 'antd';
 import axios from 'axios';
 import React from 'react';
 
@@ -121,7 +121,7 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
       } else {
         // 没有单号，使用提交接口（不允许空）
         if (cleanedNumbers.length === 0) {
-          message.error('请至少输入一个国内物流单号');
+          notifyError('提交失败', '请至少输入一个国内物流单号');
           return;
         }
 
