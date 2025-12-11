@@ -52,7 +52,6 @@ const SystemConfiguration: React.FC = () => {
         {tabItems.length > 0 ? (
           <Tabs
             defaultActiveKey={defaultActiveKey}
-            size="large"
             destroyInactiveTabPane
             items={tabItems}
           />

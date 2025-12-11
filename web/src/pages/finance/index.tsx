@@ -1,18 +1,17 @@
 import { CalculatorOutlined, DollarOutlined, TruckOutlined } from '@ant-design/icons';
-import { Tabs, Typography } from 'antd';
+import { Tabs } from 'antd';
 import React from 'react';
 
+import PageTitle from '@/components/PageTitle';
 import ProfitCalculatorV2 from './ProfitCalculatorV2';
 import ShippingDetailCalculator from './ShippingDetailCalculator';
-
-const { Title } = Typography;
 
 const FinanceCalculator: React.FC = () => {
   const tabItems = [
     {
       key: 'profit',
       label: (
-        <span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
           <DollarOutlined />
           利润计算
         </span>
@@ -22,9 +21,9 @@ const FinanceCalculator: React.FC = () => {
     {
       key: 'shipping',
       label: (
-        <span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
           <TruckOutlined />
-          运费明细计算
+          运费明细
         </span>
       ),
       children: <ShippingDetailCalculator />,
@@ -33,9 +32,7 @@ const FinanceCalculator: React.FC = () => {
 
   return (
     <div>
-      <Title level={2}>
-        <CalculatorOutlined /> 财务计算器
-      </Title>
+      <PageTitle icon={<CalculatorOutlined />} title="计算器" />
 
       <Tabs defaultActiveKey="profit" destroyInactiveTabPane items={tabItems} />
     </div>

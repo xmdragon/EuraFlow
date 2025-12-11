@@ -459,24 +459,30 @@ const OzonOverview: React.FC = () => {
 
         {/* 概览统计 */}
         <Row gutter={8} className={styles.statsRow} align="middle">
-          <Col flex="1">
+          <Col flex="2">
             <Card>
-              <Statistic
-                title={selectedShop ? shops?.data?.find((s: { id: number; shop_name: string }) => s.id === selectedShop)?.shop_name : '店铺数'}
-                value={
-                  selectedShop
-                    ? shops?.data?.find((s: { id: number; shop_name: string }) => s.id === selectedShop)?.shop_name || '-'
-                    : shops?.data?.length || 0
-                }
-                prefix={selectedShop ? null : <ShoppingOutlined />}
-                valueRender={(value) =>
-                  selectedShop && typeof value === 'string' && isNaN(Number(value)) ? (
-                    <Text className={styles.shopNameValue}>{value}</Text>
-                  ) : (
-                    value
-                  )
-                }
-              />
+              {selectedShop ? (
+                (() => {
+                  const shop = shops?.data?.find((s: { id: number; shop_name: string; shop_name_cn?: string }) => s.id === selectedShop);
+                  return (
+                    <Statistic
+                      title={shop?.shop_name_cn ? (
+                        <span style={{ fontSize: '12px', color: '#999' }}>{shop.shop_name_cn}</span>
+                      ) : '当前店铺'}
+                      value={shop?.shop_name || '-'}
+                      valueRender={(value) => (
+                        <Text className={styles.shopNameValue}>{value}</Text>
+                      )}
+                    />
+                  );
+                })()
+              ) : (
+                <Statistic
+                  title="店铺数"
+                  value={shops?.data?.length || 0}
+                  prefix={<ShoppingOutlined />}
+                />
+              )}
             </Card>
           </Col>
           <Col flex="1">
