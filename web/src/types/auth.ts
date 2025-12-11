@@ -76,6 +76,7 @@ export interface User {
 export interface LoginRequest {
   username: string;
   password: string;
+  captcha_token?: string;
 }
 
 export interface LoginResponse {

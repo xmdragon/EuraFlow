@@ -8,7 +8,7 @@
  * - 本文件仅负责组装和布局
  */
 
-import { FilterOutlined, SearchOutlined, HistoryOutlined, BookOutlined, LinkOutlined } from '@ant-design/icons';
+import { FilterOutlined, SearchOutlined, HistoryOutlined, BookOutlined, LinkOutlined, TagOutlined } from '@ant-design/icons';
 import { Card, Tabs, Modal, Button, Typography } from 'antd';
 import React from 'react';
 
@@ -22,6 +22,7 @@ import { ProductGrid } from '@/components/ozon/selection/ProductGrid';
 import { ImportHistoryTable } from '@/components/ozon/selection/ImportHistoryTable';
 import { ProductSelectionGuide } from '@/components/ozon/selection/ProductSelectionGuide';
 import { CollectionSourcesTab } from '@/components/ozon/selection/CollectionSourcesTab';
+import { TagLookupTab } from '@/components/ozon/selection/TagLookupTab';
 import PageTitle from '@/components/PageTitle';
 import { formatPrice } from '@/utils/ozon/productFormatters';
 
@@ -183,6 +184,15 @@ const ProductSelection: React.FC = () => {
                 </span>
               ),
               children: <CollectionSourcesTab />,
+            },
+            {
+              key: 'tag-lookup',
+              label: (
+                <span>
+                  <TagOutlined /> 标签反查
+                </span>
+              ),
+              children: <TagLookupTab />,
             },
             {
               key: 'guide',

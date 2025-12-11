@@ -1,0 +1,219 @@
+/**
+ * 标签反查组件样式
+ */
+
+.container {
+  padding: 16px 0;
+}
+
+// 搜索区域
+.searchSection {
+  margin-bottom: 24px;
+}
+
+.searchInput {
+  width: 220px;
+}
+
+.searchHint {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+// 加载状态
+.loadingContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 60px 0;
+}
+
+// 提示消息
+.alertMessage {
+  margin-bottom: 16px;
+  max-width: 600px;
+}
+
+// 商品卡片
+.productCard {
+  margin-bottom: 16px;
+  max-width: 800px;
+
+  :global(.ant-card-body) {
+    padding: 16px;
+  }
+}
+
+.productInfo {
+  display: flex;
+  gap: 20px;
+}
+
+// 商品图片
+.productImage {
+  flex-shrink: 0;
+  width: 120px;
+  height: 120px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f5f5f5;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.noImage {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #bfbfbf;
+  font-size: 32px;
+}
+
+// 商品详情
+.productDetails {
+  flex: 1;
+  min-width: 0;
+}
+
+.productName {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.4;
+  margin-bottom: 8px;
+  color: #262626;
+
+  // 最多显示2行
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.productSku {
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+
+.productSeller {
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.sellerLink {
+  color: #1890ff;
+
+  &:hover {
+    color: #40a9ff;
+    text-decoration: underline;
+  }
+}
+
+// 价格样式
+.productPrices {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+// 红色真实售价（计算得出）
+.realPrice {
+  font-size: 18px;
+  font-weight: 600;
+  color: #f5222d;
+}
+
+// 绿色卡价（最优惠价格）
+.cardPrice {
+  font-size: 16px;
+  font-weight: 500;
+  color: #52c41a;
+}
+
+// 黑色普通价
+.normalPrice {
+  font-size: 15px;
+  font-weight: 500;
+  color: #262626;
+}
+
+// 划线原价
+.originalPrice {
+  font-size: 14px;
+  color: #8c8c8c;
+  text-decoration: line-through;
+}
+
+// 商品链接
+.productLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #1890ff;
+
+  &:hover {
+    color: #40a9ff;
+  }
+}
+
+// 标签区域
+.tagsSection {
+  margin-top: 20px;
+  max-width: 800px;
+}
+
+.tagsHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: #595959;
+}
+
+.tagsTitle {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.tagsCount {
+  font-size: 13px;
+  color: #8c8c8c;
+}
+
+// 标签容器
+.tagsContainer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+// 单个标签样式
+.hashTag {
+  cursor: pointer;
+  padding: 4px 12px;
+  font-size: 13px;
+  border-radius: 4px;
+  background: #e6f7ff;
+  border-color: #91d5ff;
+  color: #1890ff;
+  transition: all 0.2s;
+
+  &:hover {
+    background: #1890ff;
+    border-color: #1890ff;
+    color: #fff;
+  }
+}
+
+// 空状态
+.emptyState {
+  padding: 60px 0;
+}

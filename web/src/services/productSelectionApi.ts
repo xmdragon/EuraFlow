@@ -320,3 +320,48 @@ export const deleteBatches = async (
   });
   return response.data;
 };
+
+// ============================================
+// 标签反查相关
+// ============================================
+
+/** 商品信息 */
+export interface TagLookupProduct {
+  sku: string;
+  name: string;
+  image_url: string | null;
+  link: string;
+  card_price: string | null;
+  price: string | null;
+  original_price: string | null;
+  seller_name: string | null;
+  seller_link: string | null;
+}
+
+/** 商品标签 */
+export interface ProductTag {
+  text: string;
+  link: string;
+}
+
+/** 标签反查响应 */
+export interface TagLookupResponse {
+  ok: boolean;
+  data?: {
+    product: TagLookupProduct;
+    tags: ProductTag[];
+    warning: string | null;
+  };
+  error?: string;
+}
+
+/**
+ * 标签反查 - 根据商品 SKU 获取 OZON 商品页面的标签信息
+ * @param sku 商品 SKU
+ */
+export const tagLookup = async (sku: string): Promise<TagLookupResponse> => {
+  const response = await axios.post('/api/ef/v1/ozon/product-selection/tag-lookup', {
+    sku,
+  });
+  return response.data;
+};

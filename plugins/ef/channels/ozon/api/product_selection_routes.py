@@ -1460,3 +1460,136 @@ async def upload_products(
         )
 
 
+# DTO 模型 - 标签反查
+class TagLookupRequest(BaseModel):
+    """标签反查请求"""
+    sku: str = Field(..., description="商品 SKU")
+
+
+class ProductInfoResponse(BaseModel):
+    """商品信息响应"""
+    sku: str
+    name: str
+    image_url: Optional[str] = None
+    link: str
+    card_price: Optional[str] = None
+    price: Optional[str] = None
+    original_price: Optional[str] = None
+    seller_name: Optional[str] = None
+
+
+class ProductTagResponse(BaseModel):
+    """商品标签响应"""
+    text: str
+    link: str
+
+
+class TagLookupResponse(BaseModel):
+    """标签反查响应"""
+    product: ProductInfoResponse
+    tags: List[ProductTagResponse]
+    warning: Optional[str] = None
+
+
+@router.post("/tag-lookup")
+async def tag_lookup(
+    request: TagLookupRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    标签反查接口
+
+    根据商品 SKU 获取 OZON 商品页面的标签信息
+
+    需要用户已同步 OZON Cookie（通过浏览器扩展）
+    """
+    from ..services.ozon_buyer_client import (
+        fetch_product_with_tags,
+        CookieExpiredError,
+        ProductNotFoundError,
+        AntibotDetectedError,
+        OzonBuyerClientError,
+    )
+
+    # 检查用户是否有 OZON Session
+    if not current_user.ozon_session_enc:
+        return {
+            "ok": False,
+            "error": "请先使用浏览器扩展同步 OZON Cookie"
+        }
+
+    # 解析 Session 数据
+    try:
+        session_data = json.loads(current_user.ozon_session_enc)
+    except json.JSONDecodeError:
+        return {
+            "ok": False,
+            "error": "OZON Cookie 数据格式错误，请重新同步"
+        }
+
+    # 验证 Cookie 是否有效
+    cookies = session_data.get('cookies', [])
+    if not cookies:
+        return {
+            "ok": False,
+            "error": "OZON Cookie 为空，请重新同步"
+        }
+
+    try:
+        # 调用标签反查服务
+        result = await fetch_product_with_tags(request.sku, session_data)
+
+        # 构建响应
+        return {
+            "ok": True,
+            "data": {
+                "product": {
+                    "sku": result.product.sku,
+                    "name": result.product.name,
+                    "image_url": result.product.image_url,
+                    "link": result.product.link,
+                    "card_price": result.product.card_price,
+                    "price": result.product.price,
+                    "original_price": result.product.original_price,
+                    "seller_name": result.product.seller_name,
+                    "seller_link": result.product.seller_link,
+                },
+                "tags": [
+                    {"text": tag.text, "link": tag.link}
+                    for tag in result.tags
+                ],
+                "warning": result.warning,
+            }
+        }
+
+    except CookieExpiredError as e:
+        logger.warning(f"标签反查 Cookie 过期: user_id={current_user.id}, error={e}")
+        return {
+            "ok": False,
+            "error": "OZON Cookie 已过期，请使用浏览器扩展重新同步"
+        }
+    except ProductNotFoundError:
+        return {
+            "ok": False,
+            "error": "商品不存在"
+        }
+    except AntibotDetectedError:
+        logger.warning(f"标签反查触发反爬虫: user_id={current_user.id}")
+        return {
+            "ok": False,
+            "error": "请求被 OZON 拒绝，请稍后重试"
+        }
+    except OzonBuyerClientError as e:
+        logger.error(f"标签反查失败: user_id={current_user.id}, error={e}")
+        return {
+            "ok": False,
+            "error": f"查询失败: {str(e)}"
+        }
+    except Exception as e:
+        logger.error(f"标签反查异常: user_id={current_user.id}, error={e}", exc_info=True)
+        return {
+            "ok": False,
+            "error": "服务器内部错误"
+        }
+
