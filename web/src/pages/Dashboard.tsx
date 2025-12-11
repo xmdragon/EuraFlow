@@ -31,6 +31,7 @@ import {
   WalletOutlined,
   TruckOutlined,
   GiftOutlined,
+  InboxOutlined,
 } from "@ant-design/icons";
 import {
   Layout,
@@ -378,7 +379,7 @@ const Dashboard: React.FC = () => {
           'ozon-selection': { icon: <FilterOutlined />, label: '选品助手', path: '/dashboard/ozon/selection' },
           'ozon-listing-records': { icon: <CloudUploadOutlined />, label: '上架记录', path: '/dashboard/ozon/listing-records' },
           'ozon-collection-records': { icon: <DatabaseOutlined />, label: '采集记录', path: '/dashboard/ozon/collection-records' },
-          'ozon-stock': { icon: <DatabaseOutlined />, label: '库存管理', path: '/dashboard/ozon/stock' },
+          'ozon-stock': { icon: <InboxOutlined />, label: '库存管理', path: '/dashboard/ozon/stock' },
           'ozon-cancel-return': { icon: <CloseCircleOutlined />, label: '取消退货', path: '/dashboard/ozon/cancel-return' },
           'ozon-finance-transactions': { icon: <DollarOutlined />, label: '财务记录', path: '/dashboard/ozon/finance-transactions' },
           'ozon-warehouses': { icon: <HomeOutlined />, label: '仓库列表', path: '/dashboard/ozon/warehouses' },

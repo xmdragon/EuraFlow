@@ -293,7 +293,7 @@ const ShopManagement: React.FC = () => {
   if (isLoading) {
     return (
       <div className={styles.pageWrapper}>
-        <PageTitle title="店铺管理" />
+        <PageTitle icon={<ShopOutlined />} title="店铺管理" />
         <div className={styles.loadingContainer}>
           <Spin size="large" />
           <div className={styles.loadingText}>加载店铺信息...</div>
@@ -305,7 +305,7 @@ const ShopManagement: React.FC = () => {
   if (error) {
     return (
       <div className={styles.pageWrapper}>
-        <PageTitle title="店铺管理" />
+        <PageTitle icon={<ShopOutlined />} title="店铺管理" />
         <Alert
           message="加载失败"
           description={`无法加载店铺信息: ${error instanceof Error ? error.message : '未知错误'}`}
@@ -320,7 +320,7 @@ const ShopManagement: React.FC = () => {
 
   return (
     <div className={styles.pageWrapper}>
-      <PageTitle title="店铺管理" />
+      <PageTitle icon={<ShopOutlined />} title="店铺管理" />
 
       {/* 店铺列表 */}
       <Card className={styles.shopListCard}>

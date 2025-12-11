@@ -393,7 +393,7 @@ const AdminCredits: React.FC = () => {
 
   return (
     <div style={{ padding: 24 }}>
-      <PageTitle title="额度管理" />
+      <PageTitle icon={<WalletOutlined />} title="额度管理" />
 
       <Tabs
         activeKey={activeTab}
