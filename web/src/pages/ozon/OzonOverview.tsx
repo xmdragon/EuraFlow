@@ -458,7 +458,7 @@ const OzonOverview: React.FC = () => {
         </Row>
 
         {/* 概览统计 */}
-        <Row gutter={8} className={styles.statsRow} align="middle">
+        <Row gutter={12} className={styles.statsRow} align="middle">
           <Col flex="2">
             <Card>
               {selectedShop ? (
