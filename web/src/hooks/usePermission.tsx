@@ -13,7 +13,8 @@ import { useAuth } from './useAuth';
  * - sub_account: 子账号，只能查看被绑定的店铺
  *
  * 克隆状态限制：
- * - 克隆状态下，canManageUsers 和 canManageSystem 为 false
+ * - 克隆状态下，canManageLevels 和 canManageSystem 为 false（仅 admin 专属功能）
+ * - canManageUsers 不受克隆状态影响（manager 可以管理自己的子账号）
  * - 其他业务权限保持不变
  *
  * @example
@@ -55,8 +56,9 @@ export function usePermission() {
       canImport: role === 'admin' || role === 'manager',
       canSync: role === 'admin' || role === 'manager',
 
-      // 管理员专属权限（克隆状态下禁用用户管理和系统管理）
-      canManageUsers: !isCloned && (role === 'admin' || role === 'manager'),
+      // 管理员专属权限
+      // canManageUsers 不受克隆状态影响，因为 manager 可以管理自己的子账号
+      canManageUsers: role === 'admin' || role === 'manager',
       canManageShops: role === 'admin' || role === 'manager',
       canManageSettings: role === 'admin' || role === 'manager',
       canManageLevels: !isCloned && role === 'admin', // 仅 admin 可管理级别，克隆状态禁用

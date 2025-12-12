@@ -37,10 +37,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
     ]
 
     # 克隆状态下禁止访问的路径前缀
+    # 注意：用户管理 /api/ef/v1/auth/users 不在此列表中，因为 manager 可以管理自己的子账号
+    # 克隆 manager 后应该能看到该 manager 的子账号列表（后端 API 会根据角色自动过滤）
     CLONE_RESTRICTED_PREFIXES = [
-        "/api/ef/v1/auth/users",      # 用户管理
-        "/api/ef/v1/system",          # 系统管理
-        "/api/ef/v1/manager-levels",  # 管理员级别
+        "/api/ef/v1/system",          # 系统管理（仅 admin）
+        "/api/ef/v1/manager-levels",  # 管理员级别（仅 admin）
     ]
 
     # 克隆状态下允许访问的特殊路径（白名单，优先于 CLONE_RESTRICTED_PREFIXES）
