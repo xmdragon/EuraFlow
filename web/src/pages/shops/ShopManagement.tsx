@@ -565,7 +565,7 @@ const ShopManagement: React.FC = () => {
           </Form.Item>
           <Alert
             message="发货托管说明"
-            description="启用后，发货员角色可以在「扫描单号」页面看到并操作该店铺的订单。"
+            description="启用后，打包发货托管给系统。"
             type="info"
             showIcon
             style={{ marginBottom: 16 }}
