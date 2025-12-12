@@ -616,47 +616,45 @@ const FinanceTransactions: React.FC = () => {
 
       <div className={styles.contentContainer}>
         <Card className={styles.filterCard}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Space size="middle">
-              <ShopSelector
-                value={selectedShop}
-                onChange={(value) => {
-                  setSelectedShop(value as number | null);
-                  setCurrentPage(1);
-                }}
-                showAllOption={true}
-              />
-              <Select
-                value={selectedPeriod}
-                onChange={(value) => {
-                  setSelectedPeriod(value);
-                  setCurrentPage(1);
-                }}
-                style={{ minWidth: 200 }}
-                options={periodOptions}
-              />
-              <Select
-                value={transactionType}
-                onChange={(value) => {
-                  setTransactionType(value);
-                  setCurrentPage(1);
-                }}
-                style={{ minWidth: 120 }}
-              >
-                {Object.entries(TRANSACTION_TYPE_MAP).map(([key, label]) => (
-                  <Option key={key} value={key}>
-                    {label}
-                  </Option>
-                ))}
-              </Select>
-            </Space>
+          <Space size="middle">
+            <ShopSelector
+              value={selectedShop}
+              onChange={(value) => {
+                setSelectedShop(value as number | null);
+                setCurrentPage(1);
+              }}
+              showAllOption={true}
+            />
+            <Select
+              value={selectedPeriod}
+              onChange={(value) => {
+                setSelectedPeriod(value);
+                setCurrentPage(1);
+              }}
+              style={{ minWidth: 200 }}
+              options={periodOptions}
+            />
+            <Select
+              value={transactionType}
+              onChange={(value) => {
+                setTransactionType(value);
+                setCurrentPage(1);
+              }}
+              style={{ minWidth: 120 }}
+            >
+              {Object.entries(TRANSACTION_TYPE_MAP).map(([key, label]) => (
+                <Option key={key} value={key}>
+                  {label}
+                </Option>
+              ))}
+            </Select>
             <Button
               icon={<SyncOutlined />}
               onClick={() => setSyncModalVisible(true)}
             >
               同步历史数据
             </Button>
-          </div>
+          </Space>
         </Card>
 
         {/* 汇总统计卡片 */}
