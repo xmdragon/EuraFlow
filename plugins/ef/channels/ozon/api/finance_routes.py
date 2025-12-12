@@ -1116,3 +1116,119 @@ async def update_shop_balance(
     except Exception as e:
         logger.error(f"Update shop balance failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Update failed: {str(e)}")
+
+
+# ============ 财务历史数据同步 ============
+
+class FinanceHistorySyncRequest(BaseModel):
+    """财务历史同步请求"""
+    date_from: str = Field(..., description="开始日期 (YYYY-MM-DD)")
+    date_to: str = Field(..., description="结束日期 (YYYY-MM-DD)")
+    shop_id: Optional[int] = Field(None, description="店铺ID（可选，不传时同步所有店铺）")
+
+
+class FinanceHistorySyncResponse(BaseModel):
+    """财务历史同步响应"""
+    success: bool
+    task_id: str
+    message: str
+
+
+class FinanceHistorySyncProgress(BaseModel):
+    """财务历史同步进度"""
+    status: str = Field(..., description="状态: running/completed/failed")
+    current: int = Field(0, description="当前进度")
+    total: int = Field(0, description="总数")
+    progress: float = Field(0, description="进度百分比")
+    message: str = Field("", description="进度消息")
+    result: Optional[dict] = Field(None, description="完成后的结果")
+
+
+@router.post(
+    "/finance/history-sync",
+    response_model=FinanceHistorySyncResponse,
+    summary="启动财务历史数据同步"
+)
+async def start_finance_history_sync(
+    request: FinanceHistorySyncRequest,
+    current_user: User = Depends(get_current_user_flexible)
+):
+    """
+    启动财务历史数据同步任务
+
+    按指定日期范围同步历史财务交易数据，返回任务ID用于查询进度
+    """
+    try:
+        # 验证日期格式
+        try:
+            from datetime import datetime
+            start_date = datetime.strptime(request.date_from, "%Y-%m-%d")
+            end_date = datetime.strptime(request.date_to, "%Y-%m-%d")
+
+            if start_date > end_date:
+                raise HTTPException(status_code=400, detail="开始日期不能晚于结束日期")
+
+            # 限制最大同步范围为 6 个月
+            days_diff = (end_date - start_date).days
+            if days_diff > 180:
+                raise HTTPException(status_code=400, detail="同步范围不能超过6个月")
+
+        except ValueError:
+            raise HTTPException(status_code=400, detail="日期格式错误，请使用 YYYY-MM-DD 格式")
+
+        # 导入并启动 Celery 任务
+        from ..tasks.finance_history_sync_task import finance_history_sync_task
+
+        task = finance_history_sync_task.delay(
+            date_from=request.date_from,
+            date_to=request.date_to,
+            shop_id=request.shop_id
+        )
+
+        logger.info(
+            f"Finance history sync task started: task_id={task.id}, "
+            f"range={request.date_from}~{request.date_to}, shop_id={request.shop_id}"
+        )
+
+        return FinanceHistorySyncResponse(
+            success=True,
+            task_id=task.id,
+            message=f"同步任务已启动，日期范围: {request.date_from} ~ {request.date_to}"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Start finance history sync failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"启动同步失败: {str(e)}")
+
+
+@router.get(
+    "/finance/history-sync/{task_id}/progress",
+    response_model=FinanceHistorySyncProgress,
+    summary="查询财务历史同步进度"
+)
+async def get_finance_history_sync_progress(
+    task_id: str,
+    current_user: User = Depends(get_current_user_flexible)
+):
+    """
+    查询财务历史数据同步任务的进度
+    """
+    try:
+        from ..tasks.finance_history_sync_task import get_task_progress
+
+        progress = get_task_progress(task_id)
+
+        return FinanceHistorySyncProgress(
+            status=progress.get("status", "unknown"),
+            current=progress.get("current", 0),
+            total=progress.get("total", 0),
+            progress=progress.get("progress", 0),
+            message=progress.get("message", ""),
+            result=progress.get("result")
+        )
+
+    except Exception as e:
+        logger.error(f"Get finance history sync progress failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"查询进度失败: {str(e)}")

@@ -47,6 +47,10 @@ from .stats_aggregation_task import (
     aggregate_daily_stats
 )
 
+from .finance_history_sync_task import (
+    finance_history_sync_task
+)
+
 __all__ = [
     "sync_all_promotions",
     "promotion_health_check",
@@ -63,4 +67,5 @@ __all__ = [
     "upload_images_to_storage_task",
     "update_product_stock_task",
     "aggregate_daily_stats",
+    "finance_history_sync_task",
 ]

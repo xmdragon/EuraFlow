@@ -8,7 +8,10 @@ import type {
   FinanceTransactionsSummary,
   FinanceTransactionsFilter,
   FinanceTransactionsDailySummaryResponse,
-  InvoicePaymentsByPeriodResponse
+  InvoicePaymentsByPeriodResponse,
+  FinanceHistorySyncRequest,
+  FinanceHistorySyncResponse,
+  FinanceHistorySyncProgress
 } from '../types/finance';
 
 /**
@@ -73,5 +76,25 @@ export const getInvoicePaymentsByPeriod = async (
   if (shopId !== null) params.shop_id = shopId;
 
   const response = await apiClient.get("/ozon/invoice-payments/by-period", { params });
+  return response.data;
+};
+
+/**
+ * 启动财务历史数据同步
+ */
+export const startFinanceHistorySync = async (
+  request: FinanceHistorySyncRequest
+): Promise<FinanceHistorySyncResponse> => {
+  const response = await apiClient.post("/ozon/finance/history-sync", request);
+  return response.data;
+};
+
+/**
+ * 获取财务历史同步进度
+ */
+export const getFinanceHistorySyncProgress = async (
+  taskId: string
+): Promise<FinanceHistorySyncProgress> => {
+  const response = await apiClient.get(`/ozon/finance/history-sync/${taskId}/progress`);
   return response.data;
 };

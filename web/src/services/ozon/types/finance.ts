@@ -119,3 +119,39 @@ export interface InvoicePaymentsByPeriodResponse {
   paid_amount_cny: string;
   pending_amount_cny: string;
 }
+
+/**
+ * 财务历史同步请求
+ */
+export interface FinanceHistorySyncRequest {
+  date_from: string;
+  date_to: string;
+  shop_id?: number;
+}
+
+/**
+ * 财务历史同步响应
+ */
+export interface FinanceHistorySyncResponse {
+  success: boolean;
+  task_id: string;
+  message: string;
+}
+
+/**
+ * 财务历史同步进度
+ */
+export interface FinanceHistorySyncProgress {
+  status: 'running' | 'completed' | 'failed' | 'unknown';
+  current: number;
+  total: number;
+  progress: number;
+  message: string;
+  result?: {
+    success: boolean;
+    synced?: number;
+    errors?: number;
+    message?: string;
+    [key: string]: unknown;
+  };
+}

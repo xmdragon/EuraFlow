@@ -1,8 +1,8 @@
 /**
  * OZON 财务交易页面
  */
-import { CopyOutlined, DollarOutlined } from '@ant-design/icons';
-import { useQuery } from '@tanstack/react-query';
+import { CopyOutlined, DollarOutlined, SyncOutlined } from '@ant-design/icons';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Card,
   Table,
@@ -12,10 +12,14 @@ import {
   Col,
   Pagination,
   Space,
+  Button,
+  Modal,
+  DatePicker,
+  Progress,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 
 import styles from './FinanceTransactions.module.scss';
 
@@ -28,7 +32,7 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { useDateTime } from '@/hooks/useDateTime';
 import { useShopSelection } from '@/hooks/ozon/useShopSelection';
 import * as ozonApi from '@/services/ozon';
-import { notifyError } from '@/utils/notification';
+import { notifyError, notifySuccess } from '@/utils/notification';
 
 const { Option } = Select;
 
@@ -142,6 +146,7 @@ const generatePeriodOptions = (): PeriodOption[] => {
 
 const FinanceTransactions: React.FC = () => {
   const { formatDate } = useDateTime();
+  const queryClient = useQueryClient();
 
   // 生成周期选项
   const periodOptions = useMemo(() => generatePeriodOptions(), []);
@@ -169,10 +174,121 @@ const FinanceTransactions: React.FC = () => {
   const [selectedPosting, setSelectedPosting] = useState<ozonApi.Posting | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
+  // 历史同步Modal状态
+  const [syncModalVisible, setSyncModalVisible] = useState(false);
+  const [syncMonth, setSyncMonth] = useState<dayjs.Dayjs | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState<ozonApi.FinanceHistorySyncProgress | null>(null);
+  const syncPollingRef = useRef<NodeJS.Timeout | null>(null);
+
   // 货币和状态配置
   const { currency: userCurrency } = useCurrency();
   const { copyToClipboard } = useCopy();
   const statusConfig = ORDER_STATUS_CONFIG;
+
+  // 停止同步进度轮询
+  const stopSyncPolling = useCallback(() => {
+    if (syncPollingRef.current) {
+      clearInterval(syncPollingRef.current);
+      syncPollingRef.current = null;
+    }
+  }, []);
+
+  // 清理轮询
+  useEffect(() => {
+    return () => {
+      stopSyncPolling();
+    };
+  }, [stopSyncPolling]);
+
+  // 开始历史同步
+  const handleStartSync = async () => {
+    if (!syncMonth) {
+      notifyError('请选择月份', '请先选择要同步的月份');
+      return;
+    }
+
+    const dateFrom = syncMonth.startOf('month').format('YYYY-MM-DD');
+    const dateTo = syncMonth.endOf('month').format('YYYY-MM-DD');
+
+    try {
+      setSyncing(true);
+      setSyncProgress({
+        status: 'running',
+        current: 0,
+        total: 0,
+        progress: 0,
+        message: '正在启动同步任务...',
+      });
+
+      // 启动同步任务
+      const response = await ozonApi.startFinanceHistorySync({
+        date_from: dateFrom,
+        date_to: dateTo,
+        shop_id: selectedShop || undefined,
+      });
+
+      if (!response.success) {
+        throw new Error(response.message);
+      }
+
+      const taskId = response.task_id;
+
+      // 开始轮询进度
+      syncPollingRef.current = setInterval(async () => {
+        try {
+          const progress = await ozonApi.getFinanceHistorySyncProgress(taskId);
+          setSyncProgress(progress);
+
+          if (progress.status === 'completed') {
+            stopSyncPolling();
+            setSyncing(false);
+            notifySuccess('同步完成', progress.result?.message || '财务数据同步成功');
+            // 刷新数据
+            queryClient.invalidateQueries({ queryKey: ['financeTransactionsDailySummary'] });
+            queryClient.invalidateQueries({ queryKey: ['financeTransactionsSummary'] });
+            // 延迟关闭 Modal
+            setTimeout(() => {
+              setSyncModalVisible(false);
+              setSyncProgress(null);
+              setSyncMonth(null);
+            }, 2000);
+          } else if (progress.status === 'failed') {
+            stopSyncPolling();
+            setSyncing(false);
+            notifyError('同步失败', progress.result?.message || progress.message || '同步任务执行失败');
+          }
+        } catch (error) {
+          // 轮询错误静默处理
+        }
+      }, 2000);
+
+    } catch (error) {
+      setSyncing(false);
+      setSyncProgress(null);
+      notifyError('启动失败', error instanceof Error ? error.message : '无法启动同步任务');
+    }
+  };
+
+  // 关闭同步Modal
+  const handleCloseSyncModal = () => {
+    if (syncing) {
+      Modal.confirm({
+        title: '确认关闭',
+        content: '同步任务正在进行中，关闭后任务将在后台继续执行。是否关闭？',
+        onOk: () => {
+          stopSyncPolling();
+          setSyncModalVisible(false);
+          setSyncing(false);
+          setSyncProgress(null);
+        },
+      });
+    } else {
+      setSyncModalVisible(false);
+      setSyncProgress(null);
+      setSyncMonth(null);
+    }
+  };
 
   // 查询财务交易按日期汇总（主表格）
   const { data: dailySummaryData, isLoading } = useQuery({
@@ -538,6 +654,15 @@ const FinanceTransactions: React.FC = () => {
                 ))}
               </Select>
             </Col>
+            <Col flex="auto" />
+            <Col>
+              <Button
+                icon={<SyncOutlined />}
+                onClick={() => setSyncModalVisible(true)}
+              >
+                同步历史数据
+              </Button>
+            </Col>
           </Row>
         </Card>
 
@@ -701,6 +826,85 @@ const FinanceTransactions: React.FC = () => {
           // 财务交易页面无需刷新
         }}
       />
+
+      {/* 历史数据同步Modal */}
+      <Modal
+        title="同步历史财务数据"
+        open={syncModalVisible}
+        onCancel={handleCloseSyncModal}
+        footer={
+          syncing ? null : [
+            <Button key="cancel" onClick={handleCloseSyncModal}>
+              取消
+            </Button>,
+            <Button
+              key="sync"
+              type="primary"
+              icon={<SyncOutlined />}
+              onClick={handleStartSync}
+              disabled={!syncMonth}
+            >
+              开始同步
+            </Button>,
+          ]
+        }
+        maskClosable={!syncing}
+        closable={!syncing}
+        width={480}
+      >
+        {syncing && syncProgress ? (
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <Progress
+              type="circle"
+              percent={Math.round(syncProgress.progress || 0)}
+              status={syncProgress.status === 'failed' ? 'exception' : 'active'}
+            />
+            <div style={{ marginTop: 16, color: '#666' }}>
+              {syncProgress.message}
+            </div>
+            {syncProgress.current > 0 && syncProgress.total > 0 && (
+              <div style={{ marginTop: 8, color: '#999', fontSize: 12 }}>
+                进度: {syncProgress.current} / {syncProgress.total}
+              </div>
+            )}
+            {syncProgress.status === 'completed' && syncProgress.result && (
+              <div style={{ marginTop: 16, color: '#52c41a' }}>
+                同步完成: {syncProgress.result.synced || 0} 条记录
+              </div>
+            )}
+          </div>
+        ) : (
+          <div>
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ marginBottom: 8, fontWeight: 500 }}>选择要同步的月份：</div>
+              <DatePicker
+                picker="month"
+                value={syncMonth}
+                onChange={setSyncMonth}
+                style={{ width: '100%' }}
+                placeholder="请选择月份"
+                disabledDate={(current) => {
+                  // 不能选择未来月份
+                  return current && current.isAfter(dayjs(), 'month');
+                }}
+              />
+            </div>
+            <div style={{ color: '#666', fontSize: 12 }}>
+              <p style={{ marginBottom: 4 }}>说明：</p>
+              <ul style={{ paddingLeft: 16, margin: 0 }}>
+                <li>将从 OZON 同步选定月份的所有财务交易记录</li>
+                <li>已存在的记录会自动跳过，不会重复导入</li>
+                <li>同步过程可能需要几分钟，请耐心等待</li>
+                {selectedShop ? (
+                  <li>仅同步当前选中店铺的数据</li>
+                ) : (
+                  <li>将同步所有店铺的数据</li>
+                )}
+              </ul>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };

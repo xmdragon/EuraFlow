@@ -132,7 +132,10 @@ export type {
   FinanceTransactionsSummary,
   FinanceTransactionsFilter,
   FinanceTransactionDailySummary,
-  FinanceTransactionsDailySummaryResponse
+  FinanceTransactionsDailySummaryResponse,
+  FinanceHistorySyncRequest,
+  FinanceHistorySyncResponse,
+  FinanceHistorySyncProgress
 } from './types/finance';
 
 // 类目类型
