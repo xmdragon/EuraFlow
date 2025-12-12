@@ -12,7 +12,6 @@ import NotificationInitializer from '@/components/NotificationInitializer';
 import { AuthProvider } from '@/hooks/useAuth';
 import { initHMRErrorHandler } from '@/utils/hmrErrorHandler';
 import { initPerformanceMonitoring } from '@/utils/performanceMonitoring';
-import { startVersionCheck } from '@/utils/versionCheck';
 import './services/simpleAxios'; // 导入简化的axios配置
 import './index.css';
 
@@ -24,11 +23,6 @@ if (import.meta.env.MODE === 'development') {
   initPerformanceMonitoring();
 }
 
-// 启动版本检查（仅生产环境）
-if (import.meta.env.PROD) {
-  startVersionCheck();
-}
-
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -36,6 +30,14 @@ const queryClient = new QueryClient({
       retry: 1,
       // 不自动抛出错误，由组件层面处理数据加载失败
       throwOnError: false,
+      // 缓存优化：数据在 30 秒内不会被认为过期
+      staleTime: 30 * 1000,
+      // 缓存保留时间：5 分钟内未使用的数据才会被垃圾回收
+      gcTime: 5 * 60 * 1000,
+      // 禁用窗口焦点时自动重新获取（减少不必要的请求）
+      refetchOnWindowFocus: false,
+      // 禁用重新连接时自动重新获取
+      refetchOnReconnect: false,
     },
   },
 });

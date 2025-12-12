@@ -24,7 +24,7 @@ import {
   Checkbox,
   Tooltip,
 } from 'antd';
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 import styles from './ProductCreate.module.scss';
@@ -33,8 +33,12 @@ import * as ozonApi from '@/services/ozon';
 import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
 import * as categoryService from '@/services/ozon/categoryService';
 import * as productSubmitService from '@/services/ozon/productSubmitService';
-import { VariantImageManagerModal } from '@/components/ozon/VariantImageManagerModal';
-import VideoManagerModal from './components/VideoManagerModal';
+
+// 懒加载大型模态框组件（合计 ~1300 行代码）
+const VariantImageManagerModal = lazy(() =>
+  import('@/components/ozon/VariantImageManagerModal').then(m => ({ default: m.VariantImageManagerModal }))
+);
+const VideoManagerModal = lazy(() => import('./components/VideoManagerModal'));
 import { useVideoManager } from '@/hooks/useVideoManager';
 import * as draftTemplateApi from '@/services/draftTemplateApi';
 import { useFormAutosave } from '@/hooks/useFormAutosave';
@@ -1566,30 +1570,36 @@ const ProductCreate: React.FC = () => {
         handleReset={() => form.resetFields()}
       />
 
-      {/* 图片管理弹窗 */}
+      {/* 图片管理弹窗 - 懒加载 */}
       {selectedShop && imageModalVisible && (
-        <VariantImageManagerModal
-          visible={imageModalVisible}
-          offerId={editingVariant?.offer_id || form.getFieldValue('offer_id') || '主商品'}
-          images={editingVariant ? (editingVariant.images || []) : (mainProductImages || [])}
-          shopId={selectedShop}
-          onOk={handleSaveImages}
-          onCancel={handleCancelImageModal}
-        />
+        <Suspense fallback={<Modal open={true} footer={null}><div style={{ textAlign: 'center', padding: 40 }}><Spin size="large" /></div></Modal>}>
+          <VariantImageManagerModal
+            visible={imageModalVisible}
+            offerId={editingVariant?.offer_id || form.getFieldValue('offer_id') || '主商品'}
+            images={editingVariant ? (editingVariant.images || []) : (mainProductImages || [])}
+            shopId={selectedShop}
+            onOk={handleSaveImages}
+            onCancel={handleCancelImageModal}
+          />
+        </Suspense>
       )}
 
-      {/* 视频管理弹窗 */}
-      <VideoManagerModal
-        visible={videoModalVisible}
-        videos={editingVariantForVideo ? variantVideoManager.videos : videoManager.videos}
-        shopId={selectedShop || undefined}
-        offerId={editingVariantForVideo?.offer_id || form.getFieldValue('offer_id') || '主商品'}
-        onAddVideo={editingVariantForVideo ? variantVideoManager.addVideo : videoManager.addVideo}
-        onDeleteVideo={editingVariantForVideo ? variantVideoManager.removeVideo : videoManager.removeVideo}
-        onSetCoverVideo={editingVariantForVideo ? variantVideoManager.setCoverVideo : videoManager.setCoverVideo}
-        onClose={handleCloseVideoModal}
-        maxVideos={10}
-      />
+      {/* 视频管理弹窗 - 懒加载 */}
+      {videoModalVisible && (
+        <Suspense fallback={<Modal open={true} footer={null}><div style={{ textAlign: 'center', padding: 40 }}><Spin size="large" /></div></Modal>}>
+          <VideoManagerModal
+            visible={videoModalVisible}
+            videos={editingVariantForVideo ? variantVideoManager.videos : videoManager.videos}
+            shopId={selectedShop || undefined}
+            offerId={editingVariantForVideo?.offer_id || form.getFieldValue('offer_id') || '主商品'}
+            onAddVideo={editingVariantForVideo ? variantVideoManager.addVideo : videoManager.addVideo}
+            onDeleteVideo={editingVariantForVideo ? variantVideoManager.removeVideo : videoManager.removeVideo}
+            onSetCoverVideo={editingVariantForVideo ? variantVideoManager.setCoverVideo : videoManager.setCoverVideo}
+            onClose={handleCloseVideoModal}
+            maxVideos={10}
+          />
+        </Suspense>
+      )}
 
       {/* 保存模板弹窗 */}
       <Modal

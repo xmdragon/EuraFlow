@@ -56,7 +56,7 @@ class CreditService:
 
         Args:
             db: 数据库会话
-            user_id: 用户ID（必须是 manager 或 admin）
+            user_id: 用户ID（必须是 main_account 或 admin）
 
         Returns:
             CreditAccount
@@ -89,7 +89,7 @@ class CreditService:
         获取主账号的额度账户
 
         - 如果是 sub_account，返回其 parent_user 的账户
-        - 如果是 manager/admin，返回自己的账户
+        - 如果是 main_account/admin，返回自己的账户
 
         Args:
             db: 数据库会话
@@ -260,7 +260,7 @@ class CreditService:
 
         Args:
             db: 数据库会话
-            user_id: 被充值的用户ID（manager/admin）
+            user_id: 被充值的用户ID（main_account/admin）
             amount: 充值点数
             payment_method: 支付方式（manual/wechat/alipay）
             payment_amount_cny: 实付金额（CNY）

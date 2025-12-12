@@ -18,9 +18,10 @@ from .settings import router as settings_router
 from .exchange_rate import router as exchange_rate_router
 from .notification_routes import router as notification_router
 from .audit_routes import router as audit_router
-from .manager_level_routes import router as manager_level_router
+from .account_level_routes import router as account_level_router
 from .credit import router as credit_router
 from .admin_credit import router as admin_credit_router
+from .permission_routes import router as permission_router
 
 logger = logging.getLogger(__name__)
 
@@ -31,13 +32,14 @@ api_router = APIRouter()
 api_router.include_router(auth_router, tags=["Authentication"])
 api_router.include_router(clone_router, tags=["Clone Identity"])
 api_router.include_router(api_keys_router, tags=["API Keys"])
-api_router.include_router(manager_level_router, tags=["Manager Levels"])
+api_router.include_router(account_level_router, tags=["Account Levels"])
 api_router.include_router(settings_router, tags=["Settings"])
 api_router.include_router(exchange_rate_router, tags=["Exchange Rates"])
 api_router.include_router(notification_router, tags=["Notifications"])
 api_router.include_router(audit_router, tags=["Audit Logs"])
 api_router.include_router(credit_router, tags=["Credit"])
 api_router.include_router(admin_credit_router, tags=["Admin Credit"])
+api_router.include_router(permission_router, tags=["Permissions"])
 api_router.include_router(orders_router, prefix="/orders", tags=["Orders"])
 api_router.include_router(shipments_router, prefix="/shipments", tags=["Shipments"])
 api_router.include_router(inventory_router, prefix="/inventory", tags=["Inventory"])

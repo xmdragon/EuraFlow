@@ -197,7 +197,7 @@ async def recharge(
 @router.get("/accounts", response_model=AccountsResponse)
 async def get_accounts(
     search: Optional[str] = Query(None, description="搜索用户名"),
-    role: Optional[str] = Query(None, description="角色筛选：admin/manager"),
+    role: Optional[str] = Query(None, description="角色筛选：admin/main_account"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页条数"),
     db: AsyncSession = Depends(get_async_session),
@@ -206,17 +206,17 @@ async def get_accounts(
     """
     获取所有用户额度列表（仅管理员）
 
-    - 显示 admin、manager 和 shipper 的账户
+    - 显示 admin、main_account 和 shipper 的账户
     - 支持搜索和筛选
     """
     # 构建用户查询条件
-    user_conditions = [User.role.in_(["admin", "manager", "shipper"])]
+    user_conditions = [User.role.in_(["admin", "main_account", "shipper"])]
 
     if search:
         user_conditions.append(User.username.ilike(f"%{search}%"))
 
     if role:
-        if role not in ["admin", "manager", "shipper"]:
+        if role not in ["admin", "main_account", "shipper"]:
             raise HTTPException(status_code=400, detail="无效的角色筛选")
         user_conditions.append(User.role == role)
 

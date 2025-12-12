@@ -46,8 +46,8 @@ function App() {
           />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
         </Routes>
-        {/* 额度余额预警弹窗 - 登录后检查余额 */}
-        <CreditBalanceWarning isLoggedIn={!!user} />
+        {/* 额度余额预警弹窗 - 登录后检查余额（超级管理员不需要） */}
+        {user?.role !== 'admin' && <CreditBalanceWarning isLoggedIn={!!user} />}
       </NotificationProvider>
     </AntApp>
   );

@@ -105,7 +105,7 @@ const SortableImageItem: React.FC<SortableImageItemProps> = ({
     },
     {
       key: 'refine',
-      label: '图片精修',
+      label: '翻译精修',
       onClick: () => {
         if (image.translationRequestId) {
           onRefine(image.id, image.translationRequestId);

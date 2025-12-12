@@ -34,6 +34,7 @@ import {
   InboxOutlined,
   SwapOutlined,
   ScanOutlined,
+  SafetyOutlined,
 } from "@ant-design/icons";
 import {
   Layout,
@@ -287,6 +288,9 @@ const Dashboard: React.FC = () => {
     ScanOutlined: <ScanOutlined />,
   };
 
+  // 超级管理员和发货员不需要店铺相关的菜单项
+  const isAdminOrShipper = user?.role === "admin" || user?.role === "shipper";
+
   const userMenuItems: MenuProps['items'] = [
     {
       key: "profile",
@@ -294,8 +298,8 @@ const Dashboard: React.FC = () => {
       label: "个人资料",
       onClick: () => navigate("/dashboard/profile"),
     },
-    // 个人设置 - 仅有店铺时可见
-    ...(hasShops ? [{
+    // 个人设置 - 仅主账号/子账号且有店铺时可见
+    ...(hasShops && !isAdminOrShipper ? [{
       key: "settings",
       icon: <SettingOutlined />,
       label: "个人设置",
@@ -307,14 +311,15 @@ const Dashboard: React.FC = () => {
       label: "修改密码",
       onClick: () => navigate("/dashboard/profile/password"),
     },
-    {
+    // 额度中心 - 超级管理员不需要（发货员需要查看所属账号的额度）
+    ...(user?.role !== "admin" ? [{
       key: "credits",
       icon: <WalletOutlined />,
       label: "额度中心",
       onClick: () => navigate("/dashboard/profile/credits"),
-    },
-    // API KEY - 仅有店铺时可见
-    ...(hasShops ? [
+    }] : []),
+    // API KEY - 仅主账号/子账号且有店铺时可见
+    ...(hasShops && !isAdminOrShipper ? [
       { type: "divider" as const, key: "divider-1" },
       {
         key: "api-keys",
@@ -505,8 +510,8 @@ const Dashboard: React.FC = () => {
         return orderedItems;
       })(),
     }] : []),
-    // 用户管理 - admin 和 manager 可见
-    ...(user?.role === "admin" || user?.role === "manager"
+    // 用户管理 - admin 和 main_account 可见
+    ...(user?.role === "admin" || user?.role === "main_account"
       ? [
           {
             key: "users",
@@ -577,6 +582,12 @@ const Dashboard: React.FC = () => {
                 icon: <WalletOutlined />,
                 label: createMenuLabel("system-credits", "额度管理", "/dashboard/system/credits"),
                 onClick: () => navigate("/dashboard/system/credits"),
+              },
+              {
+                key: "system-permissions",
+                icon: <SafetyOutlined />,
+                label: createMenuLabel("system-permissions", "权限管理", "/dashboard/system/permissions"),
+                onClick: () => navigate("/dashboard/system/permissions"),
               },
             ],
           },
@@ -736,8 +747,8 @@ const Dashboard: React.FC = () => {
                 )}
                 {/* 店铺管理路由 - 所有角色可访问 */}
                 <Route path="shops/*" element={<ShopManagement />} />
-                {/* 用户管理路由 - admin 和 manager 可访问 */}
-                {(user?.role === "admin" || user?.role === "manager") && (
+                {/* 用户管理路由 - admin 和 main_account 可访问 */}
+                {(user?.role === "admin" || user?.role === "main_account") && (
                   <Route path="users/*" element={<UserManagement />} />
                 )}
               </Routes>

@@ -760,7 +760,7 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
     },
     {
       key: 'refine',
-      label: '图片精修',
+      label: '翻译精修',
       onClick: handleBatchRefine,
       disabled: refineRequestIds.length === 0,
     },

@@ -41,7 +41,7 @@ import { useAuth } from '@/hooks/useAuth';
 import axios from '@/services/axios';
 import { notifySuccess, notifyError } from '@/utils/notification';
 
-import type { AccountStatus, ManagerLevel, UserRole } from '@/types/auth';
+import type { AccountStatus, AccountLevel, UserRole } from '@/types/auth';
 
 const { Option } = Select;
 
@@ -54,7 +54,7 @@ interface UserFormValues {
   is_active: boolean;
   account_status?: AccountStatus;
   shop_ids?: number[];
-  manager_level_id?: number;
+  account_level_id?: number;
   renewal_days?: number;
   expiration_days?: number;
 }
@@ -75,8 +75,8 @@ interface User {
   parent_user_id?: number;
   primary_shop_id?: number;
   shop_ids?: number[];
-  manager_level_id?: number;
-  manager_level?: ManagerLevel;
+  account_level_id?: number;
+  account_level?: AccountLevel;
   created_at: string;
 }
 
@@ -98,7 +98,7 @@ const UserManagement: React.FC = () => {
   const { user: currentUser, cloneIdentity } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [shops, setShops] = useState<Shop[]>([]);
-  const [managerLevels, setManagerLevels] = useState<ManagerLevel[]>([]);
+  const [accountLevels, setAccountLevels] = useState<AccountLevel[]>([]);
   const [currentQuota, setCurrentQuota] = useState<UserQuota | null>(null);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
@@ -111,9 +111,10 @@ const UserManagement: React.FC = () => {
   // 角色显示配置
   const roleConfig: Record<UserRole, { color: string; label: string }> = {
     admin: { color: 'gold', label: '超级管理员' },
-    manager: { color: 'blue', label: '主账号' },
+    main_account: { color: 'blue', label: '主账号' },
     sub_account: { color: 'green', label: '子账号' },
     shipper: { color: 'orange', label: '发货员' },
+    extension: { color: 'purple', label: '浏览器扩展' },
   };
 
   // 账号状态配置
@@ -131,7 +132,7 @@ const UserManagement: React.FC = () => {
     { label: '1年', value: 365 },
   ];
 
-  // manager 创建/编辑 sub_account 时的过期时间选项（增加"跟随主账号"）
+  // 主账号创建/编辑 sub_account 时的过期时间选项（增加"跟随主账号"）
   const subAccountExpirationOptions = [
     { label: '跟随主账号', value: -1 },
     ...baseExpirationOptions,
@@ -144,7 +145,7 @@ const UserManagement: React.FC = () => {
     { label: '续期1年', value: 365 },
   ];
 
-  // manager 编辑 sub_account 时的续期选项（增加"跟随主账号"）
+  // 主账号编辑 sub_account 时的续期选项（增加"跟随主账号"）
   const subAccountRenewalOptions = [
     { label: '跟随主账号', value: -1 },
     ...baseRenewalOptions,
@@ -157,7 +158,7 @@ const UserManagement: React.FC = () => {
   };
 
   // 判断当前用户是否可以访问用户管理
-  const canAccessUserManagement = currentUser?.role === 'admin' || currentUser?.role === 'manager';
+  const canAccessUserManagement = currentUser?.role === 'admin' || currentUser?.role === 'main_account';
 
   // 将扁平用户列表转换为树形结构
   interface TreeUser extends User {
@@ -184,7 +185,7 @@ const UserManagement: React.FC = () => {
         parent.children = parent.children || [];
         parent.children.push(treeUser);
       } else {
-        // admin 和 manager 都作为根节点
+        // admin 和 main_account 都作为根节点
         rootUsers.push(treeUser);
       }
     });
@@ -241,19 +242,19 @@ const UserManagement: React.FC = () => {
   };
 
   // 获取用户级别列表（仅 admin）
-  const fetchManagerLevels = async () => {
+  const fetchAccountLevels = async () => {
     if (currentUser?.role !== 'admin') return;
     try {
-      const response = await axios.get('/api/ef/v1/manager-levels');
-      setManagerLevels(response.data);
+      const response = await axios.get('/api/ef/v1/account-levels');
+      setAccountLevels(response.data);
     } catch (_error) {
       // 静默失败，不影响页面显示
     }
   };
 
-  // 获取当前用户配额（manager）
+  // 获取当前用户配额（main_account）
   const fetchCurrentQuota = async () => {
-    if (currentUser?.role !== 'manager' || !currentUser?.id) return;
+    if (currentUser?.role !== 'main_account' || !currentUser?.id) return;
     try {
       const response = await axios.get(`/api/ef/v1/auth/users/${currentUser.id}/quota`);
       setCurrentQuota(response.data);
@@ -266,7 +267,7 @@ const UserManagement: React.FC = () => {
     if (canAccessUserManagement) {
       fetchUsers();
       fetchShops();
-      fetchManagerLevels();
+      fetchAccountLevels();
       fetchCurrentQuota();
     }
   }, [currentUser?.role, currentUser?.id]);
@@ -287,7 +288,7 @@ const UserManagement: React.FC = () => {
   const handleSubmit = async (values: UserFormValues) => {
     try {
       // 处理shop_ids：admin和manager角色不传入shop_ids（可访问所有店铺）
-      const shopIds = (values.role === 'admin' || values.role === 'manager') ? undefined : values.shop_ids || [];
+      const shopIds = (values.role === 'admin' || values.role === 'main_account') ? undefined : values.shop_ids || [];
 
       if (editingUser) {
         // 更新用户
@@ -302,8 +303,8 @@ const UserManagement: React.FC = () => {
           updateData.phone = values.phone || '';  // 空字符串表示清除
         }
         // admin 创建 manager 时可设置级别
-        if (currentUser?.role === 'admin' && values.role === 'manager' && values.manager_level_id) {
-          updateData.manager_level_id = values.manager_level_id;
+        if (currentUser?.role === 'admin' && values.role === 'main_account' && values.account_level_id) {
+          updateData.account_level_id = values.account_level_id;
         }
         // 处理账号状态
         if (values.account_status) {
@@ -460,7 +461,7 @@ const UserManagement: React.FC = () => {
       is_active: user.is_active,
       account_status: user.account_status || 'active',
       shop_ids: user.shop_ids || [],
-      manager_level_id: user.manager_level_id,
+      account_level_id: user.account_level_id,
     });
     setModalVisible(true);
   };
@@ -525,6 +526,26 @@ const UserManagement: React.FC = () => {
       title: '用户名',
       dataIndex: 'username',
       key: 'username',
+      render: (username: string, record: User) => {
+        const isAdmin = currentUser?.role === 'admin';
+        const canClone = isAdmin && record.role === 'main_account' && record.is_active;
+        return (
+          <Space size="small">
+            <span>{username}</span>
+            {canClone && (
+              <Tooltip title="克隆身份">
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<SwapOutlined />}
+                  onClick={() => handleClone(record)}
+                  style={{ color: '#fa8c16', padding: 0 }}
+                />
+              </Tooltip>
+            )}
+          </Space>
+        );
+      },
     },
     {
       title: '手机号',
@@ -543,16 +564,16 @@ const UserManagement: React.FC = () => {
     },
     {
       title: '级别',
-      dataIndex: 'manager_level',
-      key: 'manager_level',
+      dataIndex: 'account_level',
+      key: 'account_level',
       render: (_: unknown, record: User) => {
         if (record.role === 'admin') {
           return <Tag icon={<CrownOutlined />} color="gold">超级管理员</Tag>;
         }
-        if (record.role === 'manager' && record.manager_level) {
+        if (record.role === 'main_account' && record.account_level) {
           return (
-            <Tooltip title={`子账号限额: ${record.manager_level.max_sub_accounts}, 店铺限额: ${record.manager_level.max_shops}`}>
-              <Tag color="blue">{record.manager_level.alias || record.manager_level.name}</Tag>
+            <Tooltip title={`子账号限额: ${record.account_level.max_sub_accounts}, 店铺限额: ${record.account_level.max_shops}`}>
+              <Tag color="blue">{record.account_level.alias || record.account_level.name}</Tag>
             </Tooltip>
           );
         }
@@ -629,31 +650,20 @@ const UserManagement: React.FC = () => {
         const isAdmin = currentUser?.role === 'admin';
         // 目标是否是 admin
         const isTargetAdmin = record.role === 'admin';
-        // manager 只能操作自己创建的子账号
-        const isManager = currentUser?.role === 'manager';
-        const isOwnSubAccount = isManager && record.parent_user_id === currentUser?.id;
+        // main_account 只能操作自己创建的子账号
+        const isMainAccount = currentUser?.role === 'main_account';
+        const isOwnSubAccount = isMainAccount && record.parent_user_id === currentUser?.id;
 
         // 不能操作的情况：
         // 1. 自己
-        // 2. manager 试图操作非自己创建的用户
+        // 2. main_account 试图操作非自己创建的用户
         // 3. 非 admin 试图操作 admin
-        if (isSelf || (isManager && !isOwnSubAccount) || (!isAdmin && isTargetAdmin)) {
+        if (isSelf || (isMainAccount && !isOwnSubAccount) || (!isAdmin && isTargetAdmin)) {
           return <Typography.Text type="secondary">-</Typography.Text>;
         }
 
         return (
           <Space size="middle">
-            {/* 克隆按钮 - 仅超级管理员可见，仅对 manager 用户有效 */}
-            {isAdmin && record.role === 'manager' && record.is_active && (
-              <Tooltip title="克隆身份">
-                <Button
-                  type="link"
-                  icon={<SwapOutlined />}
-                  onClick={() => handleClone(record)}
-                  style={{ color: '#fa8c16' }}
-                />
-              </Tooltip>
-            )}
             <Tooltip title="编辑">
               <Button type="link" icon={<EditOutlined />} onClick={() => handleEdit(record)} />
             </Tooltip>
@@ -711,7 +721,7 @@ const UserManagement: React.FC = () => {
       </div>
 
       {/* manager 显示配额信息 */}
-      {currentUser?.role === 'manager' && currentQuota && (
+      {currentUser?.role === 'main_account' && currentQuota && (
         <Card bordered={false} style={{ marginBottom: 16 }}>
           <Descriptions title="我的配额" size="small" column={2}>
             <Descriptions.Item label="子账号">
@@ -754,14 +764,14 @@ const UserManagement: React.FC = () => {
           layout="vertical"
           onFinish={handleSubmit}
           initialValues={{
-            role: currentUser?.role === 'admin' ? 'manager' : 'sub_account',
+            role: currentUser?.role === 'admin' ? 'main_account' : 'sub_account',
             is_active: true,
             account_status: 'active',
-            // manager 创建子账号默认"跟随主账号"(-1)
-            // admin 创建 manager 使用第一个级别的默认有效期（选择级别后会自动更新）
-            expiration_days: currentUser?.role === 'manager'
+            // main_account 创建子账号默认"跟随主账号"(-1)
+            // admin 创建 main_account 使用第一个级别的默认有效期（选择级别后会自动更新）
+            expiration_days: currentUser?.role === 'main_account'
               ? -1
-              : (managerLevels[0]?.default_expiration_days ?? 30),
+              : (accountLevels[0]?.default_expiration_days ?? 30),
           }}
         >
           {!editingUser && (
@@ -819,16 +829,16 @@ const UserManagement: React.FC = () => {
             </Form.Item>
           )}
 
-          {/* 角色选择：admin 创建主账号/发货员，manager 可以创建 sub_account 或 shipper */}
+          {/* 角色选择：admin 创建主账号/发货员，main_account 可以创建 sub_account 或 shipper */}
           <Form.Item name="role" label="角色" rules={[{ required: true, message: '请选择角色' }]}>
             <Select disabled={currentUser?.role === 'admin' || isCreatingShipper}>
               {currentUser?.role === 'admin' && !isCreatingShipper && (
-                <Option value="manager">主账号</Option>
+                <Option value="main_account">主账号</Option>
               )}
               {isCreatingShipper && (
                 <Option value="shipper">发货员</Option>
               )}
-              {currentUser?.role === 'manager' && (
+              {currentUser?.role === 'main_account' && (
                 <>
                   <Option value="sub_account">子账号</Option>
                   <Option value="shipper">发货员</Option>
@@ -839,9 +849,9 @@ const UserManagement: React.FC = () => {
 
           {/* admin 创建 manager 时选择级别（发货员不需要级别） */}
           {currentUser?.role === 'admin' && !isCreatingShipper && (
-            managerLevels.length > 0 ? (
+            accountLevels.length > 0 ? (
               <Form.Item
-                name="manager_level_id"
+                name="account_level_id"
                 label="用户级别"
                 rules={[{ required: true, message: '请选择用户级别' }]}
               >
@@ -850,7 +860,7 @@ const UserManagement: React.FC = () => {
                   onChange={(levelId) => {
                     // 创建管理员时，选择级别后自动应用该级别的默认过期时间
                     if (!editingUser) {
-                      const selectedLevel = managerLevels.find(l => l.id === levelId);
+                      const selectedLevel = accountLevels.find(l => l.id === levelId);
                       if (selectedLevel) {
                         form.setFieldsValue({
                           expiration_days: selectedLevel.default_expiration_days
@@ -859,7 +869,7 @@ const UserManagement: React.FC = () => {
                     }
                   }}
                 >
-                  {managerLevels.map((level) => (
+                  {accountLevels.map((level) => (
                     <Option key={level.id} value={level.id}>
                       {level.alias || level.name} (子账号: {level.max_sub_accounts}, 店铺: {level.max_shops}, 有效期: {level.default_expiration_days === 0 ? '永久' : level.default_expiration_days + '天'})
                     </Option>
@@ -890,7 +900,7 @@ const UserManagement: React.FC = () => {
               if (selectedRole === 'admin' || selectedRole === 'shipper') return null;
 
               // 判断是否为 manager 创建/编辑 sub_account（需要显示"跟随主账号"选项）
-              const isManagerEditingSubAccount = currentUser?.role === 'manager' && selectedRole === 'sub_account';
+              const isManagerEditingSubAccount = currentUser?.role === 'main_account' && selectedRole === 'sub_account';
 
               // 根据场景选择选项列表
               const expirationOptions = isManagerEditingSubAccount ? subAccountExpirationOptions : baseExpirationOptions;
@@ -991,9 +1001,9 @@ const UserManagement: React.FC = () => {
             {({ getFieldValue }) => {
               const selectedRole = getFieldValue('role');
 
-              // admin、manager、shipper 不显示关联店铺选项
+              // admin、main_account、shipper 不显示关联店铺选项
               // shipper 通过店铺的 shipping_managed 字段控制访问权限
-              if (selectedRole === 'admin' || selectedRole === 'manager' || selectedRole === 'shipper') {
+              if (selectedRole === 'admin' || selectedRole === 'main_account' || selectedRole === 'shipper') {
                 return null;
               }
 

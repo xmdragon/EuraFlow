@@ -1,8 +1,8 @@
 // 用户角色
-export type UserRole = 'admin' | 'manager' | 'sub_account' | 'shipper';
+export type UserRole = 'admin' | 'main_account' | 'sub_account' | 'shipper' | 'extension';
 
-// 管理员级别
-export interface ManagerLevel {
+// 主账号级别
+export interface AccountLevel {
   id: number;
   name: string;
   alias?: string;
@@ -70,8 +70,8 @@ export interface User {
   parent_user_id?: number;
   primary_shop_id?: number;
   shop_ids?: number[];
-  manager_level_id?: number;
-  manager_level?: ManagerLevel;
+  account_level_id?: number;
+  account_level?: AccountLevel;
   last_login_at?: string;
   created_at: string;
   updated_at: string;

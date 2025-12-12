@@ -94,7 +94,7 @@ interface SyncStatus {
  */
 async function fetchBackendSyncStatus(apiUrl: string, apiKey: string): Promise<SyncStatus | null> {
   try {
-    const response = await fetch(`${apiUrl}/api/ef/v1/ozon/sync-status`, {
+    const response = await fetch(`${apiUrl}/api/ef/v1/ozon/extension/sync-status`, {
       method: 'GET',
       headers: { 'X-API-Key': apiKey },
     });
@@ -370,7 +370,7 @@ class InvoiceSyncerTask implements ShopTask {
     // 首次调用时获取需要同步的店铺列表
     if (this.shopsToSync.length === 0) {
       try {
-        const response = await fetch(`${(api as any).baseUrl}/api/ef/v1/ozon/invoice-payments/should-sync`, {
+        const response = await fetch(`${(api as any).baseUrl}/api/ef/v1/ozon/extension/invoice-payments/should-sync`, {
           method: 'GET',
           headers: { 'X-API-Key': (api as any).apiKey }
         });
@@ -454,7 +454,7 @@ class InvoiceSyncerTask implements ShopTask {
   }
 
   private async uploadPayments(api: EuraflowApi, clientId: string, payments: any[]): Promise<void> {
-    const response = await fetch(`${(api as any).baseUrl}/api/ef/v1/ozon/invoice-payments/sync`, {
+    const response = await fetch(`${(api as any).baseUrl}/api/ef/v1/ozon/extension/invoice-payments/sync`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -593,7 +593,7 @@ class BalanceSyncerTask implements ShopTask {
   }
 
   private async uploadBalance(api: EuraflowApi, clientId: string, balance: number): Promise<void> {
-    const response = await fetch(`${(api as any).baseUrl}/api/ef/v1/ozon/shop-balance/update`, {
+    const response = await fetch(`${(api as any).baseUrl}/api/ef/v1/ozon/extension/shop-balance/update`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

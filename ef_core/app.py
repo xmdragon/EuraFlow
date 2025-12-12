@@ -22,6 +22,11 @@ from ef_core.middleware.auth import AuthMiddleware
 from ef_core.middleware.logging import LoggingMiddleware
 from ef_core.middleware.metrics import MetricsMiddleware
 from ef_core.middleware.api_cost import ApiCostMiddleware
+from ef_core.middleware.security import (
+    SecurityHeadersMiddleware,
+    RequestSizeLimitMiddleware,
+    setup_rate_limiter,
+)
 from ef_core.api import api_router
 
 logger = get_logger(__name__)
@@ -58,6 +63,20 @@ async def lifespan(app: FastAPI):
         
         # 初始化插件系统
         await plugin_host.initialize()
+
+        # 自动扫描并同步 API 权限
+        try:
+            from ef_core.services.permission_scanner import scan_and_register_permissions
+            async with db_manager.get_session() as db:
+                result = await scan_and_register_permissions(app, db)
+                await db.commit()
+                if result["created"] > 0 or result["updated"] > 0:
+                    logger.info(
+                        f"API permissions synced: {result['created']} created, "
+                        f"{result['updated']} updated, {result['skipped']} skipped"
+                    )
+        except Exception as e:
+            logger.warning(f"Failed to auto-scan permissions: {e}")
 
         logger.info("EuraFlow application started successfully")
 
@@ -133,12 +152,13 @@ def create_app() -> FastAPI:
         # 开发模式：允许所有来源
         allowed_origins = ["*"]
     else:
-        # 生产模式：允许特定来源
+        # 生产模式：明确列出允许的域名（禁止使用通配符）
         allowed_origins = [
-            "https://www.ozon.ru",  # Tampermonkey 脚本运行的域名
+            "https://euraflow.hjdtrading.com",   # 生产环境主域名
+            "https://euraflow.hjdtrading.cn",    # 备用域名
+            "https://www.ozon.ru",               # Tampermonkey 脚本运行的域名
             "https://ozon.ru",
-            "http://localhost:3000",  # 本地前端开发
-            "http://local.euraflow.com",  # 本地域名
+            "https://seller.ozon.ru",            # OZON 卖家后台
         ]
 
     app.add_middleware(
@@ -148,7 +168,17 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    
+
+    # 安全响应头中间件（添加 X-Content-Type-Options 等）
+    app.add_middleware(SecurityHeadersMiddleware)
+
+    # 请求大小限制中间件（10MB）
+    app.add_middleware(RequestSizeLimitMiddleware)
+
+    # 全局速率限制（生产环境启用）
+    if settings.rate_limit_enabled:
+        setup_rate_limiter(app)
+
     # 指标中间件
     if settings.metrics_enabled:
         app.add_middleware(MetricsMiddleware)

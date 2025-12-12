@@ -123,8 +123,8 @@ class UserResponse(BaseModel):
     primary_shop_id: Optional[int]
     shop_ids: list[int] = []  # 用户关联的店铺ID列表
     permissions: list = []
-    manager_level_id: Optional[int] = None
-    manager_level: Optional[dict] = None  # 管理员级别详情
+    account_level_id: Optional[int] = None
+    account_level: Optional[dict] = None  # 主账号级别详情
     last_login_at: Optional[str]
     created_at: str
     settings: UserSettingsResponse = Field(default_factory=UserSettingsResponse)  # 用户设置
@@ -135,14 +135,14 @@ class CreateUserRequest(BaseModel):
     username: str = Field(..., min_length=3, max_length=30, description="用户名")
     password: str = Field(..., min_length=8, description="密码")
     phone: Optional[str] = Field(None, max_length=20, description="手机号码（仅admin可设置）")
-    role: str = Field("sub_account", description="角色：manager/sub_account/shipper")
+    role: str = Field("sub_account", description="角色：main_account/sub_account/shipper")
     is_active: bool = Field(True, description="是否激活")
     account_status: str = Field("active", description="账号状态：active/suspended/disabled")
     expires_at: Optional[str] = Field(None, description="过期时间（ISO 8601格式）")
     primary_shop_id: Optional[int] = Field(None, description="主店铺ID")
     shop_ids: Optional[list[int]] = Field(None, description="关联店铺ID列表")
     permissions: list = Field(default_factory=list, description="权限列表")
-    manager_level_id: Optional[int] = Field(None, description="管理员级别ID（仅manager角色）")
+    account_level_id: Optional[int] = Field(None, description="主账号级别ID（仅main_account角色）")
 
     @validator('username')
     def validate_username(cls, v):
@@ -152,8 +152,8 @@ class CreateUserRequest(BaseModel):
 
     @validator('role')
     def validate_role(cls, v):
-        if v not in ['manager', 'sub_account']:
-            raise ValueError('只能创建manager或sub_account角色')
+        if v not in ['main_account', 'sub_account']:
+            raise ValueError('只能创建main_account或sub_account角色')
         return v
 
     @validator('account_status')
@@ -174,7 +174,7 @@ class UpdateUserRequest(BaseModel):
     primary_shop_id: Optional[int] = Field(None, description="主店铺ID")
     shop_ids: Optional[list[int]] = Field(None, description="关联店铺ID列表")
     permissions: Optional[list] = Field(None, description="权限列表")
-    manager_level_id: Optional[int] = Field(None, description="管理员级别ID（仅manager角色）")
+    account_level_id: Optional[int] = Field(None, description="主账号级别ID（仅main_account角色）")
 
     @validator('account_status')
     def validate_account_status(cls, v):
@@ -454,10 +454,22 @@ async def login(
         # 如果有被踢出的旧会话，通过 WebSocket 通知
         kicked_session_token = result.pop("kicked_session_token", None)
         if kicked_session_token:
-            # TODO: 通过 WebSocket 通知旧设备
+            from ef_core.websocket.manager import notification_manager
+            user_id = result['user']['id']
+
+            # 通过 WebSocket 通知旧设备（通知后关闭旧连接）
+            sent_count = await notification_manager.send_session_expired(
+                user_id=user_id,
+                reason="session_replaced",
+                message="您的账号已在其他设备登录，当前会话已失效",
+                device_info=user_agent,
+                ip_address=client_ip
+            )
+
             logger.info(
-                f"用户 {result['user']['id']} 在新设备登录，旧会话已踢出",
-                kicked_token=kicked_session_token[:8] + "..."
+                f"用户 {user_id} 在新设备登录，旧会话已踢出",
+                kicked_token=kicked_session_token[:8] + "...",
+                ws_notifications_sent=sent_count
             )
 
         # 记录登录成功审计日志
@@ -683,8 +695,8 @@ async def create_user(
     创建用户
 
     权限规则：
-    - admin: 可以创建 manager 或 sub_account
-    - manager: 只能创建 sub_account（受级别配额限制）
+    - admin: 可以创建 main_account 或 sub_account
+    - main_account: 只能创建 sub_account（受级别配额限制）
     - sub_account: 不能创建用户
     """
     from sqlalchemy import func
@@ -696,28 +708,28 @@ async def create_user(
             detail={"code": "INSUFFICIENT_PERMISSIONS", "message": "子账号无权创建用户"}
         )
 
-    # manager 只能创建 sub_account 或 shipper
-    if current_user.role == "manager" and user_data.role not in ("sub_account", "shipper"):
+    # 主账号只能创建 sub_account 或 shipper
+    if current_user.role == "main_account" and user_data.role not in ("sub_account", "shipper"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail={"code": "INVALID_ROLE", "message": "管理员只能创建子账号或发货员"}
+            detail={"code": "INVALID_ROLE", "message": "主账号只能创建子账号或发货员"}
         )
 
-    # 配额检查（仅 manager 需要检查）
-    if current_user.role == "manager":
-        # 加载管理员级别
-        stmt = select(User).where(User.id == current_user.id).options(selectinload(User.manager_level))
+    # 配额检查（仅主账号需要检查）
+    if current_user.role == "main_account":
+        # 加载主账号级别
+        stmt = select(User).where(User.id == current_user.id).options(selectinload(User.account_level))
         result = await session.execute(stmt)
         manager = result.scalar_one()
 
-        if manager.manager_level:
+        if manager.account_level:
             # 统计当前子账号数量
             stmt = select(func.count()).select_from(User).where(User.parent_user_id == current_user.id)
             result = await session.execute(stmt)
             sub_account_count = result.scalar()
 
-            if sub_account_count >= manager.manager_level.max_sub_accounts:
-                max_accounts = manager.manager_level.max_sub_accounts
+            if sub_account_count >= manager.account_level.max_sub_accounts:
+                max_accounts = manager.account_level.max_sub_accounts
                 if max_accounts == 0:
                     error_msg = "您的账号级别不允许添加子账号"
                 else:
@@ -741,17 +753,17 @@ async def create_user(
             detail={"code": "USERNAME_EXISTS", "message": "该用户名已被使用"}
         )
 
-    # 确定管理员级别
-    manager_level_id = None
-    if user_data.role == "manager":
-        if user_data.manager_level_id:
-            manager_level_id = user_data.manager_level_id
+    # 确定主账号级别
+    account_level_id = None
+    if user_data.role == "main_account":
+        if user_data.account_level_id:
+            account_level_id = user_data.account_level_id
         else:
             # 使用默认级别
-            from ef_core.services.manager_level_service import ManagerLevelService
-            default_level = await ManagerLevelService.get_default(session)
+            from ef_core.services.account_level_service import AccountLevelService
+            default_level = await AccountLevelService.get_default(session)
             if default_level:
-                manager_level_id = default_level.id
+                account_level_id = default_level.id
 
     # 处理过期时间
     from datetime import datetime, timezone as tz
@@ -765,13 +777,13 @@ async def create_user(
                 detail={"code": "INVALID_DATE", "message": "过期时间格式错误"}
             )
 
-    # manager 创建 sub_account 时，验证过期时间不能超过自己的过期时间
-    if current_user.role == "manager" and expires_at:
+    # main_account 创建 sub_account 时，验证过期时间不能超过自己的过期时间
+    if current_user.role == "main_account" and expires_at:
         if current_user.expires_at and expires_at > current_user.expires_at:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
-                    "code": "EXPIRES_AT_EXCEEDS_MANAGER",
+                    "code": "EXPIRES_AT_EXCEEDS_MAIN_ACCOUNT",
                     "message": f"子账号过期时间不能超过您的账号过期时间（{current_user.expires_at.strftime('%Y-%m-%d %H:%M')}）"
                 }
             )
@@ -806,7 +818,7 @@ async def create_user(
         parent_user_id=current_user.id,
         primary_shop_id=user_data.primary_shop_id or current_user.primary_shop_id,
         permissions=user_data.permissions,
-        manager_level_id=manager_level_id
+        account_level_id=account_level_id
     )
 
     # 所有角色都可以不关联店铺，登录后前端会引导用户添加店铺
@@ -823,14 +835,14 @@ async def create_user(
         await session.run_sync(lambda s: setattr(new_user, 'shops', list(shops)))
 
     await session.commit()
-    await session.refresh(new_user, attribute_names=["shops", "manager_level"])
+    await session.refresh(new_user, attribute_names=["shops", "account_level"])
 
     # 记录审计日志
     audit_changes = {
         "username": {"new": new_user.username},
         "role": {"new": new_user.role},
         "is_active": {"new": new_user.is_active},
-        "manager_level_id": {"new": new_user.manager_level_id},
+        "account_level_id": {"new": new_user.account_level_id},
         "shop_ids": {"new": [shop.id for shop in new_user.shops]}
     }
     if new_user.phone:
@@ -854,7 +866,7 @@ async def create_user(
     return UserResponse(**{
         **new_user.to_dict(),
         "shop_ids": [shop.id for shop in new_user.shops],
-        "manager_level": new_user.manager_level.to_dict() if new_user.manager_level else None
+        "account_level": new_user.account_level.to_dict() if new_user.account_level else None
     })
 
 
@@ -868,7 +880,7 @@ async def list_users(
 
     权限规则：
     - admin: 看到所有用户
-    - manager: 看到自己和自己创建的子账号
+    - main_account: 看到自己和自己创建的子账号
     - sub_account: 只能看到自己
     """
     from sqlalchemy import or_
@@ -877,10 +889,10 @@ async def list_users(
         # 超级管理员查看所有用户
         stmt = select(User).options(
             selectinload(User.shops),
-            selectinload(User.manager_level)
+            selectinload(User.account_level)
         ).order_by(User.role.desc(), User.created_at)
-    elif current_user.role == "manager":
-        # 管理员查看自己和所有子账号
+    elif current_user.role == "main_account":
+        # 主账号查看自己和所有子账号
         stmt = select(User).where(
             or_(
                 User.id == current_user.id,
@@ -888,13 +900,13 @@ async def list_users(
             )
         ).options(
             selectinload(User.shops),
-            selectinload(User.manager_level)
+            selectinload(User.account_level)
         ).order_by(User.role.desc(), User.created_at)
     else:
         # 子账号只能看到自己
         stmt = select(User).where(User.id == current_user.id).options(
             selectinload(User.shops),
-            selectinload(User.manager_level)
+            selectinload(User.account_level)
         )
 
     result = await session.execute(stmt)
@@ -904,7 +916,7 @@ async def list_users(
         UserResponse(**{
             **user.to_dict(),
             "shop_ids": [shop.id for shop in user.shops],
-            "manager_level": user.manager_level.to_dict() if user.manager_level else None
+            "account_level": user.account_level.to_dict() if user.account_level else None
         })
         for user in users
     ]
@@ -923,7 +935,7 @@ async def update_user(
 
     权限规则：
     - admin: 可以编辑所有用户（除了自己）
-    - manager: 只能编辑自己创建的子账号
+    - main_account: 只能编辑自己创建的子账号
     - sub_account: 不能编辑用户
     """
     # 权限检查
@@ -938,13 +950,13 @@ async def update_user(
         # admin 可以编辑任何用户（除了自己）
         stmt = select(User).options(
             selectinload(User.shops),
-            selectinload(User.manager_level)
+            selectinload(User.account_level)
         ).where(User.id == user_id, User.id != current_user.id)
     else:
-        # manager 只能编辑自己创建的子账号
+        # main_account 只能编辑自己创建的子账号
         stmt = select(User).options(
             selectinload(User.shops),
-            selectinload(User.manager_level)
+            selectinload(User.account_level)
         ).where(User.id == user_id, User.parent_user_id == current_user.id)
 
     result = await session.execute(stmt)
@@ -965,7 +977,7 @@ async def update_user(
     old_expires_at = user.expires_at.isoformat() if user.expires_at else None
     old_shop_ids = [shop.id for shop in user.shops] if user.shops else []
     old_permissions = user.permissions
-    old_manager_level_id = user.manager_level_id
+    old_account_level_id = user.account_level_id
 
     # 更新用户名
     if update_data.username is not None:
@@ -1003,13 +1015,13 @@ async def update_user(
     if update_data.role is not None:
         if current_user.role == "admin":
             # admin 可以设置任意角色
-            if update_data.role not in ['admin', 'manager', 'sub_account', 'shipper']:
+            if update_data.role not in ['admin', 'main_account', 'sub_account', 'shipper']:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail={"code": "INVALID_ROLE", "message": "角色只能是 admin、manager、sub_account 或 shipper"}
+                    detail={"code": "INVALID_ROLE", "message": "角色只能是 admin、main_account、sub_account 或 shipper"}
                 )
         else:
-            # manager 只能设置 sub_account 或 shipper
+            # main_account 只能设置 sub_account 或 shipper
             if update_data.role not in ('sub_account', 'shipper'):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -1027,18 +1039,18 @@ async def update_user(
         user.permissions = update_data.permissions
 
     # 更新账号状态
-    # - admin 可以设置 manager 的状态
-    # - manager 可以设置 sub_account/shipper 的状态
+    # - admin 可以设置 main_account 的状态
+    # - main_account 可以设置 sub_account/shipper 的状态
     if update_data.account_status is not None:
         target_role = update_data.role or user.role
-        if current_user.role == "admin" and target_role == "manager":
+        if current_user.role == "admin" and target_role == "main_account":
             user.account_status = update_data.account_status
-        elif current_user.role == "manager" and target_role in ("sub_account", "shipper"):
+        elif current_user.role == "main_account" and target_role in ("sub_account", "shipper"):
             user.account_status = update_data.account_status
 
     # 更新过期时间
-    # - admin 可以设置 manager 的过期时间
-    # - manager 可以设置 sub_account/shipper 的过期时间（不能超过自己的过期时间）
+    # - admin 可以设置 main_account 的过期时间
+    # - main_account 可以设置 sub_account/shipper 的过期时间（不能超过自己的过期时间）
     if update_data.expires_at is not None:
         target_role = update_data.role or user.role
         from datetime import datetime, timezone as tz
@@ -1054,28 +1066,28 @@ async def update_user(
                     detail={"code": "INVALID_DATE", "message": "过期时间格式错误"}
                 )
 
-        if current_user.role == "admin" and target_role == "manager":
-            # admin 设置 manager 的过期时间，无限制
+        if current_user.role == "admin" and target_role == "main_account":
+            # admin 设置 main_account 的过期时间，无限制
             user.expires_at = new_expires_at
-        elif current_user.role == "manager" and target_role in ("sub_account", "shipper"):
-            # manager 设置 sub_account/shipper 的过期时间，不能超过自己的过期时间
+        elif current_user.role == "main_account" and target_role in ("sub_account", "shipper"):
+            # main_account 设置 sub_account/shipper 的过期时间，不能超过自己的过期时间
             if new_expires_at and current_user.expires_at and new_expires_at > current_user.expires_at:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail={
-                        "code": "EXPIRES_AT_EXCEEDS_MANAGER",
+                        "code": "EXPIRES_AT_EXCEEDS_MAIN_ACCOUNT",
                         "message": f"账号过期时间不能超过您的账号过期时间（{current_user.expires_at.strftime('%Y-%m-%d %H:%M')}）"
                     }
                 )
             user.expires_at = new_expires_at
 
-    # 更新管理员级别（仅 admin 可以设置，且仅对 manager 角色有效）
-    if update_data.manager_level_id is not None and current_user.role == "admin":
+    # 更新主账号级别（仅 admin 可以设置，且仅对 main_account 角色有效）
+    if update_data.account_level_id is not None and current_user.role == "admin":
         target_role = update_data.role or user.role
-        if target_role == "manager":
-            user.manager_level_id = update_data.manager_level_id
+        if target_role == "main_account":
+            user.account_level_id = update_data.account_level_id
         else:
-            user.manager_level_id = None
+            user.account_level_id = None
 
     # 处理店铺关联更新
     if update_data.shop_ids is not None:
@@ -1095,7 +1107,7 @@ async def update_user(
     # 重新加载用户
     stmt = select(User).where(User.id == user_id).options(
         selectinload(User.shops),
-        selectinload(User.manager_level)
+        selectinload(User.account_level)
     )
     result = await session.execute(stmt)
     user = result.scalar_one()
@@ -1115,8 +1127,8 @@ async def update_user(
         changes["shop_ids"] = {"old": old_shop_ids, "new": new_shop_ids}
     if old_permissions != user.permissions:
         changes["permissions"] = {"old": old_permissions, "new": user.permissions}
-    if old_manager_level_id != user.manager_level_id:
-        changes["manager_level_id"] = {"old": old_manager_level_id, "new": user.manager_level_id}
+    if old_account_level_id != user.account_level_id:
+        changes["account_level_id"] = {"old": old_account_level_id, "new": user.account_level_id}
     if old_account_status != user.account_status:
         changes["account_status"] = {"old": old_account_status, "new": user.account_status}
     new_expires_at = user.expires_at.isoformat() if user.expires_at else None
@@ -1143,7 +1155,7 @@ async def update_user(
     return UserResponse(**{
         **user.to_dict(),
         "shop_ids": [shop.id for shop in user.shops],
-        "manager_level": user.manager_level.to_dict() if user.manager_level else None
+        "account_level": user.account_level.to_dict() if user.account_level else None
     })
 
 
@@ -1159,7 +1171,7 @@ async def delete_user(
 
     权限规则：
     - admin: 可以删除任何用户（除了自己）
-    - manager: 只能删除自己创建的子账号
+    - main_account: 只能删除自己创建的子账号
     - sub_account: 不能删除用户
     """
     # 权限检查
@@ -1174,7 +1186,7 @@ async def delete_user(
         # admin 可以删除任何用户（除了自己）
         stmt = select(User).where(User.id == user_id, User.id != current_user.id)
     else:
-        # manager 只能删除自己创建的子账号
+        # main_account 只能删除自己创建的子账号
         stmt = select(User).where(User.id == user_id, User.parent_user_id == current_user.id)
 
     result = await session.execute(stmt)
@@ -1330,7 +1342,7 @@ async def change_password(
 
 
 class AdminResetPasswordRequest(BaseModel):
-    """管理员重置密码请求"""
+    """超级管理员重置密码请求"""
     new_password: str = Field(..., min_length=8, description="新密码")
 
 
@@ -1343,10 +1355,10 @@ async def admin_reset_user_password(
     session: AsyncSession = Depends(get_async_session)
 ):
     """
-    管理员重置用户密码（仅admin）
+    超级管理员重置用户密码（仅admin）
 
     - admin用户(username="admin")可以重置任何用户密码
-    - 其他管理员只能重置自己创建的子账号密码，且不能重置admin用户密码
+    - 其他admin角色只能重置自己创建的子账号密码，且不能重置admin用户密码
     - 不需要验证原密码
     - 密码最少8位
     """
@@ -1355,7 +1367,7 @@ async def admin_reset_user_password(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={
                 "code": "INSUFFICIENT_PERMISSIONS",
-                "message": "只有管理员可以重置用户密码"
+                "message": "只有超级管理员可以重置用户密码"
             }
         )
 
@@ -1367,7 +1379,7 @@ async def admin_reset_user_password(
         # 超级管理员可以重置任何用户密码（除了自己）
         stmt = select(User).where(User.id == user_id, User.id != current_user.id)
     else:
-        # 其他管理员只能重置自己创建的子账号密码
+        # 其他admin角色只能重置自己创建的子账号密码
         stmt = select(User).where(User.id == user_id, User.parent_user_id == current_user.id)
     result = await session.execute(stmt)
     user = result.scalar_one_or_none()
@@ -1381,7 +1393,7 @@ async def admin_reset_user_password(
             }
         )
 
-    # 其他管理员不能重置admin用户密码
+    # 其他admin角色不能重置admin用户密码
     if not is_super_admin and user.username == "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -1509,7 +1521,7 @@ async def register(
     - 注册成功后自动登录
     """
     from datetime import datetime, timezone as tz
-    from ef_core.services.manager_level_service import ManagerLevelService
+    from ef_core.services.account_level_service import AccountLevelService
 
     # 验证滑块验证码 token
     captcha_service = get_captcha_service()
@@ -1545,9 +1557,9 @@ async def register(
             import secrets
             default_username = f"{default_username}{secrets.randbelow(1000):03d}"
 
-        # 获取默认管理员级别
-        default_level = await ManagerLevelService.get_default(session)
-        manager_level_id = default_level.id if default_level else None
+        # 获取默认主账号级别
+        default_level = await AccountLevelService.get_default(session)
+        account_level_id = default_level.id if default_level else None
 
         # 计算过期时间
         expires_at = None
@@ -1560,17 +1572,17 @@ async def register(
             username=default_username,
             phone=register_data.phone,
             password_hash=auth_service.hash_password(register_data.password),
-            role="manager",  # 注册用户为主账号
+            role="main_account",  # 注册用户为主账号
             is_active=True,
             account_status="active",
             expires_at=expires_at,
-            manager_level_id=manager_level_id,
+            account_level_id=account_level_id,
             username_changed=False  # 用户名未修改过
         )
 
         session.add(new_user)
         await session.commit()
-        await session.refresh(new_user, attribute_names=["manager_level"])
+        await session.refresh(new_user, attribute_names=["account_level"])
 
         logger.info(f"用户注册成功: phone={register_data.phone}, username={default_username}")
 
@@ -1587,8 +1599,8 @@ async def register(
             changes={
                 "phone": {"new": new_user.phone},
                 "username": {"new": new_user.username},
-                "role": {"new": "manager"},
-                "manager_level_id": {"new": manager_level_id}
+                "role": {"new": "main_account"},
+                "account_level_id": {"new": account_level_id}
             },
             ip_address=request.client.host if request.client else None,
             user_agent=request.headers.get("user-agent"),

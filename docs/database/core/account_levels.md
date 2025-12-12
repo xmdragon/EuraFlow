@@ -1,12 +1,12 @@
-# manager_levels
+# account_levels
 
 ## 基本信息
 
-- **模型文件**: `ef_core/models/manager_level.py`
-- **模型类**: `ManagerLevel`
-- **用途**: 管理员级别模型
+- **模型文件**: `ef_core/models/account_level.py`
+- **模型类**: `AccountLevel`
+- **用途**: 主账号级别模型
 
-用于定义不同级别的管理员配额限制，包括：
+用于定义不同级别的主账号配额限制，包括：
 - 子账号数量限额
 - 店铺数量限额
 - 扩展配置（预留）

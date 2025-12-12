@@ -1,5 +1,5 @@
 """
-管理员级别模型
+主账号级别模型
 """
 from datetime import datetime
 from typing import Optional
@@ -10,15 +10,15 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from ef_core.models.base import Base
 
 
-class ManagerLevel(Base):
-    """管理员级别模型
+class AccountLevel(Base):
+    """主账号级别模型
 
-    用于定义不同级别的管理员配额限制，包括：
+    用于定义不同级别的主账号配额限制，包括：
     - 子账号数量限额
     - 店铺数量限额
     - 扩展配置（预留）
     """
-    __tablename__ = "manager_levels"
+    __tablename__ = "account_levels"
 
     # 主键
     id: Mapped[int] = mapped_column(
@@ -100,10 +100,10 @@ class ManagerLevel(Base):
     )
 
     # 关系
-    users = relationship("User", back_populates="manager_level")
+    users = relationship("User", back_populates="account_level")
 
     def __repr__(self) -> str:
-        return f"<ManagerLevel(id={self.id}, name={self.name}, max_sub_accounts={self.max_sub_accounts}, max_shops={self.max_shops})>"
+        return f"<AccountLevel(id={self.id}, name={self.name}, max_sub_accounts={self.max_sub_accounts}, max_shops={self.max_shops})>"
 
     def to_dict(self) -> dict:
         """转换为字典"""

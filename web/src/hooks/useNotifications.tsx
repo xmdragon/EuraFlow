@@ -21,6 +21,7 @@ import {
   SessionExpiredNotificationData,
 } from '@/types/notification';
 import authService from '@/services/authService';
+import { markSessionExpired } from '@/services/axios';
 import { loggers } from '@/utils/logger';
 
 export const useNotifications = (shopId: number | null) => {
@@ -168,37 +169,37 @@ export const useNotifications = (shopId: number | null) => {
   // 处理会话过期通知（单设备登录）
   const handleSessionExpired = useCallback(
     (data: SessionExpiredNotificationData) => {
-      const key = 'session-expired';
+      // 立即标记会话已过期，阻止后续 API 请求
+      markSessionExpired();
 
       // 构建描述信息
-      let description = data.message || '您的账号在其他设备登录，当前会话已失效';
+      let content = data.message || '您的账号已在其他设备登录，当前会话已失效。';
       if (data.new_device_info) {
-        description += `\n设备: ${data.new_device_info}`;
+        content += `\n\n新设备: ${data.new_device_info}`;
       }
       if (data.new_ip_address) {
-        description += `\n IP: ${data.new_ip_address}`;
+        content += `\nIP地址: ${data.new_ip_address}`;
       }
+      content += '\n\n请重新登录。';
 
-      notification.warning({
-        key,
-        message: '登录失效',
-        description,
-        icon: <WarningOutlined style={{ color: '#faad14' }} />,
-        placement: 'topRight',
-        duration: 0, // 不自动关闭
-        style: {
-          backgroundColor: '#fffbe6',
-          borderLeft: '4px solid #faad14',
-        },
+      // 使用 Modal.warning 显示不可关闭的弹窗
+      import('antd').then(({ Modal }) => {
+        Modal.warning({
+          title: '账号已在其他设备登录',
+          content: content,
+          okText: '确定',
+          closable: false,
+          keyboard: false,
+          maskClosable: false,
+          centered: true,
+          onOk: () => {
+            authService.clearTokens();
+            window.location.href = '/login';
+          },
+        });
       });
-
-      // 2秒后清除token并跳转到登录页
-      setTimeout(() => {
-        authService.clearTokens();
-        window.location.href = '/login';
-      }, 2000);
     },
-    [notification]
+    []
   );
 
   const handleWebSocketMessage = useCallback(

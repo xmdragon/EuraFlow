@@ -13,6 +13,7 @@ const LogManagement = lazyWithRetry(() => import('./LogManagement'));
 const WatermarkManagement = lazyWithRetry(() => import('../ozon/WatermarkManagement'));
 const ImageStorageResources = lazyWithRetry(() => import('./ImageStorageResources'));
 const AdminCredits = lazyWithRetry(() => import('../admin/Credits'));
+const PermissionManagement = lazyWithRetry(() => import('./PermissionManagement'));
 
 // 加载中组件
 const PageLoading = () => (
@@ -38,6 +39,7 @@ const SystemManagement: React.FC = () => {
         <Route path="watermark" element={<WatermarkManagement />} />
         <Route path="image-storage" element={<ImageStorageResources />} />
         <Route path="credits" element={<AdminCredits />} />
+        <Route path="permissions" element={<PermissionManagement />} />
       </Routes>
     </Suspense>
   );

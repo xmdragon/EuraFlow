@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 
 class CreditAccount(Base):
-    """额度账户表 - 仅 manager/admin 拥有"""
+    """额度账户表 - 仅 main_account/admin 拥有"""
     __tablename__ = "credit_accounts"
 
     id: Mapped[int] = mapped_column(
@@ -28,13 +28,13 @@ class CreditAccount(Base):
         comment="账户ID"
     )
 
-    # 关联用户（manager 或 admin）
+    # 关联用户（main_account 或 admin）
     user_id: Mapped[int] = mapped_column(
         BigInteger,
         ForeignKey("users.id", ondelete="CASCADE"),
         unique=True,
         nullable=False,
-        comment="账户所属用户ID（manager 或 admin）"
+        comment="账户所属用户ID（main_account 或 admin）"
     )
 
     # 额度余额 - 使用 Decimal(18,4) 精确计算

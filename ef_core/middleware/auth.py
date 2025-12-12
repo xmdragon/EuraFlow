@@ -37,11 +37,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
     ]
 
     # 克隆状态下禁止访问的路径前缀
-    # 注意：用户管理 /api/ef/v1/auth/users 不在此列表中，因为 manager 可以管理自己的子账号
-    # 克隆 manager 后应该能看到该 manager 的子账号列表（后端 API 会根据角色自动过滤）
+    # 注意：用户管理 /api/ef/v1/auth/users 不在此列表中，因为主账号可以管理自己的子账号
+    # 克隆主账号后应该能看到该主账号的子账号列表（后端 API 会根据角色自动过滤）
     CLONE_RESTRICTED_PREFIXES = [
         "/api/ef/v1/system",          # 系统管理（仅 admin）
-        "/api/ef/v1/manager-levels",  # 管理员级别（仅 admin）
+        "/api/ef/v1/account-levels",  # 主账号级别（仅 admin）
     ]
 
     # 克隆状态下允许访问的特殊路径（白名单，优先于 CLONE_RESTRICTED_PREFIXES）
@@ -114,6 +114,23 @@ class AuthMiddleware(BaseHTTPMiddleware):
         
         # 验证 token（这里是简化实现）
         user_info = await self._validate_token(token)
+
+        # 检查是否是会话被踢出（别处登录）
+        if isinstance(user_info, dict) and user_info.get("error") == "SESSION_EXPIRED":
+            return JSONResponse(
+                status_code=401,
+                content={
+                    "ok": False,
+                    "error": {
+                        "type": "about:blank",
+                        "title": "Session Expired",
+                        "status": 401,
+                        "detail": "您的账号已在其他设备登录，当前会话已失效",
+                        "code": "SESSION_EXPIRED"
+                    }
+                }
+            )
+
         if not user_info:
             # 对于开发环境，即使 token 无效也允许访问
             from ef_core.config import get_settings
@@ -256,14 +273,13 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 if not user:
                     return None
 
-                # 验证会话令牌
+                # 验证会话令牌（单设备登录检测）
                 if session_token and user.current_session_token:
                     if user.current_session_token != session_token:
-                        self.logger.info(
-                            f"Session expired for user {user_id}: "
-                            f"current={user.current_session_token[:8]}..., provided={session_token[:8]}..."
-                        )
-                        return None
+                        # 不记录 token 内容，仅记录事件（安全规范）
+                        self.logger.info(f"Session expired for user {user_id}: logged in from another device")
+                        # 返回特殊错误标记，表示被别处登录踢出
+                        return {"error": "SESSION_EXPIRED"}
 
                 # 检查账号是否可以执行写操作（admin 不受限制）
                 can_write, write_error = user.can_write()
@@ -340,16 +356,17 @@ def check_role(user, required_role: str) -> bool:
 
     Args:
         user: 用户对象
-        required_role: 要求的角色 (sub_account, manager, admin, shipper)
+        required_role: 要求的角色 (sub_account, main_account, admin, shipper, extension)
 
     Returns:
         bool: 是否满足角色要求
 
     角色权限层级：
-    - admin > manager > sub_account
+    - admin > main_account > sub_account
     - shipper: 发货员，独立角色，只能访问扫描发货相关功能
+    - extension: 浏览器扩展，独立角色，只能访问扩展相关API
     - admin: 超级管理员，可以查看所有店铺，管理所有用户
-    - manager: 管理员，可以创建子账号和店铺（受级别限额）
+    - main_account: 主账号，可以创建子账号和店铺（受级别限额）
     - sub_account: 子账号，只能查看被绑定的店铺
     """
     if not user:
@@ -361,9 +378,9 @@ def check_role(user, required_role: str) -> bool:
     if user_role == "admin":
         return True
 
-    # 如果要求 manager 角色
-    if required_role == "manager":
-        return user_role in ["manager", "admin"]
+    # 如果要求 main_account 角色
+    if required_role == "main_account":
+        return user_role in ["main_account", "admin"]
 
     # 如果要求 admin 角色
     if required_role == "admin":
@@ -372,16 +389,20 @@ def check_role(user, required_role: str) -> bool:
     # 如果要求 sub_account 角色（最低权限）
     # shipper 也可以访问 sub_account 级别的功能（如打印标签）
     if required_role == "sub_account":
-        return user_role in ["sub_account", "manager", "admin", "shipper"]
+        return user_role in ["sub_account", "main_account", "admin", "shipper"]
 
     # 如果要求 shipper 角色
     if required_role == "shipper":
         return user_role in ["shipper", "admin"]
 
+    # 如果要求 extension 角色
+    if required_role == "extension":
+        return user_role in ["extension", "admin"]
+
     return False
 
 
-def require_role(required_role: str = "manager"):
+def require_role(required_role: str = "main_account"):
     """
     创建角色检查依赖函数，用于FastAPI路由的权限控制
 
@@ -391,20 +412,20 @@ def require_role(required_role: str = "manager"):
 
         @router.post("/products")
         async def create_product(
-            current_user: User = Depends(require_role("manager"))
+            current_user: User = Depends(require_role("main_account"))
         ):
-            # 只有 manager 和 admin 可以访问
+            # 只有主账号和 admin 可以访问
             pass
 
     Args:
-        required_role: 要求的最低角色 (sub_account, manager, admin)
+        required_role: 要求的最低角色 (sub_account, main_account, admin)
 
     Returns:
         依赖函数，用于FastAPI的Depends()
 
     角色层级：
     - admin: 超级管理员
-    - manager: 管理员（可创建子账号和店铺）
+    - main_account: 主账号（可创建子账号和店铺）
     - sub_account: 子账号（仅查看绑定的店铺）
     """
     from ef_core.api.auth import get_current_user_flexible
@@ -421,9 +442,10 @@ def require_role(required_role: str = "manager"):
         if not check_role(user, required_role):
             role_names = {
                 "admin": "超级管理员",
-                "manager": "管理员",
+                "main_account": "主账号",
                 "sub_account": "子账号",
-                "shipper": "发货员"
+                "shipper": "发货员",
+                "extension": "浏览器扩展"
             }
             current_role_name = role_names.get(user.role, user.role)
             required_role_name = role_names.get(required_role, required_role)

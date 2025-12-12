@@ -288,7 +288,7 @@ class BalanceSyncer {
     balance: number
   ): Promise<void> {
     try {
-      const response = await fetch(`${(api as any).baseUrl}/api/ef/v1/ozon/shop-balance/update`, {
+      const response = await fetch(`${(api as any).baseUrl}/api/ef/v1/ozon/extension/shop-balance/update`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

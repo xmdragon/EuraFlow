@@ -128,18 +128,18 @@ except ImportError as e:
     logger.warning(f"Could not import listing routes: {e}")
 
 try:
-    from .quick_publish_routes import router as quick_publish_router
-    router.include_router(quick_publish_router)
-    logger.info("✓ Loaded quick_publish_routes")
-except ImportError as e:
-    logger.warning(f"Could not import quick publish routes: {e}")
-
-try:
     from .promotion_routes import router as promotion_router
     router.include_router(promotion_router)
     logger.info("✓ Loaded promotion_routes")
 except ImportError as e:
     logger.warning(f"Could not import promotion routes: {e}")
+
+try:
+    from .extension_routes import router as extension_router
+    router.include_router(extension_router)
+    logger.info("✓ Loaded extension_routes")
+except ImportError as e:
+    logger.warning(f"Could not import extension routes: {e}")
 
 try:
     from .global_settings_routes import router as global_settings_router

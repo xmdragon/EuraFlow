@@ -204,7 +204,7 @@ async def restore_identity(
     # 重新查询管理员用户以获取最新数据
     stmt = select(User).where(User.id == admin_user_id).options(
         selectinload(User.shops),
-        selectinload(User.manager_level)
+        selectinload(User.account_level)
     )
     result = await session.execute(stmt)
     admin_user = result.scalar_one_or_none()
@@ -269,8 +269,8 @@ async def restore_identity(
         "account_status": admin_user.account_status,
         "primary_shop_id": admin_user.primary_shop_id,
         "shop_ids": [shop.id for shop in admin_user.shops] if admin_user.shops else [],
-        "manager_level_id": admin_user.manager_level_id,
-        "manager_level": admin_user.manager_level.to_dict() if admin_user.manager_level else None
+        "account_level_id": admin_user.account_level_id,
+        "account_level": admin_user.account_level.to_dict() if admin_user.account_level else None
     }
 
     return {
@@ -292,7 +292,7 @@ async def clone_identity(
     克隆指定用户的身份
 
     - 仅超级管理员（role=admin）可以使用此功能
-    - 仅能克隆 manager 角色的用户
+    - 仅能克隆 main_account 角色的用户
     - 克隆后获得被克隆用户的店铺权限
     - 克隆有效期 30 分钟
     - 克隆期间不能访问用户管理和系统管理

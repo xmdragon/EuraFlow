@@ -13,9 +13,25 @@ const isAxiosError = (error: unknown): error is AxiosError => {
   return axios.isAxiosError(error);
 };
 
+// 全局状态标志
+let isRefreshing = false;
+let isSessionExpired = false; // 会话已被踢出，阻止后续请求
+
+/**
+ * 标记会话已过期（用于 WebSocket 收到踢出通知时调用）
+ */
+export const markSessionExpired = () => {
+  isSessionExpired = true;
+};
+
 // 请求拦截器
 axios.interceptors.request.use(
   (config) => {
+    // 如果会话已被踢出，阻止所有请求
+    if (isSessionExpired) {
+      return Promise.reject(new Error('Session expired'));
+    }
+
     const token = authService.accessToken;
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
@@ -28,7 +44,7 @@ axios.interceptors.request.use(
 );
 
 // 响应拦截器
-let isRefreshing = false;
+
 interface QueueItem {
   resolve: (token: string | null) => void;
   reject: (error: unknown) => void;
@@ -141,6 +157,42 @@ const handleAuthenticationFailure = (message: string = '登录已过期，请重
   }
 };
 
+/**
+ * 处理会话被踢出：显示不可关闭的Modal，点击确定后跳转登录页
+ */
+const handleSessionExpired = () => {
+  // 避免重复弹窗
+  if (isSessionExpired) return;
+  isSessionExpired = true;
+
+  // 避免在登录页弹窗
+  if (window.location.pathname === '/login') return;
+
+  // 使用动态导入避免循环依赖
+  import('antd')
+    .then(({ Modal }) => {
+      Modal.warning({
+        title: '账号已在其他设备登录',
+        content: '您的账号已在其他设备登录，当前会话已失效。请重新登录。',
+        okText: '确定',
+        closable: false,
+        keyboard: false,
+        maskClosable: false,
+        centered: true,
+        onOk: () => {
+          authService.clearTokens();
+          window.location.href = '/login';
+        },
+      });
+    })
+    .catch(() => {
+      // 如果antd加载失败，使用原生alert
+      alert('您的账号已在其他设备登录，当前会话已失效。请重新登录。');
+      authService.clearTokens();
+      window.location.href = '/login';
+    });
+};
+
 axios.interceptors.response.use(
   (response) => response,
   async (error: unknown) => {
@@ -168,8 +220,20 @@ axios.interceptors.response.use(
         return Promise.reject(error);
       }
 
-      // 401错误尝试刷新token
+      // 401错误处理
       if (status === 401 && !originalRequest?._retry) {
+        // 检查是否是会话被踢出（别处登录）
+        const errorCode = (error.response?.data as { error?: { code?: string } })?.error?.code;
+        if (errorCode === 'SESSION_EXPIRED') {
+          handleSessionExpired();
+          return Promise.reject(error);
+        }
+
+        // 如果会话已被标记为过期，阻止后续请求
+        if (isSessionExpired) {
+          return Promise.reject(error);
+        }
+
         // 如果没有refresh token，直接跳转登录页
         if (!authService.refreshToken) {
           handleAuthenticationFailure();

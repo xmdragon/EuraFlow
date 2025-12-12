@@ -13,10 +13,6 @@ import type {
   Shop,
   Warehouse,
   Watermark,
-  QuickPublishRequest,
-  QuickPublishResponse,
-  QuickPublishBatchRequest,
-  QuickPublishBatchResponse,
   TaskStatus,
   ProductData
 } from '../types';
@@ -26,10 +22,6 @@ export type {
   Shop,
   Warehouse,
   Watermark,
-  QuickPublishRequest,
-  QuickPublishResponse,
-  QuickPublishBatchRequest,
-  QuickPublishBatchResponse,
   TaskStatus
 };
 
@@ -78,7 +70,7 @@ export class EuraflowApi extends BaseApiClient {
    * 测试 API 连接
    */
   async testConnection(): Promise<{ status: string; username: string }> {
-    const response = await fetch(`${this.baseUrl}/api/ef/v1/auth/me`, {
+    const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/extension/ping`, {
       method: 'GET',
       headers: {
         'X-API-Key': this.apiKey
@@ -90,8 +82,7 @@ export class EuraflowApi extends BaseApiClient {
       throw createApiError('CONNECTION_FAILED', `HTTP ${response.status}: ${errorText}`, response.status);
     }
 
-    const userData = await response.json();
-    return { status: 'ok', username: userData.username };
+    return await response.json();
   }
 
   /**
@@ -101,7 +92,7 @@ export class EuraflowApi extends BaseApiClient {
     shops: Array<Shop & { warehouses: Warehouse[] }>;
     watermarks: Watermark[];
   }> {
-    const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/quick-publish/config`, {
+    const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/extension/config`, {
       method: 'GET',
       headers: {
         'X-API-Key': this.apiKey
@@ -149,7 +140,7 @@ export class EuraflowApi extends BaseApiClient {
     console.log(`[EuraflowApi] 开始上传 ${products.length} 个商品到 ${this.baseUrl}${batchName ? ` (批次: ${batchName})` : ''}`);
 
     try {
-      const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/product-selection/upload`, {
+      const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/extension/products/upload`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -194,60 +185,10 @@ export class EuraflowApi extends BaseApiClient {
   }
 
   /**
-   * 快速上架商品
-   */
-  async quickPublish(data: QuickPublishRequest): Promise<QuickPublishResponse> {
-    const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/quick-publish/publish`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': this.apiKey
-      },
-      body: JSON.stringify(data)
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw createApiError(
-        'PUBLISH_FAILED',
-        errorData.error || `HTTP ${response.status}: ${response.statusText}`,
-        response.status
-      );
-    }
-
-    return await response.json();
-  }
-
-  /**
-   * 批量快速上架商品
-   */
-  async quickPublishBatch(data: QuickPublishBatchRequest): Promise<QuickPublishBatchResponse> {
-    const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/quick-publish/batch`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': this.apiKey
-      },
-      body: JSON.stringify(data)
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw createApiError(
-        'BATCH_PUBLISH_FAILED',
-        errorData.error || `HTTP ${response.status}: ${response.statusText}`,
-        response.status
-      );
-    }
-
-    return await response.json();
-  }
-
-  /**
    * 查询任务状态
    */
   async getTaskStatus(taskId: string, shopId?: number): Promise<TaskStatus> {
-    let url = `${this.baseUrl}/api/ef/v1/ozon/quick-publish/task/${taskId}/status`;
+    let url = `${this.baseUrl}/api/ef/v1/ozon/extension/tasks/${taskId}/status`;
     if (shopId !== undefined) {
       url += `?shop_id=${shopId}`;
     }
@@ -275,7 +216,7 @@ export class EuraflowApi extends BaseApiClient {
    * 采集商品
    */
   async collectProduct(sourceUrl: string, productData: any): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/collection-records/collect`, {
+    const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/extension/products/collect`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -314,7 +255,7 @@ export class EuraflowApi extends BaseApiClient {
     }
 
     try {
-      const url = `${this.baseUrl}/api/ef/v1/ozon/listings/categories/names?name_ru=${encodeURIComponent(nameRu)}`;
+      const url = `${this.baseUrl}/api/ef/v1/ozon/extension/categories/by-name?name_ru=${encodeURIComponent(nameRu)}`;
 
       if (__DEBUG__) {
         console.log('[EuraflowApi] 类目查询请求:', { URL: url, name_ru: nameRu });
@@ -353,7 +294,7 @@ export class EuraflowApi extends BaseApiClient {
    */
   async getNextCollectionSource(): Promise<CollectionSource | null> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/collection-sources/queue/next`, {
+      const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/extension/collection-sources/next`, {
         method: 'GET',
         headers: {
           'X-API-Key': this.apiKey
@@ -397,7 +338,7 @@ export class EuraflowApi extends BaseApiClient {
     productCount?: number,
     error?: string
   ): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/collection-sources/${sourceId}/status`, {
+    const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/extension/collection-sources/${sourceId}/status`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -424,7 +365,7 @@ export class EuraflowApi extends BaseApiClient {
    * 跟卖商品（立即上架）
    */
   async followPdp(data: any): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/collection-records/follow-pdp`, {
+    const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/extension/products/follow-pdp`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -602,20 +543,6 @@ export class EuraflowApiProxy {
     errors?: any[];
   }> {
     return this.sendRequest('UPLOAD_PRODUCTS', { products });
-  }
-
-  /**
-   * 快速上架
-   */
-  async quickPublish(data: QuickPublishRequest): Promise<QuickPublishResponse> {
-    return this.sendRequest('QUICK_PUBLISH', { data });
-  }
-
-  /**
-   * 批量快速上架
-   */
-  async quickPublishBatch(data: QuickPublishBatchRequest): Promise<QuickPublishBatchResponse> {
-    return this.sendRequest('QUICK_PUBLISH_BATCH', { data });
   }
 
   /**

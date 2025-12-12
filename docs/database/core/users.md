@@ -16,7 +16,7 @@
 | is_active | Boolean | NO | True | 是否激活 |
 | role | String(50) | NO | 'sub_account' | 角色：admin/manager/sub_account |
 | permissions | JSON | NO | list | 权限列表 |
-| manager_level_id | BigInteger | YES | - | FK → manager_levels.id | 管理员级别ID |
+| account_level_id | BigInteger | YES | - | FK → account_levels.id | 主账号级别ID |
 | account_status | String(20) | NO | 'active' | 账号状态：active/suspended/disabled |
 | expires_at | DateTime | YES | - | 账号过期时间，NULL表示永不过期 |
 | parent_user_id | BigInteger | YES | - | FK → users.id | 父账号ID |
@@ -33,6 +33,6 @@
 
 ## 外键关系
 
-- `manager_level_id` → `manager_levels.id`
+- `account_level_id` → `account_levels.id`
 - `parent_user_id` → `users.id`
 - `primary_shop_id` → `ozon_shops.id`

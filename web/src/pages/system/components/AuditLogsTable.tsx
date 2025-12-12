@@ -221,7 +221,7 @@ const AuditLogsTable: React.FC = () => {
     success: '登录结果',
     max_shops: '最大店铺数',
     max_sub_accounts: '最大子账号数',
-    manager_level_id: '权限级别',
+    account_level_id: '主账号级别',
     alias: '别名',
 
     // API密钥字段

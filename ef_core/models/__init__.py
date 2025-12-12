@@ -10,9 +10,10 @@ from .returns import Return, Refund
 from .users import User, UserSettings
 from .api_keys import APIKey
 from .exchange_rate import ExchangeRateConfig, ExchangeRate
-from .manager_level import ManagerLevel
+from .account_level import AccountLevel
 from .user_login_session import UserLoginSession
 from .credit import CreditAccount, CreditTransaction, CreditModuleConfig
+from .permission import Role, APIPermission, RolePermission
 
 __all__ = [
     "Base",
@@ -29,9 +30,12 @@ __all__ = [
     "APIKey",
     "ExchangeRateConfig",
     "ExchangeRate",
-    "ManagerLevel",
+    "AccountLevel",
     "UserLoginSession",
     "CreditAccount",
     "CreditTransaction",
     "CreditModuleConfig",
+    "Role",
+    "APIPermission",
+    "RolePermission",
 ]

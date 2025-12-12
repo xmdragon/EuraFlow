@@ -29,7 +29,7 @@ import { useAuth } from '@/hooks/useAuth';
 import axios from '@/services/axios';
 import { notifySuccess, notifyError } from '@/utils/notification';
 
-import type { ManagerLevel } from '@/types/auth';
+import type { AccountLevel } from '@/types/auth';
 
 interface FormValues {
   name: string;
@@ -59,17 +59,17 @@ const getExpirationLabel = (days: number): string => {
 const UserLevelManagement: React.FC = () => {
   const { modal } = App.useApp();
   const { user: currentUser } = useAuth();
-  const [levels, setLevels] = useState<ManagerLevel[]>([]);
+  const [levels, setLevels] = useState<AccountLevel[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
-  const [editingLevel, setEditingLevel] = useState<ManagerLevel | null>(null);
+  const [editingLevel, setEditingLevel] = useState<AccountLevel | null>(null);
   const [form] = Form.useForm();
 
   // 获取级别列表
   const fetchLevels = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('/api/ef/v1/manager-levels');
+      const response = await axios.get('/api/ef/v1/account-levels');
       setLevels(response.data);
     } catch (_error) {
       notifyError('获取失败', '获取用户级别列表失败');
@@ -100,10 +100,10 @@ const UserLevelManagement: React.FC = () => {
   const handleSubmit = async (values: FormValues) => {
     try {
       if (editingLevel) {
-        await axios.put(`/api/ef/v1/manager-levels/${editingLevel.id}`, values);
+        await axios.put(`/api/ef/v1/account-levels/${editingLevel.id}`, values);
         notifySuccess('更新成功', '用户级别更新成功');
       } else {
-        await axios.post('/api/ef/v1/manager-levels', values);
+        await axios.post('/api/ef/v1/account-levels', values);
         notifySuccess('创建成功', '用户级别创建成功');
       }
       setModalVisible(false);
@@ -125,7 +125,7 @@ const UserLevelManagement: React.FC = () => {
   // 删除级别
   const handleDelete = async (levelId: number) => {
     try {
-      await axios.delete(`/api/ef/v1/manager-levels/${levelId}`);
+      await axios.delete(`/api/ef/v1/account-levels/${levelId}`);
       notifySuccess('删除成功', '用户级别已删除');
       fetchLevels();
     } catch (error) {
@@ -142,7 +142,7 @@ const UserLevelManagement: React.FC = () => {
   };
 
   // 打开编辑模态框
-  const handleEdit = (level: ManagerLevel) => {
+  const handleEdit = (level: AccountLevel) => {
     setEditingLevel(level);
     form.setFieldsValue({
       name: level.name,
@@ -168,7 +168,7 @@ const UserLevelManagement: React.FC = () => {
       title: '级别名称',
       dataIndex: 'name',
       key: 'name',
-      render: (name: string, record: ManagerLevel) => (
+      render: (name: string, record: AccountLevel) => (
         <Space>
           {name}
           {record.is_default && <Tag color="gold">默认</Tag>}
@@ -211,7 +211,7 @@ const UserLevelManagement: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      render: (_: unknown, record: ManagerLevel) => (
+      render: (_: unknown, record: AccountLevel) => (
         <Space size="middle">
           <Tooltip title="编辑">
             <Button type="link" icon={<EditOutlined />} onClick={() => handleEdit(record)} />

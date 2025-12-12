@@ -280,7 +280,7 @@ const ApiKeysTab: React.FC = () => {
         description={
           <ol className={styles.usageList}>
             <li>点击"创建API Key"生成新密钥，立即复制保存（仅显示一次）</li>
-            <li>在浏览器中打开 EuraFlow 选品助手扩展插件，点击右上角的"设置"图标</li>
+            <li>在浏览器中打开 EuraFlow 扩展插件，点击右上角的"设置"图标</li>
             <li>
               在设置界面中填写上方的 <strong>API 地址</strong> 和刚才复制的 <strong>API Key</strong>
             </li>

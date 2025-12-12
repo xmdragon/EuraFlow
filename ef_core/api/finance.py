@@ -19,7 +19,7 @@ try:
 except ImportError:
     FINANCE_PLUGIN_AVAILABLE = False
 
-router = APIRouter(prefix="/api/ef/v1/finance", tags=["finance"])
+router = APIRouter(prefix="/finance", tags=["finance"])
 
 # 初始化服务
 if FINANCE_PLUGIN_AVAILABLE:

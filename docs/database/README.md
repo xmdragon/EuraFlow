@@ -31,11 +31,11 @@ ef_core 基础数据模型
 | exchange_rates | 汇率缓存表 - 存储历史汇率数据 | [查看](./core/exchange_rates.md) |
 | inventories | 库存表 | [查看](./core/inventories.md) |
 | listings | 商品价格表 | [查看](./core/listings.md) |
-| manager_levels | 管理员级别模型
+| account_levels | 主账号级别模型
 
-用于定义不同级别的管理员配额限制，包括：
+用于定义不同级别的主账号配额限制，包括：
 - 子账号数量限额
-- 店铺数量限... | [查看](./core/manager_levels.md) |
+- 店铺数量限... | [查看](./core/account_levels.md) |
 | order_items | 订单行项目表 - 按照 PRD § 3.2 | [查看](./core/order_items.md) |
 | orders | 订单表 - 严格按照 PRD 定义 | [查看](./core/orders.md) |
 | packages | 包裹信息表 | [查看](./core/packages.md) |

@@ -83,7 +83,7 @@ class InvoicePaymentSyncer {
     shopsToSync: string[];  // 需要同步的店铺 client_id 列表
   }> {
     try {
-      const response = await fetch(`${(api as any).baseUrl}/api/ef/v1/ozon/invoice-payments/should-sync`, {
+      const response = await fetch(`${(api as any).baseUrl}/api/ef/v1/ozon/extension/invoice-payments/should-sync`, {
         method: 'GET',
         headers: {
           'X-API-Key': (api as any).apiKey
@@ -459,7 +459,7 @@ class InvoicePaymentSyncer {
     payments: InvoicePayment[]
   ): Promise<{ created: number; updated: number }> {
     try {
-      const response = await fetch(`${(api as any).baseUrl}/api/ef/v1/ozon/invoice-payments/sync`, {
+      const response = await fetch(`${(api as any).baseUrl}/api/ef/v1/ozon/extension/invoice-payments/sync`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -90,11 +90,11 @@ class CloneService:
                     detail="目标用户不存在"
                 )
 
-            # 验证目标用户是 manager 角色
-            if target_user.role != "manager":
+            # 验证目标用户是 main_account 角色
+            if target_user.role != "main_account":
                 raise ValidationError(
                     code="INVALID_TARGET_ROLE",
-                    detail="只能克隆 manager 角色的用户"
+                    detail="只能克隆 main_account 角色的用户"
                 )
 
             # 验证目标用户是激活状态

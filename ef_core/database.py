@@ -98,6 +98,7 @@ class DatabaseManager:
                 # 连接池配置
                 pool_size=self.settings.db_pool_size,
                 max_overflow=self.settings.db_max_overflow,
+                pool_timeout=30,     # 获取连接超时（秒），避免无限等待
                 pool_pre_ping=True,  # 连接前检查有效性
                 pool_recycle=3600,   # 1小时回收连接
                 # 日志配置
@@ -118,6 +119,7 @@ class DatabaseManager:
                 self.settings.sync_database_url,
                 pool_size=self.settings.db_pool_size,
                 max_overflow=self.settings.db_max_overflow,
+                pool_timeout=30,     # 获取连接超时（秒），避免无限等待
                 pool_pre_ping=True,
                 pool_recycle=3600,
                 echo=self.settings.api_debug,

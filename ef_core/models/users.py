@@ -70,7 +70,7 @@ class User(Base):
         String(50),
         nullable=False,
         default="sub_account",
-        comment="角色：admin/manager/sub_account"
+        comment="角色：admin/main_account/sub_account/shipper/extension"
     )
     permissions: Mapped[dict] = mapped_column(
         JSON,
@@ -79,15 +79,15 @@ class User(Base):
         comment="权限列表"
     )
 
-    # 管理员级别（仅 manager 角色使用）
-    manager_level_id: Mapped[Optional[int]] = mapped_column(
+    # 主账号级别（仅 main_account 角色使用）
+    account_level_id: Mapped[Optional[int]] = mapped_column(
         BigInteger,
-        ForeignKey("manager_levels.id", ondelete="SET NULL"),
+        ForeignKey("account_levels.id", ondelete="SET NULL"),
         nullable=True,
-        comment="管理员级别ID"
+        comment="主账号级别ID"
     )
 
-    # 账号状态（仅 manager/sub_account 使用，admin 不受限制）
+    # 账号状态（仅 main_account/sub_account 使用，admin 不受限制）
     # active: 正常, suspended: 停用（可登录但不能写操作）, disabled: 禁用（不能登录）
     account_status: Mapped[str] = mapped_column(
         String(20),
@@ -96,7 +96,7 @@ class User(Base):
         comment="账号状态：active/suspended/disabled"
     )
 
-    # 账号过期时间（仅 manager/sub_account 使用）
+    # 账号过期时间（仅 main_account/sub_account 使用）
     expires_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
@@ -166,11 +166,11 @@ class User(Base):
     api_keys = relationship("APIKey", back_populates="user", cascade="all, delete-orphan")
     # 用户关联的店铺（多对多）
     shops = relationship("OzonShop", secondary=user_shops, backref="associated_users")
-    # 管理员级别
-    manager_level = relationship("ManagerLevel", back_populates="users")
+    # 主账号级别
+    account_level = relationship("AccountLevel", back_populates="users")
     # 登录会话
     login_sessions = relationship("UserLoginSession", back_populates="user", cascade="all, delete-orphan")
-    # 额度账户（仅 manager/admin 拥有，子账号通过 parent_user 访问）
+    # 额度账户（仅 main_account/admin 拥有，子账号通过 parent_user 访问）
     credit_account = relationship("CreditAccount", back_populates="user", uselist=False, cascade="all, delete-orphan")
     
     # 索引
@@ -209,7 +209,7 @@ class User(Base):
             "expires_at": self.expires_at.isoformat() if self.expires_at else None,
             "parent_user_id": self.parent_user_id,
             "primary_shop_id": self.primary_shop_id,
-            "manager_level_id": self.manager_level_id,
+            "account_level_id": self.account_level_id,
             "last_login_at": self.last_login_at.isoformat() if self.last_login_at else None,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat()

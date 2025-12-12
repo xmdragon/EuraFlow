@@ -189,7 +189,7 @@ class CookieUploader {
       };
 
       // 上传到后端
-      const response = await fetch(`${apiConfig.apiUrl}/api/ef/v1/ozon/session/upload`, {
+      const response = await fetch(`${apiConfig.apiUrl}/api/ef/v1/ozon/extension/session/upload`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

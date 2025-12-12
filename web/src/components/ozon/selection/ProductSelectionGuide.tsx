@@ -36,7 +36,7 @@ export const ProductSelectionGuide: React.FC = () => {
       {/* 工具介绍 */}
       <Card>
         <Title level={4}>
-          <RocketOutlined /> Ozon选品助手
+          <RocketOutlined /> Euraflow OZON选品助手 浏览器扩展
         </Title>
         <Paragraph>
           在OZON商品详情页自动显示真实售价、跟卖价、利润分析，帮助您快速评估商品价值。
@@ -154,7 +154,7 @@ export const ProductSelectionGuide: React.FC = () => {
                       </Paragraph>
                       <Paragraph>
                         <Text strong>API Key：</Text>
-                        <Link href="/dashboard/ozon/api-keys">前往获取 →</Link>
+                        <Link href="/dashboard/api-keys">前往获取 →</Link>
                       </Paragraph>
                     </div>
                   ),
@@ -264,7 +264,7 @@ export const ProductSelectionGuide: React.FC = () => {
             <div>
               <Paragraph>如果遇到问题或需要技术支持，请联系管理员或查看项目文档。</Paragraph>
               <Paragraph>
-                <Text type="secondary">版本：v1.9.0 | 更新时间：2025-11-21</Text>
+                <Text type="secondary">版本：v1.4.0 | 更新时间：2025-12-12</Text>
               </Paragraph>
             </div>
           }

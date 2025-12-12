@@ -1,5 +1,5 @@
 """
-管理员级别 API 路由
+主账号级别 API 路由
 """
 from typing import Optional, List
 from pydantic import BaseModel, Field
@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ef_core.database import get_async_session
 from ef_core.models.users import User
-from ef_core.services.manager_level_service import ManagerLevelService
+from ef_core.services.account_level_service import AccountLevelService
 from ef_core.services.audit_service import AuditService
 from ef_core.api.auth import get_current_user
 from ef_core.utils.logger import get_logger
@@ -17,13 +17,13 @@ from ef_core.utils.errors import NotFoundError, ValidationError, ConflictError
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/manager-levels", tags=["Manager Levels"])
+router = APIRouter(prefix="/account-levels", tags=["Account Levels"])
 
 
 # ========== 请求/响应模型 ==========
 
-class ManagerLevelResponse(BaseModel):
-    """管理员级别响应"""
+class AccountLevelResponse(BaseModel):
+    """主账号级别响应"""
     id: int
     name: str
     alias: Optional[str]
@@ -37,8 +37,8 @@ class ManagerLevelResponse(BaseModel):
     updated_at: str
 
 
-class CreateManagerLevelRequest(BaseModel):
-    """创建管理员级别请求"""
+class CreateAccountLevelRequest(BaseModel):
+    """创建主账号级别请求"""
     name: str = Field(..., min_length=1, max_length=50, description="级别名称（唯一标识）")
     alias: Optional[str] = Field(None, max_length=50, description="级别别名（显示用）")
     max_sub_accounts: int = Field(5, ge=0, description="子账号数量限额")
@@ -49,8 +49,8 @@ class CreateManagerLevelRequest(BaseModel):
     sort_order: int = Field(0, description="排序顺序")
 
 
-class UpdateManagerLevelRequest(BaseModel):
-    """更新管理员级别请求"""
+class UpdateAccountLevelRequest(BaseModel):
+    """更新主账号级别请求"""
     name: Optional[str] = Field(None, min_length=1, max_length=50, description="级别名称")
     alias: Optional[str] = Field(None, max_length=50, description="级别别名")
     max_sub_accounts: Optional[int] = Field(None, ge=0, description="子账号数量限额")
@@ -63,13 +63,13 @@ class UpdateManagerLevelRequest(BaseModel):
 
 # ========== API 端点 ==========
 
-@router.get("", response_model=List[ManagerLevelResponse])
-async def list_manager_levels(
+@router.get("", response_model=List[AccountLevelResponse])
+async def list_account_levels(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session)
 ):
     """
-    获取所有管理员级别（仅admin）
+    获取所有主账号级别（仅admin）
     """
     if current_user.role != "admin":
         raise HTTPException(
@@ -77,9 +77,9 @@ async def list_manager_levels(
             detail={"code": "INSUFFICIENT_PERMISSIONS", "message": "只有超级管理员可以查看级别列表"}
         )
 
-    levels = await ManagerLevelService.get_all(session)
+    levels = await AccountLevelService.get_all(session)
     return [
-        ManagerLevelResponse(
+        AccountLevelResponse(
             id=level.id,
             name=level.name,
             alias=level.alias,
@@ -96,14 +96,14 @@ async def list_manager_levels(
     ]
 
 
-@router.get("/{level_id}", response_model=ManagerLevelResponse)
-async def get_manager_level(
+@router.get("/{level_id}", response_model=AccountLevelResponse)
+async def get_account_level(
     level_id: int,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session)
 ):
     """
-    获取单个管理员级别（仅admin）
+    获取单个主账号级别（仅admin）
     """
     if current_user.role != "admin":
         raise HTTPException(
@@ -111,14 +111,14 @@ async def get_manager_level(
             detail={"code": "INSUFFICIENT_PERMISSIONS", "message": "只有超级管理员可以查看级别详情"}
         )
 
-    level = await ManagerLevelService.get_by_id(session, level_id)
+    level = await AccountLevelService.get_by_id(session, level_id)
     if not level:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": "LEVEL_NOT_FOUND", "message": f"管理员级别 ID={level_id} 不存在"}
+            detail={"code": "LEVEL_NOT_FOUND", "message": f"主账号级别 ID={level_id} 不存在"}
         )
 
-    return ManagerLevelResponse(
+    return AccountLevelResponse(
         id=level.id,
         name=level.name,
         alias=level.alias,
@@ -133,15 +133,15 @@ async def get_manager_level(
     )
 
 
-@router.post("", response_model=ManagerLevelResponse, status_code=status.HTTP_201_CREATED)
-async def create_manager_level(
+@router.post("", response_model=AccountLevelResponse, status_code=status.HTTP_201_CREATED)
+async def create_account_level(
     request: Request,
-    data: CreateManagerLevelRequest,
+    data: CreateAccountLevelRequest,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session)
 ):
     """
-    创建管理员级别（仅admin）
+    创建主账号级别（仅admin）
     """
     if current_user.role != "admin":
         raise HTTPException(
@@ -150,7 +150,7 @@ async def create_manager_level(
         )
 
     try:
-        level = await ManagerLevelService.create(
+        level = await AccountLevelService.create(
             db=session,
             name=data.name,
             alias=data.alias,
@@ -168,10 +168,10 @@ async def create_manager_level(
             db=session,
             user_id=current_user.id,
             username=current_user.username,
-            module="manager_level",
+            module="account_level",
             action="create",
-            action_display="创建管理员级别",
-            table_name="manager_levels",
+            action_display="创建主账号级别",
+            table_name="account_levels",
             record_id=str(level.id),
             changes={
                 "name": {"new": level.name},
@@ -183,7 +183,7 @@ async def create_manager_level(
             user_agent=request.headers.get("user-agent")
         )
 
-        return ManagerLevelResponse(
+        return AccountLevelResponse(
             id=level.id,
             name=level.name,
             alias=level.alias,
@@ -204,16 +204,16 @@ async def create_manager_level(
         )
 
 
-@router.put("/{level_id}", response_model=ManagerLevelResponse)
-async def update_manager_level(
+@router.put("/{level_id}", response_model=AccountLevelResponse)
+async def update_account_level(
     request: Request,
     level_id: int,
-    data: UpdateManagerLevelRequest,
+    data: UpdateAccountLevelRequest,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session)
 ):
     """
-    更新管理员级别（仅admin）
+    更新主账号级别（仅admin）
     """
     if current_user.role != "admin":
         raise HTTPException(
@@ -223,11 +223,11 @@ async def update_manager_level(
 
     try:
         # 获取旧值用于审计
-        old_level = await ManagerLevelService.get_by_id(session, level_id)
+        old_level = await AccountLevelService.get_by_id(session, level_id)
         if not old_level:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail={"code": "LEVEL_NOT_FOUND", "message": f"管理员级别 ID={level_id} 不存在"}
+                detail={"code": "LEVEL_NOT_FOUND", "message": f"主账号级别 ID={level_id} 不存在"}
             )
 
         old_values = {
@@ -237,7 +237,7 @@ async def update_manager_level(
             "max_shops": old_level.max_shops
         }
 
-        level = await ManagerLevelService.update(
+        level = await AccountLevelService.update(
             db=session,
             level_id=level_id,
             name=data.name,
@@ -267,17 +267,17 @@ async def update_manager_level(
                 db=session,
                 user_id=current_user.id,
                 username=current_user.username,
-                module="manager_level",
+                module="account_level",
                 action="update",
-                action_display="更新管理员级别",
-                table_name="manager_levels",
+                action_display="更新主账号级别",
+                table_name="account_levels",
                 record_id=str(level_id),
                 changes=changes,
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent")
             )
 
-        return ManagerLevelResponse(
+        return AccountLevelResponse(
             id=level.id,
             name=level.name,
             alias=level.alias,
@@ -304,14 +304,14 @@ async def update_manager_level(
 
 
 @router.delete("/{level_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_manager_level(
+async def delete_account_level(
     request: Request,
     level_id: int,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session)
 ):
     """
-    删除管理员级别（仅admin）
+    删除主账号级别（仅admin）
 
     - 如果有用户正在使用此级别，无法删除
     """
@@ -323,16 +323,16 @@ async def delete_manager_level(
 
     try:
         # 获取级别信息用于审计
-        level = await ManagerLevelService.get_by_id(session, level_id)
+        level = await AccountLevelService.get_by_id(session, level_id)
         if not level:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail={"code": "LEVEL_NOT_FOUND", "message": f"管理员级别 ID={level_id} 不存在"}
+                detail={"code": "LEVEL_NOT_FOUND", "message": f"主账号级别 ID={level_id} 不存在"}
             )
 
         level_name = level.name
 
-        await ManagerLevelService.delete(session, level_id)
+        await AccountLevelService.delete(session, level_id)
         await session.commit()
 
         # 记录审计日志
@@ -340,8 +340,8 @@ async def delete_manager_level(
             db=session,
             user_id=current_user.id,
             username=current_user.username,
-            module="manager_level",
-            table_name="manager_levels",
+            module="account_level",
+            table_name="account_levels",
             record_id=str(level_id),
             deleted_data={"name": level_name},
             ip_address=request.client.host if request.client else None,

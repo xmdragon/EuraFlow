@@ -263,20 +263,20 @@ async def create_shop(
             }
         )
 
-    # 检查店铺数量限额（仅对 manager 角色）
-    if current_user.role == "manager":
-        # 加载 manager_level 关系
-        stmt = select(User).options(selectinload(User.manager_level)).where(User.id == current_user.id)
+    # 检查店铺数量限额（仅对 main_account 角色）
+    if current_user.role == "main_account":
+        # 加载 account_level 关系
+        stmt = select(User).options(selectinload(User.account_level)).where(User.id == current_user.id)
         result = await db.execute(stmt)
         manager = result.scalar_one_or_none()
 
-        if manager and manager.manager_level:
+        if manager and manager.account_level:
             # 查询当前用户拥有的店铺数量
             shop_count_stmt = select(func.count()).select_from(OzonShop).where(OzonShop.owner_user_id == current_user.id)
             shop_count_result = await db.execute(shop_count_stmt)
             current_shop_count = shop_count_result.scalar()
 
-            max_shops = manager.manager_level.max_shops
+            max_shops = manager.account_level.max_shops
             if current_shop_count >= max_shops:
                 if max_shops == 0:
                     error_msg = "您的账号级别不允许创建店铺"
@@ -845,14 +845,18 @@ async def sync_warehouses(
         updated_count = 0
         warehouses_list = []
 
+        # 优化：预加载所有已存在的仓库到字典，避免 N+1 查询
+        warehouse_ids = [wh.get("warehouse_id") for wh in warehouses_data if wh.get("warehouse_id")]
+        existing_stmt = select(OzonWarehouse).where(
+            OzonWarehouse.shop_id == shop_id,
+            OzonWarehouse.warehouse_id.in_(warehouse_ids)
+        )
+        existing_result = await db.execute(existing_stmt)
+        existing_warehouses = {wh.warehouse_id: wh for wh in existing_result.scalars().all()}
+
         for wh_data in warehouses_data:
-            # 查找已存在的仓库
-            stmt = select(OzonWarehouse).where(
-                OzonWarehouse.shop_id == shop_id,
-                OzonWarehouse.warehouse_id == wh_data.get("warehouse_id")
-            )
-            existing = await db.execute(stmt)
-            warehouse = existing.scalar_one_or_none()
+            # 从预加载的字典中查找已存在的仓库（O(1) 查找）
+            warehouse = existing_warehouses.get(wh_data.get("warehouse_id"))
 
             if warehouse:
                 # 更新已存在的仓库

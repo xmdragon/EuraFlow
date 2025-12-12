@@ -22,24 +22,6 @@ export default defineConfig({
         }
       }
     },
-    // 生成版本文件，用于检测更新
-    {
-      name: 'generate-version',
-      closeBundle() {
-        const distPath = path.resolve(__dirname, 'dist')
-        const versionFile = path.join(distPath, 'version.json')
-        const version = {
-          version: Date.now().toString(), // 使用时间戳作为版本号
-          buildTime: new Date().toISOString(),
-        }
-        // 确保 dist 目录存在
-        if (!fs.existsSync(distPath)) {
-          fs.mkdirSync(distPath, { recursive: true })
-        }
-        fs.writeFileSync(versionFile, JSON.stringify(version, null, 2))
-        console.log('✓ Generated version.json:', version)
-      }
-    }
   ],
   server: {
     host: '0.0.0.0',  // 允许局域网访问
@@ -73,18 +55,45 @@ export default defineConfig({
   build: {
     // 设置chunk大小警告限制
     chunkSizeWarningLimit: 1500,
+    // 禁用 modulePreload，避免首屏加载不必要的大型库
+    // 懒加载的模块会在真正需要时才加载
+    modulePreload: false,
     rollupOptions: {
       // 开发专用依赖不打包到生产构建
       external: ['react-scan', 'stats.js'],
       output: {
-        // 让Vite自动处理代码分割，避免手动分割导致的依赖问题
-        // Vite会自动分析依赖关系，确保加载顺序正确
         // 用于命名代码拆分的块
         chunkFileNames: 'assets/js/[name]-[hash].js',
         // 用于命名入口文件
         entryFileNames: 'assets/js/[name]-[hash].js',
         // 用于命名静态资源
         assetFileNames: 'assets/[ext]/[name]-[hash].[ext]',
+        // 手动分割策略：最小化干预，只拆分确定无依赖问题的大型库
+        // 注意：不合并业务代码（hooks/services），因为它们可能导入 antd
+        manualChunks: (id: string) => {
+          // 1. 图表库（~385KB）- 仅报表页使用，完全独立
+          if (id.includes('node_modules/recharts/') ||
+              id.includes('node_modules/d3-') ||
+              id.includes('node_modules/victory-vendor/')) {
+            return 'vendor-charts'
+          }
+
+          // 2. 拖拽库（~50KB）- 仅商品创建使用，完全独立
+          if (id.includes('node_modules/@dnd-kit/')) {
+            return 'vendor-dnd'
+          }
+
+          // 3. Markdown（~100KB）- 仅聊天页使用，完全独立
+          if (id.includes('node_modules/react-markdown/') ||
+              id.includes('node_modules/remark-') ||
+              id.includes('node_modules/rehype-') ||
+              id.includes('node_modules/unified/') ||
+              id.includes('node_modules/micromark/') ||
+              id.includes('node_modules/mdast-') ||
+              id.includes('node_modules/hast-')) {
+            return 'vendor-markdown'
+          }
+        },
       },
     },
     // 压缩配置

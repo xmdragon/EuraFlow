@@ -274,7 +274,7 @@ class AuthService:
             # 重新查询用户以获取最新数据
             stmt = select(User).where(User.id == user.id).options(
                 selectinload(User.shops),
-                selectinload(User.manager_level)
+                selectinload(User.account_level)
             )
             result = await session.execute(stmt)
             user = result.scalar_one()
@@ -298,12 +298,17 @@ class AuthService:
                 "parent_user_id": user.parent_user_id,
                 "primary_shop_id": user.primary_shop_id,
                 "shop_ids": [shop.id for shop in user.shops] if user.shops else [],
-                "manager_level_id": user.manager_level_id,
-                "manager_level": user.manager_level.to_dict() if user.manager_level else None,
+                "account_level_id": user.account_level_id,
+                "account_level": user.account_level.to_dict() if user.account_level else None,
                 "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
                 "created_at": user.created_at.isoformat(),
                 "updated_at": user.updated_at.isoformat()
             }
+
+            # 获取用户的权限代码列表（从角色权限表）
+            from ef_core.services.permission_service import get_permission_service
+            permission_service = get_permission_service()
+            permission_codes = await permission_service.get_user_permissions(session, user.role)
 
             # 创建令牌（包含店铺权限和会话令牌，避免每次请求查询数据库）
             # admin 用户 shop_ids 为 None（表示可访问所有店铺）
@@ -312,7 +317,7 @@ class AuthService:
                 "sub": str(user.id),
                 "username": user.username,
                 "role": user.role,
-                "permissions": user.permissions,
+                "permissions": permission_codes,  # 使用从角色权限表查询的权限
                 "shop_id": user.primary_shop_id,
                 "shop_ids": shop_ids,  # 存入 JWT，避免每次查询
                 "session_token": session_token  # 会话令牌，用于单设备登录验证
@@ -375,13 +380,19 @@ class AuthService:
                             detail="您的账号在其他设备登录，当前会话已失效"
                         )
 
+                # 获取用户的权限代码列表（从角色权限表）
+                # Token 刷新时重新查询权限，实现权限变更生效
+                from ef_core.services.permission_service import get_permission_service
+                permission_service = get_permission_service()
+                permission_codes = await permission_service.get_user_permissions(session, user.role)
+
                 # 创建新的访问令牌（包含店铺权限和会话令牌）
                 shop_ids = None if user.role == "admin" else [shop.id for shop in user.shops] if user.shops else []
                 token_data = {
                     "sub": str(user.id),
                     "username": user.username,
                     "role": user.role,
-                    "permissions": user.permissions,
+                    "permissions": permission_codes,  # 使用从角色权限表查询的权限
                     "shop_id": user.primary_shop_id,
                     "shop_ids": shop_ids,
                     "session_token": session_token  # 保持原会话令牌

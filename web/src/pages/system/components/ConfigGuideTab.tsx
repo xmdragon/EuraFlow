@@ -12,7 +12,7 @@ const { Panel } = Collapse;
 
 const ConfigGuideTab: React.FC = () => {
   const { user } = useAuth();
-  const isManager = user?.role === 'manager';
+  const isMainAccount = user?.role === 'main_account';
 
   return (
     <div>
@@ -49,7 +49,7 @@ const ConfigGuideTab: React.FC = () => {
         </Panel>
 
         {/* Cloudinary配置 - 仅管理员可见 */}
-        {!isManager && (
+        {!isMainAccount && (
           <Panel header="🖼️ Cloudinary图床配置" key="cloudinary">
           <Title level={5}>如何获取Cloudinary凭据？</Title>
           <Paragraph>
@@ -82,7 +82,7 @@ const ConfigGuideTab: React.FC = () => {
         )}
 
         {/* 汇率API配置 - 仅管理员可见 */}
-        {!isManager && (
+        {!isMainAccount && (
           <Panel header="💱 汇率API配置" key="exchange-rate">
           <Title level={5}>如何获取汇率API Key？</Title>
           <Paragraph>
@@ -135,7 +135,7 @@ const ConfigGuideTab: React.FC = () => {
         </Panel>
 
         {/* 常见问题 - 仅管理员可见 */}
-        {!isManager && (
+        {!isMainAccount && (
           <Panel header="❓ 常见问题" key="faq">
           <Title level={5}>配置保存失败怎么办？</Title>
           <Paragraph>

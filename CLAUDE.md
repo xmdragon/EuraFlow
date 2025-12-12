@@ -64,6 +64,26 @@
 - ❌ 循环中执行数据库查询（导致 N+1 问题；必须使用批量查询或预加载）
 - ❌ npm 安装不锁定版本（必须使用 `npm install package@x.y.z` 指定精确版本）
 
+### 新增 API 权限规范
+
+新增 API 时必须同步更新权限配置：
+
+1. **扫描注册**：运行 `PYTHONPATH=. ./venv/bin/python scripts/init_permissions.py` 扫描新 API
+2. **分配权限**：根据 API 来源页面判断应授权给哪些角色：
+
+| 来源页面 | 授权角色 |
+|----------|----------|
+| 系统管理页 | admin |
+| 用户管理页 | admin, main_account |
+| 用户级别页 | admin |
+| API KEY 页 | main_account, sub_account |
+| 额度中心页 | main_account, sub_account, shipper |
+| 店铺业务页（OZON） | main_account, sub_account |
+| 扫描单号页 | main_account, sub_account, shipper |
+| 浏览器扩展 | extension |
+
+3. **更新配置**：在 `scripts/init_permissions.py` 的 `DEFAULT_ROLE_PERMISSIONS` 中添加对应权限代码
+
 ### 项目焦点
 优先面向 **Ozon 渠道插件** `ef.channels.ozon`，同时覆盖整个微内核+插件生态系统。
 
@@ -429,6 +449,10 @@ async def setup(hooks) -> None:
 
 **其他任务：**
 18. `ef.finance.rates.refresh` - 汇率刷新（每小时第18分钟 `18 * * * *`）
+
+**数据库备份任务：**
+19. `ef.system.database_backup` - 数据库备份（每天 UTC 05:00/17:00 `0 5,17 * * *`，排除类目表）
+20. `ef.system.database_backup_catalog` - 类目表备份（每周一 UTC 22:30 `30 22 * * 1`，类目/特征同步后1小时）
 
 ### 查看任务调度状态
 ```bash

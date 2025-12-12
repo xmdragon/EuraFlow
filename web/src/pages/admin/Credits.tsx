@@ -262,7 +262,7 @@ const AdminCredits: React.FC = () => {
       },
     },
     {
-      title: '实付金额(CNY)',
+      title: '实付金额',
       dataIndex: 'payment_amount_cny',
       key: 'payment_amount_cny',
       width: 120,
@@ -428,7 +428,7 @@ const AdminCredits: React.FC = () => {
                     allowClear
                   >
                     <Select.Option value="admin">超级管理员</Select.Option>
-                    <Select.Option value="manager">主账号</Select.Option>
+                    <Select.Option value="main_account">主账号</Select.Option>
                     <Select.Option value="shipper">发货员</Select.Option>
                   </Select>
                   <Button icon={<ReloadOutlined />} onClick={() => refetchAccounts()}>
@@ -574,7 +574,7 @@ const AdminCredits: React.FC = () => {
             </Radio.Group>
           </Form.Item>
 
-          <Form.Item name="payment_amount_cny" label="实付金额(CNY)">
+          <Form.Item name="payment_amount_cny" label="实付金额">
             <InputNumber
               style={{ width: '100%' }}
               placeholder="可选，记录实际支付金额"
