@@ -6,10 +6,8 @@
  */
 import {
   ShopOutlined,
-  KeyOutlined,
   ApiOutlined,
   SaveOutlined,
-  ReloadOutlined,
   PlusOutlined,
   ClockCircleOutlined,
   UserOutlined,
@@ -22,12 +20,8 @@ import {
   Input,
   Button,
   Space,
-  Tabs,
   Alert,
-  Divider,
   Typography,
-  Row,
-  Col,
   Badge,
   Modal,
   App,
@@ -37,15 +31,14 @@ import {
   Spin,
 } from 'antd';
 import axios from 'axios';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
 import styles from './ShopManagement.module.scss';
 
 import PageTitle from '@/components/PageTitle';
-import { useAuth } from '@/hooks/useAuth';
 import { usePermission } from '@/hooks/usePermission';
 import * as ozonApi from '@/services/ozon';
-import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
+import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
 
 // OZON店铺表单值接口
 interface OzonShopFormValues {
@@ -92,16 +85,12 @@ interface Shop {
 const ShopManagement: React.FC = () => {
   const { modal } = App.useApp();
   const queryClient = useQueryClient();
-  const { user } = useAuth();
-  const { canOperate, isAdmin } = usePermission();
-  const [form] = Form.useForm();
+  const { isAdmin } = usePermission();
+  const [editForm] = Form.useForm();
   const [testingConnection, setTestingConnection] = useState(false);
-  const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
   const [addShopModalVisible, setAddShopModalVisible] = useState(false);
-
-  // 判断用户角色
-  const isManager = user?.role === 'manager';
-  const isSubAccount = user?.role === 'sub_account';
+  const [editShopModalVisible, setEditShopModalVisible] = useState(false);
+  const [editingShop, setEditingShop] = useState<Shop | null>(null);
 
   // 获取店铺列表（包含完整信息，包括API凭证和所有者信息）
   const {
@@ -127,12 +116,11 @@ const ShopManagement: React.FC = () => {
         config: {},
       });
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       notifySuccess('添加成功', '店铺添加成功');
       setAddShopModalVisible(false);
       queryClient.invalidateQueries({ queryKey: ['shops'] });
       queryClient.invalidateQueries({ queryKey: ['ozon', 'shops'] });
-      setSelectedShop(data);
     },
     onError: (error: unknown) => {
       let errorMsg = '添加失败';
@@ -155,11 +143,11 @@ const ShopManagement: React.FC = () => {
   // 保存店铺配置
   const saveShopMutation = useMutation({
     mutationFn: async (values: OzonShopFormValues) => {
-      if (!selectedShop) {
+      if (!editingShop) {
         throw new Error('请先选择要编辑的店铺');
       }
 
-      return ozonApi.updateShop(selectedShop.id, {
+      return ozonApi.updateShop(editingShop.id, {
         shop_name: values.shop_name,
         shop_name_cn: values.shop_name_cn,
         status: 'active',
@@ -172,28 +160,13 @@ const ShopManagement: React.FC = () => {
         },
       });
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       notifySuccess('保存成功', '店铺配置已保存');
       queryClient.invalidateQueries({ queryKey: ['shops'] });
       queryClient.invalidateQueries({ queryKey: ['ozon', 'shops'] });
-      setSelectedShop(data);
-
-      const currentApiKey = form.getFieldValue('api_key');
-
-      form.setFieldsValue({
-        shop_name: data.shop_name,
-        shop_name_cn: data.shop_name_cn,
-        client_id: data.api_credentials?.client_id,
-        api_key:
-          currentApiKey && currentApiKey !== '******'
-            ? currentApiKey
-            : data.api_credentials?.api_key,
-        webhook_url: data.config?.webhook_url,
-      });
-
-      if (currentApiKey && currentApiKey !== '******') {
-        notifyInfo('提示', 'API Key 已安全保存（出于安全考虑不显示真实值）');
-      }
+      setEditShopModalVisible(false);
+      setEditingShop(null);
+      editForm.resetFields();
     },
     onError: (error: Error) => {
       notifyError('保存失败', `保存失败: ${error.message}`);
@@ -226,39 +199,25 @@ const ShopManagement: React.FC = () => {
     },
   });
 
-  // 选择店铺
-  useEffect(() => {
-    if (shopsData?.data?.[0] && !selectedShop) {
-      const shop = shopsData.data[0];
-      // 只有可编辑的店铺才自动选中
-      if (shop.can_edit) {
-        setSelectedShop(shop);
-      }
-    }
-  }, [shopsData, selectedShop]);
-
-  // 当选择店铺后，设置表单值
-  useEffect(() => {
-    if (selectedShop) {
-      const formValues = {
-        shop_name: selectedShop.shop_name,
-        shop_name_cn: selectedShop.shop_name_cn,
-        client_id: selectedShop.api_credentials?.client_id || '',
-        api_key: selectedShop.api_credentials?.api_key || '',
-        webhook_url: selectedShop.config?.webhook_url || '',
-      };
-      form.setFieldsValue(formValues);
-    }
-  }, [selectedShop, form]);
-
   const handleSave = (values: OzonShopFormValues) => {
-    if (!selectedShop) return;
+    if (!editingShop) return;
     saveShopMutation.mutate(values);
   };
 
   const handleTestConnection = () => {
-    if (!selectedShop) return;
-    testConnectionMutation.mutate(selectedShop.id);
+    if (!editingShop) return;
+    testConnectionMutation.mutate(editingShop.id);
+  };
+
+  const handleEditShop = (shop: Shop) => {
+    setEditingShop(shop);
+    editForm.setFieldsValue({
+      shop_name: shop.shop_name,
+      shop_name_cn: shop.shop_name_cn,
+      client_id: shop.api_credentials?.client_id || '',
+      api_key: shop.api_credentials?.api_key || '',
+    });
+    setEditShopModalVisible(true);
   };
 
   const handleAddShop = () => {
@@ -278,10 +237,6 @@ const ShopManagement: React.FC = () => {
           notifySuccess('删除成功', '店铺已删除');
           queryClient.invalidateQueries({ queryKey: ['shops'] });
           queryClient.invalidateQueries({ queryKey: ['ozon', 'shops'] });
-
-          if (selectedShop?.id === shop.id) {
-            setSelectedShop(null);
-          }
         } catch (error: unknown) {
           const err = error as Error;
           notifyError('删除失败', `删除失败: ${err.message}`);
@@ -360,7 +315,6 @@ const ShopManagement: React.FC = () => {
                       {text}
                       {record.shop_name_cn && <Text type="secondary"> [{record.shop_name_cn}]</Text>}
                     </Text>
-                    {record.id === selectedShop?.id && <Tag color="blue">当前选中</Tag>}
                     {!record.can_edit && (
                       <Tooltip title="此店铺由其他用户创建，您只有查看权限">
                         <Tag icon={<LockOutlined />} color="default">只读</Tag>
@@ -429,7 +383,7 @@ const ShopManagement: React.FC = () => {
                         <Button
                           type="link"
                           size="small"
-                          onClick={() => setSelectedShop(record)}
+                          onClick={() => handleEditShop(record)}
                         >
                           编辑
                         </Button>
@@ -452,111 +406,6 @@ const ShopManagement: React.FC = () => {
           />
         )}
       </Card>
-
-      {selectedShop && selectedShop.can_edit && (
-        <>
-          <Alert
-            message={`当前编辑店铺: ${selectedShop.shop_name}`}
-            type="info"
-            showIcon
-            className={styles.currentShopAlert}
-          />
-
-          <Form form={form} layout="vertical" onFinish={handleSave}>
-            <Card>
-              <Tabs
-                defaultActiveKey="1"
-                destroyInactiveTabPane
-                items={[
-                  {
-                    label: (
-                      <span>
-                        <KeyOutlined /> API配置
-                      </span>
-                    ),
-                    key: '1',
-                    children: (
-                      <div className={styles.contentContainer}>
-                        <Row gutter={16}>
-                          <Col span={12}>
-                            <Form.Item
-                              name="shop_name"
-                              label="店铺名称（俄文）"
-                              rules={[{ required: true, message: '请输入店铺名称' }]}
-                            >
-                              <Input placeholder="请输入店铺名称（俄文）" />
-                            </Form.Item>
-                          </Col>
-                          <Col span={12}>
-                            <Form.Item name="shop_name_cn" label="店铺中文名称">
-                              <Input placeholder="请输入店铺中文名称（选填）" />
-                            </Form.Item>
-                          </Col>
-                        </Row>
-
-                        <Row gutter={16}>
-                          <Col span={12}>
-                            <Form.Item
-                              name="client_id"
-                              label="Client ID"
-                              rules={[{ required: true, message: '请输入Client ID' }]}
-                            >
-                              <Input placeholder="Ozon Client ID" />
-                            </Form.Item>
-                          </Col>
-                          <Col span={12}>
-                            <Form.Item
-                              name="api_key"
-                              label="API Key"
-                              rules={[
-                                {
-                                  validator: (_, value) => {
-                                    if (selectedShop && (!value || value === '******')) {
-                                      return Promise.resolve();
-                                    }
-                                    if (!value) {
-                                      return Promise.reject(new Error('请输入API Key'));
-                                    }
-                                    return Promise.resolve();
-                                  },
-                                },
-                              ]}
-                              extra="出于安全考虑，保存后将显示为掩码。如需更新，直接输入新值即可；不修改则留空。"
-                            >
-                              <Input.Password placeholder="不修改则留空" />
-                            </Form.Item>
-                          </Col>
-                        </Row>
-                      </div>
-                    ),
-                  },
-                ]}
-              />
-
-              <Divider />
-
-              <Form.Item>
-                <Space>
-                  <Button icon={<ApiOutlined />} onClick={handleTestConnection} loading={testingConnection}>
-                    测试连接
-                  </Button>
-                  <Button
-                    type="primary"
-                    htmlType="submit"
-                    icon={<SaveOutlined />}
-                    loading={saveShopMutation.isPending}
-                  >
-                    保存配置
-                  </Button>
-                  <Button icon={<ReloadOutlined />} onClick={() => form.resetFields()}>
-                    重置
-                  </Button>
-                </Space>
-              </Form.Item>
-            </Card>
-          </Form>
-        </>
-      )}
 
       {/* 添加店铺弹窗 */}
       <Modal
@@ -621,6 +470,89 @@ const ShopManagement: React.FC = () => {
                 确认添加
               </Button>
               <Button onClick={() => setAddShopModalVisible(false)}>取消</Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 编辑店铺弹窗 */}
+      <Modal
+        title={`编辑店铺: ${editingShop?.shop_name_cn || editingShop?.shop_name || ''}`}
+        open={editShopModalVisible}
+        onCancel={() => {
+          setEditShopModalVisible(false);
+          setEditingShop(null);
+          editForm.resetFields();
+        }}
+        footer={null}
+        width={600}
+      >
+        <Form
+          form={editForm}
+          layout="vertical"
+          onFinish={handleSave}
+        >
+          <Form.Item
+            name="shop_name"
+            label="店铺名称（俄文）"
+            rules={[{ required: true, message: '请输入店铺名称' }]}
+          >
+            <Input placeholder="请输入店铺名称（俄文）" />
+          </Form.Item>
+
+          <Form.Item name="shop_name_cn" label="店铺中文名称">
+            <Input placeholder="请输入店铺中文名称（选填）" />
+          </Form.Item>
+
+          <Form.Item
+            name="client_id"
+            label="Client ID"
+            rules={[{ required: true, message: '请输入Client ID' }]}
+          >
+            <Input placeholder="Ozon Client ID" />
+          </Form.Item>
+
+          <Form.Item
+            name="api_key"
+            label="API Key"
+            rules={[
+              {
+                validator: (_, value) => {
+                  if (editingShop && (!value || value === '******')) {
+                    return Promise.resolve();
+                  }
+                  if (!value) {
+                    return Promise.reject(new Error('请输入API Key'));
+                  }
+                  return Promise.resolve();
+                },
+              },
+            ]}
+            extra="出于安全考虑，保存后将显示为掩码。如需更新，直接输入新值即可；不修改则留空。"
+          >
+            <Input.Password placeholder="不修改则留空" />
+          </Form.Item>
+
+          <Form.Item>
+            <Space>
+              <Button icon={<ApiOutlined />} onClick={handleTestConnection} loading={testingConnection}>
+                测试连接
+              </Button>
+              <Button
+                type="primary"
+                htmlType="submit"
+                icon={<SaveOutlined />}
+                loading={saveShopMutation.isPending}
+              >
+                保存配置
+              </Button>
+              <Button onClick={() => {
+                setEditShopModalVisible(false);
+                setEditingShop(null);
+                editForm.resetFields();
+              }}>
+                取消
+              </Button>
             </Space>
           </Form.Item>
         </Form>

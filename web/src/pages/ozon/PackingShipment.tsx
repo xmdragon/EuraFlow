@@ -486,16 +486,8 @@ const PackingShipment: React.FC = () => {
 
         // 在回调内部计算 hasMore 并更新状态
         const hasMore = result.length < (ordersData.total || 0);
-        console.warn('[Data Debug]', {
-          resultLength: result.length,
-          total: ordersData.total,
-          hasMore,
-          currentPage: currentPageRef.current,
-          flattenedCount: flattened.length,
-        });
 
         // 使用 setTimeout 确保在当前更新周期后设置
-        // 避免在 setState 回调中直接调用其他 setState
         setTimeout(() => {
           setHasMoreData(hasMore);
           setIsLoadingMore(false);
@@ -507,31 +499,37 @@ const PackingShipment: React.FC = () => {
   }, [ordersData]); // 仅依赖 ordersData 对象
 
   // 滚动监听：滚动到底部加载下一页（带节流）
+  // 注意：Dashboard 的 .content 容器设置了 overflow-y: auto，所以滚动发生在该容器内
   const lastScrollTriggerRef = useRef(0);
   useEffect(() => {
-    const handleScroll = () => {
+    const handleScroll = (e: Event) => {
       // 节流：200ms 内只触发一次
       const now = Date.now();
       if (now - lastScrollTriggerRef.current < 200) {
         return;
       }
 
-      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-      const windowHeight = window.innerHeight;
-      const documentHeight = document.documentElement.scrollHeight;
-      const scrollPercent = (scrollTop + windowHeight) / documentHeight;
+      // 获取滚动容器（可能是 window 或 .content 容器）
+      const target = e.target as HTMLElement | Document;
+      let scrollTop: number;
+      let clientHeight: number;
+      let scrollHeight: number;
 
-      // DEBUG: 输出滚动信息
-      console.warn('[Scroll Debug]', {
-        scrollPercent: scrollPercent.toFixed(2),
-        isLoadingMore,
-        hasMoreData,
-        operationStatus,
-        currentPage: currentPageRef.current,
-        allPostingsCount: allPostings.length,
-      });
+      if (target === document) {
+        // window 滚动
+        scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        clientHeight = window.innerHeight;
+        scrollHeight = document.documentElement.scrollHeight;
+      } else {
+        // 容器滚动
+        scrollTop = (target as HTMLElement).scrollTop;
+        clientHeight = (target as HTMLElement).clientHeight;
+        scrollHeight = (target as HTMLElement).scrollHeight;
+      }
 
-      // 滚动到85%时触发加载（降低阈值，更早触发）
+      const scrollPercent = (scrollTop + clientHeight) / scrollHeight;
+
+      // 滚动到85%时触发加载
       if (scrollPercent > 0.85) {
         lastScrollTriggerRef.current = now;
 
@@ -543,22 +541,35 @@ const PackingShipment: React.FC = () => {
         } else {
           // 非扫描模式使用原有的分页逻辑
           if (!isLoadingMore && hasMoreData) {
-            console.warn('[Scroll Debug] Triggering load more, page:', currentPageRef.current + 1);
             setIsLoadingMore(true);
             setCurrentPage((prev) => {
               const next = prev + 1;
               currentPageRef.current = next; // 同步更新 ref
               return next;
             });
-          } else {
-            console.warn('[Scroll Debug] Not loading:', { isLoadingMore, hasMoreData });
           }
         }
       }
     };
 
+    // 查找 Dashboard 的 .content 滚动容器
+    // 该容器通过 CSS module 类名 styles.content 渲染，实际类名可能是 Dashboard_content__xxx
+    const contentContainer = document.querySelector('[class*="Dashboard_content"]') ||
+                             document.querySelector('[class*="content_"]') ||
+                             document.querySelector('.ant-layout-content');
+
+    if (contentContainer) {
+      contentContainer.addEventListener('scroll', handleScroll, { passive: true });
+    }
+    // 同时监听 window 滚动作为备用
     window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+
+    return () => {
+      if (contentContainer) {
+        contentContainer.removeEventListener('scroll', handleScroll);
+      }
+      window.removeEventListener('scroll', handleScroll);
+    };
   }, [isLoadingMore, hasMoreData, operationStatus, isLoadingScanMore, scanHasMore, currentScanTrackingNumber, allPostings.length]);
 
   // 展开订单数据为货件维度（PostingWithOrder 数组）- 使用累积的数据
@@ -1670,6 +1681,7 @@ const PackingShipment: React.FC = () => {
                     <Option value="咸鱼">咸鱼</Option>
                     <Option value="淘宝">淘宝</Option>
                     <Option value="库存">库存</Option>
+                    <Option value="其他">其他</Option>
                   </Select>
                 </Space>
               )}

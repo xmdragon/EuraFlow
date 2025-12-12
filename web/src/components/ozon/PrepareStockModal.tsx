@@ -422,7 +422,11 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
           <Select.Option value="拼多多">拼多多</Select.Option>
           <Select.Option value="咸鱼">咸鱼</Select.Option>
           <Select.Option value="淘宝">淘宝</Select.Option>
-          <Select.Option value="库存">库存</Select.Option>
+          {/* 只有有部分库存时才显示"库存"选项 */}
+          {record.stockAvailable > 0 && (
+            <Select.Option value="库存">库存</Select.Option>
+          )}
+          <Select.Option value="其他">其他</Select.Option>
         </Select>
       ),
     },

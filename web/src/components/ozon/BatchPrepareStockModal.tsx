@@ -19,7 +19,7 @@ import {
   Tag,
   Tooltip,
 } from 'antd';
-import { CopyOutlined, ExpandOutlined, CompressOutlined } from '@ant-design/icons';
+import { CopyOutlined, ExpandOutlined, CompressOutlined, LinkOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import React, { useState, useEffect } from 'react';
 
@@ -91,6 +91,10 @@ const BatchPrepareStockModal: React.FC<BatchPrepareStockModalProps> = ({
   // 进货价格历史状态
   const [showPriceHistory, setShowPriceHistory] = useState(false);
   const [isPriceHistoryExpanded, setIsPriceHistoryExpanded] = useState(false);
+
+  // 图片预览状态
+  const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string>('');
 
   // 查询库存信息（使用第一个 posting）
   const firstPostingNumber = skuGroup?.postings[0]?.posting_number;
@@ -384,6 +388,11 @@ const BatchPrepareStockModal: React.FC<BatchPrepareStockModalProps> = ({
                 height: 50,
                 objectFit: 'cover',
                 borderRadius: 4,
+                cursor: 'pointer',
+              }}
+              onClick={() => {
+                setPreviewImageUrl(record.productImage!);
+                setImagePreviewVisible(true);
               }}
             />
           ) : (
@@ -538,10 +547,11 @@ const BatchPrepareStockModal: React.FC<BatchPrepareStockModalProps> = ({
             <Select.Option value="拼多多">拼多多</Select.Option>
             <Select.Option value="咸鱼">咸鱼</Select.Option>
             <Select.Option value="淘宝">淘宝</Select.Option>
-            {/* 场景B：有部分库存时也显示"库存"选项 */}
+            {/* 场景B：有部分库存时才显示"库存"选项 */}
             {record.stockAvailable > 0 && (
               <Select.Option value="库存">库存</Select.Option>
             )}
+            <Select.Option value="其他">其他</Select.Option>
           </Select>
         );
       },
@@ -712,6 +722,7 @@ const BatchPrepareStockModal: React.FC<BatchPrepareStockModalProps> = ({
   const summary = getSummaryData();
 
   return (
+    <>
     <Modal
       title="批量备货"
       open={visible}
@@ -912,6 +923,62 @@ const BatchPrepareStockModal: React.FC<BatchPrepareStockModalProps> = ({
         </Space>
       )}
     </Modal>
+
+      {/* 图片预览 - 右上角显示商品链接 */}
+      <Modal
+        open={imagePreviewVisible}
+        footer={null}
+        onCancel={() => setImagePreviewVisible(false)}
+        centered
+        width="auto"
+        styles={{
+          body: { padding: 0, background: 'transparent' },
+          content: { background: 'transparent', boxShadow: 'none' },
+        }}
+      >
+        <div style={{ position: 'relative' }}>
+          {/* 商品链接 - 右上角 */}
+          {skuGroup?.sku && (
+            <a
+              href={`https://www.ozon.ru/product/${skuGroup.sku}/`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                position: 'absolute',
+                top: 8,
+                right: 8,
+                zIndex: 10,
+                background: 'rgba(0, 0, 0, 0.6)',
+                color: '#fff',
+                padding: '4px 12px',
+                borderRadius: 4,
+                fontSize: 13,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                textDecoration: 'none',
+              }}
+            >
+              <LinkOutlined />
+              OZON商品页
+            </a>
+          )}
+          {/* 大图 */}
+          {previewImageUrl && (
+            <img
+              src={previewImageUrl}
+              alt="商品图片"
+              style={{
+                maxWidth: '80vw',
+                maxHeight: '80vh',
+                objectFit: 'contain',
+                borderRadius: 8,
+              }}
+            />
+          )}
+        </div>
+      </Modal>
+    </>
   );
 };
 

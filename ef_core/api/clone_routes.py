@@ -125,101 +125,41 @@ async def get_current_admin_user(
 
 
 # ========== API 路由 ==========
+# 注意：固定路径路由必须在动态路径路由之前定义，否则会被 /{user_id} 匹配
 
-@router.post("/{user_id}", response_model=CloneResponse, summary="克隆用户身份")
-async def clone_identity(
-    user_id: int,
+
+@router.get("/status", response_model=CloneStatusResponse, summary="获取克隆状态")
+async def get_clone_status(
     request: Request,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    session: AsyncSession = Depends(get_async_session)
+    credentials: HTTPAuthorizationCredentials = Depends(security)
 ):
     """
-    克隆指定用户的身份
+    获取当前的克隆状态
 
-    - 仅超级管理员（role=admin）可以使用此功能
-    - 仅能克隆 manager 角色的用户
-    - 克隆后获得被克隆用户的店铺权限
-    - 克隆有效期 30 分钟
-    - 克隆期间不能访问用户管理和系统管理
+    - 返回是否在克隆状态
+    - 如果在克隆状态，返回克隆会话信息和剩余时间
     """
-    admin_user, token_payload = await get_current_admin_user(request, credentials, session)
-
-    # 验证是否为超级管理员
-    if admin_user.role != "admin":
-        raise ForbiddenError(
-            code="NOT_ADMIN",
-            detail="只有超级管理员可以克隆身份"
-        )
-
-    # 检查是否已经在克隆状态
-    if token_payload.get("is_cloned"):
-        raise ForbiddenError(
-            code="ALREADY_CLONED",
-            detail="已在克隆状态，请先恢复身份"
-        )
-
-    # 创建克隆会话
-    clone_service = get_clone_service()
-    clone_result = await clone_service.create_clone_session(
-        admin_user=admin_user,
-        target_user_id=user_id,
-        original_token_data=token_payload
-    )
-
-    # 生成克隆 Token
     auth_service = get_auth_service()
-    clone_token_data = clone_result["clone_token_data"]
 
-    access_token = auth_service.create_access_token(clone_token_data)
-    refresh_token = auth_service.create_refresh_token({
-        "sub": clone_token_data["sub"],
-        "is_cloned": True,
-        "clone_session_id": clone_result["session_id"],
-        "original_user_id": admin_user.id
-    })
+    # 解码 Token
+    payload = auth_service.decode_token(credentials.credentials)
 
-    # 记录审计日志
-    db_manager = get_db_manager()
-    async with db_manager.get_session() as audit_db:
-        await AuditService.log_action(
-            db=audit_db,
-            user_id=admin_user.id,
-            username=admin_user.username,
-            module="user",
-            action="clone_identity",
-            action_display="克隆身份",
-            table_name="users",
-            record_id=str(user_id),
-            changes={
-                "cloned_user": {"new": clone_result["cloned_user"]["username"]},
-                "session_id": {"new": clone_result["session_id"]},
-                "expires_at": {"new": clone_result["expires_at"].isoformat()}
-            },
-            ip_address=request.client.host if request.client else None,
-            user_agent=request.headers.get("user-agent")
-        )
+    # 检查是否在克隆状态
+    if not payload.get("is_cloned"):
+        return {"is_cloned": False}
 
-    logger.info(
-        "Identity cloned",
-        admin_user_id=admin_user.id,
-        admin_username=admin_user.username,
-        cloned_user_id=user_id,
-        cloned_username=clone_result["cloned_user"]["username"],
-        session_id=clone_result["session_id"]
-    )
+    clone_session_id = payload.get("clone_session_id")
+    if not clone_session_id:
+        return {"is_cloned": False}
 
-    return {
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "token_type": "bearer",
-        "clone_session": {
-            "session_id": clone_result["session_id"],
-            "original_user": clone_result["original_user"],
-            "cloned_user": clone_result["cloned_user"],
-            "expires_at": clone_result["expires_at"].isoformat(),
-            "remaining_seconds": clone_result["remaining_seconds"]
-        }
-    }
+    # 获取克隆状态
+    clone_service = get_clone_service()
+    status = await clone_service.get_clone_status(clone_session_id)
+
+    if not status:
+        return {"is_cloned": False}
+
+    return status
 
 
 @router.post("/restore", response_model=RestoreResponse, summary="恢复原始身份")
@@ -341,35 +281,97 @@ async def restore_identity(
     }
 
 
-@router.get("/status", response_model=CloneStatusResponse, summary="获取克隆状态")
-async def get_clone_status(
+@router.post("/{user_id}", response_model=CloneResponse, summary="克隆用户身份")
+async def clone_identity(
+    user_id: int,
     request: Request,
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    session: AsyncSession = Depends(get_async_session)
 ):
     """
-    获取当前的克隆状态
+    克隆指定用户的身份
 
-    - 返回是否在克隆状态
-    - 如果在克隆状态，返回克隆会话信息和剩余时间
+    - 仅超级管理员（role=admin）可以使用此功能
+    - 仅能克隆 manager 角色的用户
+    - 克隆后获得被克隆用户的店铺权限
+    - 克隆有效期 30 分钟
+    - 克隆期间不能访问用户管理和系统管理
     """
-    auth_service = get_auth_service()
+    admin_user, token_payload = await get_current_admin_user(request, credentials, session)
 
-    # 解码 Token
-    payload = auth_service.decode_token(credentials.credentials)
+    # 验证是否为超级管理员
+    if admin_user.role != "admin":
+        raise ForbiddenError(
+            code="NOT_ADMIN",
+            detail="只有超级管理员可以克隆身份"
+        )
 
-    # 检查是否在克隆状态
-    if not payload.get("is_cloned"):
-        return {"is_cloned": False}
+    # 检查是否已经在克隆状态
+    if token_payload.get("is_cloned"):
+        raise ForbiddenError(
+            code="ALREADY_CLONED",
+            detail="已在克隆状态，请先恢复身份"
+        )
 
-    clone_session_id = payload.get("clone_session_id")
-    if not clone_session_id:
-        return {"is_cloned": False}
-
-    # 获取克隆状态
+    # 创建克隆会话
     clone_service = get_clone_service()
-    status = await clone_service.get_clone_status(clone_session_id)
+    clone_result = await clone_service.create_clone_session(
+        admin_user=admin_user,
+        target_user_id=user_id,
+        original_token_data=token_payload
+    )
 
-    if not status:
-        return {"is_cloned": False}
+    # 生成克隆 Token
+    auth_service = get_auth_service()
+    clone_token_data = clone_result["clone_token_data"]
 
-    return status
+    access_token = auth_service.create_access_token(clone_token_data)
+    refresh_token = auth_service.create_refresh_token({
+        "sub": clone_token_data["sub"],
+        "is_cloned": True,
+        "clone_session_id": clone_result["session_id"],
+        "original_user_id": admin_user.id
+    })
+
+    # 记录审计日志
+    db_manager = get_db_manager()
+    async with db_manager.get_session() as audit_db:
+        await AuditService.log_action(
+            db=audit_db,
+            user_id=admin_user.id,
+            username=admin_user.username,
+            module="user",
+            action="clone_identity",
+            action_display="克隆身份",
+            table_name="users",
+            record_id=str(user_id),
+            changes={
+                "cloned_user": {"new": clone_result["cloned_user"]["username"]},
+                "session_id": {"new": clone_result["session_id"]},
+                "expires_at": {"new": clone_result["expires_at"].isoformat()}
+            },
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent")
+        )
+
+    logger.info(
+        "Identity cloned",
+        admin_user_id=admin_user.id,
+        admin_username=admin_user.username,
+        cloned_user_id=user_id,
+        cloned_username=clone_result["cloned_user"]["username"],
+        session_id=clone_result["session_id"]
+    )
+
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "clone_session": {
+            "session_id": clone_result["session_id"],
+            "original_user": clone_result["original_user"],
+            "cloned_user": clone_result["cloned_user"],
+            "expires_at": clone_result["expires_at"].isoformat(),
+            "remaining_seconds": clone_result["remaining_seconds"]
+        }
+    }
