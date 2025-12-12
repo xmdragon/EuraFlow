@@ -625,8 +625,8 @@ const Dashboard: React.FC = () => {
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
-      {/* 无店铺时显示全屏弹窗 */}
-      {showNoShopModal && !hasShops && user && (
+      {/* 无店铺时显示全屏弹窗（仅主账号和子账号，打包员不显示） */}
+      {showNoShopModal && !hasShops && user && !isShipper && (
         <NoShopModal
           role={user.role}
           onLogout={handleLogout}
@@ -647,7 +647,15 @@ const Dashboard: React.FC = () => {
               onClick={async () => {
                 try {
                   await restoreIdentity();
-                  window.location.reload();
+                  // 如果当前在店铺管理或扫描单号页面，跳转到首页
+                  const currentPath = window.location.pathname;
+                  const restrictedPaths = ['/dashboard/shops', '/dashboard/ozon/scan-shipping'];
+                  const isRestrictedPage = restrictedPaths.some(p => currentPath.startsWith(p));
+                  if (isRestrictedPage) {
+                    window.location.href = '/dashboard';
+                  } else {
+                    window.location.reload();
+                  }
                 } catch {
                   window.location.href = '/login';
                 }

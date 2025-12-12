@@ -24,7 +24,7 @@ import {
   Typography,
   Empty,
   Spin,
-  Radio,
+  Select,
   message,
 } from 'antd';
 import dayjs from 'dayjs';
@@ -34,8 +34,8 @@ import styles from './PackingShipment.module.scss';
 
 import PageTitle from '@/components/PageTitle';
 import ProductImage from '@/components/ozon/ProductImage';
-import EditNotesModal from '@/components/ozon/packing/EditNotesModal';
 import PrintLabelModal from '@/components/ozon/packing/PrintLabelModal';
+import { useBatchPrint } from '@/hooks/useBatchPrint';
 import { useCopy } from '@/hooks/useCopy';
 import { useDateTime } from '@/hooks/useDateTime';
 import { usePermission } from '@/hooks/usePermission';
@@ -89,16 +89,13 @@ const ScanShipping: React.FC = () => {
   const [shopNameMap, setShopNameMap] = useState<Record<number, string>>({});
   const [printStatus, setPrintStatus] = useState<string>('all');
 
-  // 弹窗状态
-  const [editNotesModal, setEditNotesModal] = useState<{
-    visible: boolean;
-    posting: ozonApi.PostingWithOrder | null;
-  }>({ visible: false, posting: null });
-  const [printLabelModal, setPrintLabelModal] = useState<{
-    visible: boolean;
-    postingNumbers: string[];
-  }>({ visible: false, postingNumbers: [] });
-  const [isPrinting, setIsPrinting] = useState(false);
+  // 打印弹窗状态
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [printPdfUrl, setPrintPdfUrl] = useState('');
+  const [printingPostings, setPrintingPostings] = useState<ozonApi.PostingWithOrder[]>([]);
+
+  // 使用批量打印 hook
+  const { isPrinting, batchPrint } = useBatchPrint();
 
   const searchInputRef = useRef<InputRef>(null);
 
@@ -197,13 +194,22 @@ const ScanShipping: React.FC = () => {
   };
 
   // 打印标签
-  const handlePrint = useCallback((postingNumbers: string[]) => {
+  const handlePrint = useCallback(async (postingNumbers: string[]) => {
     if (postingNumbers.length === 0) {
       message.warning('请选择要打印的订单');
       return;
     }
-    setPrintLabelModal({ visible: true, postingNumbers });
-  }, []);
+
+    // 获取要打印的 posting 对象
+    const postingsToPrint = scanResults.filter(p => postingNumbers.includes(p.posting_number));
+
+    const result = await batchPrint(postingNumbers);
+    if (result?.pdf_url) {
+      setPrintPdfUrl(result.pdf_url);
+      setPrintingPostings(postingsToPrint);
+      setShowPrintModal(true);
+    }
+  }, [batchPrint, scanResults]);
 
   const handlePrintSingle = useCallback((postingNumber: string) => {
     handlePrint([postingNumber]);
@@ -213,16 +219,34 @@ const ScanShipping: React.FC = () => {
     handlePrint(selectedPostings);
   }, [handlePrint, selectedPostings]);
 
-  // 编辑备注
-  const handleOpenEditNotes = useCallback((posting: ozonApi.PostingWithOrder) => {
-    setEditNotesModal({ visible: true, posting });
+  // 关闭打印弹窗
+  const handleClosePrintModal = useCallback(() => {
+    setShowPrintModal(false);
+    setPrintPdfUrl('');
+    setPrintingPostings([]);
+    searchInputRef.current?.focus();
   }, []);
 
-  // 保存备注后刷新
-  const handleNotesUpdated = useCallback(() => {
-    // 重新搜索以刷新数据
-    handleSearch();
-  }, [handleSearch]);
+  // 标记已打印
+  const handleMarkPrinted = useCallback(async () => {
+    try {
+      // 逐个标记已打印
+      for (const posting of printingPostings) {
+        await ozonApi.markPostingPrinted(posting.posting_number);
+      }
+      message.success('已标记为已打印');
+      handleClosePrintModal();
+      handleSearch(); // 刷新数据
+    } catch (error) {
+      console.error('标记已打印失败:', error);
+      message.error('标记失败');
+    }
+  }, [printingPostings, handleClosePrintModal, handleSearch]);
+
+  // 编辑备注（暂时禁用）
+  const handleOpenEditNotes = useCallback((_posting: ozonApi.PostingWithOrder) => {
+    message.info('编辑备注功能请使用打包发货页面');
+  }, []);
 
   // 复制
   const handleCopy = useCallback((text: string, label: string) => {
@@ -543,7 +567,7 @@ const ScanShipping: React.FC = () => {
 
   return (
     <div className={styles.container}>
-      <PageTitle>扫描单号</PageTitle>
+      <PageTitle title="扫描单号" />
 
       {/* 搜索区域 */}
       <Card className={styles.filterCard}>
@@ -567,11 +591,16 @@ const ScanShipping: React.FC = () => {
                 ) : null
               }
             />
-            <Radio.Group value={printStatus} onChange={(e) => setPrintStatus(e.target.value)}>
-              <Radio.Button value="all">全部</Radio.Button>
-              <Radio.Button value="unprinted">未打印</Radio.Button>
-              <Radio.Button value="printed">已打印</Radio.Button>
-            </Radio.Group>
+            <Select
+              value={printStatus}
+              onChange={setPrintStatus}
+              style={{ width: 100 }}
+              options={[
+                { value: 'all', label: '全部' },
+                { value: 'unprinted', label: '未打印' },
+                { value: 'printed', label: '已打印' },
+              ]}
+            />
             <Button type="primary" icon={<SearchOutlined />} onClick={handleSearch} loading={loading}>
               搜索
             </Button>
@@ -669,26 +698,16 @@ const ScanShipping: React.FC = () => {
         )}
       </Card>
 
-      {/* 编辑备注弹窗 */}
-      {editNotesModal.posting && (
-        <EditNotesModal
-          visible={editNotesModal.visible}
-          posting={editNotesModal.posting}
-          onCancel={() => setEditNotesModal({ visible: false, posting: null })}
-          onSuccess={handleNotesUpdated}
-        />
-      )}
-
       {/* 打印标签弹窗 */}
       <PrintLabelModal
-        visible={printLabelModal.visible}
-        postingNumbers={printLabelModal.postingNumbers}
-        onCancel={() => setPrintLabelModal({ visible: false, postingNumbers: [] })}
-        onPrintStart={() => setIsPrinting(true)}
-        onPrintEnd={() => {
-          setIsPrinting(false);
-          handleSearch(); // 刷新数据
+        visible={showPrintModal}
+        pdfUrl={printPdfUrl}
+        postings={printingPostings}
+        onClose={handleClosePrintModal}
+        onPrint={() => {
+          // 打印按钮点击（浏览器打印由 Modal 内部处理）
         }}
+        onMarkPrinted={handleMarkPrinted}
       />
     </div>
   );

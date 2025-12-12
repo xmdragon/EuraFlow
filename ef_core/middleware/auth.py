@@ -340,13 +340,14 @@ def check_role(user, required_role: str) -> bool:
 
     Args:
         user: 用户对象
-        required_role: 要求的角色 (sub_account, manager, admin)
+        required_role: 要求的角色 (sub_account, manager, admin, shipper)
 
     Returns:
         bool: 是否满足角色要求
 
     角色权限层级：
     - admin > manager > sub_account
+    - shipper: 发货员，独立角色，只能访问扫描发货相关功能
     - admin: 超级管理员，可以查看所有店铺，管理所有用户
     - manager: 管理员，可以创建子账号和店铺（受级别限额）
     - sub_account: 子账号，只能查看被绑定的店铺
@@ -369,8 +370,13 @@ def check_role(user, required_role: str) -> bool:
         return user_role == "admin"
 
     # 如果要求 sub_account 角色（最低权限）
+    # shipper 也可以访问 sub_account 级别的功能（如打印标签）
     if required_role == "sub_account":
-        return user_role in ["sub_account", "manager", "admin"]
+        return user_role in ["sub_account", "manager", "admin", "shipper"]
+
+    # 如果要求 shipper 角色
+    if required_role == "shipper":
+        return user_role in ["shipper", "admin"]
 
     return False
 
@@ -416,7 +422,8 @@ def require_role(required_role: str = "manager"):
             role_names = {
                 "admin": "超级管理员",
                 "manager": "管理员",
-                "sub_account": "子账号"
+                "sub_account": "子账号",
+                "shipper": "发货员"
             }
             current_role_name = role_names.get(user.role, user.role)
             required_role_name = role_names.get(required_role, required_role)
