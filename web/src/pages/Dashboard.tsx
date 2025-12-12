@@ -32,6 +32,7 @@ import {
   TruckOutlined,
   GiftOutlined,
   InboxOutlined,
+  SwapOutlined,
 } from "@ant-design/icons";
 import {
   Layout,
@@ -168,7 +169,7 @@ const NoShopModal: React.FC<{
 };
 
 const Dashboard: React.FC = () => {
-  const { user, logout, isCloned } = useAuth();
+  const { user, logout, isCloned, cloneSession, restoreIdentity } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { quickMenuItems, addQuickMenu, removeQuickMenu, isInQuickMenu } = useQuickMenu();
@@ -594,6 +595,28 @@ const Dashboard: React.FC = () => {
       <Header className={styles.header}>
         <div className={styles.headerLogo}>EuraFlow</div>
         <Space size={16}>
+          {/* 克隆状态下显示恢复身份按钮 */}
+          {isCloned && cloneSession && (
+            <Button
+              type="primary"
+              size="small"
+              icon={<SwapOutlined />}
+              onClick={async () => {
+                try {
+                  await restoreIdentity();
+                  window.location.reload();
+                } catch {
+                  window.location.href = '/login';
+                }
+              }}
+              style={{
+                background: '#ff7a00',
+                borderColor: '#ff7a00',
+              }}
+            >
+              恢复身份
+            </Button>
+          )}
           <Dropdown
             menu={{ items: userMenuItems }}
             placement="bottomRight"
