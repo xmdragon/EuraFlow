@@ -205,16 +205,24 @@ const AuditLogsTable: React.FC = () => {
     sku: 'SKU',
     international_logistics_fee_cny: '国际运费(CNY)',
     last_mile_delivery_fee_cny: '尾程运费(CNY)',
+    ozon_commission_cny: 'OZON佣金(CNY)',
+    posting_number: '货件编号',
+    category_id: '类目ID',
 
     // 用户模块字段
     username: '用户名',
     role: '角色',
     is_active: '启用状态',
     shop_ids: '关联店铺',
+    shop_id: '店铺',
     permissions: '权限列表',
     password: '密码',
     login_method: '登录方式',
     success: '登录结果',
+    max_shops: '最大店铺数',
+    max_sub_accounts: '最大子账号数',
+    manager_level_id: '权限级别',
+    alias: '别名',
 
     // API密钥字段
     key_prefix: 'API密钥前缀',
@@ -230,6 +238,8 @@ const AuditLogsTable: React.FC = () => {
     deleted_products: '删除商品数',
     deleted_batches: '删除批次数',
     marked_count: '标记数量',
+    product_ids_count: '商品数量',
+    total_products: '商品总数',
 
     // 草稿模板字段
     template_name: '模板名称',
@@ -244,6 +254,9 @@ const AuditLogsTable: React.FC = () => {
     api_provider: 'API服务商',
     base_currency: '基准货币',
     api_key: 'API密钥',
+    currency: '货币',
+    language: '语言',
+    timezone: '时区',
 
     // 水印存储字段
     cloud_name: 'Cloudinary账号',
@@ -255,6 +268,17 @@ const AuditLogsTable: React.FC = () => {
     product_images_folder: '商品图片目录',
     region_id: '区域ID',
     access_key_id: 'AccessKey ID',
+
+    // 操作统计字段
+    success_count: '成功数量',
+    failed_count: '失败数量',
+    deduct_requested: '请求扣减',
+    deduct_actual: '实际扣减',
+    deleted: '已删除',
+    deleted_data: '删除数据',
+    is_reprint: '是否补打',
+    reason: '原因',
+    source: '来源',
   };
 
   // 需要跳过的上下文信息字段（不是实际变更，只是描述信息）
@@ -290,6 +314,14 @@ const AuditLogsTable: React.FC = () => {
     // 存储服务商
     cloudinary: 'Cloudinary',
     aliyun_oss: '阿里云OSS',
+    // 权限级别
+    '1': '基础权限',
+    '2': '高级权限',
+    '3': '完全权限',
+    // 来源
+    browser_extension: '浏览器扩展',
+    web: '网页端',
+    api: 'API',
   };
 
   // 翻译字段值
@@ -424,7 +456,7 @@ const AuditLogsTable: React.FC = () => {
       render: (text: string | null) => text || <Text type="secondary">-</Text>,
     },
     {
-      title: '货件编号',
+      title: '编号',
       dataIndex: 'record_id',
       key: 'record_id',
       width: 150,
@@ -507,9 +539,9 @@ const AuditLogsTable: React.FC = () => {
           </Select>
         </Form.Item>
 
-        <Form.Item name="record_id" label="货件编号">
+        <Form.Item name="record_id" label="编号">
           <Input
-            placeholder="请输入货件编号"
+            placeholder="请输入编号"
             allowClear
             className={styles.recordIdInput}
           />
@@ -585,7 +617,7 @@ const AuditLogsTable: React.FC = () => {
               </div>
             )}
             <div className={styles.detailRow}>
-              <Text strong>货件编号：</Text>
+              <Text strong>编号：</Text>
               <Text>{selectedLog.record_id}</Text>
             </div>
             {selectedLog.changes && (

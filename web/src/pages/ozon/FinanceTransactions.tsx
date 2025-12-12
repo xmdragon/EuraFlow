@@ -616,8 +616,8 @@ const FinanceTransactions: React.FC = () => {
 
       <div className={styles.contentContainer}>
         <Card className={styles.filterCard}>
-          <Row gutter={[16, 16]} align="middle">
-            <Col>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Space size="middle">
               <ShopSelector
                 value={selectedShop}
                 onChange={(value) => {
@@ -626,8 +626,6 @@ const FinanceTransactions: React.FC = () => {
                 }}
                 showAllOption={true}
               />
-            </Col>
-            <Col>
               <Select
                 value={selectedPeriod}
                 onChange={(value) => {
@@ -637,8 +635,6 @@ const FinanceTransactions: React.FC = () => {
                 style={{ minWidth: 200 }}
                 options={periodOptions}
               />
-            </Col>
-            <Col>
               <Select
                 value={transactionType}
                 onChange={(value) => {
@@ -653,17 +649,14 @@ const FinanceTransactions: React.FC = () => {
                   </Option>
                 ))}
               </Select>
-            </Col>
-            <Col flex="auto" />
-            <Col>
-              <Button
-                icon={<SyncOutlined />}
-                onClick={() => setSyncModalVisible(true)}
-              >
-                同步历史数据
-              </Button>
-            </Col>
-          </Row>
+            </Space>
+            <Button
+              icon={<SyncOutlined />}
+              onClick={() => setSyncModalVisible(true)}
+            >
+              同步历史数据
+            </Button>
+          </div>
         </Card>
 
         {/* 汇总统计卡片 */}
