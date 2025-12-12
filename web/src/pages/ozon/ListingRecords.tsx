@@ -48,6 +48,7 @@ import ShopSelector from '@/components/ozon/ShopSelector';
 import PageTitle from '@/components/PageTitle';
 import { useShopSelection } from '@/hooks/ozon/useShopSelection';
 import { useCurrency } from '@/hooks/useCurrency';
+import { useShopNameFormat } from '@/hooks/useShopNameFormat';
 import { usePermission } from '@/hooks/usePermission';
 import { useDateTime } from '@/hooks/useDateTime';
 import * as ozonApi from '@/services/ozon';
@@ -115,6 +116,7 @@ const ListingRecords: React.FC = () => {
   const { canOperate, canDelete } = usePermission();
   const { formatPrice } = useCurrency();
   const { formatDateTime } = useDateTime();
+  const { formatShopName } = useShopNameFormat();
   const navigate = useNavigate();
 
   // 状态管理
@@ -166,9 +168,9 @@ const ListingRecords: React.FC = () => {
 
   const shops = shopsData?.data || [];
 
-  // 获取当前选中店铺的名称
+  // 获取当前选中店铺的名称（根据用户设置格式化）
   const selectedShopName = selectedShop
-    ? shops.find((s) => s.id === selectedShop)?.shop_name || '未知店铺'
+    ? formatShopName(shops.find((s) => s.id === selectedShop)) || '未知店铺'
     : '全部店铺';
 
   // 查询上架记录列表
