@@ -259,8 +259,6 @@ const PermissionModal: React.FC<PermissionModalProps> = ({
     }
   };
 
-  const isAdminRole = role?.is_system && role?.name === 'admin';
-
   return (
     <Modal
       title={
@@ -285,7 +283,7 @@ const PermissionModal: React.FC<PermissionModalProps> = ({
             type="primary"
             loading={saving}
             onClick={handleSave}
-            disabled={isAdminRole || !hasChanges}
+            disabled={!hasChanges}
           >
             保存
           </Button>
@@ -293,15 +291,6 @@ const PermissionModal: React.FC<PermissionModalProps> = ({
       }
       destroyOnClose
     >
-      {isAdminRole && (
-        <Alert
-          message="admin 角色拥有所有权限，无需配置"
-          type="info"
-          showIcon
-          style={{ marginBottom: 16 }}
-        />
-      )}
-
       {loading || treeLoading ? (
         <div style={{ textAlign: 'center', padding: 40 }}>
           <Spin />
@@ -312,10 +301,10 @@ const PermissionModal: React.FC<PermissionModalProps> = ({
         <>
           <div style={{ marginBottom: 16 }}>
             <Space>
-              <Button size="small" onClick={() => setCheckedKeys(allLeafKeys)} disabled={isAdminRole}>
+              <Button size="small" onClick={() => setCheckedKeys(allLeafKeys)}>
                 全选
               </Button>
-              <Button size="small" onClick={() => setCheckedKeys([])} disabled={isAdminRole}>
+              <Button size="small" onClick={() => setCheckedKeys([])}>
                 清空
               </Button>
               <span style={{ color: '#999' }}>
@@ -335,7 +324,6 @@ const PermissionModal: React.FC<PermissionModalProps> = ({
                 setCheckedKeys(keys as string[]);
               }}
               treeData={treeData}
-              disabled={isAdminRole}
             />
           </div>
         </>
