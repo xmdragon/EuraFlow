@@ -462,8 +462,8 @@ const Dashboard: React.FC = () => {
         return orderedItems;
       })(),
     },
-    // 用户管理 - admin 和 manager 可见（克隆状态下隐藏）
-    ...(!isCloned && (user?.role === "admin" || user?.role === "manager")
+    // 用户管理 - admin 和 manager 可见
+    ...(user?.role === "admin" || user?.role === "manager"
       ? [
           {
             key: "users",

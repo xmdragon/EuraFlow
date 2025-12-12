@@ -201,6 +201,13 @@ const UserManagement: React.FC = () => {
     return rootUsers.map(cleanChildren);
   }, [users]);
 
+  // 计算需要展开的行（有子账号的用户）
+  const expandedRowKeys = useMemo(() => {
+    return treeUsers
+      .filter(user => user.children && user.children.length > 0)
+      .map(user => user.id);
+  }, [treeUsers]);
+
   // 获取用户列表
   const fetchUsers = async () => {
     setLoading(true);
@@ -702,7 +709,7 @@ const UserManagement: React.FC = () => {
           rowKey="id"
           loading={loading}
           expandable={{
-            defaultExpandAllRows: true,
+            expandedRowKeys,
             indentSize: 24,
           }}
           pagination={false}
