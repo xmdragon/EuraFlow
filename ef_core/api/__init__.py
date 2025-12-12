@@ -6,6 +6,7 @@ from fastapi import APIRouter
 import logging
 
 from .auth import router as auth_router
+from .clone_routes import router as clone_router
 from .api_keys_routes import router as api_keys_router
 from .orders import router as orders_router
 from .shipments import router as shipments_router
@@ -28,6 +29,7 @@ api_router = APIRouter()
 
 # 注册核心路由
 api_router.include_router(auth_router, tags=["Authentication"])
+api_router.include_router(clone_router, tags=["Clone Identity"])
 api_router.include_router(api_keys_router, tags=["API Keys"])
 api_router.include_router(manager_level_router, tags=["Manager Levels"])
 api_router.include_router(settings_router, tags=["Settings"])

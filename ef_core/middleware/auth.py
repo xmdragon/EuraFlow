@@ -14,7 +14,7 @@ from ef_core.services.auth_service import get_auth_service
 
 class AuthMiddleware(BaseHTTPMiddleware):
     """认证中间件"""
-    
+
     # 无需认证的路径
     PUBLIC_PATHS = {
         "/healthz",
@@ -34,6 +34,19 @@ class AuthMiddleware(BaseHTTPMiddleware):
         "/redoc",
         "/api/ef/v1/ozon/webhook",
         "/api/ef/v1/ozon/sync-services"  # 同步服务管理接口
+    ]
+
+    # 克隆状态下禁止访问的路径前缀
+    CLONE_RESTRICTED_PREFIXES = [
+        "/api/ef/v1/auth/users",      # 用户管理
+        "/api/ef/v1/system",          # 系统管理
+        "/api/ef/v1/manager-levels",  # 管理员级别
+    ]
+
+    # 克隆状态下允许访问的特殊路径（白名单，优先于 CLONE_RESTRICTED_PREFIXES）
+    CLONE_ALLOWED_PATHS = [
+        "/api/ef/v1/auth/clone/restore",  # 恢复身份
+        "/api/ef/v1/auth/clone/status",   # 获取状态
     ]
     
     def __init__(self, app, logger=None):
@@ -134,6 +147,28 @@ class AuthMiddleware(BaseHTTPMiddleware):
         request.state.can_write = user_info.get("can_write", True)
         request.state.write_error = user_info.get("write_error", "")
 
+        # 设置克隆状态信息
+        request.state.is_cloned = user_info.get("is_cloned", False)
+        request.state.clone_session_id = user_info.get("clone_session_id")
+        request.state.original_user_id = user_info.get("original_user_id")
+
+        # 克隆状态下检查受限路径
+        if user_info.get("is_cloned"):
+            if self._is_clone_restricted_path(request.url.path):
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "ok": False,
+                        "error": {
+                            "type": "about:blank",
+                            "title": "Forbidden",
+                            "status": 403,
+                            "detail": "克隆状态下无法访问此功能，请先恢复身份",
+                            "code": "CLONE_RESTRICTED"
+                        }
+                    }
+                )
+
         # 检查写操作权限（对于 suspended 或 expired 账号）
         if request.method in ("POST", "PUT", "PATCH", "DELETE"):
             if not user_info.get("can_write", True):
@@ -162,6 +197,19 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         # 前缀匹配
         for prefix in self.PUBLIC_PREFIXES:
+            if path.startswith(prefix):
+                return True
+
+        return False
+
+    def _is_clone_restricted_path(self, path: str) -> bool:
+        """检查是否为克隆状态下受限的路径"""
+        # 先检查白名单
+        if path in self.CLONE_ALLOWED_PATHS:
+            return False
+
+        # 检查受限前缀
+        for prefix in self.CLONE_RESTRICTED_PREFIXES:
             if path.startswith(prefix):
                 return True
 
@@ -219,7 +267,21 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 # 检查账号是否可以执行写操作（admin 不受限制）
                 can_write, write_error = user.can_write()
 
-            # 返回用户信息（包含 shop_ids、session_token 和写权限）
+            # 解析克隆状态
+            is_cloned = payload.get("is_cloned", False)
+            clone_session_id = payload.get("clone_session_id")
+            original_user_id = payload.get("original_user_id")
+
+            # 如果是克隆状态，验证克隆会话是否有效
+            if is_cloned and clone_session_id:
+                from ef_core.services.clone_service import get_clone_service
+                clone_service = get_clone_service()
+                session_valid = await clone_service.validate_clone_session(clone_session_id)
+                if not session_valid:
+                    self.logger.info(f"Clone session expired: {clone_session_id}")
+                    return None
+
+            # 返回用户信息（包含 shop_ids、session_token、写权限和克隆状态）
             return {
                 "user_id": user_id,
                 "shop_id": payload.get("shop_id"),
@@ -228,7 +290,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 "role": payload.get("role", "sub_account"),
                 "session_token": session_token,
                 "can_write": can_write,
-                "write_error": write_error
+                "write_error": write_error,
+                "is_cloned": is_cloned,
+                "clone_session_id": clone_session_id,
+                "original_user_id": original_user_id
             }
 
         except Exception as e:

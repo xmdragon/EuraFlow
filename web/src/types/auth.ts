@@ -91,6 +91,49 @@ export interface LoginResponse {
   user: User;
 }
 
+// 克隆用户信息
+export interface CloneUserInfo {
+  id: number;
+  username: string;
+  role?: UserRole;
+  shop_ids?: number[];
+}
+
+// 克隆会话信息
+export interface CloneSession {
+  session_id: string;
+  original_user: CloneUserInfo;
+  cloned_user: CloneUserInfo;
+  expires_at: string;
+  remaining_seconds: number;
+}
+
+// 克隆响应
+export interface CloneResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  clone_session: CloneSession;
+}
+
+// 恢复身份响应
+export interface RestoreResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  user: User;
+}
+
+// 克隆状态响应
+export interface CloneStatusResponse {
+  is_cloned: boolean;
+  session_id?: string;
+  original_user?: CloneUserInfo;
+  cloned_user?: CloneUserInfo;
+  expires_at?: string;
+  remaining_seconds?: number;
+}
+
 export interface AuthContextValue {
   user: User | null;
   settings: UserSettings | null;
@@ -99,4 +142,10 @@ export interface AuthContextValue {
   logout: () => void;
   refreshToken: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  // 克隆相关
+  isCloned: boolean;
+  cloneSession: CloneSession | null;
+  cloneExpiresIn: number;
+  cloneIdentity: (userId: number) => Promise<void>;
+  restoreIdentity: () => Promise<void>;
 }

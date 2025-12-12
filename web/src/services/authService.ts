@@ -1,7 +1,15 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import axios from 'axios';
 
-import type { LoginRequest, LoginResponse, User } from '@/types/auth';
+import type {
+  LoginRequest,
+  LoginResponse,
+  User,
+  CloneResponse,
+  RestoreResponse,
+  CloneStatusResponse,
+  CloneSession,
+} from '@/types/auth';
 import { loggers } from '@/utils/logger';
 
 const API_BASE_URL = '/api/ef/v1';
@@ -273,6 +281,68 @@ class AuthService {
       new_username: newUsername,
     });
     return response.data;
+  }
+
+  // ========== 克隆身份相关 ==========
+
+  /**
+   * 克隆指定用户的身份
+   * @param userId 要克隆的用户ID
+   */
+  async cloneIdentity(userId: number): Promise<CloneResponse> {
+    const response = await axios.post<CloneResponse>(`${API_BASE_URL}/auth/clone/${userId}`);
+    const { access_token, refresh_token } = response.data;
+    this.setTokens(access_token, refresh_token);
+    return response.data;
+  }
+
+  /**
+   * 恢复原始管理员身份
+   */
+  async restoreIdentity(): Promise<RestoreResponse> {
+    const response = await axios.post<RestoreResponse>(`${API_BASE_URL}/auth/clone/restore`);
+    const { access_token, refresh_token } = response.data;
+    this.setTokens(access_token, refresh_token);
+    return response.data;
+  }
+
+  /**
+   * 获取克隆状态
+   */
+  async getCloneStatus(): Promise<CloneStatusResponse> {
+    const response = await axios.get<CloneStatusResponse>(`${API_BASE_URL}/auth/clone/status`);
+    return response.data;
+  }
+
+  /**
+   * 从当前 Token 解析克隆信息
+   */
+  getCloneInfoFromToken(): {
+    isCloned: boolean;
+    cloneSessionId?: string;
+    originalUserId?: number;
+    originalUsername?: string;
+  } {
+    if (!this._accessToken) {
+      return { isCloned: false };
+    }
+
+    try {
+      const parts = this._accessToken.split('.');
+      if (parts.length !== 3) {
+        return { isCloned: false };
+      }
+
+      const payload = JSON.parse(atob(parts[1]));
+      return {
+        isCloned: payload.is_cloned || false,
+        cloneSessionId: payload.clone_session_id,
+        originalUserId: payload.original_user_id,
+        originalUsername: payload.original_username,
+      };
+    } catch {
+      return { isCloned: false };
+    }
   }
 }
 
