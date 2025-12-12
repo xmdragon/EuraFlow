@@ -30,6 +30,7 @@ import {
   Empty,
   Alert,
   Tooltip,
+  App,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { DataNode } from 'antd/es/tree';
@@ -139,7 +140,7 @@ interface PermissionModalProps {
   permissionTree: PermissionTreeNode[];
   treeLoading: boolean;
   onCancel: () => void;
-  onSave: (roleId: number, permissionCodes: string[]) => Promise<void>;
+  onSave: (roleId: number, roleName: string, permissionCodes: string[]) => Promise<void>;
 }
 
 const PermissionModal: React.FC<PermissionModalProps> = ({
@@ -150,6 +151,7 @@ const PermissionModal: React.FC<PermissionModalProps> = ({
   onCancel,
   onSave,
 }) => {
+  const { modal } = App.useApp();
   const [checkedKeys, setCheckedKeys] = useState<string[]>([]);
   const [originalCheckedKeys, setOriginalCheckedKeys] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -237,7 +239,7 @@ const PermissionModal: React.FC<PermissionModalProps> = ({
     if (!role) return;
     setSaving(true);
     try {
-      await onSave(role.id, checkedKeys);
+      await onSave(role.id, role.display_name, checkedKeys);
       setOriginalCheckedKeys([...checkedKeys]);
     } finally {
       setSaving(false);
@@ -247,11 +249,11 @@ const PermissionModal: React.FC<PermissionModalProps> = ({
   // 关闭前检查
   const handleCancel = () => {
     if (hasChanges) {
-      Modal.confirm({
+      modal.confirm({
         title: '未保存的更改',
         content: '当前角色的权限配置尚未保存，是否放弃更改？',
         okText: '放弃',
-        cancelText: '取消',
+        cancelText: '继续编辑',
         onOk: onCancel,
       });
     } else {
@@ -269,6 +271,7 @@ const PermissionModal: React.FC<PermissionModalProps> = ({
       }
       open={visible}
       onCancel={handleCancel}
+      maskClosable={false}
       width="66vw"
       styles={{
         body: {
@@ -443,9 +446,9 @@ const PermissionManagement: React.FC = () => {
   };
 
   // 保存权限配置
-  const handleSavePermissions = async (roleId: number, permissionCodes: string[]) => {
+  const handleSavePermissions = async (roleId: number, roleName: string, permissionCodes: string[]) => {
     const result = await setRolePermissions(roleId, permissionCodes);
-    notifySuccess(`已保存 ${result.count} 个权限`);
+    notifySuccess(`${roleName} 权限配置已保存`, `共 ${result.count} 个权限`);
   };
 
   // 表格列定义
