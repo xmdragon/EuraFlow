@@ -216,7 +216,7 @@ const ScanShipping: React.FC = () => {
     setCurrentSearchValue(value);
 
     try {
-      const result = await ozonApi.searchPostingByTracking(value, 0, 20, printStatus);
+      const result = await ozonApi.scanShippingSearch(value, 0, 20, printStatus);
       if (result.data && Array.isArray(result.data) && result.data.length > 0) {
         setScanResults(result.data);
         setScanTotal(result.total || result.data.length);
@@ -263,7 +263,7 @@ const ScanShipping: React.FC = () => {
 
     setIsLoadingMore(true);
     try {
-      const result = await ozonApi.searchPostingByTracking(
+      const result = await ozonApi.scanShippingSearch(
         currentSearchValue,
         scanOffset,
         20,
@@ -297,7 +297,7 @@ const ScanShipping: React.FC = () => {
     setIsLoadingMore(true);
 
     try {
-      const result = await ozonApi.searchPostingByTracking(currentSearchValue, 0, 20, newStatus);
+      const result = await ozonApi.scanShippingSearch(currentSearchValue, 0, 20, newStatus);
       if (result.data && Array.isArray(result.data) && result.data.length > 0) {
         setScanResults(result.data);
         setScanTotal(result.total || result.data.length);
@@ -557,7 +557,7 @@ const ScanShipping: React.FC = () => {
     if (!currentPosting) return;
 
     try {
-      const result = await ozonApi.searchPostingByTracking(currentPosting.posting_number);
+      const result = await ozonApi.scanShippingSearch(currentPosting.posting_number);
       if (result.data && Array.isArray(result.data) && result.data.length > 0) {
         const updatedPosting = result.data[0];
         setScanResults((prev) =>

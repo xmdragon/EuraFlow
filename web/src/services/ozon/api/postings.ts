@@ -115,6 +115,29 @@ export const searchPostingByTracking = async (
 };
 
 /**
+ * 扫描单号搜索（发货员专用，支持托管店铺）
+ */
+export const scanShippingSearch = async (
+  trackingNumber: string,
+  offset: number = 0,
+  limit: number = 20,
+  printStatus?: 'all' | 'printed' | 'unprinted'
+) => {
+  const response = await apiClient.get(
+    "/ozon/scan-shipping/search",
+    {
+      params: {
+        tracking_number: trackingNumber,
+        offset,
+        limit,
+        print_status: printStatus === 'all' ? undefined : printStatus,
+      },
+    },
+  );
+  return response.data;
+};
+
+/**
  * 标记货件为已打印状态
  */
 export const markPostingPrinted = async (postingNumber: string) => {

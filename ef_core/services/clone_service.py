@@ -64,12 +64,15 @@ class CloneService:
                 detail="只有超级管理员可以克隆身份"
             )
 
-        # 检查是否已有活跃的克隆会话
-        existing_session = await self._get_admin_active_session(admin_user.id)
-        if existing_session:
-            raise ValidationError(
-                code="CLONE_SESSION_EXISTS",
-                detail="已有活跃的克隆会话，请先恢复身份"
+        # 检查是否已有活跃的克隆会话，如有则自动失效
+        existing_session_id = await self._get_admin_active_session(admin_user.id)
+        if existing_session_id:
+            # 自动使旧会话失效
+            await self.invalidate_session(existing_session_id)
+            logger.info(
+                "Existing clone session invalidated for new clone",
+                admin_user_id=admin_user.id,
+                old_session_id=existing_session_id
             )
 
         # 查询目标用户
