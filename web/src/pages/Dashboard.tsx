@@ -641,7 +641,11 @@ const Dashboard: React.FC = () => {
       {/* 克隆状态提示条 */}
       <CloneBanner />
 
-      <Layout className={styles.mainLayout}>
+      {/* CloneBanner 高度约 40px，克隆状态下需要调整布局偏移 */}
+      <Layout
+        className={styles.mainLayout}
+        style={isCloned ? { marginTop: 88 } : undefined}
+      >
         <Sider
           theme="light"
           width={240}
@@ -650,6 +654,7 @@ const Dashboard: React.FC = () => {
           onCollapse={setCollapsed}
           collapsedWidth={80}
           className={styles.sider}
+          style={isCloned ? { top: 88, height: 'calc(100vh - 88px)' } : undefined}
         >
           <Menu
             theme="light"
@@ -662,7 +667,10 @@ const Dashboard: React.FC = () => {
           />
         </Sider>
 
-        <Content className={styles.content}>
+        <Content
+          className={styles.content}
+          style={isCloned ? { height: 'calc(100vh - 88px)' } : undefined}
+        >
           {/* 路由级错误边界：隔离各页面错误，防止单个页面崩溃影响整体导航 */}
           <ErrorBoundary name="页面路由">
             <Suspense fallback={<PageLoading />}>

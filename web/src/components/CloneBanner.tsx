@@ -37,6 +37,11 @@ export const CloneBanner: React.FC = () => {
   return (
     <div
       style={{
+        position: 'fixed',
+        top: 48, // Header 高度
+        left: 0,
+        right: 0,
+        zIndex: 999, // 略低于 Header 的 1000
         background: 'linear-gradient(90deg, #ff7a00, #ff9a3c)',
         color: 'white',
         padding: '8px 24px',
