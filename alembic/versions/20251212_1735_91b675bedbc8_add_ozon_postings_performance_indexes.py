@@ -8,6 +8,9 @@ Create Date: 2025-12-12 17:35:42.046163
 1. 标签预缓存查询优化索引 - 用于查询未下载标签的待发货订单
 2. 店铺+状态+时间复合索引 - 用于订单列表分页查询
 3. 创建时间索引 - 用于时间范围查询
+
+注意：使用普通 CREATE INDEX（非 CONCURRENTLY）以支持事务
+生产环境表较小，阻塞时间可忽略
 """
 from alembic import op
 import sqlalchemy as sa
@@ -26,7 +29,7 @@ def upgrade() -> None:
     # 用于查询：status IN ('awaiting_deliver', 'awaiting_packaging') AND label_pdf_path IS NULL
     # 显著加速标签预缓存任务
     op.execute("""
-        CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_ozon_postings_label_pending
+        CREATE INDEX IF NOT EXISTS idx_ozon_postings_label_pending
         ON ozon_postings (shop_id, status)
         WHERE label_pdf_path IS NULL OR label_pdf_path = ''
     """)
@@ -34,13 +37,13 @@ def upgrade() -> None:
     # 2. 店铺+状态+创建时间复合索引
     # 用于订单列表分页查询（按店铺筛选、状态筛选、时间排序）
     op.execute("""
-        CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_ozon_postings_shop_status_created
+        CREATE INDEX IF NOT EXISTS idx_ozon_postings_shop_status_created
         ON ozon_postings (shop_id, status, created_at DESC)
     """)
 
     # 3. 运单号索引（用于快速查询运单）
     op.execute("""
-        CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_ozon_postings_tracking_number
+        CREATE INDEX IF NOT EXISTS idx_ozon_postings_tracking_number
         ON ozon_postings (tracking_number)
         WHERE tracking_number IS NOT NULL AND tracking_number != ''
     """)
@@ -48,6 +51,6 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Downgrade database schema"""
-    op.execute("DROP INDEX CONCURRENTLY IF EXISTS idx_ozon_postings_label_pending")
-    op.execute("DROP INDEX CONCURRENTLY IF EXISTS idx_ozon_postings_shop_status_created")
-    op.execute("DROP INDEX CONCURRENTLY IF EXISTS idx_ozon_postings_tracking_number")
+    op.execute("DROP INDEX IF EXISTS idx_ozon_postings_label_pending")
+    op.execute("DROP INDEX IF EXISTS idx_ozon_postings_shop_status_created")
+    op.execute("DROP INDEX IF EXISTS idx_ozon_postings_tracking_number")
