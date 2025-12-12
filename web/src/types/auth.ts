@@ -145,7 +145,6 @@ export interface AuthContextValue {
   // 克隆相关
   isCloned: boolean;
   cloneSession: CloneSession | null;
-  cloneExpiresIn: number;
   cloneIdentity: (userId: number) => Promise<void>;
   restoreIdentity: () => Promise<void>;
 }

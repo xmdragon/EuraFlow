@@ -212,7 +212,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // 克隆相关
     isCloned,
     cloneSession,
-    cloneExpiresIn,
     cloneIdentity,
     restoreIdentity,
   };
