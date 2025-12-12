@@ -1,7 +1,7 @@
 /**
  * 额度系统 API 服务
  */
-import apiClient from './simpleAxios';
+import { apiClient } from './ozon/client';
 import type {
   CreditBalance,
   CalculateCostRequest,

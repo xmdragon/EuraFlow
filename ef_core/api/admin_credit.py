@@ -206,17 +206,17 @@ async def get_accounts(
     """
     获取所有用户额度列表（仅管理员）
 
-    - 只显示 admin 和 manager 的账户
+    - 显示 admin、manager 和 shipper 的账户
     - 支持搜索和筛选
     """
     # 构建用户查询条件
-    user_conditions = [User.role.in_(["admin", "manager"])]
+    user_conditions = [User.role.in_(["admin", "manager", "shipper"])]
 
     if search:
         user_conditions.append(User.username.ilike(f"%{search}%"))
 
     if role:
-        if role not in ["admin", "manager"]:
+        if role not in ["admin", "manager", "shipper"]:
             raise HTTPException(status_code=400, detail="无效的角色筛选")
         user_conditions.append(User.role == role)
 

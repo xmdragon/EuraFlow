@@ -138,6 +138,7 @@ const AdminCredits: React.FC = () => {
   const roleConfig: Record<string, { color: string; label: string }> = {
     admin: { color: 'gold', label: '超级管理员' },
     manager: { color: 'blue', label: '主账号' },
+    shipper: { color: 'orange', label: '发货员' },
   };
 
   // 支付方式配置
@@ -428,6 +429,7 @@ const AdminCredits: React.FC = () => {
                   >
                     <Select.Option value="admin">超级管理员</Select.Option>
                     <Select.Option value="manager">主账号</Select.Option>
+                    <Select.Option value="shipper">发货员</Select.Option>
                   </Select>
                   <Button icon={<ReloadOutlined />} onClick={() => refetchAccounts()}>
                     刷新

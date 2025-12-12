@@ -12,6 +12,7 @@ import {
   ExclamationCircleOutlined,
   StopOutlined,
   SwapOutlined,
+  CarOutlined,
 } from '@ant-design/icons';
 import {
   Table,
@@ -103,6 +104,7 @@ const UserManagement: React.FC = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [passwordModalVisible, setPasswordModalVisible] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [isCreatingShipper, setIsCreatingShipper] = useState(false);
   const [form] = Form.useForm();
   const [passwordForm] = Form.useForm();
 
@@ -342,6 +344,7 @@ const UserManagement: React.FC = () => {
         notifySuccess('创建成功', '用户创建成功');
       }
       setModalVisible(false);
+      setIsCreatingShipper(false);
       form.resetFields();
       fetchUsers();
       fetchCurrentQuota(); // 刷新配额
@@ -465,7 +468,20 @@ const UserManagement: React.FC = () => {
   // 打开创建模态框
   const handleCreate = () => {
     setEditingUser(null);
+    setIsCreatingShipper(false);
     form.resetFields();
+    setModalVisible(true);
+  };
+
+  // 打开创建发货员模态框（仅 admin）
+  const handleCreateShipper = () => {
+    setEditingUser(null);
+    setIsCreatingShipper(true);
+    form.resetFields();
+    form.setFieldsValue({
+      role: 'shipper',
+      is_active: true,
+    });
     setModalVisible(true);
   };
 
@@ -679,9 +695,14 @@ const UserManagement: React.FC = () => {
         <PageTitle icon={<UserOutlined />} title="用户管理" />
         <Space>
           {currentUser?.role === 'admin' && (
-            <Button icon={<CrownOutlined />} onClick={() => window.location.href = '/dashboard/users/levels'}>
-              用户级别
-            </Button>
+            <>
+              <Button icon={<CrownOutlined />} onClick={() => window.location.href = '/dashboard/users/levels'}>
+                用户级别
+              </Button>
+              <Button icon={<CarOutlined />} onClick={handleCreateShipper}>
+                添加发货员
+              </Button>
+            </>
           )}
           <Button type="primary" icon={<UserAddOutlined />} onClick={handleCreate}>
             {currentUser?.role === 'admin' ? '添加主账号' : '添加子账号'}
@@ -718,10 +739,11 @@ const UserManagement: React.FC = () => {
       </Card>
 
       <Modal
-        title={editingUser ? '编辑用户' : (currentUser?.role === 'admin' ? '创建主账号' : '创建子账号')}
+        title={editingUser ? '编辑用户' : (isCreatingShipper ? '创建发货员' : (currentUser?.role === 'admin' ? '创建主账号' : '创建子账号'))}
         open={modalVisible}
         onCancel={() => {
           setModalVisible(false);
+          setIsCreatingShipper(false);
           form.resetFields();
         }}
         footer={null}
@@ -797,11 +819,14 @@ const UserManagement: React.FC = () => {
             </Form.Item>
           )}
 
-          {/* 角色选择：admin 只能创建 manager，manager 可以创建 sub_account 或 shipper */}
+          {/* 角色选择：admin 创建主账号/发货员，manager 可以创建 sub_account 或 shipper */}
           <Form.Item name="role" label="角色" rules={[{ required: true, message: '请选择角色' }]}>
-            <Select disabled={currentUser?.role === 'admin'}>
-              {currentUser?.role === 'admin' && (
+            <Select disabled={currentUser?.role === 'admin' || isCreatingShipper}>
+              {currentUser?.role === 'admin' && !isCreatingShipper && (
                 <Option value="manager">主账号</Option>
+              )}
+              {isCreatingShipper && (
+                <Option value="shipper">发货员</Option>
               )}
               {currentUser?.role === 'manager' && (
                 <>
@@ -812,8 +837,8 @@ const UserManagement: React.FC = () => {
             </Select>
           </Form.Item>
 
-          {/* admin 创建 manager 时选择级别 */}
-          {currentUser?.role === 'admin' && (
+          {/* admin 创建 manager 时选择级别（发货员不需要级别） */}
+          {currentUser?.role === 'admin' && !isCreatingShipper && (
             managerLevels.length > 0 ? (
               <Form.Item
                 name="manager_level_id"
@@ -861,8 +886,8 @@ const UserManagement: React.FC = () => {
           >
             {({ getFieldValue }) => {
               const selectedRole = getFieldValue('role');
-              // admin 角色不需要设置账号状态和过期时间
-              if (selectedRole === 'admin') return null;
+              // admin 和 shipper 角色不需要设置账号状态和过期时间
+              if (selectedRole === 'admin' || selectedRole === 'shipper') return null;
 
               // 判断是否为 manager 创建/编辑 sub_account（需要显示"跟随主账号"选项）
               const isManagerEditingSubAccount = currentUser?.role === 'manager' && selectedRole === 'sub_account';
@@ -958,7 +983,7 @@ const UserManagement: React.FC = () => {
             }}
           </Form.Item>
 
-          {/* 店铺关联：admin/manager 无需关联（可访问所有店铺），sub_account 需要选择 */}
+          {/* 店铺关联：admin/manager/shipper 无需关联，sub_account 需要选择 */}
           <Form.Item
             noStyle
             shouldUpdate={(prevValues, currentValues) => prevValues.role !== currentValues.role}
@@ -966,8 +991,9 @@ const UserManagement: React.FC = () => {
             {({ getFieldValue }) => {
               const selectedRole = getFieldValue('role');
 
-              // admin 和 manager 不显示关联店铺选项（可访问所有店铺）
-              if (selectedRole === 'admin' || selectedRole === 'manager') {
+              // admin、manager、shipper 不显示关联店铺选项
+              // shipper 通过店铺的 shipping_managed 字段控制访问权限
+              if (selectedRole === 'admin' || selectedRole === 'manager' || selectedRole === 'shipper') {
                 return null;
               }
 
@@ -1000,6 +1026,7 @@ const UserManagement: React.FC = () => {
               <Button
                 onClick={() => {
                   setModalVisible(false);
+                  setIsCreatingShipper(false);
                   form.resetFields();
                 }}
               >
