@@ -69,7 +69,6 @@ import styles from "./Dashboard.module.scss";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import PageTitle from "@/components/PageTitle";
 import QuickAccessButton from "@/components/QuickAccessButton";
-import CloneBanner from "@/components/CloneBanner";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuickMenu } from "@/hooks/useQuickMenu";
 import { useOzonMenuOrder } from "@/hooks/useOzonMenuOrder";
@@ -638,14 +637,7 @@ const Dashboard: React.FC = () => {
         </Space>
       </Header>
 
-      {/* 克隆状态提示条 */}
-      <CloneBanner />
-
-      {/* CloneBanner 高度约 40px，克隆状态下需要调整布局偏移 */}
-      <Layout
-        className={styles.mainLayout}
-        style={isCloned ? { marginTop: 88 } : undefined}
-      >
+      <Layout className={styles.mainLayout}>
         <Sider
           theme="light"
           width={240}
@@ -654,7 +646,6 @@ const Dashboard: React.FC = () => {
           onCollapse={setCollapsed}
           collapsedWidth={80}
           className={styles.sider}
-          style={isCloned ? { top: 88, height: 'calc(100vh - 88px)' } : undefined}
         >
           <Menu
             theme="light"
@@ -667,10 +658,7 @@ const Dashboard: React.FC = () => {
           />
         </Sider>
 
-        <Content
-          className={styles.content}
-          style={isCloned ? { height: 'calc(100vh - 88px)' } : undefined}
-        >
+        <Content className={styles.content}>
           {/* 路由级错误边界：隔离各页面错误，防止单个页面崩溃影响整体导航 */}
           <ErrorBoundary name="页面路由">
             <Suspense fallback={<PageLoading />}>
