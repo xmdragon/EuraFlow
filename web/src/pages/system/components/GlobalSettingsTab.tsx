@@ -43,7 +43,6 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { UploadFile } from 'antd/es/upload/interface';
 
-import { useAsyncTaskPolling } from '@/hooks/useAsyncTaskPolling';
 import { useCopy } from '@/hooks/useCopy';
 import { usePermission } from '@/hooks/usePermission';
 import * as ozonApi from '@/services/ozon';
@@ -569,6 +568,10 @@ const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdm
   const [searchValue, setSearchValue] = useState('');
   const [syncingCategoryId, setSyncingCategoryId] = useState<number | null>(null);
   const [autoExpandParent, setAutoExpandParent] = useState(false);
+  // 类目同步进度
+  const [categorySyncProgress, setCategorySyncProgress] = useState<CategorySyncProgress | null>(null);
+  // 特征同步进度
+  const [featureSyncProgress, setFeatureSyncProgress] = useState<FeatureSyncProgress | null>(null);
 
   // 获取店铺列表，取第一个店铺ID
   const { data: shopsData } = useQuery({
@@ -602,123 +605,122 @@ const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdm
     select: (response) => response.data, // 只返回 data 部分给组件使用
   });
 
-  // 类目树同步轮询 Hook
-  const { startPolling: startCategorySyncPolling } = useAsyncTaskPolling({
-    getStatus: async (taskId) => {
-      const status = await ozonApi.getCategorySyncTaskStatus(taskId);
+  // 类目同步轮询 ref
+  const categorySyncIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
 
-      if (status.state === 'SUCCESS') {
-        return { state: 'SUCCESS', result: status.result };
-      } else if (status.state === 'FAILURE') {
-        return { state: 'FAILURE', error: status.error || '任务执行失败' };
-      } else {
-        return { state: 'PROGRESS', info: status.info };
+  // 开始类目同步轮询
+  const startCategorySyncPolling = (taskId: string) => {
+    // 清理之前的轮询
+    if (categorySyncIntervalRef.current) {
+      clearInterval(categorySyncIntervalRef.current);
+    }
+
+    const pollProgress = async () => {
+      try {
+        const status = await ozonApi.getCategorySyncTaskStatus(taskId);
+
+        if (status.state === 'SUCCESS') {
+          setSyncing(false);
+          setCategorySyncProgress(null);
+          if (categorySyncIntervalRef.current) {
+            clearInterval(categorySyncIntervalRef.current);
+            categorySyncIntervalRef.current = null;
+          }
+          const result = status.result as CategorySyncResult;
+          notifySuccess(
+            '同步完成',
+            `成功同步 ${result.total_categories || 0} 个类目（新增 ${result.new_categories || 0}，更新 ${result.updated_categories || 0}，废弃 ${result.deprecated_categories || 0}）`
+          );
+          queryClient.invalidateQueries({ queryKey: ['category-tree'] });
+        } else if (status.state === 'FAILURE') {
+          setSyncing(false);
+          setCategorySyncProgress(null);
+          if (categorySyncIntervalRef.current) {
+            clearInterval(categorySyncIntervalRef.current);
+            categorySyncIntervalRef.current = null;
+          }
+          notifyError('同步失败', status.error || '任务执行失败');
+        } else {
+          // 进行中，更新进度
+          setCategorySyncProgress(status.info as CategorySyncProgress);
+        }
+      } catch (error) {
+        console.error('Failed to poll category sync progress:', error);
       }
-    },
-    pollingInterval: 5000,
-    timeout: 30 * 60 * 1000,
-    notificationKey: 'category-tree-sync',
-    initialMessage: '类目同步进行中',
-    formatProgressContent: (info) => {
-      const typedInfo = info as CategorySyncProgress;
-      const { processed_categories = 0, total_categories = 0, current_category = '', percent = 0 } = typedInfo;
-      // 准备中判断：包含关键词 或 进度数据都是0
-      const isPreparing = current_category.includes('准备中') || current_category.includes('等待')
-        || (processed_categories === 0 && total_categories === 0);
-      return (
-        <div>
-          <Progress percent={percent} size="small" status="active" />
-          <div style={{ marginTop: 8 }}>
-            {isPreparing ? (current_category || '准备中...') : `正在处理 "${current_category}"...`}
-          </div>
-          {!isPreparing && (
-            <div style={{ marginTop: 4, fontSize: 12, color: '#666' }}>
-              已完成 {processed_categories}/{total_categories} 个类目
-            </div>
-          )}
-        </div>
-      );
-    },
-    formatSuccessMessage: (result) => {
-      const typedResult = result as CategorySyncResult;
-      return {
-        title: '同步完成',
-        description: `成功同步 ${typedResult.total_categories || 0} 个类目（新增 ${typedResult.new_categories || 0}，更新 ${typedResult.updated_categories || 0}，废弃 ${typedResult.deprecated_categories || 0}）`,
-      };
-    },
-    onSuccess: () => {
-      setSyncing(false);
-      // 刷新类目树数据
-      queryClient.invalidateQueries({ queryKey: ['category-tree'] });
-    },
-    onFailure: () => {
-      setSyncing(false);
-    },
-    onTimeout: () => {
-      setSyncing(false);
-    },
-    onCancel: () => {
-      setSyncing(false);
-    },
-  });
+    };
 
-  // 特征同步轮询 Hook
-  const { startPolling: startFeatureSyncPolling } = useAsyncTaskPolling({
-    getStatus: async (taskId) => {
-      const status = await ozonApi.getBatchSyncTaskStatus(taskId);
+    // 立即执行一次
+    pollProgress();
+    // 每5秒轮询一次
+    categorySyncIntervalRef.current = setInterval(pollProgress, 5000);
+  };
 
-      if (status.state === 'SUCCESS') {
-        return { state: 'SUCCESS', result: status.result };
-      } else if (status.state === 'FAILURE') {
-        return { state: 'FAILURE', error: status.error || '任务执行失败' };
-      } else {
-        return { state: 'PROGRESS', info: status.info };
+  // 清理轮询
+  React.useEffect(() => {
+    return () => {
+      if (categorySyncIntervalRef.current) {
+        clearInterval(categorySyncIntervalRef.current);
       }
-    },
-    pollingInterval: 10000,
-    timeout: 30 * 60 * 1000,
-    notificationKey: 'batch-sync-features',
-    initialMessage: '批量同步进行中',
-    formatProgressContent: (info) => {
-      const typedInfo = info as FeatureSyncProgress;
-      const { synced_categories = 0, total_categories = 0, current_category = '', percent = 0 } = typedInfo;
-      // 准备中判断：包含关键词 或 进度数据都是0
-      const isPreparing = current_category.includes('准备中') || current_category.includes('等待')
-        || (synced_categories === 0 && total_categories === 0);
-      return (
-        <div>
-          <Progress percent={percent} size="small" status="active" />
-          <div style={{ marginTop: 8 }}>
-            {isPreparing ? (current_category || '准备中...') : `正在同步 "${current_category}" 特征...`}
-          </div>
-          {!isPreparing && (
-            <div style={{ marginTop: 4, fontSize: 12, color: '#666' }}>
-              已完成 {synced_categories}/{total_categories} 个类目
-            </div>
-          )}
-        </div>
-      );
-    },
-    formatSuccessMessage: (result) => {
-      const typedResult = result as FeatureSyncResult;
-      return {
-        title: '同步完成',
-        description: `成功同步 ${typedResult.synced_categories || 0} 个类目，${typedResult.synced_attributes || 0} 个特征`,
-      };
-    },
-    onSuccess: () => {
-      setSyncingFeatures(false);
-    },
-    onFailure: () => {
-      setSyncingFeatures(false);
-    },
-    onTimeout: () => {
-      setSyncingFeatures(false);
-    },
-    onCancel: () => {
-      setSyncingFeatures(false);
-    },
-  });
+    };
+  }, []);
+
+  // 特征同步轮询 ref
+  const featureSyncIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // 开始特征同步轮询
+  const startFeatureSyncPolling = (taskId: string) => {
+    // 清理之前的轮询
+    if (featureSyncIntervalRef.current) {
+      clearInterval(featureSyncIntervalRef.current);
+    }
+
+    const pollProgress = async () => {
+      try {
+        const status = await ozonApi.getBatchSyncTaskStatus(taskId);
+
+        if (status.state === 'SUCCESS') {
+          setSyncingFeatures(false);
+          setFeatureSyncProgress(null);
+          if (featureSyncIntervalRef.current) {
+            clearInterval(featureSyncIntervalRef.current);
+            featureSyncIntervalRef.current = null;
+          }
+          const result = status.result as FeatureSyncResult;
+          notifySuccess(
+            '同步完成',
+            `成功同步 ${result.synced_categories || 0} 个类目，${result.synced_attributes || 0} 个特征`
+          );
+        } else if (status.state === 'FAILURE') {
+          setSyncingFeatures(false);
+          setFeatureSyncProgress(null);
+          if (featureSyncIntervalRef.current) {
+            clearInterval(featureSyncIntervalRef.current);
+            featureSyncIntervalRef.current = null;
+          }
+          notifyError('同步失败', status.error || '任务执行失败');
+        } else {
+          // 进行中，更新进度
+          setFeatureSyncProgress(status.info as FeatureSyncProgress);
+        }
+      } catch (error) {
+        console.error('Failed to poll feature sync progress:', error);
+      }
+    };
+
+    // 立即执行一次
+    pollProgress();
+    // 每10秒轮询一次
+    featureSyncIntervalRef.current = setInterval(pollProgress, 10000);
+  };
+
+  // 清理特征同步轮询
+  React.useEffect(() => {
+    return () => {
+      if (featureSyncIntervalRef.current) {
+        clearInterval(featureSyncIntervalRef.current);
+      }
+    };
+  }, []);
 
   // 查询选中类目的属性
   const { data: attributesData, isLoading: attributesLoading } = useQuery({
@@ -1034,17 +1036,21 @@ const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdm
           loading={syncing}
           disabled={!isAdmin}
         >
-          同步类目
+          {syncing && categorySyncProgress
+            ? `同步中 ${categorySyncProgress.percent ? Math.round(categorySyncProgress.percent) + '%' : '...'}`
+            : '同步类目'}
         </Button>
 
         <Button
           type="default"
-          icon={<DatabaseOutlined />}
+          icon={<DatabaseOutlined spin={syncingFeatures} />}
           onClick={handleSyncFeatures}
           loading={syncingFeatures}
           disabled={!isAdmin}
         >
-          同步特征
+          {syncingFeatures && featureSyncProgress
+            ? `同步中 ${featureSyncProgress.percent ? Math.round(featureSyncProgress.percent) + '%' : '...'}`
+            : '同步特征'}
         </Button>
       </Space>
 

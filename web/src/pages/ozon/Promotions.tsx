@@ -744,12 +744,12 @@ const Promotions: React.FC = () => {
             />
             <Button
               type="primary"
-              icon={<SyncOutlined />}
+              icon={<SyncOutlined spin={syncMutation.isPending} />}
               onClick={() => syncMutation.mutate()}
               loading={syncMutation.isPending}
               disabled={!selectedShop || !canSync}
             >
-              同步促销数据
+              {syncMutation.isPending ? '同步中...' : '同步促销'}
             </Button>
           </Space>
         </div>

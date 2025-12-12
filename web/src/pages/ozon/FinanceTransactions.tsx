@@ -629,7 +629,7 @@ const FinanceTransactions: React.FC = () => {
             >
               {syncing && syncProgress
                 ? `同步中 ${syncProgress.progress ? Math.round(syncProgress.progress) + '%' : '...'}`
-                : '同步数据'}
+                : '同步财务'}
             </Button>
           </Space>
         </Card>

@@ -3,64 +3,73 @@
  * 处理商品同步任务的启动、轮询、进度显示
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Progress } from 'antd';
-import { useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 
-import { useAsyncTaskPolling } from '@/hooks/useAsyncTaskPolling';
 import * as ozonApi from '@/services/ozon';
-import { notifyError } from '@/utils/notification';
+import { notifyError, notifySuccess } from '@/utils/notification';
+
+interface SyncProgress {
+  progress: number;
+  message?: string;
+}
 
 export const useProductSync = (selectedShop: number | null, refetch: () => void) => {
   const queryClient = useQueryClient();
-  const [syncConfirmVisible, setSyncConfirmVisible] = useState(false);
-  const [syncFullMode, setSyncFullMode] = useState(false);
+  const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
+  const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // 使用通用轮询 Hook
-  const { startPolling: startProductSyncPolling } = useAsyncTaskPolling({
-    getStatus: async (taskId) => {
-      const result = await ozonApi.getSyncStatus(taskId);
-      const status = result.data || result;
+  // 开始轮询同步进度
+  const startProductSyncPolling = (taskId: string) => {
+    // 清理之前的轮询
+    if (syncIntervalRef.current) {
+      clearInterval(syncIntervalRef.current);
+    }
 
-      // 转换为统一格式
-      if (status.status === 'completed') {
-        return { state: 'SUCCESS', result: status };
-      } else if (status.status === 'failed') {
-        return { state: 'FAILURE', error: status.error || '未知错误' };
-      } else {
-        return { state: 'PROGRESS', info: status };
+    const pollProgress = async () => {
+      try {
+        const result = await ozonApi.getSyncStatus(taskId);
+        const status = result.data || result;
+
+        if (status.status === 'completed') {
+          setSyncProgress(null);
+          if (syncIntervalRef.current) {
+            clearInterval(syncIntervalRef.current);
+            syncIntervalRef.current = null;
+          }
+          notifySuccess('同步完成', '商品同步已完成！');
+          queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
+          queryClient.invalidateQueries({ queryKey: ['ozonStatistics'] });
+          refetch();
+        } else if (status.status === 'failed') {
+          setSyncProgress(null);
+          if (syncIntervalRef.current) {
+            clearInterval(syncIntervalRef.current);
+            syncIntervalRef.current = null;
+          }
+          notifyError('同步失败', status.error || '未知错误');
+        } else {
+          // 进行中，更新进度
+          setSyncProgress({ progress: status.progress || 0, message: status.message });
+        }
+      } catch (error) {
+        console.error('Failed to poll product sync progress:', error);
       }
-    },
-    pollingInterval: 2000,
-    timeout: 30 * 60 * 1000,
-    notificationKey: 'product-sync',
-    initialMessage: '商品同步进行中',
-    formatProgressContent: (info) => {
-      const percent = Math.round(info.progress || 0);
-      let displayMessage = info.message || '同步中...';
+    };
 
-      // 格式化消息：简化显示格式
-      const match = displayMessage.match(/商品\s+([0-9A-Za-z-]+)/);
-      if (match) {
-        displayMessage = `同步商品：${match[1]}`;
+    // 立即执行一次
+    pollProgress();
+    // 每2秒轮询一次
+    syncIntervalRef.current = setInterval(pollProgress, 2000);
+  };
+
+  // 清理轮询
+  useEffect(() => {
+    return () => {
+      if (syncIntervalRef.current) {
+        clearInterval(syncIntervalRef.current);
       }
-
-      return (
-        <div>
-          <Progress percent={percent} size="small" status="active" />
-          <div style={{ marginTop: 8 }}>{displayMessage}</div>
-        </div>
-      );
-    },
-    formatSuccessMessage: () => ({
-      title: '同步完成',
-      description: '商品同步已完成！',
-    }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
-      queryClient.invalidateQueries({ queryKey: ['ozonStatistics'] });
-      refetch();
-    },
-  });
+    };
+  }, []);
 
   // 同步商品（非阻塞）
   const syncProductsMutation = useMutation({
@@ -74,7 +83,7 @@ export const useProductSync = (selectedShop: number | null, refetch: () => void)
 
       const taskId = data?.task_id || data?.data?.task_id;
       if (taskId) {
-        // 使用新的轮询 Hook 启动后台轮询任务
+        // 启动轮询任务
         startProductSyncPolling(taskId);
       } else {
         notifyError('同步失败', '未获取到任务ID，请稍后重试');
@@ -85,22 +94,14 @@ export const useProductSync = (selectedShop: number | null, refetch: () => void)
     },
   });
 
+  // 直接执行同步（无确认弹窗）
   const handleSync = (fullSync: boolean = false) => {
-    setSyncFullMode(fullSync);
-    setSyncConfirmVisible(true);
-  };
-
-  const handleSyncConfirm = () => {
-    setSyncConfirmVisible(false);
-    syncProductsMutation.mutate(syncFullMode);
+    syncProductsMutation.mutate(fullSync);
   };
 
   return {
     syncProductsMutation,
-    syncConfirmVisible,
-    setSyncConfirmVisible,
-    syncFullMode,
+    syncProgress,
     handleSync,
-    handleSyncConfirm,
   };
 };

@@ -68,6 +68,7 @@ import styles from "./Dashboard.module.scss";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import PageTitle from "@/components/PageTitle";
 import QuickAccessButton from "@/components/QuickAccessButton";
+import CloneBanner from "@/components/CloneBanner";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuickMenu } from "@/hooks/useQuickMenu";
 import { useOzonMenuOrder } from "@/hooks/useOzonMenuOrder";
@@ -168,7 +169,7 @@ const NoShopModal: React.FC<{
 };
 
 const Dashboard: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, isCloned } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { quickMenuItems, addQuickMenu, removeQuickMenu, isInQuickMenu } = useQuickMenu();
@@ -448,8 +449,8 @@ const Dashboard: React.FC = () => {
       label: createMenuLabel("shops", "店铺管理", "/dashboard/shops"),
       onClick: () => navigate("/dashboard/shops"),
     },
-    // 用户管理 - admin 和 manager 可见
-    ...(user?.role === "admin" || user?.role === "manager"
+    // 用户管理 - admin 和 manager 可见（克隆状态下隐藏）
+    ...(!isCloned && (user?.role === "admin" || user?.role === "manager")
       ? [
           {
             key: "users",
@@ -477,8 +478,8 @@ const Dashboard: React.FC = () => {
           },
         ]
       : []),
-    // 系统管理菜单 - 仅超级管理员可见
-    ...(user?.role === "admin"
+    // 系统管理菜单 - 仅超级管理员可见（克隆状态下隐藏）
+    ...(!isCloned && user?.role === "admin"
       ? [
           {
             key: "system",
@@ -600,6 +601,9 @@ const Dashboard: React.FC = () => {
           </Tooltip>
         </Space>
       </Header>
+
+      {/* 克隆状态提示条 */}
+      <CloneBanner />
 
       <Layout className={styles.mainLayout}>
         <Sider

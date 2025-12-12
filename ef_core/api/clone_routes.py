@@ -195,7 +195,8 @@ async def clone_identity(
                 "session_id": {"new": clone_result["session_id"]},
                 "expires_at": {"new": clone_result["expires_at"].isoformat()}
             },
-            request=request
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent")
         )
 
     logger.info(
@@ -307,7 +308,8 @@ async def restore_identity(
             changes={
                 "session_id": {"old": clone_session_id, "new": None}
             },
-            request=request
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent")
         )
 
     logger.info(

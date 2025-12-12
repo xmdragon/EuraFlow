@@ -263,11 +263,8 @@ const ProductList: React.FC = () => {
   // 商品同步 Hook
   const {
     syncProductsMutation,
-    syncConfirmVisible,
-    setSyncConfirmVisible,
-    syncFullMode,
+    syncProgress,
     handleSync,
-    handleSyncConfirm,
   } = useProductSync(selectedShop, refetch);
 
   // 水印 Hook
@@ -441,6 +438,7 @@ const ProductList: React.FC = () => {
           canDelete={canDelete}
           selectedRowsCount={selectedRows.length}
           syncLoading={syncProductsMutation.isPending}
+          syncProgress={syncProgress}
           hasSelectedShop={selectedShop !== null}
           isArchivedTab={filterValues.status === 'archived'}
           onIncrementalSync={() => handleSync(false)}
@@ -556,21 +554,6 @@ const ProductList: React.FC = () => {
         visibleColumns={visibleColumns}
         onColumnVisibilityChange={handleColumnVisibilityChange}
       />
-
-      {/* 同步确认对话框 */}
-      <Modal
-        title={syncFullMode ? '确认执行全量同步？' : '确认执行增量同步？'}
-        open={syncConfirmVisible}
-        onOk={handleSyncConfirm}
-        onCancel={() => setSyncConfirmVisible(false)}
-        okText="确认"
-        cancelText="取消"
-        zIndex={10000}
-      >
-        <p>
-          {syncFullMode ? '全量同步将拉取所有商品数据，耗时较长' : '增量同步将只拉取最近更新的商品'}
-        </p>
-      </Modal>
 
       {/* 商品同步错误详情弹窗 */}
       <ProductSyncErrorModal

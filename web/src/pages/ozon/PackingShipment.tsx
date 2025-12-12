@@ -99,6 +99,10 @@ const formatLabelStats = (total: number, cached: number, fetched: number): strin
   return `成功加载${total}个标签${statsStr}`;
 };
 
+// 布局常量：卡片宽度 160px + gap 4px = 164px
+const CARD_WIDTH_WITH_GAP = 164;
+const MENU_WIDTH = 250;
+
 const PackingShipment: React.FC = () => {
   const queryClient = useQueryClient();
   const { modal } = App.useApp();
@@ -138,8 +142,7 @@ const PackingShipment: React.FC = () => {
   // 使用懒初始化计算 itemsPerRow，避免初始值和计算值不一致导致双重请求
   const [itemsPerRow, setItemsPerRow] = useState(() => {
     const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
-    const menuWidth = 250;
-    return Math.max(1, Math.floor((screenWidth - menuWidth - 10) / 170));
+    return Math.max(1, Math.floor((screenWidth - MENU_WIDTH) / CARD_WIDTH_WITH_GAP));
   });
   const [allPostings, setAllPostings] = useState<ozonApi.PostingWithOrder[]>([]); // 累积所有已加载的posting
   const [isLoadingMore, setIsLoadingMore] = useState(false); // 是否正在加载更多
@@ -250,8 +253,7 @@ const PackingShipment: React.FC = () => {
   // 计算每行显示数量（根据屏幕宽度预估）
   const calculateItemsPerRow = React.useCallback(() => {
     const screenWidth = window.innerWidth;
-    const menuWidth = 250; // 左边菜单宽度（估计值）
-    const columns = Math.max(1, Math.floor((screenWidth - menuWidth - 10) / 170));
+    const columns = Math.max(1, Math.floor((screenWidth - MENU_WIDTH) / CARD_WIDTH_WITH_GAP));
     setItemsPerRow(columns);
   }, []);
 
@@ -466,46 +468,73 @@ const PackingShipment: React.FC = () => {
 
       // 后端已做精确匹配，无需前端二次过滤
 
-      // 批量更新状态 - 使用 ref 避免依赖循环
-      // React 18 会自动批处理所有 setState，只触发一次渲染
-      let newPostingsLength = 0;
+      // 批量更新状态
       setAllPostings((prev) => {
+        let result: ozonApi.PostingWithOrder[];
+
         if (currentPageRef.current === 1) {
           // 第一页，直接使用新数据
-          newPostingsLength = flattened.length;
-          return flattened;
+          result = flattened;
+        } else {
+          // 构建已有posting的Set（使用posting_number作为唯一标识）
+          const existingNumbers = new Set(prev.map((p) => p.posting_number));
+          // 过滤掉已存在的posting（去重）
+          const newPostings = flattened.filter((p) => !existingNumbers.has(p.posting_number));
+          // 合并数据
+          result = [...prev, ...newPostings];
         }
 
-        // 构建已有posting的Set（使用posting_number作为唯一标识）
-        const existingNumbers = new Set(prev.map((p) => p.posting_number));
+        // 在回调内部计算 hasMore 并更新状态
+        const hasMore = result.length < (ordersData.total || 0);
+        console.warn('[Data Debug]', {
+          resultLength: result.length,
+          total: ordersData.total,
+          hasMore,
+          currentPage: currentPageRef.current,
+          flattenedCount: flattened.length,
+        });
 
-        // 过滤掉已存在的posting（去重）
-        const newPostings = flattened.filter((p) => !existingNumbers.has(p.posting_number));
+        // 使用 setTimeout 确保在当前更新周期后设置
+        // 避免在 setState 回调中直接调用其他 setState
+        setTimeout(() => {
+          setHasMoreData(hasMore);
+          setIsLoadingMore(false);
+        }, 0);
 
-        // 合并数据
-        const result = [...prev, ...newPostings];
-        newPostingsLength = result.length;
         return result;
       });
-
-      // 这些 setState 会和上面的 setAllPostings 批处理，只触发一次渲染
-      // 判断是否还有更多数据：累积的数据量小于总数
-      const hasMore = newPostingsLength < (ordersData.total || 0);
-      setHasMoreData(hasMore);
-      setIsLoadingMore(false);
     }
   }, [ordersData]); // 仅依赖 ordersData 对象
 
-  // 滚动监听：滚动到底部加载下一页
+  // 滚动监听：滚动到底部加载下一页（带节流）
+  const lastScrollTriggerRef = useRef(0);
   useEffect(() => {
     const handleScroll = () => {
+      // 节流：200ms 内只触发一次
+      const now = Date.now();
+      if (now - lastScrollTriggerRef.current < 200) {
+        return;
+      }
+
       const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
       const windowHeight = window.innerHeight;
       const documentHeight = document.documentElement.scrollHeight;
       const scrollPercent = (scrollTop + windowHeight) / documentHeight;
 
-      // 滚动到80%时触发加载
-      if (scrollPercent > 0.8) {
+      // DEBUG: 输出滚动信息
+      console.warn('[Scroll Debug]', {
+        scrollPercent: scrollPercent.toFixed(2),
+        isLoadingMore,
+        hasMoreData,
+        operationStatus,
+        currentPage: currentPageRef.current,
+        allPostingsCount: allPostings.length,
+      });
+
+      // 滚动到85%时触发加载（降低阈值，更早触发）
+      if (scrollPercent > 0.85) {
+        lastScrollTriggerRef.current = now;
+
         // 扫描模式使用专用的加载函数
         if (operationStatus === 'scan') {
           if (!isLoadingScanMore && scanHasMore && currentScanTrackingNumber) {
@@ -514,20 +543,23 @@ const PackingShipment: React.FC = () => {
         } else {
           // 非扫描模式使用原有的分页逻辑
           if (!isLoadingMore && hasMoreData) {
+            console.warn('[Scroll Debug] Triggering load more, page:', currentPageRef.current + 1);
             setIsLoadingMore(true);
             setCurrentPage((prev) => {
               const next = prev + 1;
               currentPageRef.current = next; // 同步更新 ref
               return next;
             });
+          } else {
+            console.warn('[Scroll Debug] Not loading:', { isLoadingMore, hasMoreData });
           }
         }
       }
     };
 
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [isLoadingMore, hasMoreData, operationStatus, isLoadingScanMore, scanHasMore, currentScanTrackingNumber]);
+  }, [isLoadingMore, hasMoreData, operationStatus, isLoadingScanMore, scanHasMore, currentScanTrackingNumber, allPostings.length]);
 
   // 展开订单数据为货件维度（PostingWithOrder 数组）- 使用累积的数据
   const postingsData = React.useMemo<ozonApi.PostingWithOrder[]>(() => {
@@ -1343,7 +1375,11 @@ const PackingShipment: React.FC = () => {
             sortOrder={sortOrder}
             onSortOrderChange={setSortOrder}
             viewMode={viewMode}
-            onViewModeChange={setViewMode}
+            onViewModeChange={(newMode) => {
+              setViewMode(newMode);
+              // 切换视图模式时重置分页状态
+              resetAndRefresh();
+            }}
             showViewModeSwitch={operationStatus === 'awaiting_stock'}
           />
         )}

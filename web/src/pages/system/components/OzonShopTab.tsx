@@ -5,10 +5,8 @@
  */
 import {
   ShopOutlined,
-  KeyOutlined,
   ApiOutlined,
   SaveOutlined,
-  ReloadOutlined,
   PlusOutlined,
   ClockCircleOutlined,
 } from '@ant-design/icons';
@@ -19,7 +17,6 @@ import {
   Input,
   Button,
   Space,
-  Tabs,
   Alert,
   Divider,
   Typography,
@@ -41,7 +38,7 @@ import styles from './OzonShopTab.module.scss';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermission } from '@/hooks/usePermission';
 import * as ozonApi from '@/services/ozon';
-import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
+import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
 
 // OZON店铺表单值接口
 interface OzonShopFormValues {
@@ -88,9 +85,11 @@ const OzonShopTab: React.FC = () => {
   const { user } = useAuth();
   const { canOperate, isAdmin } = usePermission();
   const [form] = Form.useForm();
+  const [addForm] = Form.useForm();
   const [testingConnection, setTestingConnection] = useState(false);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
   const [addShopModalVisible, setAddShopModalVisible] = useState(false);
+  const [editShopModalVisible, setEditShopModalVisible] = useState(false);
 
   // 判断用户是否为操作员
   const isManager = user?.role === 'manager';
@@ -120,11 +119,11 @@ const OzonShopTab: React.FC = () => {
         config: {},
       });
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       notifySuccess('添加成功', '店铺添加成功');
       setAddShopModalVisible(false);
-      queryClient.invalidateQueries({ queryKey: ['ozon', 'shops'] });  // 刷新所有店铺列表
-      setSelectedShop(data);
+      addForm.resetFields();
+      queryClient.invalidateQueries({ queryKey: ['ozon', 'shops'] });
     },
     onError: (error: unknown) => {
       // 解析错误信息
@@ -165,27 +164,12 @@ const OzonShopTab: React.FC = () => {
         },
       });
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       notifySuccess('保存成功', '店铺配置已保存');
       queryClient.invalidateQueries({ queryKey: ['ozon', 'shops'] });
-      setSelectedShop(data);
-
-      const currentApiKey = form.getFieldValue('api_key');
-
-      form.setFieldsValue({
-        shop_name: data.shop_name,
-        shop_name_cn: data.shop_name_cn,
-        client_id: data.api_credentials?.client_id,
-        api_key:
-          currentApiKey && currentApiKey !== '******'
-            ? currentApiKey
-            : data.api_credentials?.api_key,
-        webhook_url: data.config?.webhook_url,
-      });
-
-      if (currentApiKey && currentApiKey !== '******') {
-        notifyInfo('提示', 'API Key 已安全保存（出于安全考虑不显示真实值）');
-      }
+      setEditShopModalVisible(false);
+      setSelectedShop(null);
+      form.resetFields();
     },
     onError: (error: Error) => {
       notifyError('保存失败', `保存失败: ${error.message}`);
@@ -218,17 +202,9 @@ const OzonShopTab: React.FC = () => {
     },
   });
 
-  // 选择店铺
+  // 当编辑弹窗打开且选择了店铺，设置表单值
   useEffect(() => {
-    if (shopsData?.data?.[0] && !selectedShop) {
-      const shop = shopsData.data[0];
-      setSelectedShop(shop);
-    }
-  }, [shopsData, selectedShop]);
-
-  // 当选择店铺后，设置表单值
-  useEffect(() => {
-    if (selectedShop) {
+    if (editShopModalVisible && selectedShop) {
       const formValues = {
         shop_name: selectedShop.shop_name,
         shop_name_cn: selectedShop.shop_name_cn,
@@ -236,11 +212,9 @@ const OzonShopTab: React.FC = () => {
         api_key: selectedShop.api_credentials?.api_key || '',
         webhook_url: selectedShop.config?.webhook_url || '',
       };
-
-      console.log('Setting form values:', formValues);  // 调试日志
       form.setFieldsValue(formValues);
     }
-  }, [selectedShop, form]);
+  }, [editShopModalVisible, selectedShop, form]);
 
   const handleSave = (values: OzonShopFormValues) => {
     if (!selectedShop) return;
@@ -398,7 +372,7 @@ const OzonShopTab: React.FC = () => {
                             size="small"
                             onClick={() => {
                               setSelectedShop(record);
-                              // 表单值由 useEffect 统一设置（带防御性编码）
+                              setEditShopModalVisible(true);
                             }}
                           >
                             编辑
@@ -423,122 +397,112 @@ const OzonShopTab: React.FC = () => {
         )}
       </Card>
 
-      {selectedShop && (
-        <>
-          <Alert
-            message={`当前编辑店铺: ${selectedShop.shop_name}`}
-            type="info"
-            showIcon
-            className={styles.currentShopAlert}
-          />
-
-          <Form form={form} layout="vertical" onFinish={handleSave}>
-            <Tabs
-              defaultActiveKey="1"
-              destroyInactiveTabPane
-              items={[
-                {
-                  label: (
-                    <span>
-                      <KeyOutlined /> API配置
-                    </span>
-                  ),
-                  key: '1',
-                  children: (
-                    <div className={styles.contentContainer}>
-                      <Row gutter={16}>
-                        <Col span={12}>
-                          <Form.Item
-                            name="shop_name"
-                            label="店铺名称（俄文）"
-                            rules={[{ required: true, message: '请输入店铺名称' }]}
-                          >
-                            <Input placeholder="请输入店铺名称（俄文）" />
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item name="shop_name_cn" label="店铺中文名称">
-                            <Input placeholder="请输入店铺中文名称（选填）" />
-                          </Form.Item>
-                        </Col>
-                      </Row>
-
-                      <Row gutter={16}>
-                        <Col span={12}>
-                          <Form.Item
-                            name="client_id"
-                            label="Client ID"
-                            rules={[{ required: true, message: '请输入Client ID' }]}
-                          >
-                            <Input placeholder="Ozon Client ID" />
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item
-                            name="api_key"
-                            label="API Key"
-                            rules={[
-                              {
-                                validator: (_, value) => {
-                                  // 如果是编辑模式且当前值是掩码，则不要求必填
-                                  if (selectedShop && (!value || value === '******')) {
-                                    return Promise.resolve();
-                                  }
-                                  // 创建模式或者用户输入了新值，则验证
-                                  if (!value) {
-                                    return Promise.reject(new Error('请输入API Key'));
-                                  }
-                                  return Promise.resolve();
-                                },
-                              },
-                            ]}
-                            extra="出于安全考虑，保存后将显示为掩码。如需更新，直接输入新值即可；不修改则留空。"
-                          >
-                            <Input.Password placeholder="不修改则留空" />
-                          </Form.Item>
-                        </Col>
-                      </Row>
-                    </div>
-                  ),
-                },
-              ]}
-            />
-
-            <Divider />
-
-            {canOperate && (
-              <Form.Item>
-                <Space>
-                  <Button icon={<ApiOutlined />} onClick={handleTestConnection} loading={testingConnection}>
-                    测试连接
-                  </Button>
-                  <Button
-                    type="primary"
-                    htmlType="submit"
-                    icon={<SaveOutlined />}
-                    loading={saveShopMutation.isPending}
-                  >
-                    保存配置
-                  </Button>
-                  <Button icon={<ReloadOutlined />} onClick={() => form.resetFields()}>
-                    重置
-                  </Button>
-                </Space>
+      {/* 编辑店铺弹窗 */}
+      <Modal
+        title={`编辑店铺: ${selectedShop?.shop_name_cn || selectedShop?.shop_name || ''}`}
+        open={editShopModalVisible}
+        onCancel={() => {
+          setEditShopModalVisible(false);
+          setSelectedShop(null);
+          form.resetFields();
+        }}
+        footer={null}
+        width={600}
+        destroyOnClose
+      >
+        <Form form={form} layout="vertical" onFinish={handleSave}>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="shop_name"
+                label="店铺名称（俄文）"
+                rules={[{ required: true, message: '请输入店铺名称' }]}
+              >
+                <Input placeholder="请输入店铺名称（俄文）" />
               </Form.Item>
-            )}
-          </Form>
-        </>
-      )}
+            </Col>
+            <Col span={12}>
+              <Form.Item name="shop_name_cn" label="店铺中文名称">
+                <Input placeholder="请输入店铺中文名称（选填）" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="client_id"
+                label="Client ID"
+                rules={[{ required: true, message: '请输入Client ID' }]}
+              >
+                <Input placeholder="Ozon Client ID" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="api_key"
+                label="API Key"
+                rules={[
+                  {
+                    validator: (_, value) => {
+                      // 编辑模式下，如果当前值是掩码或空值，不要求必填
+                      if (!value || value === '******') {
+                        return Promise.resolve();
+                      }
+                      return Promise.resolve();
+                    },
+                  },
+                ]}
+                extra="出于安全考虑，保存后将显示为掩码。如需更新，直接输入新值即可；不修改则留空。"
+              >
+                <Input.Password placeholder="不修改则留空" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Divider />
+
+          <Form.Item style={{ marginBottom: 0 }}>
+            <Space>
+              <Button icon={<ApiOutlined />} onClick={handleTestConnection} loading={testingConnection}>
+                测试连接
+              </Button>
+              <Button
+                type="primary"
+                htmlType="submit"
+                icon={<SaveOutlined />}
+                loading={saveShopMutation.isPending}
+              >
+                保存配置
+              </Button>
+              <Button
+                onClick={() => {
+                  setEditShopModalVisible(false);
+                  setSelectedShop(null);
+                  form.resetFields();
+                }}
+              >
+                取消
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
 
       {/* 添加店铺弹窗 */}
       <Modal
         title="添加Ozon店铺"
         open={addShopModalVisible}
-        onCancel={() => setAddShopModalVisible(false)}
+        onCancel={() => {
+          setAddShopModalVisible(false);
+          addForm.resetFields();
+        }}
         footer={null}
         width={600}
+        destroyOnClose
       >
         <Form
+          form={addForm}
           layout="vertical"
           onFinish={(values) => {
             addShopMutation.mutate(values);
@@ -587,12 +551,15 @@ const OzonShopTab: React.FC = () => {
             style={{ marginBottom: 16 }}
           />
 
-          <Form.Item>
+          <Form.Item style={{ marginBottom: 0 }}>
             <Space>
               <Button type="primary" htmlType="submit" loading={addShopMutation.isPending}>
                 确认添加
               </Button>
-              <Button onClick={() => setAddShopModalVisible(false)}>取消</Button>
+              <Button onClick={() => {
+                setAddShopModalVisible(false);
+                addForm.resetFields();
+              }}>取消</Button>
             </Space>
           </Form.Item>
         </Form>

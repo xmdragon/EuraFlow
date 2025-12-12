@@ -26,6 +26,8 @@ export interface ProductToolbarProps {
   selectedRowsCount: number;
   /** 同步是否正在进行 */
   syncLoading: boolean;
+  /** 同步进度 */
+  syncProgress?: { progress: number; message?: string } | null;
   /** 是否选择了店铺 */
   hasSelectedShop?: boolean;
   /** 是否在归档标签页 */
@@ -53,6 +55,7 @@ export const ProductToolbar: React.FC<ProductToolbarProps> = ({
   canDelete = false,
   selectedRowsCount,
   syncLoading,
+  syncProgress,
   hasSelectedShop = true,
   isArchivedTab = false,
   onIncrementalSync,
@@ -75,12 +78,14 @@ export const ProductToolbar: React.FC<ProductToolbarProps> = ({
           >
             <Button
               type="primary"
-              icon={<SyncOutlined />}
+              icon={<SyncOutlined spin={syncLoading} />}
               onClick={onIncrementalSync}
               loading={syncLoading}
               disabled={!hasSelectedShop}
             >
-              增量同步
+              {syncLoading && syncProgress
+                ? `同步中 ${Math.round(syncProgress.progress)}%`
+                : '增量同步'}
             </Button>
           </Tooltip>
         )}
@@ -93,12 +98,14 @@ export const ProductToolbar: React.FC<ProductToolbarProps> = ({
             }
           >
             <Button
-              icon={<ReloadOutlined />}
+              icon={<ReloadOutlined spin={syncLoading} />}
               onClick={onFullSync}
               loading={syncLoading}
               disabled={!hasSelectedShop}
             >
-              全量同步
+              {syncLoading && syncProgress
+                ? `同步中 ${Math.round(syncProgress.progress)}%`
+                : '全量同步'}
             </Button>
           </Tooltip>
         )}

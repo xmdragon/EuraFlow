@@ -236,12 +236,12 @@ const Warehouses: React.FC = () => {
               />
               <Button
                 type="primary"
-                icon={<SyncOutlined />}
+                icon={<SyncOutlined spin={syncMutation.isPending} />}
                 onClick={() => syncMutation.mutate()}
                 loading={syncMutation.isPending}
                 disabled={!selectedShop || !canSync}
               >
-                同步仓库
+                {syncMutation.isPending ? '同步中...' : '同步仓库'}
               </Button>
             </Space>
           </div>

@@ -11,6 +11,7 @@ import {
   ClockCircleOutlined,
   ExclamationCircleOutlined,
   StopOutlined,
+  SwapOutlined,
 } from '@ant-design/icons';
 import {
   Table,
@@ -93,7 +94,7 @@ interface UserQuota {
 
 const UserManagement: React.FC = () => {
   const { modal } = App.useApp(); // 使用 App.useApp() hook 获取 modal 实例
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, cloneIdentity } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [shops, setShops] = useState<Shop[]>([]);
   const [managerLevels, setManagerLevels] = useState<ManagerLevel[]>([]);
@@ -360,6 +361,39 @@ const UserManagement: React.FC = () => {
     }
   };
 
+  // 克隆用户身份
+  const handleClone = async (user: User) => {
+    modal.confirm({
+      title: '克隆身份',
+      content: (
+        <div>
+          <p>确定要克隆 <strong>{user.username}</strong> 的身份吗？</p>
+          <p style={{ fontSize: 12, color: '#666', marginTop: 8 }}>
+            克隆后将以该用户身份操作，有效期 30 分钟。
+            <br />
+            克隆期间将无法访问用户管理和系统管理功能。
+          </p>
+        </div>
+      ),
+      okText: '确定克隆',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await cloneIdentity(user.id);
+          notifySuccess('克隆成功', `已切换到 ${user.username} 身份`);
+          // 刷新页面以更新菜单和权限
+          window.location.reload();
+        } catch (error) {
+          let errorMsg = '克隆失败';
+          if (error.response?.data?.error?.detail) {
+            errorMsg = error.response.data.error.detail;
+          }
+          notifyError('克隆失败', errorMsg);
+        }
+      },
+    });
+  };
+
   // 打开编辑模态框
   const handleEdit = (user: User) => {
     setEditingUser(user);
@@ -541,6 +575,17 @@ const UserManagement: React.FC = () => {
 
         return (
           <Space size="middle">
+            {/* 克隆按钮 - 仅超级管理员可见，仅对 manager 用户有效 */}
+            {isAdmin && record.role === 'manager' && record.is_active && (
+              <Tooltip title="克隆身份">
+                <Button
+                  type="link"
+                  icon={<SwapOutlined />}
+                  onClick={() => handleClone(record)}
+                  style={{ color: '#fa8c16' }}
+                />
+              </Tooltip>
+            )}
             <Tooltip title="编辑">
               <Button type="link" icon={<EditOutlined />} onClick={() => handleEdit(record)} />
             </Tooltip>

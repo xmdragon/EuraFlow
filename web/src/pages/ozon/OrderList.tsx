@@ -49,7 +49,6 @@ import SplitPostingModal from '@/components/ozon/SplitPostingModal';
 import PageTitle from '@/components/PageTitle';
 import { ORDER_STATUS_CONFIG } from '@/config/ozon/orderStatusConfig';
 import { OZON_ORDER_STATUS_MAP } from '@/constants/ozonStatus';
-import { useAsyncTaskPolling } from '@/hooks/useAsyncTaskPolling';
 import { useCopy } from '@/hooks/useCopy';
 import { useShopSelection } from '@/hooks/ozon/useShopSelection';
 import { usePermission } from '@/hooks/usePermission';
@@ -80,59 +79,60 @@ const OrderList: React.FC = () => {
   const { canOperate, canSync } = usePermission();
   const { copyToClipboard } = useCopy();
 
-  // 订单同步轮询 Hook
-  const { startPolling: startOrderSyncPolling } = useAsyncTaskPolling({
-    getStatus: async (taskId) => {
-      const result = await ozonApi.getSyncStatus(taskId);
-      const status = result.data || result;
+  // 订单同步进度状态
+  const [orderSyncProgress, setOrderSyncProgress] = React.useState<{ progress: number; message?: string } | null>(null);
+  const orderSyncIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
 
-      // 转换为统一格式
-      if (status.status === 'completed') {
-        return { state: 'SUCCESS', result: status };
-      } else if (status.status === 'failed') {
-        return { state: 'FAILURE', error: status.error || '未知错误' };
-      } else {
-        return { state: 'PROGRESS', info: status };
-      }
-    },
-    pollingInterval: 2000,
-    timeout: 30 * 60 * 1000,
-    notificationKey: 'order-sync',
-    initialMessage: '订单同步进行中',
-    formatProgressContent: (info) => {
-      const percent = Math.round(info.progress || 0);
-      let displayMessage = info.message || '同步中...';
+  // 开始订单同步轮询
+  const startOrderSyncPolling = (taskId: string) => {
+    // 清理之前的轮询
+    if (orderSyncIntervalRef.current) {
+      clearInterval(orderSyncIntervalRef.current);
+    }
 
-      // 匹配 "正在同步 awaiting_deliver 订单 56210030-0227-1..." 格式
-      const matchWithStatus = displayMessage.match(/正在同步\s+(\w+)\s+订单\s+([0-9-]+)/);
-      if (matchWithStatus) {
-        const status = matchWithStatus[1];
-        const postingNumber = matchWithStatus[2];
-        const statusText = OZON_ORDER_STATUS_MAP[status] || status;
-        displayMessage = `正在同步【${statusText}】订单：${postingNumber}`;
-      } else {
-        // 简单匹配订单号
-        const match = displayMessage.match(/订单\s+([0-9-]+)/);
-        if (match) {
-          displayMessage = `同步订单：${match[1]}`;
+    const pollProgress = async () => {
+      try {
+        const result = await ozonApi.getSyncStatus(taskId);
+        const status = result.data || result;
+
+        if (status.status === 'completed') {
+          setOrderSyncProgress(null);
+          if (orderSyncIntervalRef.current) {
+            clearInterval(orderSyncIntervalRef.current);
+            orderSyncIntervalRef.current = null;
+          }
+          notifySuccess('同步完成', '订单同步已完成！');
+          queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
+        } else if (status.status === 'failed') {
+          setOrderSyncProgress(null);
+          if (orderSyncIntervalRef.current) {
+            clearInterval(orderSyncIntervalRef.current);
+            orderSyncIntervalRef.current = null;
+          }
+          notifyError('同步失败', status.error || '未知错误');
+        } else {
+          // 进行中，更新进度
+          setOrderSyncProgress({ progress: status.progress || 0, message: status.message });
         }
+      } catch (error) {
+        console.error('Failed to poll order sync progress:', error);
       }
+    };
 
-      return (
-        <div>
-          <Progress percent={percent} size="small" status="active" />
-          <div style={{ marginTop: 8 }}>{displayMessage}</div>
-        </div>
-      );
-    },
-    formatSuccessMessage: () => ({
-      title: '同步完成',
-      description: '订单同步已完成！',
-    }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
-    },
-  });
+    // 立即执行一次
+    pollProgress();
+    // 每2秒轮询一次
+    orderSyncIntervalRef.current = setInterval(pollProgress, 2000);
+  };
+
+  // 清理轮询
+  React.useEffect(() => {
+    return () => {
+      if (orderSyncIntervalRef.current) {
+        clearInterval(orderSyncIntervalRef.current);
+      }
+    };
+  }, []);
 
   // 状态管理
   const [currentPage, setCurrentPage] = useState(1);
@@ -142,8 +142,6 @@ const OrderList: React.FC = () => {
   const { selectedShop, setSelectedShop } = useShopSelection();
   const [filterForm] = Form.useForm();
   const [detailModalVisible, setDetailModalVisible] = useState(false);
-  const [syncConfirmVisible, setSyncConfirmVisible] = useState(false);
-  const [syncFullMode, setSyncFullMode] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<ozonApi.Order | null>(null);
   const [selectedPosting, setSelectedPosting] = useState<ozonApi.Posting | null>(null);
   const [activeTab, setActiveTab] = useState('awaiting_packaging');
@@ -803,17 +801,11 @@ const OrderList: React.FC = () => {
     setDetailModalVisible(true);
   };
 
-  const handleSync = (fullSync: boolean) => {
-    setSyncFullMode(fullSync);
-    setSyncConfirmVisible(true);
-  };
-
-  const handleSyncConfirm = async () => {
-    setSyncConfirmVisible(false);
-
+  // 直接执行同步（无确认弹窗）
+  const handleSync = async (fullSync: boolean) => {
     // 如果选择了特定店铺，使用原有逻辑
     if (selectedShop) {
-      syncOrdersMutation.mutate(syncFullMode);
+      syncOrdersMutation.mutate(fullSync);
       return;
     }
 
@@ -839,7 +831,7 @@ const OrderList: React.FC = () => {
         setBatchSyncProgress({ current: i + 1, total: shops.length, shopName: shop.shop_name });
 
         try {
-          const result = await ozonApi.syncOrdersDirect(shop.id, syncFullMode ? 'full' : 'incremental');
+          const result = await ozonApi.syncOrdersDirect(shop.id, fullSync ? 'full' : 'incremental');
           const taskId = result?.task_id || result?.data?.task_id;
 
           if (taskId) {
@@ -980,24 +972,28 @@ const OrderList: React.FC = () => {
             <Tooltip title={!selectedShop ? '请先选择店铺' : '同步当前店铺的订单'}>
               <Button
                 type="primary"
-                icon={<SyncOutlined />}
+                icon={<SyncOutlined spin={syncOrdersMutation.isPending || isBatchSyncing} />}
                 onClick={() => handleSync(false)}
                 loading={syncOrdersMutation.isPending || isBatchSyncing}
                 disabled={!selectedShop}
               >
-                增量同步
+                {(syncOrdersMutation.isPending || isBatchSyncing) && orderSyncProgress
+                  ? `同步中 ${Math.round(orderSyncProgress.progress)}%`
+                  : '增量同步'}
               </Button>
             </Tooltip>
           )}
           {canSync && (
             <Tooltip title={!selectedShop ? '请先选择店铺' : '全量同步当前店铺的订单'}>
               <Button
-                icon={<SyncOutlined />}
+                icon={<SyncOutlined spin={syncOrdersMutation.isPending || isBatchSyncing} />}
                 onClick={() => handleSync(true)}
                 loading={syncOrdersMutation.isPending || isBatchSyncing}
                 disabled={!selectedShop}
               >
-                全量同步
+                {(syncOrdersMutation.isPending || isBatchSyncing) && orderSyncProgress
+                  ? `同步中 ${Math.round(orderSyncProgress.progress)}%`
+                  : '全量同步'}
               </Button>
             </Tooltip>
           )}
@@ -1067,35 +1063,8 @@ const OrderList: React.FC = () => {
         onSuccess={handleSplitSuccess}
       />
 
-      {/* 同步确认对话框 */}
-      <Modal
-        title={syncFullMode ? '确认执行全量同步？' : '确认执行增量同步？'}
-        open={syncConfirmVisible}
-        onOk={handleSyncConfirm}
-        onCancel={() => setSyncConfirmVisible(false)}
-        okText="确认"
-        cancelText="取消"
-        zIndex={10000}
-      >
-        <p>
-          {selectedShop ? (
-            syncFullMode
-              ? '全量同步将拉取所有历史订单数据，耗时较长'
-              : '增量同步将只拉取最近7天的订单'
-          ) : (
-            <>
-              {syncFullMode
-                ? '将对所有店铺执行全量同步，拉取所有历史订单数据，耗时较长'
-                : '将对所有店铺执行增量同步，拉取最近7天的订单'}
-              <br />
-              <Text type="secondary">将依次同步每个店铺，请耐心等待</Text>
-            </>
-          )}
-        </p>
-      </Modal>
-
-      {/* 批量同步进度提示 */}
-      {isBatchSyncing && (
+      {/* 批量同步进度提示（仅在批量同步多个店铺时显示） */}
+      {isBatchSyncing && batchSyncProgress.total > 1 && (
         <Modal
           title="批量同步进行中"
           open={true}

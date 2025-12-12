@@ -1,8 +1,8 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 
 import authService from '@/services/authService';
-import type { AuthContextValue, LoginRequest, User } from '@/types/auth';
+import type { AuthContextValue, LoginRequest, User, CloneSession } from '@/types/auth';
 import { logger } from '@/utils/logger';
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -10,6 +10,12 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const queryClient = useQueryClient();
+
+  // 克隆状态
+  const [isCloned, setIsCloned] = useState(false);
+  const [cloneSession, setCloneSession] = useState<CloneSession | null>(null);
+  const [cloneExpiresIn, setCloneExpiresIn] = useState(0);
+  const cloneTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Query to fetch current user
   const { data, isLoading, error } = useQuery({
@@ -103,6 +109,91 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await queryClient.invalidateQueries({ queryKey: ['currentUser'] });
   };
 
+  // ========== 克隆身份相关 ==========
+
+  // 初始化时检查克隆状态
+  useEffect(() => {
+    const cloneInfo = authService.getCloneInfoFromToken();
+    if (cloneInfo.isCloned) {
+      setIsCloned(true);
+      // 获取完整的克隆状态
+      authService.getCloneStatus().then((status) => {
+        if (status.is_cloned) {
+          setCloneSession({
+            session_id: status.session_id!,
+            original_user: status.original_user!,
+            cloned_user: status.cloned_user!,
+            expires_at: status.expires_at!,
+            remaining_seconds: status.remaining_seconds!,
+          });
+          setCloneExpiresIn(status.remaining_seconds!);
+        }
+      }).catch(() => {
+        // 获取状态失败，可能会话已过期
+        setIsCloned(false);
+        setCloneSession(null);
+      });
+    }
+  }, []);
+
+  // 克隆倒计时
+  useEffect(() => {
+    if (!isCloned || cloneExpiresIn <= 0) {
+      if (cloneTimerRef.current) {
+        clearInterval(cloneTimerRef.current);
+        cloneTimerRef.current = null;
+      }
+      return;
+    }
+
+    cloneTimerRef.current = setInterval(() => {
+      setCloneExpiresIn((prev) => {
+        if (prev <= 1) {
+          // 时间到，自动登出
+          logger.info('克隆会话已过期，自动登出');
+          logout();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (cloneTimerRef.current) {
+        clearInterval(cloneTimerRef.current);
+        cloneTimerRef.current = null;
+      }
+    };
+  }, [isCloned, cloneExpiresIn > 0]);
+
+  // 克隆身份
+  const cloneIdentity = useCallback(async (userId: number) => {
+    const response = await authService.cloneIdentity(userId);
+    setIsCloned(true);
+    setCloneSession(response.clone_session);
+    setCloneExpiresIn(response.clone_session.remaining_seconds);
+
+    // 重新获取用户信息
+    await queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+
+    logger.info('已切换到克隆身份', {
+      clonedUser: response.clone_session.cloned_user.username,
+    });
+  }, [queryClient]);
+
+  // 恢复身份
+  const restoreIdentity = useCallback(async () => {
+    await authService.restoreIdentity();
+    setIsCloned(false);
+    setCloneSession(null);
+    setCloneExpiresIn(0);
+
+    // 重新获取用户信息
+    await queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+
+    logger.info('已恢复原始身份');
+  }, [queryClient]);
+
   // 使用 data 作为用户状态的主要来源，避免 useEffect 延迟导致的闪烁
   // user state 仅用于 login 后立即更新（在 query 重新获取之前）
   const currentUser = data ?? user;
@@ -118,6 +209,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     logout,
     refreshToken,
     refreshUser,
+    // 克隆相关
+    isCloned,
+    cloneSession,
+    cloneExpiresIn,
+    cloneIdentity,
+    restoreIdentity,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

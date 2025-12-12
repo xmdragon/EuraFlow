@@ -21,7 +21,7 @@ import {
 } from '@ant-design/icons';
 import { Card, Table, Button, Space, Tag, Modal, Descriptions, Tooltip, Spin, App, Form, Input, Switch } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 
 import PageTitle from '@/components/PageTitle';
 import { usePermission } from '@/hooks/usePermission';
@@ -75,6 +75,38 @@ interface SyncServiceStats {
     error_message: string;
   }>;
 }
+
+// 触发按钮组件 - 带执行中状态
+const TriggerButton: React.FC<{
+  service: SyncService;
+  onTrigger: (service: SyncService) => Promise<void>;
+}> = ({ service, onTrigger }) => {
+  const [triggering, setTriggering] = useState(false);
+
+  const handleTrigger = async () => {
+    setTriggering(true);
+    try {
+      await onTrigger(service);
+      // 保持 3 秒的执行中状态
+      setTimeout(() => setTriggering(false), 3000);
+    } catch {
+      setTriggering(false);
+    }
+  };
+
+  return (
+    <Button
+      type="primary"
+      size="small"
+      icon={<PlayCircleOutlined spin={triggering} />}
+      onClick={handleTrigger}
+      loading={triggering}
+      disabled={!service.celery_task_name}
+    >
+      {triggering ? '执行中...' : '触发'}
+    </Button>
+  );
+};
 
 const SyncServices = () => {
   const { modal } = App.useApp();
@@ -325,15 +357,7 @@ const SyncServices = () => {
               >
                 编辑
               </Button>
-              <Button
-                type="primary"
-                size="small"
-                icon={<PlayCircleOutlined />}
-                onClick={() => triggerService(record)}
-                disabled={!record.celery_task_name}
-              >
-                触发
-              </Button>
+              <TriggerButton service={record} onTrigger={triggerService} />
             </>
           )}
           <Button size="small" icon={<FileTextOutlined />} onClick={() => viewLogs(record)} />
