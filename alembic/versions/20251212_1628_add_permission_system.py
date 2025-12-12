@@ -86,9 +86,10 @@ def upgrade() -> None:
     op.execute("""
         INSERT INTO roles (name, display_name, description, is_system, is_active, priority) VALUES
         ('admin', '超级管理员', '系统最高权限，可访问所有功能', true, true, 100),
-        ('manager', '主账号', '店铺主账号，可管理店铺和子账号', true, true, 50),
+        ('main_account', '主账号', '店铺主账号，可管理店铺和子账号', true, true, 50),
         ('sub_account', '子账号', '受限账号，由主账号创建和管理', true, true, 10),
-        ('shipper', '发货员', '专职发货人员，仅能操作发货相关功能', true, true, 20)
+        ('shipper', '发货员', '专职发货人员，仅能操作发货相关功能', true, true, 20),
+        ('extension', '浏览器扩展', '浏览器扩展专用账号，仅能访问选品相关API', true, true, 5)
     """)
 
 
