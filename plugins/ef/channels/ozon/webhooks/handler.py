@@ -6,7 +6,6 @@ import asyncio
 import json
 import hashlib
 import hmac
-from datetime import datetime
 from decimal import Decimal
 from typing import Dict, Any, Optional
 
@@ -67,7 +66,7 @@ class OzonWebhookHandler:
         "chat.message_read",
         "chat.closed",
         "return.created",
-        "return.status_changed"
+        "return.status_changed",
     }
 
     # OZON Webhook 状态映射（posting_ 前缀格式 → 标准格式）
@@ -89,26 +88,19 @@ class OzonWebhookHandler:
         "awaiting_registration": "等待备货",
         "acceptance_in_progress": "等待备货",
         "awaiting_approve": "等待备货",
-
         "awaiting_deliver": "等待发运",
-
         "sent_by_seller": "已准备发运",
-
         "delivering": "运输中",
         "driver_pickup": "运输中",
-
         "arbitration": "有争议的",
         "client_arbitration": "有争议的",
-
         "delivered": "已签收",
-
         "cancelled": "已取消",
         "not_accepted": "已取消",
-
         # 兼容旧状态
         "on_hold": "等待备货",
     }
-    
+
     def __init__(self, shop_id: int, webhook_secret: str):
         """
         初始化 Webhook 处理器
@@ -155,13 +147,13 @@ class OzonWebhookHandler:
 
         # 否则直接返回原始event_type
         return event_type or "unknown"
-    
+
     async def handle_webhook(
         self,
         event_type: str,
         payload: Dict[str, Any],
         headers: Dict[str, str],
-        raw_body: bytes
+        raw_body: bytes,
     ) -> Dict[str, Any]:
         """
         处理 Webhook 请求
@@ -181,11 +173,13 @@ class OzonWebhookHandler:
 
         # 记录签名信息（OZON实际使用小写的 "signature" 头，不是 "X-Ozon-Signature"）
         signature = headers.get("signature") or headers.get("X-Ozon-Signature", "")
-        logger.info(f"Received signature: {signature[:30] if signature else 'EMPTY'}...")
+        logger.info(
+            f"Received signature: {signature[:30] if signature else 'EMPTY'}..."
+        )
 
         # 注意：OZON的webhook测试包括EMPTY_SIGN、INVALID_SIGN等场景
         # 这些测试都期望返回200，所以我们不验证签名，直接接受所有请求
-        
+
         # 检查幂等性
         event_id = headers.get("X-Event-Id", f"{event_type}-{utcnow().timestamp()}")
         idempotency_key = f"{self.shop_id}-{event_id}"
@@ -197,15 +191,15 @@ class OzonWebhookHandler:
                 OzonWebhookEvent.idempotency_key == idempotency_key
             )
             existing_event = await session.scalar(stmt)
-            
+
             if existing_event:
                 logger.info(f"Duplicate webhook event: {idempotency_key}")
                 return {
                     "success": True,
                     "message": "Event already processed",
-                    "event_id": existing_event.event_id
+                    "event_id": existing_event.event_id,
                 }
-            
+
             # 创建事件记录
             webhook_event = OzonWebhookEvent(
                 event_id=event_id,
@@ -216,11 +210,11 @@ class OzonWebhookHandler:
                 signature=signature,
                 is_verified=True,
                 status="processing",
-                idempotency_key=idempotency_key
+                idempotency_key=idempotency_key,
             )
             session.add(webhook_event)
             await session.commit()
-        
+
         # 异步处理事件
         try:
             result = await self._process_event(event_type, payload, webhook_event)
@@ -231,13 +225,9 @@ class OzonWebhookHandler:
                 webhook_event.processed_at = utcnow()
                 session.add(webhook_event)
                 await session.commit()
-            
-            return {
-                "success": True,
-                "event_id": event_id,
-                "result": result
-            }
-            
+
+            return {"success": True, "event_id": event_id, "result": result}
+
         except Exception as e:
             logger.error(f"Failed to process webhook event {event_id}: {e}")
 
@@ -248,18 +238,11 @@ class OzonWebhookHandler:
                 webhook_event.retry_count += 1
                 session.add(webhook_event)
                 await session.commit()
-            
-            return {
-                "success": False,
-                "event_id": event_id,
-                "error": str(e)
-            }
-    
+
+            return {"success": False, "event_id": event_id, "error": str(e)}
+
     async def _process_event(
-        self,
-        event_type: str,
-        payload: Dict[str, Any],
-        webhook_event: OzonWebhookEvent
+        self, event_type: str, payload: Dict[str, Any], webhook_event: OzonWebhookEvent
     ) -> Dict[str, Any]:
         """
         处理具体事件
@@ -297,7 +280,7 @@ class OzonWebhookHandler:
             "chat.closed": self._handle_chat_closed,
             # 退货相关
             "return.created": self._handle_return_created,
-            "return.status_changed": self._handle_return_status_changed
+            "return.status_changed": self._handle_return_status_changed,
         }
 
         handler = handlers.get(event_type)
@@ -307,11 +290,9 @@ class OzonWebhookHandler:
             return {"message": "Event type not supported"}
 
         return await handler(payload, webhook_event)
-    
+
     async def _handle_posting_status_changed(
-        self,
-        payload: Dict[str, Any],
-        webhook_event: OzonWebhookEvent
+        self, payload: Dict[str, Any], webhook_event: OzonWebhookEvent
     ) -> Dict[str, Any]:
         """处理发货单状态变更（包括发货状态）
 
@@ -324,16 +305,21 @@ class OzonWebhookHandler:
         - cancelled（已取消）
         """
         posting_number = payload.get("posting_number")
-        raw_status = payload.get("new_state")  # 修正：OZON字段名为 "new_state"，不是 "status"
+        # 修正：OZON字段名为 "new_state"，不是 "status"
+        raw_status = payload.get("new_state")
 
         if not raw_status:
-            logger.warning(f"Posting {posting_number} status change webhook missing new_state field")
+            logger.warning(
+                f"Posting {posting_number} webhook missing new_state field"
+            )
             return {"message": "Missing new_state field"}
 
         # 映射 OZON webhook 状态到标准状态
         new_status = self.WEBHOOK_STATUS_MAP.get(raw_status, raw_status)
 
-        logger.info(f"Posting {posting_number} status changed: {raw_status} → {new_status}")
+        logger.info(
+            f"Posting {posting_number} status changed: {raw_status} → {new_status}"
+        )
 
         # 更新本地状态
         from ..models.orders import OzonPosting
@@ -343,7 +329,7 @@ class OzonWebhookHandler:
             stmt = select(OzonPosting).where(
                 and_(
                     OzonPosting.shop_id == self.shop_id,
-                    OzonPosting.posting_number == posting_number
+                    OzonPosting.posting_number == posting_number,
                 )
             )
             posting = await session.scalar(stmt)
@@ -355,15 +341,22 @@ class OzonWebhookHandler:
                 # 根据状态更新时间
                 if new_status == "delivered":
                     posting.delivered_at = utcnow()
-                    logger.info(f"Posting {posting_number} delivered at {posting.delivered_at}")
+                    logger.info(
+                        f"Posting {posting_number} delivered at {posting.delivered_at}"
+                    )
                 elif new_status == "cancelled":
                     posting.cancelled_at = utcnow()
-                    logger.info(f"Posting {posting_number} cancelled at {posting.cancelled_at}")
+                    logger.info(
+                        f"Posting {posting_number} cancelled at {posting.cancelled_at}"
+                    )
                 elif new_status in ("sent_by_seller", "delivering"):
                     # 发货相关状态：卖家已发货 或 配送中
                     if not posting.shipped_at:
                         posting.shipped_at = utcnow()
-                        logger.info(f"Posting {posting_number} shipped at {posting.shipped_at} (status: {new_status})")
+                        logger.info(
+                            f"Posting {posting_number} shipped at "
+                            f"{posting.shipped_at} (status: {new_status})"
+                        )
 
                 # ========== 使用统一的状态管理器更新operation_status ==========
                 from ..services.posting_status_manager import PostingStatusManager
@@ -373,7 +366,7 @@ class OzonWebhookHandler:
                     ozon_status=new_status,
                     db=session,
                     source="webhook",  # 来源：Webhook
-                    preserve_manual=True  # 保留用户手动标记的printed状态
+                    preserve_manual=True,  # 保留用户手动标记的printed状态
                 )
 
                 session.add(posting)
@@ -385,14 +378,16 @@ class OzonWebhookHandler:
 
                 # 如果状态变为"awaiting_deliver"（等待发运），自动下载PDF标签
                 if new_status == "awaiting_deliver":
-                    logger.info(f"Posting {posting_number} 状态变为等待发运，触发标签PDF下载任务（45秒后执行）")
+                    logger.info(
+                        f"Posting {posting_number} awaiting_deliver, "
+                        "triggering label download (45s delay)"
+                    )
                     # 使用Celery后台任务，45秒后执行
                     from ..tasks import download_label_pdf_task
-                    from datetime import timedelta
 
                     download_label_pdf_task.apply_async(
                         args=[posting_number, posting.shop_id],
-                        countdown=45  # 45秒后执行
+                        countdown=45,
                     )
 
                 # 发送 WebSocket 通知（全局广播）
@@ -406,20 +401,37 @@ class OzonWebhookHandler:
                             "posting_number": posting_number,
                             "old_status": raw_status,
                             "new_status": new_status,
-                            "old_status_display": self.STATUS_DISPLAY_MAP.get(raw_status, raw_status),
-                            "new_status_display": self.STATUS_DISPLAY_MAP.get(new_status, new_status),
-                            "timestamp": utcnow().isoformat()
-                        }
+                            "old_status_display": self.STATUS_DISPLAY_MAP.get(
+                                raw_status, raw_status
+                            ),
+                            "new_status_display": self.STATUS_DISPLAY_MAP.get(
+                                new_status, new_status
+                            ),
+                            "timestamp": utcnow().isoformat(),
+                        },
                     }
 
-                    # 全局广播通知（所有WebSocket连接都能收到）
-                    sent_count = await notification_manager.broadcast(notification_data)
-                    logger.info(f"Broadcast posting status changed notification to {sent_count} connections (shop {self.shop_id})")
+                    # 按店铺隔离通知（只发给订阅该店铺的用户）
+                    sent_count = await notification_manager.send_to_shop_users(
+                        self.shop_id, notification_data
+                    )
+                    logger.info(
+                        f"Sent status notification to {sent_count} "
+                        f"connections (shop {self.shop_id})"
+                    )
 
                 except Exception as e:
-                    logger.error(f"Failed to send WebSocket notification: {e}", exc_info=True)
+                    logger.error(
+                        f"Failed to send WebSocket notification: {e}", exc_info=True
+                    )
 
-                return {"posting_id": posting.id, "status": new_status, "shipped_at": posting.shipped_at.isoformat() if posting.shipped_at else None}
+                return {
+                    "posting_id": posting.id,
+                    "status": new_status,
+                    "shipped_at": posting.shipped_at.isoformat()
+                    if posting.shipped_at
+                    else None,
+                }
             else:
                 # Posting不存在，触发同步
                 logger.warning(f"Posting {posting_number} not found, triggering sync")
@@ -428,8 +440,10 @@ class OzonWebhookHandler:
                 asyncio.create_task(self._trigger_order_sync(posting_number))
 
                 return {"message": "Posting not found, sync triggered"}
-    
-    async def _create_posting_from_webhook(self, payload: Dict[str, Any]) -> Optional[Any]:
+
+    async def _create_posting_from_webhook(
+        self, payload: Dict[str, Any]
+    ) -> Optional[Any]:
         """从webhook payload创建基本订单记录
 
         Webhook payload包含基本信息，足够创建初始订单：
@@ -442,7 +456,9 @@ class OzonWebhookHandler:
 
             posting_number = payload.get("posting_number")
             if not posting_number:
-                logger.error("Webhook payload missing posting_number, cannot create posting")
+                logger.error(
+                    "Webhook payload missing posting_number, cannot create posting"
+                )
                 return None
 
             in_process_at = payload.get("in_process_at")
@@ -457,13 +473,15 @@ class OzonWebhookHandler:
                     select(OzonPosting).where(
                         and_(
                             OzonPosting.shop_id == self.shop_id,
-                            OzonPosting.posting_number == posting_number
+                            OzonPosting.posting_number == posting_number,
                         )
                     )
                 )
 
                 if existing_posting:
-                    logger.info(f"Posting {posting_number} already exists, skipping creation")
+                    logger.info(
+                        f"Posting {posting_number} already exists, skipping creation"
+                    )
                     return existing_posting
 
                 # 从 OzonProduct 表补全 products 中的 name 和 price 信息
@@ -484,12 +502,16 @@ class OzonWebhookHandler:
                     posting_number=posting_number,
                     status="awaiting_packaging",  # 默认状态
                     operation_status="awaiting_stock",  # 默认操作状态
-                    shipment_date=parse_datetime(shipment_date) if shipment_date else None,
+                    shipment_date=parse_datetime(shipment_date)
+                    if shipment_date
+                    else None,
                     warehouse_id=warehouse_id,
-                    in_process_at=parse_datetime(in_process_at) if in_process_at else utcnow(),
+                    in_process_at=parse_datetime(in_process_at)
+                    if in_process_at
+                    else utcnow(),
                     raw_payload=payload,
                     has_tracking_number=has_tracking,  # 反范式化字段
-                    has_domestic_tracking=False  # 新单号无国内单号
+                    has_domestic_tracking=False,  # 新单号无国内单号
                 )
 
                 session.add(posting)
@@ -497,22 +519,27 @@ class OzonWebhookHandler:
                 try:
                     await session.commit()
                     await session.refresh(posting)
-                    logger.info(f"Created posting {posting_number} from webhook payload")
+                    logger.info(
+                        f"Created posting {posting_number} from webhook payload"
+                    )
                     return posting
                 except Exception as commit_error:
                     await session.rollback()
-                    logger.error(f"Failed to commit posting creation for {posting_number}: {commit_error}", exc_info=True)
+                    logger.error(
+                        f"Failed to commit posting {posting_number}: "
+                        f"{commit_error}",
+                        exc_info=True,
+                    )
                     raise
 
         except Exception as e:
-            logger.error(f"Failed to create posting from webhook payload: {e}", exc_info=True)
+            logger.error(
+                f"Failed to create posting from webhook payload: {e}", exc_info=True
+            )
             return None
 
     async def _enrich_products_from_db(
-        self,
-        session: AsyncSession,
-        products: list,
-        OzonProduct
+        self, session: AsyncSession, products: list, OzonProduct
     ) -> list:
         """从 OzonProduct 表补全 products 中的 name 和 price 信息
 
@@ -552,10 +579,7 @@ class OzonWebhookHandler:
             conditions.append(OzonProduct.offer_id.in_(offer_ids))
 
         query = select(OzonProduct).where(
-            and_(
-                OzonProduct.shop_id == self.shop_id,
-                or_(*conditions)
-            )
+            and_(OzonProduct.shop_id == self.shop_id, or_(*conditions))
         )
 
         result = await session.execute(query)
@@ -623,13 +647,17 @@ class OzonWebhookHandler:
                 await asyncio.sleep(delay)
 
             try:
-                logger.info(f"Attempting to fetch API data for posting {posting_number} (attempt {attempt}/{len(retry_delays)})")
+                logger.info(
+                    f"Fetch API data for {posting_number} "
+                    f"(attempt {attempt}/{len(retry_delays)})"
+                )
 
                 # 调用原有的同步逻辑
                 await self._trigger_order_sync(posting_number)
 
                 # 检查是否成功更新
                 from ..models.orders import OzonPosting
+
                 db_manager = get_db_manager()
 
                 async with db_manager.get_session() as session:
@@ -637,22 +665,36 @@ class OzonWebhookHandler:
                         select(OzonPosting).where(
                             and_(
                                 OzonPosting.shop_id == self.shop_id,
-                                OzonPosting.posting_number == posting_number
+                                OzonPosting.posting_number == posting_number,
                             )
                         )
                     )
 
                     # 检查是否已有完整数据（ozon_order_id 存在且不是 webhook_ 开头即可）
-                    if posting and posting.ozon_order_id and not posting.ozon_order_id.startswith("webhook_"):
-                        logger.info(f"Successfully updated posting {posting_number} with API data (ozon_order_id={posting.ozon_order_id})")
+                    if (
+                        posting
+                        and posting.ozon_order_id
+                        and not posting.ozon_order_id.startswith("webhook_")
+                    ):
+                        logger.info(
+                            f"Updated {posting_number} with API data "
+                            f"(ozon_order_id={posting.ozon_order_id})"
+                        )
                         return  # 成功，退出
 
-                logger.warning(f"API data not yet available for posting {posting_number}, will retry")
+                logger.warning(
+                    f"API data not available for {posting_number}, will retry"
+                )
 
             except Exception as e:
-                logger.error(f"Error updating posting {posting_number} with API data (attempt {attempt}): {e}")
+                logger.error(
+                    f"Error updating {posting_number} (attempt {attempt}): {e}"
+                )
 
-        logger.warning(f"Failed to update posting {posting_number} with API data after {len(retry_delays)} attempts")
+        logger.warning(
+            f"Failed to update {posting_number} after "
+            f"{len(retry_delays)} attempts"
+        )
 
     async def _trigger_order_sync(self, posting_number: str) -> None:
         """
@@ -676,37 +718,48 @@ class OzonWebhookHandler:
                 shop = result.scalar_one_or_none()
 
                 if not shop:
-                    logger.error(f"Shop {self.shop_id} not found for posting {posting_number}")
+                    logger.error(
+                        f"Shop {self.shop_id} not found for posting {posting_number}"
+                    )
                     return
 
                 try:
                     # 创建API客户端
                     client = OzonAPIClient(
-                        client_id=shop.client_id,
-                        api_key=shop.api_key_enc
+                        client_id=shop.client_id, api_key=shop.api_key_enc
                     )
 
                     # 步骤1: 获取当前包裹详情（获取order_id和创建时间）
                     order_info = await client.get_posting_details(
                         posting_number,
                         with_analytics_data=True,
-                        with_financial_data=True
+                        with_financial_data=True,
                     )
 
                     # 记录API原始返回
-                    logger.info(f"API response for {posting_number}: {json.dumps(order_info, ensure_ascii=False)[:500]}")
+                    response_preview = json.dumps(
+                        order_info, ensure_ascii=False
+                    )[:500]
+                    logger.info(f"API response for {posting_number}: "
+                                f"{response_preview}")
 
                     # 检查响应和result是否有效
                     if not order_info or not order_info.get("result"):
-                        logger.warning(f"No result in API response for posting {posting_number}")
+                        logger.warning(
+                            f"No result in API response for posting {posting_number}"
+                        )
                         return
 
                     posting_data = order_info["result"]
                     order_id = posting_data.get("order_id")
-                    created_at = posting_data.get("created_at") or posting_data.get("in_process_at")
+                    created_at = posting_data.get("created_at") or posting_data.get(
+                        "in_process_at"
+                    )
 
                     if not order_id:
-                        logger.warning(f"No order_id in posting {posting_number}, cannot sync related postings")
+                        logger.warning(
+                            f"No order_id in {posting_number}, cannot sync related"
+                        )
                         # 仍然保存当前包裹
                         processor = PostingProcessor()
                         await processor.sync_posting(db, posting_data, shop.id, "")
@@ -715,6 +768,7 @@ class OzonWebhookHandler:
 
                     # 步骤2: 查询该订单的所有包裹（时间范围：创建时间前后1天）
                     from datetime import datetime, timezone
+
                     if created_at:
                         base_time = parse_datetime(created_at)
                         if not base_time:
@@ -725,27 +779,38 @@ class OzonWebhookHandler:
                     date_from = base_time - timedelta(days=1)
                     date_to = base_time + timedelta(days=1)
 
-                    logger.info(f"Fetching all postings for order {order_id} in range {date_from} - {date_to}")
+                    logger.info(
+                        f"Fetching postings for order {order_id} "
+                        f"({date_from} - {date_to})"
+                    )
 
                     all_postings_response = await client.get_orders(
                         date_from=date_from,
                         date_to=date_to,
-                        limit=50  # 一个订单通常不会超过50个包裹
+                        limit=50,  # 一个订单通常不会超过50个包裹
                     )
 
-                    if not all_postings_response or not all_postings_response.get("result"):
+                    if not all_postings_response or not all_postings_response.get(
+                        "result"
+                    ):
                         logger.warning(f"Failed to fetch postings for order {order_id}")
                         # 仍然保存当前包裹
                         processor = PostingProcessor()
-                        await processor.sync_posting(db, posting_data, shop.id, str(order_id))
+                        await processor.sync_posting(
+                            db, posting_data, shop.id, str(order_id)
+                        )
                         await db.commit()
                         return
 
                     # 步骤3: 过滤出属于同一order_id的所有包裹
                     all_postings = all_postings_response["result"].get("postings", [])
-                    related_postings = [p for p in all_postings if p.get("order_id") == order_id]
+                    related_postings = [
+                        p for p in all_postings if p.get("order_id") == order_id
+                    ]
 
-                    logger.info(f"Found {len(related_postings)} postings for order {order_id}")
+                    logger.info(
+                        f"Found {len(related_postings)} postings for order {order_id}"
+                    )
 
                     # 步骤4: 批量处理所有包裹
                     processor = PostingProcessor()
@@ -753,23 +818,37 @@ class OzonWebhookHandler:
                     for posting in related_postings:
                         try:
                             ozon_order_id = str(posting.get("order_id", ""))
-                            await processor.sync_posting(db, posting, shop.id, ozon_order_id)
+                            await processor.sync_posting(
+                                db, posting, shop.id, ozon_order_id
+                            )
                         except Exception as e:
-                            logger.error(f"Failed to process posting {posting.get('posting_number')}: {e}", exc_info=True)
+                            pn = posting.get("posting_number")
+                            logger.error(
+                                f"Failed to process posting {pn}: {e}",
+                                exc_info=True,
+                            )
 
                     await db.commit()
 
-                    logger.info(f"Successfully synced order {order_id} with {len(related_postings)} postings from webhook for shop {shop.id}")
+                    logger.info(
+                        f"Synced order {order_id} with "
+                        f"{len(related_postings)} postings (shop {shop.id})"
+                    )
 
                     await client.close()
 
                 except Exception as e:
-                    logger.error(f"Failed to sync order {posting_number} for shop {shop.id}: {e}", exc_info=True)
+                    logger.error(
+                        f"Failed to sync {posting_number} (shop {shop.id}): {e}",
+                        exc_info=True,
+                    )
 
         except Exception as e:
             logger.error(f"Failed to trigger order sync for {posting_number}: {e}")
 
-    async def _trigger_product_sync(self, product_id: int = None, offer_id: str = None) -> None:
+    async def _trigger_product_sync(
+        self, product_id: int = None, offer_id: str = None
+    ) -> None:
         """触发特定商品的同步"""
         try:
             from ..models import OzonShop
@@ -791,8 +870,7 @@ class OzonWebhookHandler:
                 try:
                     # 创建API客户端
                     client = OzonAPIClient(
-                        client_id=shop.client_id,
-                        api_key=shop.api_key_enc
+                        client_id=shop.client_id, api_key=shop.api_key_enc
                     )
 
                     # 获取商品信息（通过offer_id或product_id）
@@ -804,25 +882,29 @@ class OzonWebhookHandler:
                         # product_info = await client.get_product_info(offer_id)
                         # await self._save_product_info(shop.id, product_info, db)
                     elif product_id:
-                        logger.info(f"Triggering product sync for product_id: {product_id}")
+                        logger.info(
+                            f"Triggering product sync for product_id: {product_id}"
+                        )
                         # TODO: 实现商品详情API调用和保存逻辑
 
                     await client.close()
 
                 except Exception as e:
-                    logger.error(f"Failed to sync product (offer_id={offer_id}, product_id={product_id}) for shop {shop.id}: {e}")
+                    logger.error(
+                        f"Failed to sync product offer={offer_id} "
+                        f"pid={product_id} shop={shop.id}: {e}"
+                    )
 
         except Exception as e:
             logger.error(f"Failed to trigger product sync: {e}")
 
     async def _handle_posting_cancelled(
-        self,
-        payload: Dict[str, Any],
-        webhook_event: OzonWebhookEvent
+        self, payload: Dict[str, Any], webhook_event: OzonWebhookEvent
     ) -> Dict[str, Any]:
         """处理发货单取消"""
         posting_number = payload.get("posting_number")
-        cancel_reason = payload.get("reason")  # 修正：OZON字段名为 "reason"，不是 "cancel_reason"
+        # 修正：OZON字段名为 "reason"，不是 "cancel_reason"
+        cancel_reason = payload.get("reason")
 
         logger.info(f"Posting {posting_number} cancelled: {cancel_reason}")
 
@@ -833,7 +915,7 @@ class OzonWebhookHandler:
             stmt = select(OzonPosting).where(
                 and_(
                     OzonPosting.shop_id == self.shop_id,
-                    OzonPosting.posting_number == posting_number
+                    OzonPosting.posting_number == posting_number,
                 )
             )
             posting = await session.scalar(stmt)
@@ -844,7 +926,9 @@ class OzonWebhookHandler:
                 # 添加空值检查，防止 NoneType.get() 错误
                 if cancel_reason:
                     posting.cancel_reason = cancel_reason.get("reason")
-                    posting.cancel_reason_id = cancel_reason.get("id")  # 修正：字段名为 "id"，不是 "reason_id"
+                    posting.cancel_reason_id = cancel_reason.get(
+                        "id"
+                    )  # 修正：字段名为 "id"，不是 "reason_id"
                 posting.cancelled_at = utcnow()
 
                 session.add(posting)
@@ -862,31 +946,38 @@ class OzonWebhookHandler:
                         "shop_id": self.shop_id,
                         "data": {
                             "posting_number": posting_number,
-                            "cancel_reason": cancel_reason.get("reason") if cancel_reason else "无原因",
-                            "timestamp": utcnow().isoformat()
-                        }
+                            "cancel_reason": cancel_reason.get("reason")
+                            if cancel_reason
+                            else "无原因",
+                            "timestamp": utcnow().isoformat(),
+                        },
                     }
 
-                    # 全局广播通知（所有WebSocket连接都能收到）
-                    sent_count = await notification_manager.broadcast(notification_data)
-                    logger.info(f"Broadcast posting cancelled notification to {sent_count} connections (shop {self.shop_id})")
+                    # 按店铺隔离通知（只发给订阅该店铺的用户）
+                    sent_count = await notification_manager.send_to_shop_users(
+                        self.shop_id, notification_data
+                    )
+                    logger.info(
+                        f"Sent cancelled notification to {sent_count} "
+                        f"connections (shop {self.shop_id})"
+                    )
 
                 except Exception as e:
-                    logger.error(f"Failed to send WebSocket notification: {e}", exc_info=True)
+                    logger.error(
+                        f"Failed to send WebSocket notification: {e}", exc_info=True
+                    )
 
                 return {"posting_id": posting.id, "cancelled": True}
 
             return {"message": "Posting not found"}
-    
+
     async def _handle_posting_delivered(
-        self,
-        payload: Dict[str, Any],
-        webhook_event: OzonWebhookEvent
+        self, payload: Dict[str, Any], webhook_event: OzonWebhookEvent
     ) -> Dict[str, Any]:
         """处理发货单妥投"""
         posting_number = payload.get("posting_number")
         delivered_at = payload.get("delivered_at")
-        
+
         logger.info(f"Posting {posting_number} delivered at {delivered_at}")
 
         from ..models.orders import OzonPosting
@@ -896,7 +987,7 @@ class OzonWebhookHandler:
             stmt = select(OzonPosting).where(
                 and_(
                     OzonPosting.shop_id == self.shop_id,
-                    OzonPosting.posting_number == posting_number
+                    OzonPosting.posting_number == posting_number,
                 )
             )
             posting = await session.scalar(stmt)
@@ -920,31 +1011,36 @@ class OzonWebhookHandler:
                         "data": {
                             "posting_number": posting_number,
                             "delivered_at": delivered_at,
-                            "timestamp": utcnow().isoformat()
-                        }
+                            "timestamp": utcnow().isoformat(),
+                        },
                     }
 
-                    # 全局广播通知（所有WebSocket连接都能收到）
-                    sent_count = await notification_manager.broadcast(notification_data)
-                    logger.info(f"Broadcast posting delivered notification to {sent_count} connections (shop {self.shop_id})")
+                    # 按店铺隔离通知（只发给订阅该店铺的用户）
+                    sent_count = await notification_manager.send_to_shop_users(
+                        self.shop_id, notification_data
+                    )
+                    logger.info(
+                        f"Sent delivered notification to {sent_count} "
+                        f"connections (shop {self.shop_id})"
+                    )
 
                 except Exception as e:
-                    logger.error(f"Failed to send WebSocket notification: {e}", exc_info=True)
+                    logger.error(
+                        f"Failed to send WebSocket notification: {e}", exc_info=True
+                    )
 
                 return {"posting_id": posting.id, "delivered": True}
 
             return {"message": "Posting not found"}
-    
+
     async def _handle_product_price_changed(
-        self,
-        payload: Dict[str, Any],
-        webhook_event: OzonWebhookEvent
+        self, payload: Dict[str, Any], webhook_event: OzonWebhookEvent
     ) -> Dict[str, Any]:
         """处理商品价格变更"""
         product_id = payload.get("product_id")
         old_price = payload.get("old_price")
         new_price = payload.get("new_price")
-        
+
         logger.info(f"Product {product_id} price changed: {old_price} -> {new_price}")
 
         from ..models import OzonProduct
@@ -955,7 +1051,7 @@ class OzonWebhookHandler:
             stmt = select(OzonProduct).where(
                 and_(
                     OzonProduct.shop_id == self.shop_id,
-                    OzonProduct.ozon_product_id == product_id
+                    OzonProduct.ozon_product_id == product_id,
                 )
             )
             product = await session.scalar(stmt)
@@ -973,15 +1069,13 @@ class OzonWebhookHandler:
                 return {"product_id": product.id, "price_updated": True}
 
             return {"message": "Product not found"}
-    
+
     async def _handle_product_stock_changed(
-        self,
-        payload: Dict[str, Any],
-        webhook_event: OzonWebhookEvent
+        self, payload: Dict[str, Any], webhook_event: OzonWebhookEvent
     ) -> Dict[str, Any]:
         """处理商品库存变更"""
         product_id = payload.get("product_id")
-        warehouse_id = payload.get("warehouse_id")
+        payload.get("warehouse_id")
         old_stock = payload.get("old_stock")
         new_stock = payload.get("new_stock")
 
@@ -994,7 +1088,7 @@ class OzonWebhookHandler:
             stmt = select(OzonProduct).where(
                 and_(
                     OzonProduct.shop_id == self.shop_id,
-                    OzonProduct.ozon_product_id == product_id
+                    OzonProduct.ozon_product_id == product_id,
                 )
             )
             product = await session.scalar(stmt)
@@ -1013,9 +1107,7 @@ class OzonWebhookHandler:
             return {"message": "Product not found"}
 
     async def _handle_product_price_index_changed(
-        self,
-        payload: Dict[str, Any],
-        webhook_event: OzonWebhookEvent
+        self, payload: Dict[str, Any], webhook_event: OzonWebhookEvent
     ) -> Dict[str, Any]:
         """处理商品价格指数变更 (TYPE_PRICE_INDEX_CHANGED)
 
@@ -1027,7 +1119,10 @@ class OzonWebhookHandler:
         old_index = payload.get("old_price_index")
         new_index = payload.get("new_price_index")
 
-        logger.info(f"Product {product_id or offer_id} price index changed: {old_index} -> {new_index}")
+        logger.info(
+            f"Product {product_id or offer_id} price index: "
+            f"{old_index} -> {new_index}"
+        )
         logger.info(f"Price index change payload: {payload}")
 
         # 记录价格指数变化事件
@@ -1039,18 +1134,16 @@ class OzonWebhookHandler:
             "offer_id": offer_id,
             "old_index": old_index,
             "new_index": new_index,
-            "price_index_changed": True
+            "price_index_changed": True,
         }
 
     async def _handle_return_created(
-        self,
-        payload: Dict[str, Any],
-        webhook_event: OzonWebhookEvent
+        self, payload: Dict[str, Any], webhook_event: OzonWebhookEvent
     ) -> Dict[str, Any]:
         """处理退货创建"""
         return_id = payload.get("return_id")
         posting_number = payload.get("posting_number")
-        
+
         logger.info(f"Return {return_id} created for posting {posting_number}")
 
         from ..models.orders import OzonRefund, OzonPosting
@@ -1061,11 +1154,11 @@ class OzonWebhookHandler:
             stmt = select(OzonPosting).where(
                 and_(
                     OzonPosting.shop_id == self.shop_id,
-                    OzonPosting.posting_number == posting_number
+                    OzonPosting.posting_number == posting_number,
                 )
             )
             posting = await session.scalar(stmt)
-            
+
             if posting:
                 # 创建退款记录
                 refund = OzonRefund(
@@ -1076,27 +1169,25 @@ class OzonWebhookHandler:
                     refund_amount=Decimal(str(payload.get("amount", "0"))),
                     reason=payload.get("reason"),
                     status="pending",
-                    requested_at=utcnow()
+                    requested_at=utcnow(),
                 )
                 session.add(refund)
                 await session.commit()
-                
+
                 webhook_event.entity_type = "refund"
                 webhook_event.entity_id = str(refund.id)
-                
+
                 return {"refund_id": refund.id, "created": True}
-            
+
             return {"message": "Posting not found"}
-    
+
     async def _handle_return_status_changed(
-        self,
-        payload: Dict[str, Any],
-        webhook_event: OzonWebhookEvent
+        self, payload: Dict[str, Any], webhook_event: OzonWebhookEvent
     ) -> Dict[str, Any]:
         """处理退货状态变更"""
         return_id = payload.get("return_id")
         new_status = payload.get("status")
-        
+
         logger.info(f"Return {return_id} status changed to {new_status}")
 
         from ..models.orders import OzonRefund
@@ -1106,29 +1197,29 @@ class OzonWebhookHandler:
             stmt = select(OzonRefund).where(
                 and_(
                     OzonRefund.shop_id == self.shop_id,
-                    OzonRefund.refund_id == str(return_id)
+                    OzonRefund.refund_id == str(return_id),
                 )
             )
             refund = await session.scalar(stmt)
-            
+
             if refund:
                 refund.status = new_status
-                
+
                 if new_status == "approved":
                     refund.approved_at = utcnow()
                 elif new_status == "completed":
                     refund.completed_at = utcnow()
-                
+
                 session.add(refund)
                 await session.commit()
-                
+
                 webhook_event.entity_type = "refund"
                 webhook_event.entity_id = str(refund.id)
-                
+
                 return {"refund_id": refund.id, "status": new_status}
-            
+
             return {"message": "Return not found"}
-    
+
     def _verify_signature(self, raw_body: bytes, signature: str) -> bool:
         """
         验证Webhook签名
@@ -1141,9 +1232,7 @@ class OzonWebhookHandler:
             签名是否有效
         """
         expected_signature = hmac.new(
-            self.webhook_secret.encode(),
-            raw_body,
-            hashlib.sha256
+            self.webhook_secret.encode(), raw_body, hashlib.sha256
         ).hexdigest()
 
         return hmac.compare_digest(signature, expected_signature)
@@ -1151,9 +1240,7 @@ class OzonWebhookHandler:
     # ========== 新增的事件处理器 ==========
 
     async def _handle_ping(
-        self,
-        payload: Dict[str, Any],
-        webhook_event: OzonWebhookEvent
+        self, payload: Dict[str, Any], webhook_event: OzonWebhookEvent
     ) -> Dict[str, Any]:
         """处理PING/连接检查事件"""
         logger.info("Received PING/verification request from OZON")
@@ -1161,9 +1248,7 @@ class OzonWebhookHandler:
         return {"message": "PING received", "verified": True}
 
     async def _handle_posting_created(
-        self,
-        payload: Dict[str, Any],
-        webhook_event: OzonWebhookEvent
+        self, payload: Dict[str, Any], webhook_event: OzonWebhookEvent
     ) -> Dict[str, Any]:
         """处理新订单创建事件 (TYPE_NEW_POSTING)
 
@@ -1175,11 +1260,17 @@ class OzonWebhookHandler:
         posting_number = payload.get("posting_number")
         if not posting_number:
             logger.error("Webhook TYPE_NEW_POSTING missing posting_number")
-            return {"synced": False, "notified": False, "error": "missing_posting_number"}
+            return {
+                "synced": False,
+                "notified": False,
+                "error": "missing_posting_number",
+            }
 
         products = payload.get("products", [])
 
-        logger.info(f"New posting created: {posting_number} with {len(products)} products")
+        logger.info(
+            f"New posting created: {posting_number} with {len(products)} products"
+        )
 
         # 步骤1：先用webhook payload创建基本订单（确保用户能立即看到）
         posting = await self._create_posting_from_webhook(payload)
@@ -1196,16 +1287,23 @@ class OzonWebhookHandler:
                         "posting_number": posting_number,
                         "product_count": len(products),
                         "total_price": "0",  # webhook payload中没有价格信息
-                        "timestamp": utcnow().isoformat()
-                    }
+                        "timestamp": utcnow().isoformat(),
+                    },
                 }
 
-                # 全局广播通知（所有WebSocket连接都能收到）
-                sent_count = await notification_manager.broadcast(notification_data)
-                logger.info(f"Broadcast new posting notification to {sent_count} connections (shop {self.shop_id})")
+                # 按店铺隔离通知（只发给订阅该店铺的用户）
+                sent_count = await notification_manager.send_to_shop_users(
+                    self.shop_id, notification_data
+                )
+                logger.info(
+                    f"Sent new posting notification to {sent_count} "
+                    f"connections (shop {self.shop_id})"
+                )
 
             except Exception as e:
-                logger.error(f"Failed to send WebSocket notification: {e}", exc_info=True)
+                logger.error(
+                    f"Failed to send WebSocket notification: {e}", exc_info=True
+                )
 
             webhook_event.entity_type = "posting"
             webhook_event.entity_id = posting.posting_number
@@ -1213,24 +1311,35 @@ class OzonWebhookHandler:
             # 步骤3：后台异步获取完整信息并更新（不阻塞webhook响应）
             asyncio.create_task(self._update_posting_with_api_data(posting_number))
 
-            return {"posting_number": posting_number, "synced": True, "notified": True, "source": "webhook_payload"}
+            return {
+                "posting_number": posting_number,
+                "synced": True,
+                "notified": True,
+                "source": "webhook_payload",
+            }
         else:
-            logger.error(f"Failed to create posting {posting_number} from webhook payload")
+            logger.error(
+                f"Failed to create posting {posting_number} from webhook payload"
+            )
             webhook_event.entity_type = "posting"
             webhook_event.entity_id = posting_number
-            return {"posting_number": posting_number, "synced": False, "notified": False}
+            return {
+                "posting_number": posting_number,
+                "synced": False,
+                "notified": False,
+            }
 
     async def _handle_posting_cutoff_date_changed(
-        self,
-        payload: Dict[str, Any],
-        webhook_event: OzonWebhookEvent
+        self, payload: Dict[str, Any], webhook_event: OzonWebhookEvent
     ) -> Dict[str, Any]:
         """处理订单截止日期变更事件 (TYPE_CUTOFF_DATE_CHANGED)"""
         posting_number = payload.get("posting_number")
         old_cutoff = payload.get("old_cutoff_date")
         new_cutoff = payload.get("new_cutoff_date")
 
-        logger.info(f"Posting {posting_number} cutoff date changed: {old_cutoff} -> {new_cutoff}")
+        logger.info(
+            f"Posting {posting_number} cutoff: {old_cutoff} -> {new_cutoff}"
+        )
 
         from ..models.orders import OzonPosting
 
@@ -1239,7 +1348,7 @@ class OzonWebhookHandler:
             stmt = select(OzonPosting).where(
                 and_(
                     OzonPosting.shop_id == self.shop_id,
-                    OzonPosting.posting_number == posting_number
+                    OzonPosting.posting_number == posting_number,
                 )
             )
             posting = await session.scalar(stmt)
@@ -1258,16 +1367,16 @@ class OzonWebhookHandler:
             return {"message": "Posting not found"}
 
     async def _handle_posting_delivery_date_changed(
-        self,
-        payload: Dict[str, Any],
-        webhook_event: OzonWebhookEvent
+        self, payload: Dict[str, Any], webhook_event: OzonWebhookEvent
     ) -> Dict[str, Any]:
         """处理订单配送日期变更事件 (TYPE_DELIVERY_DATE_CHANGED)"""
         posting_number = payload.get("posting_number")
         old_delivery = payload.get("old_delivery_date")
         new_delivery = payload.get("new_delivery_date")
 
-        logger.info(f"Posting {posting_number} delivery date changed: {old_delivery} -> {new_delivery}")
+        logger.info(
+            f"Posting {posting_number} delivery: {old_delivery} -> {new_delivery}"
+        )
 
         from ..models.orders import OzonPosting
 
@@ -1276,14 +1385,14 @@ class OzonWebhookHandler:
             stmt = select(OzonPosting).where(
                 and_(
                     OzonPosting.shop_id == self.shop_id,
-                    OzonPosting.posting_number == posting_number
+                    OzonPosting.posting_number == posting_number,
                 )
             )
             posting = await session.scalar(stmt)
 
             if posting:
-                # 记录日志，不直接更新delivered_at（实际妥投由posting.delivered事件处理）
-                logger.info(f"Delivery date updated for posting {posting.id}")
+                # 记录日志，实际妥投由posting.delivered事件处理
+                logger.info(f"Delivery date updated for {posting.id}")
                 webhook_event.entity_type = "posting"
                 webhook_event.entity_id = posting.posting_number
                 return {"posting_id": posting.id, "delivery_date_recorded": True}
@@ -1291,9 +1400,7 @@ class OzonWebhookHandler:
             return {"message": "Posting not found"}
 
     async def _handle_product_created(
-        self,
-        payload: Dict[str, Any],
-        webhook_event: OzonWebhookEvent
+        self, payload: Dict[str, Any], webhook_event: OzonWebhookEvent
     ) -> Dict[str, Any]:
         """处理商品创建事件 (TYPE_CREATE_ITEM)"""
         product_id = payload.get("product_id")
@@ -1309,9 +1416,7 @@ class OzonWebhookHandler:
         return {"product_id": product_id, "offer_id": offer_id, "sync_triggered": True}
 
     async def _handle_product_updated(
-        self,
-        payload: Dict[str, Any],
-        webhook_event: OzonWebhookEvent
+        self, payload: Dict[str, Any], webhook_event: OzonWebhookEvent
     ) -> Dict[str, Any]:
         """处理商品更新事件 (TYPE_UPDATE_ITEM)"""
         product_id = payload.get("product_id")
@@ -1327,9 +1432,7 @@ class OzonWebhookHandler:
         return {"product_id": product_id, "offer_id": offer_id, "sync_triggered": True}
 
     async def _handle_product_create_or_update(
-        self,
-        payload: Dict[str, Any],
-        webhook_event: OzonWebhookEvent
+        self, payload: Dict[str, Any], webhook_event: OzonWebhookEvent
     ) -> Dict[str, Any]:
         """处理商品创建或更新事件 (TYPE_CREATE_OR_UPDATE_ITEM)"""
         items = payload.get("items", [])
@@ -1346,9 +1449,7 @@ class OzonWebhookHandler:
         return {"items_count": len(items), "message": "Product batch sync triggered"}
 
     async def _handle_chat_message_created(
-        self,
-        payload: Dict[str, Any],
-        webhook_event: OzonWebhookEvent
+        self, payload: Dict[str, Any], webhook_event: OzonWebhookEvent
     ) -> Dict[str, Any]:
         """处理新聊天消息事件 (TYPE_NEW_MESSAGE)
 
@@ -1376,7 +1477,9 @@ class OzonWebhookHandler:
         # 从data数组中获取消息内容（OZON格式）
         data_array = payload.get("data", [])
         # 合并所有元素为文本（与同步服务逻辑一致）
-        content = " ".join(data_array) if isinstance(data_array, list) else str(data_array)
+        content = (
+            " ".join(data_array) if isinstance(data_array, list) else str(data_array)
+        )
 
         # 从user对象中提取发送者信息
         user = payload.get("user", {})
@@ -1397,7 +1500,7 @@ class OzonWebhookHandler:
                 "chat_id": chat_id,
                 "message_id": message_id,
                 "message_saved": False,
-                "reason": "empty_content"
+                "reason": "empty_content",
             }
 
         # 规范化sender_type和sender_name
@@ -1414,11 +1517,17 @@ class OzonWebhookHandler:
         else:
             sender_type = "user"
             sender_name = sender_type_raw
-            logger.warning(f"Unknown sender_type: {sender_type_raw}, defaulting to 'user'")
+            logger.warning(
+                f"Unknown sender_type: {sender_type_raw}, defaulting to 'user'"
+            )
 
         message_type = "text"  # OZON webhook暂时只支持文本消息
 
-        logger.info(f"New chat message: chat_id={chat_id}, message_id={message_id}, sender_type={sender_type}, content_length={len(content) if content else 0}")
+        content_len = len(content) if content else 0
+        logger.info(
+            f"New chat message: chat={chat_id}, msg={message_id}, "
+            f"sender={sender_type}, len={content_len}"
+        )
 
         from ..models.chat import OzonChat, OzonChatMessage
 
@@ -1426,10 +1535,7 @@ class OzonWebhookHandler:
         async with db_manager.get_session() as session:
             # 检查聊天会话是否存在，不存在则创建
             stmt = select(OzonChat).where(
-                and_(
-                    OzonChat.shop_id == self.shop_id,
-                    OzonChat.chat_id == chat_id
-                )
+                and_(OzonChat.shop_id == self.shop_id, OzonChat.chat_id == chat_id)
             )
             chat = await session.scalar(stmt)
 
@@ -1457,19 +1563,26 @@ class OzonWebhookHandler:
                         customer_name=sender_name if sender_type == "user" else None,
                         order_number=payload.get("order_number"),
                         message_count=0,
-                        unread_count=0
+                        unread_count=0,
                     )
                     session.add(chat)
                     await session.flush()
                 except Exception as e:
                     # 并发插入冲突，重新查询
-                    if "UniqueViolationError" in str(type(e)) or "duplicate key" in str(e):
+                    err_str = str(e)
+                    is_duplicate = (
+                        "UniqueViolationError" in str(type(e))
+                        or "duplicate key" in err_str
+                    )
+                    if is_duplicate:
                         await session.rollback()
                         chat = await session.scalar(stmt)
                         if not chat:
                             # 仍然找不到，抛出异常
                             raise
-                        logger.info(f"Chat {chat_id} already exists (concurrent creation), using existing record")
+                        logger.info(
+                            f"Chat {chat_id} exists (concurrent), using existing"
+                        )
                     else:
                         raise
 
@@ -1486,7 +1599,7 @@ class OzonWebhookHandler:
                 content_data=data_array,  # 保存完整的data数组
                 order_number=payload.get("order_number"),
                 is_read=False,
-                extra_data=payload
+                extra_data=payload,
             )
             session.add(message)
 
@@ -1513,30 +1626,34 @@ class OzonWebhookHandler:
                         "chat_id": chat_id,
                         "data": {
                             "message_id": message_id,
-                            "customer_name": payload.get("customer_name") or chat.customer_name or "未知客户",
+                            "customer_name": payload.get("customer_name")
+                            or chat.customer_name
+                            or "未知客户",
                             "message": content[:100] if content else "",
-                            "order_number": payload.get("order_number") or chat.order_number,
-                            "timestamp": utcnow().isoformat()
-                        }
+                            "order_number": payload.get("order_number")
+                            or chat.order_number,
+                            "timestamp": utcnow().isoformat(),
+                        },
                     }
 
-                    # 全局广播通知（所有WebSocket连接都能收到）
-                    sent_count = await notification_manager.broadcast(notification_data)
-                    logger.info(f"Broadcast chat notification to {sent_count} connections (shop {self.shop_id})")
+                    # 按店铺隔离通知（只发给订阅该店铺的用户）
+                    sent_count = await notification_manager.send_to_shop_users(
+                        self.shop_id, notification_data
+                    )
+                    logger.info(
+                        f"Sent chat notification to {sent_count} "
+                        f"connections (shop {self.shop_id})"
+                    )
 
                 except Exception as e:
-                    logger.error(f"Failed to send WebSocket notification: {e}", exc_info=True)
+                    logger.error(
+                        f"Failed to send WebSocket notification: {e}", exc_info=True
+                    )
 
-            return {
-                "chat_id": chat_id,
-                "message_id": message_id,
-                "message_saved": True
-            }
+            return {"chat_id": chat_id, "message_id": message_id, "message_saved": True}
 
     async def _handle_chat_message_updated(
-        self,
-        payload: Dict[str, Any],
-        webhook_event: OzonWebhookEvent
+        self, payload: Dict[str, Any], webhook_event: OzonWebhookEvent
     ) -> Dict[str, Any]:
         """处理聊天消息更新事件 (TYPE_UPDATE_MESSAGE)"""
         chat_id = payload.get("chat_id")
@@ -1545,9 +1662,14 @@ class OzonWebhookHandler:
         # 使用正确的字段名：data（不是text）
         data_array = payload.get("data", [])
         # 合并所有元素为文本（与创建逻辑一致）
-        new_content = " ".join(data_array) if isinstance(data_array, list) else str(data_array)
+        new_content = (
+            " ".join(data_array) if isinstance(data_array, list) else str(data_array)
+        )
 
-        logger.info(f"Chat message updated: chat_id={chat_id}, message_id={message_id}, new_content_length={len(new_content)}")
+        logger.info(
+            f"Chat message updated: chat={chat_id}, msg={message_id}, "
+            f"len={len(new_content)}"
+        )
 
         from ..models.chat import OzonChatMessage
 
@@ -1557,7 +1679,7 @@ class OzonWebhookHandler:
             stmt = select(OzonChatMessage).where(
                 and_(
                     OzonChatMessage.shop_id == self.shop_id,
-                    OzonChatMessage.message_id == message_id
+                    OzonChatMessage.message_id == message_id,
                 )
             )
             message = await session.scalar(stmt)
@@ -1578,15 +1700,13 @@ class OzonWebhookHandler:
                 return {
                     "chat_id": chat_id,
                     "message_id": message_id,
-                    "message_updated": True
+                    "message_updated": True,
                 }
 
             return {"message": "Message not found", "chat_id": chat_id}
 
     async def _handle_chat_message_read(
-        self,
-        payload: Dict[str, Any],
-        webhook_event: OzonWebhookEvent
+        self, payload: Dict[str, Any], webhook_event: OzonWebhookEvent
     ) -> Dict[str, Any]:
         """处理消息已读事件 (TYPE_MESSAGE_READ)"""
         chat_id = payload.get("chat_id")
@@ -1602,7 +1722,7 @@ class OzonWebhookHandler:
             stmt = select(OzonChatMessage).where(
                 and_(
                     OzonChatMessage.shop_id == self.shop_id,
-                    OzonChatMessage.message_id == message_id
+                    OzonChatMessage.message_id == message_id,
                 )
             )
             message = await session.scalar(stmt)
@@ -1614,10 +1734,7 @@ class OzonWebhookHandler:
 
                 # 更新聊天会话的未读数
                 chat_stmt = select(OzonChat).where(
-                    and_(
-                        OzonChat.shop_id == self.shop_id,
-                        OzonChat.chat_id == chat_id
-                    )
+                    and_(OzonChat.shop_id == self.shop_id, OzonChat.chat_id == chat_id)
                 )
                 chat = await session.scalar(chat_stmt)
                 if chat and chat.unread_count > 0:
@@ -1631,15 +1748,13 @@ class OzonWebhookHandler:
                 return {
                     "chat_id": chat_id,
                     "message_id": message_id,
-                    "message_read": True
+                    "message_read": True,
                 }
 
             return {"message": "Message not found", "chat_id": chat_id}
 
     async def _handle_chat_closed(
-        self,
-        payload: Dict[str, Any],
-        webhook_event: OzonWebhookEvent
+        self, payload: Dict[str, Any], webhook_event: OzonWebhookEvent
     ) -> Dict[str, Any]:
         """处理聊天关闭事件 (TYPE_CHAT_CLOSED)"""
         chat_id = payload.get("chat_id")
@@ -1652,10 +1767,7 @@ class OzonWebhookHandler:
         async with db_manager.get_session() as session:
             # 查找聊天会话
             stmt = select(OzonChat).where(
-                and_(
-                    OzonChat.shop_id == self.shop_id,
-                    OzonChat.chat_id == chat_id
-                )
+                and_(OzonChat.shop_id == self.shop_id, OzonChat.chat_id == chat_id)
             )
             chat = await session.scalar(stmt)
 
@@ -1670,9 +1782,6 @@ class OzonWebhookHandler:
                 webhook_event.entity_type = "chat"
                 webhook_event.entity_id = str(chat.id)
 
-                return {
-                    "chat_id": chat_id,
-                    "chat_closed": True
-                }
+                return {"chat_id": chat_id, "chat_closed": True}
 
             return {"message": "Chat not found", "chat_id": chat_id}

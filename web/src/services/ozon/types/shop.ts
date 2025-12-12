@@ -11,6 +11,7 @@ export interface ShopData {
   client_id: string;
   api_key: string;
   platform?: string;
+  shipping_managed?: boolean;  // 发货托管：启用后发货员可操作该店铺订单
   config?: Record<string, unknown>;
   [key: string]: unknown;
 }

@@ -111,6 +111,7 @@ const UserManagement: React.FC = () => {
     admin: { color: 'gold', label: '超级管理员' },
     manager: { color: 'blue', label: '主账号' },
     sub_account: { color: 'green', label: '子账号' },
+    shipper: { color: 'orange', label: '发货员' },
   };
 
   // 账号状态配置
@@ -796,14 +797,17 @@ const UserManagement: React.FC = () => {
             </Form.Item>
           )}
 
-          {/* 角色选择：admin 只能创建 manager，manager 只能创建 sub_account */}
+          {/* 角色选择：admin 只能创建 manager，manager 可以创建 sub_account 或 shipper */}
           <Form.Item name="role" label="角色" rules={[{ required: true, message: '请选择角色' }]}>
-            <Select disabled>
+            <Select disabled={currentUser?.role === 'admin'}>
               {currentUser?.role === 'admin' && (
                 <Option value="manager">主账号</Option>
               )}
               {currentUser?.role === 'manager' && (
-                <Option value="sub_account">子账号</Option>
+                <>
+                  <Option value="sub_account">子账号</Option>
+                  <Option value="shipper">发货员</Option>
+                </>
               )}
             </Select>
           </Form.Item>

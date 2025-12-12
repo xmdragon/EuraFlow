@@ -1,5 +1,5 @@
 // 用户角色
-export type UserRole = 'admin' | 'manager' | 'sub_account';
+export type UserRole = 'admin' | 'manager' | 'sub_account' | 'shipper';
 
 // 管理员级别
 export interface ManagerLevel {

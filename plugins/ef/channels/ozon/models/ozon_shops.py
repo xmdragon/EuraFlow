@@ -113,6 +113,14 @@ class OzonShop(Base):
         comment="最后同步时间"
     )
 
+    # 发货托管（启用后，发货员可以看到该店铺的订单）
+    shipping_managed: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        comment="发货托管：启用后发货员可操作该店铺订单"
+    )
+
     # 财务信息
     current_balance_rub: Mapped[Optional[Decimal]] = mapped_column(
         Numeric(18, 2),
@@ -148,6 +156,7 @@ class OzonShop(Base):
             "platform": self.platform,
             "status": self.status,
             "owner_user_id": self.owner_user_id,
+            "shipping_managed": self.shipping_managed,
             "config": self.config or {},
             "stats": self.stats,
             "created_at": self.created_at.isoformat() if self.created_at else None,

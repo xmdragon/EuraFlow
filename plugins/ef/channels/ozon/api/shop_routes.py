@@ -35,6 +35,7 @@ class ShopUpdateDTO(BaseModel):
     shop_name: Optional[str] = None
     shop_name_cn: Optional[str] = None
     status: Optional[str] = None
+    shipping_managed: Optional[bool] = None  # 发货托管
     api_credentials: Optional[Dict[str, str]] = None
     config: Optional[Dict[str, Any]] = None
 
@@ -315,6 +316,13 @@ async def create_shop(
             insert(user_shops).values(user_id=admin_id, shop_id=new_shop.id)
         )
 
+    # 如果是子账号添加店铺，自动关联其主账号
+    if current_user.role == "sub_account" and current_user.parent_user_id:
+        await db.execute(
+            insert(user_shops).values(user_id=current_user.parent_user_id, shop_id=new_shop.id)
+        )
+        logger.info(f"子账号 {current_user.username} 创建店铺 {new_shop.id}，自动关联主账号 {current_user.parent_user_id}")
+
     await db.commit()
     await db.refresh(new_shop)
 
@@ -345,6 +353,8 @@ async def update_shop(
         shop.shop_name_cn = shop_data.shop_name_cn
     if shop_data.status is not None:
         shop.status = shop_data.status
+    if shop_data.shipping_managed is not None:
+        shop.shipping_managed = shop_data.shipping_managed
     if shop_data.api_credentials is not None:
         shop.client_id = shop_data.api_credentials.get("client_id", shop.client_id)
         if shop_data.api_credentials.get("api_key") and shop_data.api_credentials["api_key"] != "******":

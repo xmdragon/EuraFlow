@@ -33,6 +33,7 @@ import {
   GiftOutlined,
   InboxOutlined,
   SwapOutlined,
+  ScanOutlined,
 } from "@ant-design/icons";
 import {
   Layout,
@@ -72,6 +73,7 @@ import QuickAccessButton from "@/components/QuickAccessButton";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuickMenu } from "@/hooks/useQuickMenu";
 import { useOzonMenuOrder } from "@/hooks/useOzonMenuOrder";
+import { useScanShippingAccess } from "@/hooks/useScanShippingAccess";
 import type { User } from "@/types/auth";
 import { setOzonImageCdn } from "@/utils/ozonImageOptimizer";
 import { getGlobalSettings } from "@/services/ozon";
@@ -173,6 +175,10 @@ const Dashboard: React.FC = () => {
   const location = useLocation();
   const { quickMenuItems, addQuickMenu, removeQuickMenu, isInQuickMenu } = useQuickMenu();
   const { menuOrder, moveUp } = useOzonMenuOrder();
+
+  // 扫描单号权限检查（非发货员角色需要动态判断）
+  const isShipper = user?.role === "shipper";
+  const { hasAccess: hasScanAccess, isLoading: scanAccessLoading } = useScanShippingAccess();
 
   // 检查用户是否有店铺（用于控制 OZON 菜单是否可展开和弹窗显示）
   const hasShops = user?.shop_ids && user.shop_ids.length > 0;
@@ -278,6 +284,7 @@ const Dashboard: React.FC = () => {
     HomeOutlined: <HomeOutlined />,
     WalletOutlined: <WalletOutlined />,
     CrownOutlined: <CrownOutlined />,
+    ScanOutlined: <ScanOutlined />,
   };
 
   const userMenuItems: MenuProps['items'] = [
@@ -349,7 +356,11 @@ const Dashboard: React.FC = () => {
     );
   };
 
-  const menuItems = [
+  // 超级管理员未克隆时不显示店铺管理菜单
+  const showShopManagementMenu = !(user?.role === "admin" && !isCloned);
+
+  // 发货员只显示首页和扫描单号
+  const shipperMenuItems = [
     {
       key: "dashboard",
       icon: <HomeOutlined />,
@@ -357,12 +368,22 @@ const Dashboard: React.FC = () => {
       onClick: () => navigate("/dashboard"),
     },
     {
-      key: "finance",
-      icon: <CalculatorOutlined />,
-      label: createMenuLabel("finance", "计算器", "/dashboard/finance"),
-      onClick: () => navigate("/dashboard/finance"),
+      key: "ozon-scan-shipping",
+      icon: <ScanOutlined />,
+      label: createMenuLabel("ozon-scan-shipping", "扫描单号", "/dashboard/ozon/scan-shipping"),
+      onClick: () => navigate("/dashboard/ozon/scan-shipping"),
     },
+  ];
+
+  const menuItems = isShipper ? shipperMenuItems : [
     {
+      key: "dashboard",
+      icon: <HomeOutlined />,
+      label: createMenuLabel("dashboard", "首页", "/dashboard"),
+      onClick: () => navigate("/dashboard"),
+    },
+    // 店铺管理菜单 - 超级管理员未克隆时隐藏
+    ...(showShopManagementMenu ? [{
       key: "ozon",
       icon: <ShopOutlined />,
       label: "店铺管理",
@@ -371,6 +392,7 @@ const Dashboard: React.FC = () => {
         const ozonMenuConfig: Record<string, { icon: React.ReactNode; label: string; path: string }> = {
           'ozon-overview': { icon: <DashboardOutlined />, label: '店铺概览', path: '/dashboard/ozon/overview' },
           'ozon-packing': { icon: <TruckOutlined />, label: '打包发货', path: '/dashboard/ozon/packing' },
+          'ozon-scan-shipping': { icon: <ScanOutlined />, label: '扫描单号', path: '/dashboard/ozon/scan-shipping' },
           'ozon-orders': { icon: <ShoppingCartOutlined />, label: '订单管理', path: '/dashboard/ozon/orders' },
           'ozon-products-list': { icon: <ShoppingOutlined />, label: '商品列表', path: '/dashboard/ozon/products' },
           'ozon-reports': { icon: <FileTextOutlined />, label: '订单报表', path: '/dashboard/ozon/reports' },
@@ -383,6 +405,7 @@ const Dashboard: React.FC = () => {
           'ozon-warehouses': { icon: <HomeOutlined />, label: '仓库列表', path: '/dashboard/ozon/warehouses' },
           'ozon-promotions': { icon: <GiftOutlined />, label: '促销活动', path: '/dashboard/ozon/promotions' },
           'ozon-chats': { icon: <MessageOutlined />, label: '聊天管理', path: '/dashboard/ozon/chats' },
+          'finance': { icon: <CalculatorOutlined />, label: '计算器', path: '/dashboard/finance' },
           'shops': { icon: <ShopOutlined />, label: '店铺列表', path: '/dashboard/shops' },
         };
 
@@ -426,15 +449,24 @@ const Dashboard: React.FC = () => {
           );
         };
 
-        // 无店铺时只显示"店铺列表"
+        // 无店铺时显示"计算器"和"店铺列表"
         if (!hasShops) {
-          const config = ozonMenuConfig['shops'];
-          return [{
-            key: 'shops',
-            icon: config.icon,
-            label: collapsed ? config.label : createOzonMenuLabel('shops', config.label, config.path, 0),
-            onClick: () => navigate(config.path),
-          }];
+          const financeConfig = ozonMenuConfig['finance'];
+          const shopsConfig = ozonMenuConfig['shops'];
+          return [
+            {
+              key: 'finance',
+              icon: financeConfig.icon,
+              label: collapsed ? financeConfig.label : createOzonMenuLabel('finance', financeConfig.label, financeConfig.path, 0),
+              onClick: () => navigate(financeConfig.path),
+            },
+            {
+              key: 'shops',
+              icon: shopsConfig.icon,
+              label: collapsed ? shopsConfig.label : createOzonMenuLabel('shops', shopsConfig.label, shopsConfig.path, 1),
+              onClick: () => navigate(shopsConfig.path),
+            },
+          ];
         }
 
         // 有店铺时，根据用户自定义顺序生成菜单项，店铺列表固定在最后
@@ -442,6 +474,8 @@ const Dashboard: React.FC = () => {
         const orderedItems = menuOrder.map((key, index) => {
           const config = ozonMenuConfig[key];
           if (!config) return null;
+          // 扫描单号菜单：根据权限动态显示（所有店铺都托管时隐藏）
+          if (key === 'ozon-scan-shipping' && !hasScanAccess) return null;
           return {
             key,
             icon: config.icon,
@@ -449,6 +483,15 @@ const Dashboard: React.FC = () => {
             onClick: () => navigate(config.path),
           };
         }).filter(Boolean);
+
+        // 添加计算器（在店铺列表之前）
+        const financeConfig = ozonMenuConfig['finance'];
+        orderedItems.push({
+          key: 'finance',
+          icon: financeConfig.icon,
+          label: collapsed ? financeConfig.label : createOzonMenuLabel('finance', financeConfig.label, financeConfig.path, orderedItems.length),
+          onClick: () => navigate(financeConfig.path),
+        });
 
         // 添加店铺列表到最后
         const shopsConfig = ozonMenuConfig['shops'];
@@ -461,7 +504,7 @@ const Dashboard: React.FC = () => {
 
         return orderedItems;
       })(),
-    },
+    }] : []),
     // 用户管理 - admin 和 manager 可见
     ...(user?.role === "admin" || user?.role === "manager"
       ? [
@@ -552,6 +595,7 @@ const Dashboard: React.FC = () => {
     if (path.includes("/ozon/collection-records")) return "ozon-collection-records";
     if (path.includes("/ozon/promotions")) return "ozon-promotions";
     if (path.includes("/ozon/packing")) return "ozon-packing";
+    if (path.includes("/ozon/scan-shipping")) return "ozon-scan-shipping";
     if (path.includes("/ozon/orders")) return "ozon-orders";
     if (path.includes("/ozon/reports")) return "ozon-reports";
     if (path.includes("/ozon/cancel-return")) return "ozon-cancel-return";

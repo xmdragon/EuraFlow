@@ -12,6 +12,7 @@ import {
   ClockCircleOutlined,
   UserOutlined,
   LockOutlined,
+  TruckOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -29,6 +30,7 @@ import {
   Tag,
   Tooltip,
   Spin,
+  Checkbox,
 } from 'antd';
 import axios from 'axios';
 import React, { useState } from 'react';
@@ -47,6 +49,7 @@ interface OzonShopFormValues {
   client_id?: string;
   api_key?: string;
   webhook_url?: string;
+  shipping_managed?: boolean;  // 发货托管
 }
 
 const { Text, Title } = Typography;
@@ -57,6 +60,7 @@ interface Shop {
   shop_name_cn?: string;
   platform: string;
   status: 'active' | 'inactive' | 'suspended';
+  shipping_managed?: boolean;  // 发货托管
   owner_user_id?: number;
   owner_username?: string;
   can_edit?: boolean;  // 是否可编辑（自己创建的店铺）
@@ -151,6 +155,7 @@ const ShopManagement: React.FC = () => {
         shop_name: values.shop_name,
         shop_name_cn: values.shop_name_cn,
         status: 'active',
+        shipping_managed: values.shipping_managed,
         api_credentials: {
           client_id: values.client_id,
           api_key: values.api_key,
@@ -216,6 +221,7 @@ const ShopManagement: React.FC = () => {
       shop_name_cn: shop.shop_name_cn,
       client_id: shop.api_credentials?.client_id || '',
       api_key: shop.api_credentials?.api_key || '',
+      shipping_managed: shop.shipping_managed || false,
     });
     setEditShopModalVisible(true);
   };
@@ -354,6 +360,19 @@ const ShopManagement: React.FC = () => {
                   const config = statusMap[status] || { color: 'default', text: status };
                   return <Badge status={config.color as 'success' | 'default' | 'error'} text={config.text} />;
                 },
+              },
+              {
+                title: '发货托管',
+                dataIndex: 'shipping_managed',
+                key: 'shipping_managed',
+                width: 100,
+                render: (managed: boolean) => (
+                  managed ? (
+                    <Tag icon={<TruckOutlined />} color="blue">已启用</Tag>
+                  ) : (
+                    <Tag color="default">未启用</Tag>
+                  )
+                ),
               },
               {
                 title: '最后同步',
@@ -532,6 +551,25 @@ const ShopManagement: React.FC = () => {
           >
             <Input.Password placeholder="不修改则留空" />
           </Form.Item>
+
+          <Form.Item
+            name="shipping_managed"
+            valuePropName="checked"
+          >
+            <Checkbox>
+              <Space>
+                <TruckOutlined />
+                <span>启用发货托管</span>
+              </Space>
+            </Checkbox>
+          </Form.Item>
+          <Alert
+            message="发货托管说明"
+            description="启用后，发货员角色可以在「扫描单号」页面看到并操作该店铺的订单。"
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+          />
 
           <Form.Item>
             <Space>

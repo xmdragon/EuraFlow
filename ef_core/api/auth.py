@@ -135,7 +135,7 @@ class CreateUserRequest(BaseModel):
     username: str = Field(..., min_length=3, max_length=30, description="用户名")
     password: str = Field(..., min_length=8, description="密码")
     phone: Optional[str] = Field(None, max_length=20, description="手机号码（仅admin可设置）")
-    role: str = Field("sub_account", description="角色：manager/sub_account")
+    role: str = Field("sub_account", description="角色：manager/sub_account/shipper")
     is_active: bool = Field(True, description="是否激活")
     account_status: str = Field("active", description="账号状态：active/suspended/disabled")
     expires_at: Optional[str] = Field(None, description="过期时间（ISO 8601格式）")
@@ -696,11 +696,11 @@ async def create_user(
             detail={"code": "INSUFFICIENT_PERMISSIONS", "message": "子账号无权创建用户"}
         )
 
-    # manager 只能创建 sub_account
-    if current_user.role == "manager" and user_data.role != "sub_account":
+    # manager 只能创建 sub_account 或 shipper
+    if current_user.role == "manager" and user_data.role not in ("sub_account", "shipper"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail={"code": "INVALID_ROLE", "message": "管理员只能创建子账号"}
+            detail={"code": "INVALID_ROLE", "message": "管理员只能创建子账号或发货员"}
         )
 
     # 配额检查（仅 manager 需要检查）
@@ -1003,17 +1003,17 @@ async def update_user(
     if update_data.role is not None:
         if current_user.role == "admin":
             # admin 可以设置任意角色
-            if update_data.role not in ['admin', 'manager', 'sub_account']:
+            if update_data.role not in ['admin', 'manager', 'sub_account', 'shipper']:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail={"code": "INVALID_ROLE", "message": "角色只能是 admin、manager 或 sub_account"}
+                    detail={"code": "INVALID_ROLE", "message": "角色只能是 admin、manager、sub_account 或 shipper"}
                 )
         else:
-            # manager 只能设置 sub_account
-            if update_data.role != 'sub_account':
+            # manager 只能设置 sub_account 或 shipper
+            if update_data.role not in ('sub_account', 'shipper'):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail={"code": "INVALID_ROLE", "message": "只能设置为 sub_account 角色"}
+                    detail={"code": "INVALID_ROLE", "message": "只能设置为 sub_account 或 shipper 角色"}
                 )
         user.role = update_data.role
 
@@ -1028,17 +1028,17 @@ async def update_user(
 
     # 更新账号状态
     # - admin 可以设置 manager 的状态
-    # - manager 可以设置 sub_account 的状态（子账号继承管理员状态，此处设置无实际效果，但保留以便将来扩展）
+    # - manager 可以设置 sub_account/shipper 的状态
     if update_data.account_status is not None:
         target_role = update_data.role or user.role
         if current_user.role == "admin" and target_role == "manager":
             user.account_status = update_data.account_status
-        elif current_user.role == "manager" and target_role == "sub_account":
+        elif current_user.role == "manager" and target_role in ("sub_account", "shipper"):
             user.account_status = update_data.account_status
 
     # 更新过期时间
     # - admin 可以设置 manager 的过期时间
-    # - manager 可以设置 sub_account 的过期时间（不能超过自己的过期时间）
+    # - manager 可以设置 sub_account/shipper 的过期时间（不能超过自己的过期时间）
     if update_data.expires_at is not None:
         target_role = update_data.role or user.role
         from datetime import datetime, timezone as tz
@@ -1057,14 +1057,14 @@ async def update_user(
         if current_user.role == "admin" and target_role == "manager":
             # admin 设置 manager 的过期时间，无限制
             user.expires_at = new_expires_at
-        elif current_user.role == "manager" and target_role == "sub_account":
-            # manager 设置 sub_account 的过期时间，不能超过自己的过期时间
+        elif current_user.role == "manager" and target_role in ("sub_account", "shipper"):
+            # manager 设置 sub_account/shipper 的过期时间，不能超过自己的过期时间
             if new_expires_at and current_user.expires_at and new_expires_at > current_user.expires_at:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail={
                         "code": "EXPIRES_AT_EXCEEDS_MANAGER",
-                        "message": f"子账号过期时间不能超过您的账号过期时间（{current_user.expires_at.strftime('%Y-%m-%d %H:%M')}）"
+                        "message": f"账号过期时间不能超过您的账号过期时间（{current_user.expires_at.strftime('%Y-%m-%d %H:%M')}）"
                     }
                 )
             user.expires_at = new_expires_at
