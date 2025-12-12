@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ef_core.database import get_async_session
 from ef_core.models.users import User, UserSettings
-from ef_core.api.auth import get_current_user_flexible
+from ef_core.middleware.auth import require_shops
 from ef_core.services.audit_service import AuditService
 from ef_core.utils.logger import get_logger
 
@@ -76,12 +76,13 @@ class UserSettingsResponse(BaseModel):
 
 @router.get("", response_model=UserSettingsResponse)
 async def get_settings(
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(require_shops()),
     session: AsyncSession = Depends(get_async_session)
 ):
     """
     获取用户设置
 
+    - 需要用户已关联店铺
     - 如果用户没有设置记录，返回默认值
     - 支持 JWT Token 或 API Key 认证
     """
@@ -119,12 +120,13 @@ async def get_settings(
 async def update_settings(
     request: Request,
     settings_data: UserSettingsRequest,
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(require_shops()),
     session: AsyncSession = Depends(get_async_session)
 ):
     """
     更新用户设置
 
+    - 需要用户已关联店铺
     - 如果用户没有设置记录，创建新记录
     - 如果已存在，更新现有记录
     - 支持部分更新（只更新提供的字段）
@@ -190,12 +192,13 @@ async def update_settings(
 @router.delete("", status_code=status.HTTP_204_NO_CONTENT)
 async def reset_settings(
     request: Request,
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(require_shops()),
     session: AsyncSession = Depends(get_async_session)
 ):
     """
     重置用户设置为默认值
 
+    - 需要用户已关联店铺
     - 删除用户的设置记录
     - 下次获取设置时将返回默认值
     """

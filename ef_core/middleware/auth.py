@@ -428,3 +428,50 @@ def require_role(required_role: str = "manager"):
         return user
 
     return _check_role
+
+
+def require_shops():
+    """
+    创建店铺检查依赖函数，确保用户已关联至少一个店铺
+
+    Usage:
+        from ef_core.middleware.auth import require_shops
+
+        @router.get("/settings")
+        async def get_settings(
+            current_user: User = Depends(require_shops())
+        ):
+            # 只有关联了店铺的用户才能访问
+            pass
+
+    Returns:
+        依赖函数，用于FastAPI的Depends()
+    """
+    from ef_core.api.auth import get_current_user_flexible
+    from fastapi import Depends
+
+    async def _check_shops(user=Depends(get_current_user_flexible)):
+        """内部店铺检查函数"""
+        if not user:
+            raise ForbiddenError(
+                code="AUTHENTICATION_REQUIRED",
+                detail="需要登录才能执行此操作"
+            )
+
+        # 检查用户是否有关联店铺
+        # 优先使用缓存的 shop_ids，否则检查 shops 关系
+        has_shops = False
+        if hasattr(user, '_cached_shop_ids') and user._cached_shop_ids is not None:
+            has_shops = len(user._cached_shop_ids) > 0
+        elif hasattr(user, 'shops') and user.shops:
+            has_shops = len(user.shops) > 0
+
+        if not has_shops:
+            raise ForbiddenError(
+                code="NO_SHOPS",
+                detail="请先添加店铺后再使用此功能"
+            )
+
+        return user
+
+    return _check_shops

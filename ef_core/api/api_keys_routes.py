@@ -11,8 +11,7 @@ from ef_core.services.api_key_service import get_api_key_service
 from ef_core.services.audit_service import AuditService
 from ef_core.database import get_async_session
 from ef_core.models.users import User
-from ef_core.api.auth import get_current_user
-from ef_core.middleware.auth import require_role
+from ef_core.middleware.auth import require_shops
 from ef_core.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -71,13 +70,14 @@ class RegenerateAPIKeyResponse(BaseModel):
 async def create_api_key(
     http_request: Request,
     key_data: CreateAPIKeyRequest,
-    current_user: User = Depends(require_role("sub_account")),
+    current_user: User = Depends(require_shops()),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
     创建新的API Key
 
-    **注意**：API Key仅在创建时显示一次，请妥善保存！
+    - 需要用户已关联店铺
+    - API Key仅在创建时显示一次，请妥善保存！
     """
     try:
         api_key_service = get_api_key_service()
@@ -124,11 +124,13 @@ async def create_api_key(
 
 @router.get("/", response_model=List[APIKeyResponse])
 async def list_api_keys(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_shops()),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
     列出当前用户的所有API Keys
+
+    - 需要用户已关联店铺
     """
     try:
         api_key_service = get_api_key_service()
@@ -154,11 +156,13 @@ async def list_api_keys(
 async def delete_api_key(
     http_request: Request,
     key_id: int,
-    current_user: User = Depends(require_role("sub_account")),
+    current_user: User = Depends(require_shops()),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
     删除指定的API Key
+
+    - 需要用户已关联店铺
     """
     try:
         api_key_service = get_api_key_service()
@@ -210,13 +214,14 @@ async def delete_api_key(
 async def regenerate_api_key(
     http_request: Request,
     key_id: int,
-    current_user: User = Depends(require_role("sub_account")),
+    current_user: User = Depends(require_shops()),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
     重新生成API Key（保留名称和权限）
 
-    **注意**：新Key仅显示一次，旧Key立即失效！
+    - 需要用户已关联店铺
+    - 新Key仅显示一次，旧Key立即失效！
     """
     try:
         api_key_service = get_api_key_service()

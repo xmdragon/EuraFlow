@@ -31,7 +31,7 @@ import {
   DatePicker,
 } from 'antd';
 import dayjs from 'dayjs';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 
 import styles from './UserList.module.scss';
 
@@ -155,6 +155,51 @@ const UserManagement: React.FC = () => {
 
   // 判断当前用户是否可以访问用户管理
   const canAccessUserManagement = currentUser?.role === 'admin' || currentUser?.role === 'manager';
+
+  // 将扁平用户列表转换为树形结构
+  interface TreeUser extends User {
+    children?: TreeUser[];
+  }
+
+  const treeUsers = useMemo(() => {
+    if (!users.length) return [];
+
+    // 创建用户映射
+    const userMap = new Map<number, TreeUser>();
+    users.forEach(user => {
+      userMap.set(user.id, { ...user, children: [] });
+    });
+
+    const rootUsers: TreeUser[] = [];
+
+    // 构建树形结构：只有子账号才显示在父账号下面
+    users.forEach(user => {
+      const treeUser = userMap.get(user.id)!;
+      // 只有子账号才添加到父用户的 children 中
+      if (user.role === 'sub_account' && user.parent_user_id && userMap.has(user.parent_user_id)) {
+        const parent = userMap.get(user.parent_user_id)!;
+        parent.children = parent.children || [];
+        parent.children.push(treeUser);
+      } else {
+        // admin 和 manager 都作为根节点
+        rootUsers.push(treeUser);
+      }
+    });
+
+    // 清理空的 children 数组
+    const cleanChildren = (user: TreeUser): TreeUser => {
+      if (user.children && user.children.length === 0) {
+        const { children, ...rest } = user;
+        return rest as TreeUser;
+      }
+      if (user.children) {
+        user.children = user.children.map(cleanChildren);
+      }
+      return user;
+    };
+
+    return rootUsers.map(cleanChildren);
+  }, [users]);
 
   // 获取用户列表
   const fetchUsers = async () => {
@@ -487,9 +532,8 @@ const UserManagement: React.FC = () => {
             </Tooltip>
           );
         }
-        if (record.role === 'sub_account' && record.parent_user_id) {
-          const parentUser = users.find(u => u.id === record.parent_user_id);
-          return <Tag color="green">属于: {parentUser?.username || `用户#${record.parent_user_id}`}</Tag>;
+        if (record.role === 'sub_account') {
+          return <Tag color="green">子账号</Tag>;
         }
         return '-';
       },
@@ -654,13 +698,14 @@ const UserManagement: React.FC = () => {
       <Card bordered={false}>
         <Table
           columns={columns}
-          dataSource={users}
+          dataSource={treeUsers}
           rowKey="id"
           loading={loading}
-          pagination={{
-            showSizeChanger: true,
-            showTotal: (total) => `共 ${total} 条`,
+          expandable={{
+            defaultExpandAllRows: true,
+            indentSize: 24,
           }}
+          pagination={false}
         />
       </Card>
 

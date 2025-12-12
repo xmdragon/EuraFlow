@@ -73,7 +73,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQuickMenu } from "@/hooks/useQuickMenu";
 import { useOzonMenuOrder } from "@/hooks/useOzonMenuOrder";
 import type { User } from "@/types/auth";
-import { notifyWarning } from "@/utils/notification";
 import { setOzonImageCdn } from "@/utils/ozonImageOptimizer";
 import { getGlobalSettings } from "@/services/ozon";
 
@@ -144,7 +143,7 @@ const NoShopModal: React.FC<{
           icon={<ShopOutlined />}
           onClick={() => onNavigate('/dashboard/shops')}
         >
-          店铺管理
+          店铺列表
         </Button>
         {!isSubAccount && (
           <Button
@@ -238,12 +237,6 @@ const Dashboard: React.FC = () => {
       return;
     }
 
-    // 如果尝试展开 OZON 菜单但没有店铺，阻止展开并提示
-    if (latestOpenKey === 'ozon' && !hasShops) {
-      notifyWarning('无法展开', '请先添加店铺后再使用 OZON 管理功能');
-      return;
-    }
-
     // 如果新展开的是根级菜单组，只保留这一个
     if (rootSubmenuKeys.includes(latestOpenKey)) {
       setOpenKeys([latestOpenKey]);
@@ -294,12 +287,13 @@ const Dashboard: React.FC = () => {
       label: "个人资料",
       onClick: () => navigate("/dashboard/profile"),
     },
-    {
+    // 个人设置 - 仅有店铺时可见
+    ...(hasShops ? [{
       key: "settings",
       icon: <SettingOutlined />,
       label: "个人设置",
       onClick: () => navigate("/dashboard/profile/settings"),
-    },
+    }] : []),
     {
       key: "password",
       icon: <KeyOutlined />,
@@ -312,13 +306,16 @@ const Dashboard: React.FC = () => {
       label: "额度中心",
       onClick: () => navigate("/dashboard/profile/credits"),
     },
-    { type: "divider", key: "divider-1" },
-    {
-      key: "api-keys",
-      icon: <KeyOutlined />,
-      label: "API KEY",
-      onClick: () => navigate("/dashboard/api-keys"),
-    },
+    // API KEY - 仅有店铺时可见
+    ...(hasShops ? [
+      { type: "divider" as const, key: "divider-1" },
+      {
+        key: "api-keys",
+        icon: <KeyOutlined />,
+        label: "API KEY",
+        onClick: () => navigate("/dashboard/api-keys"),
+      },
+    ] : []),
   ];
 
   // 创建带添加按钮的菜单项标签
@@ -368,9 +365,9 @@ const Dashboard: React.FC = () => {
     {
       key: "ozon",
       icon: <ShopOutlined />,
-      label: "Ozon管理",
+      label: "店铺管理",
       children: (() => {
-        // Ozon 子菜单配置（使用新名称）
+        // 店铺管理子菜单配置
         const ozonMenuConfig: Record<string, { icon: React.ReactNode; label: string; path: string }> = {
           'ozon-overview': { icon: <DashboardOutlined />, label: '店铺概览', path: '/dashboard/ozon/overview' },
           'ozon-packing': { icon: <TruckOutlined />, label: '打包发货', path: '/dashboard/ozon/packing' },
@@ -386,9 +383,10 @@ const Dashboard: React.FC = () => {
           'ozon-warehouses': { icon: <HomeOutlined />, label: '仓库列表', path: '/dashboard/ozon/warehouses' },
           'ozon-promotions': { icon: <GiftOutlined />, label: '促销活动', path: '/dashboard/ozon/promotions' },
           'ozon-chats': { icon: <MessageOutlined />, label: '聊天管理', path: '/dashboard/ozon/chats' },
+          'shops': { icon: <ShopOutlined />, label: '店铺列表', path: '/dashboard/shops' },
         };
 
-        // 创建带上移按钮的 Ozon 菜单标签
+        // 创建带上移按钮的菜单标签
         const createOzonMenuLabel = (key: string, label: string, path: string, index: number) => {
           const isAdded = isInQuickMenu(key);
           return (
@@ -428,9 +426,20 @@ const Dashboard: React.FC = () => {
           );
         };
 
-        // 根据用户自定义顺序生成菜单项
+        // 无店铺时只显示"店铺列表"
+        if (!hasShops) {
+          const config = ozonMenuConfig['shops'];
+          return [{
+            key: 'shops',
+            icon: config.icon,
+            label: collapsed ? config.label : createOzonMenuLabel('shops', config.label, config.path, 0),
+            onClick: () => navigate(config.path),
+          }];
+        }
+
+        // 有店铺时，根据用户自定义顺序生成菜单项，店铺列表固定在最后
         // 注意：折叠状态下悬浮菜单需要纯文本label才能正确显示
-        return menuOrder.map((key, index) => {
+        const orderedItems = menuOrder.map((key, index) => {
           const config = ozonMenuConfig[key];
           if (!config) return null;
           return {
@@ -440,14 +449,18 @@ const Dashboard: React.FC = () => {
             onClick: () => navigate(config.path),
           };
         }).filter(Boolean);
+
+        // 添加店铺列表到最后
+        const shopsConfig = ozonMenuConfig['shops'];
+        orderedItems.push({
+          key: 'shops',
+          icon: shopsConfig.icon,
+          label: collapsed ? shopsConfig.label : createOzonMenuLabel('shops', shopsConfig.label, shopsConfig.path, orderedItems.length),
+          onClick: () => navigate(shopsConfig.path),
+        });
+
+        return orderedItems;
       })(),
-    },
-    // 店铺管理 - admin、manager 和 sub_account 可见
-    {
-      key: "shops",
-      icon: <ShopOutlined />,
-      label: createMenuLabel("shops", "店铺管理", "/dashboard/shops"),
-      onClick: () => navigate("/dashboard/shops"),
     },
     // 用户管理 - admin 和 manager 可见（克隆状态下隐藏）
     ...(!isCloned && (user?.role === "admin" || user?.role === "manager")
