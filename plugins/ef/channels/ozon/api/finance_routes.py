@@ -12,7 +12,7 @@ import logging
 
 from ef_core.database import get_async_session
 from ef_core.models.users import User
-from ef_core.api.auth import get_current_user_flexible, get_current_user_from_api_key
+from ef_core.api.auth import get_current_user_flexible
 from ..models.finance import OzonFinanceTransaction, OzonInvoicePayment, calculate_billing_period_by_payment_date
 from ..models.ozon_shops import OzonShop
 from ..models.global_settings import OzonGlobalSetting
@@ -691,7 +691,7 @@ def parse_amount_cny(amount_str: str) -> Decimal:
 async def sync_invoice_payments(
     request: InvoicePaymentSyncRequest,
     db: AsyncSession = Depends(get_async_session),
-    _: User = Depends(get_current_user_from_api_key)
+    _: User = Depends(get_current_user_flexible)
 ):
     """
     接收浏览器扩展上传的账单付款数据
@@ -943,7 +943,7 @@ class InvoicePaymentSyncCheckResponse(BaseModel):
 )
 async def check_should_sync_invoice_payments(
     db: AsyncSession = Depends(get_async_session),
-    _: User = Depends(get_current_user_from_api_key)
+    _: User = Depends(get_current_user_flexible)
 ):
     """
     检查是否需要同步账单付款
@@ -1082,7 +1082,7 @@ class ShopBalanceUpdateResponse(BaseModel):
 async def update_shop_balance(
     request: ShopBalanceUpdateRequest,
     db: AsyncSession = Depends(get_async_session),
-    _: User = Depends(get_current_user_from_api_key)
+    _: User = Depends(get_current_user_flexible)
 ):
     """
     更新店铺当前余额（由浏览器扩展调用）

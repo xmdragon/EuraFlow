@@ -2,10 +2,13 @@
  * EuraFlow 后端 API 客户端
  *
  * 负责与 EuraFlow 后端 API 交互：
+ * - 用户登录/认证
  * - 商品上传
  * - 快速上架
  * - 任务状态查询
  * - 配置获取
+ *
+ * 认证方式：JWT Token（通过 /extension/auth/login 获取）
  */
 
 import { BaseApiClient, createApiError, ApiError } from './base-client';
@@ -14,8 +17,10 @@ import type {
   Warehouse,
   Watermark,
   TaskStatus,
-  ProductData
+  ProductData,
+  LoginResponse
 } from '../types';
+import { getAuthConfig, setAuthConfig, clearAuthConfig } from '../storage';
 
 // 重新导出类型，供其他模块使用
 export type {
@@ -50,31 +55,173 @@ export interface CollectionSource {
  * EuraFlow 后端 API 客户端
  *
  * 仅在 Service Worker 中使用（跨域请求）
+ *
+ * 认证方式：JWT Token（通过 Authorization: Bearer <token> 头部传递）
  */
 export class EuraflowApi extends BaseApiClient {
-  private apiKey: string;
+  private accessToken: string | undefined;
+  private refreshToken: string | undefined;
+  private tokenExpiry: number | undefined;
 
-  constructor(apiUrl: string, apiKey: string) {
+  constructor(apiUrl: string, accessToken?: string, refreshToken?: string, tokenExpiry?: number) {
     super(apiUrl, {
       useRateLimiter: false,
       timeout: 60000,  // 上传可能需要较长时间
       maxRetries: 1,
-      defaultHeaders: {
-        'X-API-Key': apiKey
-      }
+      defaultHeaders: accessToken ? {
+        'Authorization': `Bearer ${accessToken}`
+      } : {}
     });
-    this.apiKey = apiKey;
+    this.accessToken = accessToken;
+    this.refreshToken = refreshToken;
+    this.tokenExpiry = tokenExpiry;
+  }
+
+  /**
+   * 更新 Token
+   */
+  updateTokens(accessToken: string, refreshToken: string, tokenExpiry: number): void {
+    this.accessToken = accessToken;
+    this.refreshToken = refreshToken;
+    this.tokenExpiry = tokenExpiry;
+  }
+
+  /**
+   * 获取认证头
+   */
+  private getAuthHeaders(): Record<string, string> {
+    if (!this.accessToken) {
+      return {};
+    }
+    return {
+      'Authorization': `Bearer ${this.accessToken}`
+    };
+  }
+
+  /**
+   * 检查 Token 是否即将过期（提前 60 秒）
+   */
+  private isTokenExpiringSoon(): boolean {
+    if (!this.tokenExpiry) return false;
+    return Date.now() > this.tokenExpiry - 60000;
+  }
+
+  /**
+   * 刷新 Access Token
+   */
+  async refreshAccessToken(): Promise<boolean> {
+    if (!this.refreshToken) {
+      console.error('[EuraflowApi] 无 refresh token，无法刷新');
+      return false;
+    }
+
+    try {
+      const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/extension/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ refresh_token: this.refreshToken })
+      });
+
+      if (!response.ok) {
+        console.error('[EuraflowApi] Token 刷新失败:', response.status);
+        return false;
+      }
+
+      const result = await response.json();
+      if (result.success && result.access_token) {
+        this.accessToken = result.access_token;
+        this.refreshToken = result.refresh_token || this.refreshToken;
+        // 假设 access token 有效期为 30 分钟
+        this.tokenExpiry = Date.now() + 30 * 60 * 1000;
+
+        // 保存到存储
+        await setAuthConfig({
+          accessToken: this.accessToken,
+          refreshToken: this.refreshToken,
+          tokenExpiry: this.tokenExpiry
+        });
+
+        console.log('[EuraflowApi] Token 刷新成功');
+        return true;
+      }
+      return false;
+    } catch (error: any) {
+      console.error('[EuraflowApi] Token 刷新异常:', error.message);
+      return false;
+    }
+  }
+
+  /**
+   * 确保 Token 有效（如果即将过期则刷新）
+   */
+  private async ensureValidToken(): Promise<void> {
+    if (this.isTokenExpiringSoon() && this.refreshToken) {
+      await this.refreshAccessToken();
+    }
+  }
+
+  /**
+   * 用户登录
+   */
+  async login(username: string, password: string): Promise<LoginResponse> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/extension/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ username, password })
+      });
+
+      const result: LoginResponse = await response.json();
+
+      if (result.success && result.access_token) {
+        this.accessToken = result.access_token;
+        this.refreshToken = result.refresh_token;
+        // 假设 access token 有效期为 30 分钟
+        this.tokenExpiry = Date.now() + 30 * 60 * 1000;
+
+        // 保存到存储
+        await setAuthConfig({
+          apiUrl: this.baseUrl,
+          username: username,
+          accessToken: this.accessToken,
+          refreshToken: this.refreshToken,
+          tokenExpiry: this.tokenExpiry
+        });
+      }
+
+      return result;
+    } catch (error: any) {
+      console.error('[EuraflowApi] 登录异常:', error.message);
+      return {
+        success: false,
+        error: error.message || '网络连接失败'
+      };
+    }
+  }
+
+  /**
+   * 登出
+   */
+  async logout(): Promise<void> {
+    this.accessToken = undefined;
+    this.refreshToken = undefined;
+    this.tokenExpiry = undefined;
+    await clearAuthConfig();
   }
 
   /**
    * 测试 API 连接
    */
   async testConnection(): Promise<{ status: string; username: string }> {
+    await this.ensureValidToken();
+
     const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/extension/ping`, {
       method: 'GET',
-      headers: {
-        'X-API-Key': this.apiKey
-      }
+      headers: this.getAuthHeaders()
     });
 
     if (!response.ok) {
@@ -92,11 +239,11 @@ export class EuraflowApi extends BaseApiClient {
     shops: Array<Shop & { warehouses: Warehouse[] }>;
     watermarks: Watermark[];
   }> {
+    await this.ensureValidToken();
+
     const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/extension/config`, {
       method: 'GET',
-      headers: {
-        'X-API-Key': this.apiKey
-      }
+      headers: this.getAuthHeaders()
     });
 
     if (!response.ok) {
@@ -140,11 +287,13 @@ export class EuraflowApi extends BaseApiClient {
     console.log(`[EuraflowApi] 开始上传 ${products.length} 个商品到 ${this.baseUrl}${batchName ? ` (批次: ${batchName})` : ''}`);
 
     try {
+      await this.ensureValidToken();
+
       const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/extension/products/upload`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-API-Key': this.apiKey
+          ...this.getAuthHeaders()
         },
         body: JSON.stringify({
           products,
@@ -188,6 +337,8 @@ export class EuraflowApi extends BaseApiClient {
    * 查询任务状态
    */
   async getTaskStatus(taskId: string, shopId?: number): Promise<TaskStatus> {
+    await this.ensureValidToken();
+
     let url = `${this.baseUrl}/api/ef/v1/ozon/extension/tasks/${taskId}/status`;
     if (shopId !== undefined) {
       url += `?shop_id=${shopId}`;
@@ -195,9 +346,7 @@ export class EuraflowApi extends BaseApiClient {
 
     const response = await fetch(url, {
       method: 'GET',
-      headers: {
-        'X-API-Key': this.apiKey
-      }
+      headers: this.getAuthHeaders()
     });
 
     if (!response.ok) {
@@ -216,11 +365,13 @@ export class EuraflowApi extends BaseApiClient {
    * 采集商品
    */
   async collectProduct(sourceUrl: string, productData: any): Promise<any> {
+    await this.ensureValidToken();
+
     const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/extension/products/collect`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-API-Key': this.apiKey
+        ...this.getAuthHeaders()
       },
       body: JSON.stringify({
         source_url: sourceUrl,
@@ -255,6 +406,8 @@ export class EuraflowApi extends BaseApiClient {
     }
 
     try {
+      await this.ensureValidToken();
+
       const url = `${this.baseUrl}/api/ef/v1/ozon/extension/categories/by-name?name_ru=${encodeURIComponent(nameRu)}`;
 
       if (__DEBUG__) {
@@ -263,9 +416,7 @@ export class EuraflowApi extends BaseApiClient {
 
       const response = await fetch(url, {
         method: 'GET',
-        headers: {
-          'X-API-Key': this.apiKey
-        }
+        headers: this.getAuthHeaders()
       });
 
       if (!response.ok) {
@@ -294,11 +445,11 @@ export class EuraflowApi extends BaseApiClient {
    */
   async getNextCollectionSource(): Promise<CollectionSource | null> {
     try {
+      await this.ensureValidToken();
+
       const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/extension/collection-sources/next`, {
         method: 'GET',
-        headers: {
-          'X-API-Key': this.apiKey
-        }
+        headers: this.getAuthHeaders()
       });
 
       if (!response.ok) {
@@ -338,11 +489,13 @@ export class EuraflowApi extends BaseApiClient {
     productCount?: number,
     error?: string
   ): Promise<void> {
+    await this.ensureValidToken();
+
     const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/extension/collection-sources/${sourceId}/status`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        'X-API-Key': this.apiKey
+        ...this.getAuthHeaders()
       },
       body: JSON.stringify({
         status,
@@ -365,11 +518,13 @@ export class EuraflowApi extends BaseApiClient {
    * 跟卖商品（立即上架）
    */
   async followPdp(data: any): Promise<any> {
+    await this.ensureValidToken();
+
     const response = await fetch(`${this.baseUrl}/api/ef/v1/ozon/extension/products/follow-pdp`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-API-Key': this.apiKey
+        ...this.getAuthHeaders()
       },
       body: JSON.stringify(data)
     });
@@ -453,21 +608,37 @@ export class EuraflowApi extends BaseApiClient {
 }
 
 /**
- * 创建 EuraFlow API 客户端
+ * 创建 EuraFlow API 客户端（从存储恢复 Token）
  */
-export function createEuraflowApi(apiUrl: string, apiKey: string): EuraflowApi {
-  return new EuraflowApi(apiUrl, apiKey);
+export async function createEuraflowApi(): Promise<EuraflowApi> {
+  const authConfig = await getAuthConfig();
+  return new EuraflowApi(
+    authConfig.apiUrl,
+    authConfig.accessToken,
+    authConfig.refreshToken,
+    authConfig.tokenExpiry
+  );
+}
+
+/**
+ * 创建 EuraFlow API 客户端（指定参数）
+ */
+export function createEuraflowApiWithParams(
+  apiUrl: string,
+  accessToken?: string,
+  refreshToken?: string,
+  tokenExpiry?: number
+): EuraflowApi {
+  return new EuraflowApi(apiUrl, accessToken, refreshToken, tokenExpiry);
 }
 
 /**
  * Content Script 专用客户端（通过消息转发）
+ *
+ * Content Script 不能直接访问 chrome.storage，需要通过 Service Worker 转发请求
+ * Service Worker 会从存储中获取 Token 并添加到请求头
  */
 export class EuraflowApiProxy {
-  constructor(
-    private apiUrl: string,
-    private apiKey: string
-  ) {}
-
   /**
    * 发送消息到 Service Worker（带重试）
    */
@@ -480,11 +651,7 @@ export class EuraflowApiProxy {
         const response = await Promise.race([
           chrome.runtime.sendMessage({
             type,
-            data: {
-              apiUrl: this.apiUrl,
-              apiKey: this.apiKey,
-              ...payload
-            }
+            data: payload
           }),
           new Promise<never>((_, reject) =>
             setTimeout(() => reject(new Error('消息超时（Service Worker 可能已休眠）')), 30000)
@@ -513,6 +680,13 @@ export class EuraflowApiProxy {
     }
 
     throw lastError;
+  }
+
+  /**
+   * 检查是否已登录
+   */
+  async isAuthenticated(): Promise<boolean> {
+    return this.sendRequest('CHECK_AUTH', {});
   }
 
   /**
@@ -563,6 +737,6 @@ export class EuraflowApiProxy {
 /**
  * 创建 Content Script 专用客户端
  */
-export function createEuraflowApiProxy(apiUrl: string, apiKey: string): EuraflowApiProxy {
-  return new EuraflowApiProxy(apiUrl, apiKey);
+export function createEuraflowApiProxy(): EuraflowApiProxy {
+  return new EuraflowApiProxy();
 }

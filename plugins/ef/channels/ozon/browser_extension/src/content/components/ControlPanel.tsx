@@ -6,7 +6,6 @@
 import type { DataFusionEngine } from '../fusion/engine';
 import type { ProductCollector } from '../collector';
 import type { CollectorConfig } from '../../shared/types';
-import { getApiConfig, testApiConnection } from '../../shared/storage';
 import { createEuraflowApiProxy } from '../../shared/api';
 import { injectEuraflowStyles } from '../styles/injector';
 
@@ -144,21 +143,18 @@ export function ControlPanel(props: ControlPanelProps) {
 
   // 开始采集
   async function startCollection() {
-    // 【检查API配置】必须先配置API才能采集
-    const apiConfig = await getApiConfig();
-    if (!apiConfig.apiUrl || !apiConfig.apiKey) {
-      updateStatus('⚠️ 请先进行API配置');
+    // 【检查登录状态】必须先登录才能采集
+    const proxyClient = createEuraflowApiProxy();
+    const authenticated = await proxyClient.isAuthenticated();
+    if (!authenticated) {
+      updateStatus('⚠️ 请先在扩展中登录');
       return;
     }
 
-    // 【验证API KEY】采集前确认API KEY有效
+    // 【验证连接】采集前确认API连接有效
     updateStatus('🔑 验证API连接...');
     try {
-      const isValid = await testApiConnection(apiConfig.apiUrl, apiConfig.apiKey);
-      if (!isValid) {
-        updateStatus('❌ API KEY无效，请检查配置');
-        return;
-      }
+      await proxyClient.testConnection();
     } catch (error: any) {
       updateStatus(`❌ API连接失败: ${error.message}`);
       return;
@@ -196,10 +192,11 @@ export function ControlPanel(props: ControlPanelProps) {
           // 显示完成信息（简洁版，详细统计在右边）
           updateStatus(`✅ 完成！`);
 
-          // 自动上传（如果有 API 配置）
+          // 自动上传（如果已登录）
           if (progress.collected > 0) {
-            const apiConfig = await getApiConfig();
-            if (apiConfig.apiUrl && apiConfig.apiKey) {
+            const autoUploadClient = createEuraflowApiProxy();
+            const isLoggedIn = await autoUploadClient.isAuthenticated();
+            if (isLoggedIn) {
               setTimeout(async () => {
                 await uploadToAPI();
               }, 1000);
@@ -253,9 +250,13 @@ export function ControlPanel(props: ControlPanelProps) {
         return;
       }
 
-      const apiConfig = await getApiConfig();
-      if (!apiConfig.apiUrl || !apiConfig.apiKey) {
-        updateStatus('⚠️ 未配置 API');
+      // 使用 Proxy API 客户端（通过 Service Worker 转发，自动处理认证）
+      const apiClient = createEuraflowApiProxy();
+
+      // 检查是否已登录
+      const authenticated = await apiClient.isAuthenticated();
+      if (!authenticated) {
+        updateStatus('⚠️ 未登录，请先在扩展中登录');
         return;
       }
 
@@ -305,7 +306,6 @@ export function ControlPanel(props: ControlPanelProps) {
         package_height: product.height,
       }));
 
-      const apiClient = createEuraflowApiProxy(apiConfig.apiUrl, apiConfig.apiKey);
       const result = await apiClient.uploadProducts(uploadData);
 
       // 更新指纹集：已上传的加入，未上传的移除

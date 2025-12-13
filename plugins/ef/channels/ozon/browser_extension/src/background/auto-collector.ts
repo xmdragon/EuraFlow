@@ -15,7 +15,7 @@
  */
 
 import { createEuraflowApi, type CollectionSource } from '../shared/api/euraflow-api';
-import { getAutoCollectConfig } from '../shared/storage';
+import { getAutoCollectConfig, isAuthenticated } from '../shared/storage';
 
 /**
  * 自动采集状态
@@ -46,8 +46,6 @@ class AutoCollector {
     startTime: null,
   };
 
-  private apiUrl: string = '';
-  private apiKey: string = '';
   private stopRequested: boolean = false;
 
   // 采集配置（运行时从存储读取）
@@ -84,10 +82,10 @@ class AutoCollector {
       throw new Error('自动采集已在运行中');
     }
 
-    // 获取 API 配置
-    const apiConfig = await this.getApiConfig();
-    if (!apiConfig.apiUrl || !apiConfig.apiKey) {
-      throw new Error('请先配置 EuraFlow API 地址和密钥');
+    // 检查是否已登录
+    const authenticated = await isAuthenticated();
+    if (!authenticated) {
+      throw new Error('请先登录 EuraFlow');
     }
 
     // 获取自动采集配置
@@ -110,8 +108,6 @@ class AutoCollector {
       closeTabAfterCollect: this.config.closeTabAfterCollect,
     });
 
-    this.apiUrl = apiConfig.apiUrl;
-    this.apiKey = apiConfig.apiKey;
     this.stopRequested = false;
 
     // 初始化状态
@@ -301,7 +297,7 @@ class AutoCollector {
    * 获取下一个待采集的地址
    */
   private async getNextSource(): Promise<CollectionSource | null> {
-    const api = createEuraflowApi(this.apiUrl, this.apiKey);
+    const api = await createEuraflowApi();
     return api.getNextCollectionSource();
   }
 
@@ -315,7 +311,7 @@ class AutoCollector {
     error?: string
   ): Promise<void> {
     try {
-      const api = createEuraflowApi(this.apiUrl, this.apiKey);
+      const api = await createEuraflowApi();
       await api.updateCollectionSourceStatus(sourceId, status, productCount, error);
     } catch (err: any) {
       console.error('[AutoCollector] 更新状态失败:', err.message);
@@ -440,7 +436,7 @@ class AutoCollector {
       return;
     }
 
-    const api = createEuraflowApi(this.apiUrl, this.apiKey);
+    const api = await createEuraflowApi();
 
     // 使用地址路径作为批次名称
     const batchName = source.source_path;
@@ -472,20 +468,6 @@ class AutoCollector {
     }
     this.activeTabs.clear();
     this.state.currentTabId = null;
-  }
-
-  /**
-   * 获取 API 配置
-   */
-  private getApiConfig(): Promise<{ apiUrl: string; apiKey: string }> {
-    return new Promise((resolve) => {
-      chrome.storage.sync.get(['apiUrl', 'apiKey'], (result) => {
-        resolve({
-          apiUrl: result.apiUrl || '',
-          apiKey: result.apiKey || '',
-        });
-      });
-    });
   }
 
   /**

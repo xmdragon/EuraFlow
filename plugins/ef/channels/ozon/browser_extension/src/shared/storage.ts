@@ -1,4 +1,4 @@
-import type { ApiConfig, CollectorConfig, ShangpinbangConfig, DataPanelConfig, RateLimitConfig, FilterConfig, AutoCollectConfig } from './types';
+import type { ApiConfig, AuthConfig, CollectorConfig, ShangpinbangConfig, DataPanelConfig, RateLimitConfig, FilterConfig, AutoCollectConfig } from './types';
 import { DEFAULT_FIELDS } from './types';
 
 /**
@@ -12,9 +12,19 @@ const DEFAULT_API_CONFIG: ApiConfig = {
   apiKey: ''
 };
 
+const DEFAULT_AUTH_CONFIG: AuthConfig = {
+  apiUrl: '',
+  username: '',
+  accessToken: undefined,
+  refreshToken: undefined,
+  tokenExpiry: undefined
+};
+
 const DEFAULT_COLLECTOR_CONFIG: CollectorConfig = {
   targetCount: 100
 };
+
+// ========== 旧版 API Key 配置（已废弃，保留用于兼容） ==========
 
 export async function getApiConfig(): Promise<ApiConfig> {
   const result = await chrome.storage.sync.get(['apiUrl', 'apiKey']);
@@ -25,10 +35,89 @@ export async function getApiConfig(): Promise<ApiConfig> {
 }
 
 /**
- * 保存API配置
+ * 保存API配置（已废弃）
  */
 export async function setApiConfig(config: Partial<ApiConfig>): Promise<void> {
   await chrome.storage.sync.set(config);
+}
+
+// ========== 新版认证配置 ==========
+
+/**
+ * 获取认证配置
+ */
+export async function getAuthConfig(): Promise<AuthConfig> {
+  const result = await chrome.storage.sync.get([
+    'authApiUrl',
+    'authUsername',
+    'authAccessToken',
+    'authRefreshToken',
+    'authTokenExpiry'
+  ]);
+  return {
+    apiUrl: result.authApiUrl || DEFAULT_AUTH_CONFIG.apiUrl,
+    username: result.authUsername || DEFAULT_AUTH_CONFIG.username,
+    accessToken: result.authAccessToken || DEFAULT_AUTH_CONFIG.accessToken,
+    refreshToken: result.authRefreshToken || DEFAULT_AUTH_CONFIG.refreshToken,
+    tokenExpiry: result.authTokenExpiry || DEFAULT_AUTH_CONFIG.tokenExpiry
+  };
+}
+
+/**
+ * 保存认证配置
+ */
+export async function setAuthConfig(config: Partial<AuthConfig>): Promise<void> {
+  const storageData: { [key: string]: any } = {};
+
+  if (config.apiUrl !== undefined) storageData.authApiUrl = config.apiUrl;
+  if (config.username !== undefined) storageData.authUsername = config.username;
+  if (config.accessToken !== undefined) storageData.authAccessToken = config.accessToken;
+  if (config.refreshToken !== undefined) storageData.authRefreshToken = config.refreshToken;
+  if (config.tokenExpiry !== undefined) storageData.authTokenExpiry = config.tokenExpiry;
+
+  await chrome.storage.sync.set(storageData);
+}
+
+/**
+ * 清除认证信息（登出）
+ */
+export async function clearAuthConfig(): Promise<void> {
+  await chrome.storage.sync.remove([
+    'authAccessToken',
+    'authRefreshToken',
+    'authTokenExpiry'
+  ]);
+}
+
+/**
+ * 检查是否已登录（有有效的 access token）
+ */
+export async function isAuthenticated(): Promise<boolean> {
+  const config = await getAuthConfig();
+  if (!config.accessToken) {
+    return false;
+  }
+  // 检查 token 是否过期（提前 60 秒判断）
+  if (config.tokenExpiry && Date.now() > config.tokenExpiry - 60000) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * 获取 Access Token（快捷方法）
+ */
+export async function getAccessToken(): Promise<string | undefined> {
+  const config = await getAuthConfig();
+  return config.accessToken;
+}
+
+/**
+ * 获取 Refresh Token（快捷方法）
+ */
+export async function getRefreshToken(): Promise<string | undefined> {
+  const config = await getAuthConfig();
+  return config.refreshToken;
 }
 
 export async function getCollectorConfig(): Promise<CollectorConfig> {

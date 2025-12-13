@@ -4,17 +4,23 @@
 统一管理浏览器扩展使用的所有 API，便于权限分配
 所有端点使用 /extension 前缀
 
+认证方式：JWT Token（通过扩展登录 API 获取）
+- 扩展登录返回的 Token 带有 auth_source: "extension" 标记
+- 中间件会限制该标记的 Token 只能访问 /extension/* 路由
+
 核心逻辑复用现有服务，本文件仅作为统一入口
 """
 from fastapi import APIRouter, Depends, Query, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import Optional
+from pydantic import BaseModel, Field
 import logging
 
-from ef_core.database import get_async_session
-from ef_core.api.auth import get_current_user_from_api_key
+from ef_core.database import get_async_session, get_db_manager
+from ef_core.api.auth import get_current_user_flexible
 from ef_core.models.users import User, user_shops, UserSettings
+from ef_core.services.auth_service import get_auth_service
 
 from ..models import OzonShop, OzonWarehouse
 from ..models.watermark import WatermarkConfig
@@ -30,11 +36,11 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 @router.get("/ping")
-async def ping(user: User = Depends(get_current_user_from_api_key)):
+async def ping(user: User = Depends(get_current_user_flexible)):
     """
     测试 API 连接
 
-    返回当前用户信息，用于验证 API Key 有效性
+    返回当前用户信息，用于验证 Token 有效性
     """
     return {
         "status": "ok",
@@ -50,7 +56,7 @@ async def ping(user: User = Depends(get_current_user_from_api_key)):
 @router.get("/config")
 async def get_extension_config(
     db: AsyncSession = Depends(get_async_session),
-    user: User = Depends(get_current_user_from_api_key)
+    user: User = Depends(get_current_user_flexible)
 ):
     """
     获取扩展所需的所有配置（店铺、仓库、水印）
@@ -168,7 +174,7 @@ async def get_task_status(
     task_id: str,
     shop_id: Optional[int] = Query(None, description="店铺ID（可选）"),
     db: AsyncSession = Depends(get_async_session),
-    user: User = Depends(get_current_user_from_api_key)
+    user: User = Depends(get_current_user_flexible)
 ):
     """
     查询 Celery 任务状态（跟卖上架任务）
@@ -201,7 +207,7 @@ async def get_task_status(
 async def collect_product(
     data: dict,
     db: AsyncSession = Depends(get_async_session),
-    user: User = Depends(get_current_user_from_api_key)
+    user: User = Depends(get_current_user_flexible)
 ):
     """
     采集商品到采集记录（不立即上架）
@@ -259,7 +265,7 @@ async def collect_product(
 async def upload_products(
     data: dict,
     db: AsyncSession = Depends(get_async_session),
-    user: User = Depends(get_current_user_from_api_key)
+    user: User = Depends(get_current_user_flexible)
 ):
     """
     上传商品数据到采集记录
@@ -366,7 +372,7 @@ async def upload_products(
 async def follow_pdp(
     data: dict,
     db: AsyncSession = Depends(get_async_session),
-    user: User = Depends(get_current_user_from_api_key)
+    user: User = Depends(get_current_user_flexible)
 ):
     """
     跟卖上架（从 PDP 页面直接上架）
@@ -467,7 +473,7 @@ async def follow_pdp(
 async def get_category_by_name(
     name_ru: str = Query(..., description="俄文类目名称"),
     db: AsyncSession = Depends(get_async_session),
-    user: User = Depends(get_current_user_from_api_key)
+    user: User = Depends(get_current_user_flexible)
 ):
     """
     根据俄文类目名称查询完整三级类目
@@ -507,7 +513,7 @@ async def get_category_by_name(
 @router.get("/collection-sources/next")
 async def get_next_collection_source(
     db: AsyncSession = Depends(get_async_session),
-    user: User = Depends(get_current_user_from_api_key)
+    user: User = Depends(get_current_user_flexible)
 ):
     """
     获取下一个待采集的地址
@@ -556,7 +562,7 @@ async def update_collection_source_status(
     source_id: int,
     data: dict,
     db: AsyncSession = Depends(get_async_session),
-    user: User = Depends(get_current_user_from_api_key)
+    user: User = Depends(get_current_user_flexible)
 ):
     """
     更新采集源状态
@@ -606,7 +612,7 @@ async def update_collection_source_status(
 async def upload_session(
     data: dict,
     db: AsyncSession = Depends(get_async_session),
-    user: User = Depends(get_current_user_from_api_key)
+    user: User = Depends(get_current_user_flexible)
 ):
     """
     上传浏览器 Session Cookie
@@ -661,7 +667,7 @@ async def upload_session(
 @router.get("/sync-status")
 async def get_sync_status(
     db: AsyncSession = Depends(get_async_session),
-    user: User = Depends(get_current_user_from_api_key)
+    user: User = Depends(get_current_user_flexible)
 ):
     """
     查询后端同步任务执行状态
@@ -736,7 +742,7 @@ async def get_sync_status(
 async def update_shop_balance(
     data: dict,
     db: AsyncSession = Depends(get_async_session),
-    user: User = Depends(get_current_user_from_api_key)
+    user: User = Depends(get_current_user_flexible)
 ):
     """
     更新店铺当前余额（由浏览器扩展调用）
@@ -788,7 +794,7 @@ async def update_shop_balance(
 @router.get("/invoice-payments/should-sync")
 async def check_should_sync_invoice_payments(
     db: AsyncSession = Depends(get_async_session),
-    user: User = Depends(get_current_user_from_api_key)
+    user: User = Depends(get_current_user_flexible)
 ):
     """
     检查是否需要同步账单付款
@@ -875,7 +881,7 @@ async def check_should_sync_invoice_payments(
 async def sync_invoice_payments(
     data: dict,
     db: AsyncSession = Depends(get_async_session),
-    user: User = Depends(get_current_user_from_api_key)
+    user: User = Depends(get_current_user_flexible)
 ):
     """
     接收浏览器扩展上传的账单付款数据
@@ -992,3 +998,262 @@ async def sync_invoice_payments(
         logger.error(f"Sync invoice payments error: {e}", exc_info=True)
         await db.rollback()
         return {"success": False, "error": str(e)}
+
+
+# ============================================================================
+# 扩展认证 API（登录/刷新令牌）
+# ============================================================================
+
+class ExtensionLoginRequest(BaseModel):
+    """扩展登录请求"""
+    username: str = Field(..., description="用户名")
+    password: str = Field(..., description="密码")
+
+
+class ExtensionLoginResponse(BaseModel):
+    """扩展登录响应"""
+    success: bool
+    access_token: Optional[str] = None
+    refresh_token: Optional[str] = None
+    user: Optional[dict] = None
+    error: Optional[str] = None
+    retry_after: Optional[int] = None  # 限流时返回需等待的秒数
+
+
+class ExtensionLoginRateLimiter:
+    """
+    扩展登录限流器（渐进式）
+
+    失败次数阈值和锁定时间：
+    - 3次失败 → 锁定 1 分钟
+    - 5次失败 → 锁定 10 分钟
+    - 10次失败 → 锁定 1 小时
+    - 20次失败 → 锁定 24 小时
+    """
+    THRESHOLDS = [
+        (3, 60),        # 3次 -> 1分钟
+        (5, 600),       # 5次 -> 10分钟
+        (10, 3600),     # 10次 -> 1小时
+        (20, 86400),    # 20次 -> 24小时
+    ]
+
+    KEY_PREFIX_IP = "ext_login_fail:ip:"
+    KEY_PREFIX_USER = "ext_login_fail:user:"
+
+    @classmethod
+    def _get_lockout_duration(cls, fail_count: int) -> int:
+        """根据失败次数获取锁定时长"""
+        lockout = 0
+        for threshold, duration in cls.THRESHOLDS:
+            if fail_count >= threshold:
+                lockout = duration
+        return lockout
+
+    @classmethod
+    async def check_rate_limit(cls, redis_client, ip: str, username: str) -> tuple[bool, int]:
+        """
+        检查是否被限流
+
+        Returns:
+            (is_allowed, retry_after): 是否允许登录，需等待的秒数
+        """
+        import redis.asyncio as redis
+
+        # 检查 IP 锁定
+        ip_key = f"{cls.KEY_PREFIX_IP}{ip}"
+        lockout_key = f"{ip_key}:lockout"
+        lockout_ttl = await redis_client.ttl(lockout_key)
+        if lockout_ttl > 0:
+            return False, lockout_ttl
+
+        # 检查用户名锁定
+        user_key = f"{cls.KEY_PREFIX_USER}{username}"
+        lockout_key = f"{user_key}:lockout"
+        lockout_ttl = await redis_client.ttl(lockout_key)
+        if lockout_ttl > 0:
+            return False, lockout_ttl
+
+        return True, 0
+
+    @classmethod
+    async def record_failure(cls, redis_client, ip: str, username: str):
+        """记录登录失败"""
+        # IP 维度计数
+        ip_key = f"{cls.KEY_PREFIX_IP}{ip}"
+        ip_count = await redis_client.incr(ip_key)
+        await redis_client.expire(ip_key, 86400)  # 24小时后重置计数
+
+        # 用户名维度计数
+        user_key = f"{cls.KEY_PREFIX_USER}{username}"
+        user_count = await redis_client.incr(user_key)
+        await redis_client.expire(user_key, 86400)
+
+        # 设置锁定（如果达到阈值）
+        ip_lockout = cls._get_lockout_duration(ip_count)
+        user_lockout = cls._get_lockout_duration(user_count)
+
+        if ip_lockout > 0:
+            await redis_client.setex(f"{ip_key}:lockout", ip_lockout, "1")
+        if user_lockout > 0:
+            await redis_client.setex(f"{user_key}:lockout", user_lockout, "1")
+
+    @classmethod
+    async def clear_on_success(cls, redis_client, ip: str, username: str):
+        """登录成功后清除失败计数"""
+        ip_key = f"{cls.KEY_PREFIX_IP}{ip}"
+        user_key = f"{cls.KEY_PREFIX_USER}{username}"
+        await redis_client.delete(ip_key, f"{ip_key}:lockout")
+        await redis_client.delete(user_key, f"{user_key}:lockout")
+
+
+@router.post("/auth/login", response_model=ExtensionLoginResponse)
+async def extension_login(
+    request: Request,
+    login_data: ExtensionLoginRequest
+):
+    """
+    浏览器扩展登录
+
+    与页面登录不同，扩展登录返回的 Token 带有 auth_source: "extension" 标记，
+    该标记用于限制只能访问 /extension/* 路由。
+
+    **限流规则**：
+    - 3次失败 → 锁定 1 分钟
+    - 5次失败 → 锁定 10 分钟
+    - 10次失败 → 锁定 1 小时
+    - 20次失败 → 锁定 24 小时
+    """
+    auth_service = get_auth_service()
+    client_ip = request.client.host if request.client else "unknown"
+
+    # 1. 检查限流
+    is_allowed, retry_after = await ExtensionLoginRateLimiter.check_rate_limit(
+        auth_service.redis_client, client_ip, login_data.username
+    )
+    if not is_allowed:
+        logger.warning(f"Extension login rate limited: ip={client_ip}, username={login_data.username}")
+        return ExtensionLoginResponse(
+            success=False,
+            error="登录尝试过于频繁，请稍后再试",
+            retry_after=retry_after
+        )
+
+    # 2. 验证用户
+    try:
+        user = await auth_service.authenticate_user(login_data.username, login_data.password)
+
+        if not user:
+            # 记录失败
+            await ExtensionLoginRateLimiter.record_failure(
+                auth_service.redis_client, client_ip, login_data.username
+            )
+            logger.warning(f"Extension login failed: invalid credentials, ip={client_ip}, username={login_data.username}")
+            return ExtensionLoginResponse(
+                success=False,
+                error="用户名或密码错误"
+            )
+
+        # 3. 登录成功，清除失败计数
+        await ExtensionLoginRateLimiter.clear_on_success(
+            auth_service.redis_client, client_ip, login_data.username
+        )
+
+        # 4. 获取用户的权限代码
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as db:
+            from ef_core.services.permission_service import get_permission_service
+            permission_service = get_permission_service()
+            # 扩展登录使用 extension 角色的权限
+            permission_codes = await permission_service.get_user_permissions(db, "extension")
+
+        # 5. 创建 Token（标记为扩展登录）
+        # 使用 auth_source 区分登录来源
+        from sqlalchemy.orm import selectinload
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as db:
+            stmt = select(User).where(User.id == user.id).options(selectinload(User.shops))
+            result = await db.execute(stmt)
+            user = result.scalar_one()
+            shop_ids = [shop.id for shop in user.shops] if user.shops else []
+
+        token_data = {
+            "sub": str(user.id),
+            "username": user.username,
+            "role": user.role,  # 保留原角色
+            "auth_source": "extension",  # 标记为扩展登录
+            "permissions": permission_codes,
+            "shop_id": user.primary_shop_id,
+            "shop_ids": shop_ids,
+        }
+
+        access_token = auth_service.create_access_token(token_data)
+        refresh_token = auth_service.create_refresh_token({
+            "sub": str(user.id),
+            "auth_source": "extension"
+        })
+
+        logger.info(f"Extension login success: user_id={user.id}, username={user.username}, ip={client_ip}")
+
+        return ExtensionLoginResponse(
+            success=True,
+            access_token=access_token,
+            refresh_token=refresh_token,
+            user={
+                "id": user.id,
+                "username": user.username,
+                "role": user.role,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Extension login error: {e}", exc_info=True)
+        return ExtensionLoginResponse(
+            success=False,
+            error="登录失败，请稍后重试"
+        )
+
+
+@router.post("/auth/refresh")
+async def extension_refresh_token(
+    request: Request,
+    refresh_token: str = None
+):
+    """
+    刷新扩展 Token
+
+    使用 refresh_token 获取新的 access_token
+    """
+    if not refresh_token:
+        # 尝试从请求体获取
+        try:
+            body = await request.json()
+            refresh_token = body.get("refresh_token")
+        except:
+            pass
+
+    if not refresh_token:
+        raise HTTPException(status_code=400, detail="Missing refresh_token")
+
+    auth_service = get_auth_service()
+
+    try:
+        result = await auth_service.refresh_access_token(refresh_token)
+
+        # 验证是扩展登录的 Token
+        payload = auth_service.decode_token(refresh_token)
+        if payload.get("auth_source") != "extension":
+            raise HTTPException(
+                status_code=403,
+                detail="This refresh token is not for extension login"
+            )
+
+        return {
+            "success": True,
+            "access_token": result["access_token"],
+            "refresh_token": result["refresh_token"]
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Extension token refresh error: {e}", exc_info=True)
+        raise HTTPException(status_code=401, detail="Token refresh failed")

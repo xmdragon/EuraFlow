@@ -191,6 +191,44 @@ body {
   }
 }
 
+/* 登录状态 */
+.auth-status {
+  padding: 12px 16px;
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 8px;
+  margin-bottom: 12px;
+
+  .auth-info {
+    margin-bottom: 12px;
+
+    .auth-user {
+      margin: 0 0 4px 0;
+      font-size: 14px;
+      color: #166534;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+
+      .auth-icon {
+        color: #22c55e;
+        font-weight: bold;
+      }
+
+      strong {
+        color: #15803d;
+      }
+    }
+
+    .auth-server {
+      margin: 0;
+      font-size: 12px;
+      color: #4ade80;
+      word-break: break-all;
+    }
+  }
+}
+
 /* 上品帮登录状态 */
 .spb-status {
   font-size: 13px;

@@ -17,7 +17,7 @@ from bs4 import BeautifulSoup
 import re
 
 from ef_core.database import get_async_session
-from ef_core.api.auth import get_current_user, get_current_user_from_api_key, get_current_user_flexible
+from ef_core.api.auth import get_current_user, get_current_user_flexible
 from ef_core.models.users import User
 from ef_core.services.audit_service import AuditService
 from ..services.product_selection_service import ProductSelectionService
@@ -1146,26 +1146,17 @@ async def upload_products(
     http_request: Request,
     upload_data: ProductsUploadRequest,
     db: AsyncSession = Depends(get_async_session),
-    api_key_user: Optional[User] = Depends(get_current_user_from_api_key)
+    current_user: User = Depends(get_current_user_flexible)
 ):
     """
-    批量上传商品数据（API Key认证）
+    批量上传商品数据（JWT Token认证）
 
-    **认证方式**：在Header中传递 `X-API-Key`
+    **认证方式**：在Header中传递 `Authorization: Bearer <token>`
 
     **速率限制**：每分钟最多10次请求，单次最多1000条商品
 
     **权限要求**：product_selection:write
     """
-    # 验证API Key认证
-    if not api_key_user:
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "code": "UNAUTHORIZED",
-                "message": "需要有效的API Key（请在Header中传递X-API-Key）"
-            }
-        )
 
     # 检查数据量
     if len(upload_data.products) > 1000:
@@ -1201,7 +1192,7 @@ async def upload_products(
             try:
                 # 转换为内部数据格式
                 cleaned_data = {
-                    'user_id': api_key_user.id,
+                    'user_id': current_user.id,
                     'product_id': product.product_id,
                     'product_name_ru': product.product_name_ru,
                     'product_name_cn': product.product_name_cn,
@@ -1356,7 +1347,7 @@ async def upload_products(
                 db=db,
                 items=batch_items,
                 strategy='update',  # 默认更新策略
-                user_id=api_key_user.id
+                user_id=current_user.id
             )
             success_count += result['success'] + result['updated']
             failed_count += result['skipped']
@@ -1375,7 +1366,7 @@ async def upload_products(
                 file_name=file_name,
                 file_type="api",
                 file_size=0,
-                imported_by=api_key_user.id,
+                imported_by=current_user.id,
                 import_strategy="update",
                 total_rows=len(upload_data.products),
                 success_rows=result['success'],
@@ -1385,7 +1376,7 @@ async def upload_products(
                 process_duration=process_duration,
                 import_log={
                     "source": "browser_extension",
-                    "api_key_user_id": api_key_user.id,
+                    "current_user_id": current_user.id,
                     "batch_name": upload_data.batch_name,
                     "source_id": upload_data.source_id
                 },
@@ -1403,7 +1394,7 @@ async def upload_products(
                 await db.execute(
                     update(ProductSelectionItem)
                     .where(
-                        ProductSelectionItem.user_id == api_key_user.id,
+                        ProductSelectionItem.user_id == current_user.id,
                         ProductSelectionItem.product_id.in_(product_ids_to_update)
                     )
                     .values(batch_id=import_history.id)
@@ -1413,15 +1404,15 @@ async def upload_products(
             await db.commit()
 
         logger.info(
-            f"API Key批量上传完成: user_id={api_key_user.id}, "
+            f"API Key批量上传完成: user_id={current_user.id}, "
             f"total={len(upload_data.products)}, success={success_count}, failed={failed_count}"
         )
 
         # 记录API上传选品数据审计日志
         await AuditService.log_action(
             db=db,
-            user_id=api_key_user.id,
-            username=api_key_user.username,
+            user_id=current_user.id,
+            username=current_user.username,
             module="ozon",
             action="create",
             action_display="API上传选品数据",

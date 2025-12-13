@@ -11,7 +11,7 @@ import logging
 
 from ef_core.database import get_async_session
 from ef_core.models.users import User
-from ef_core.api.auth import get_current_user_flexible, get_current_user_from_api_key
+from ef_core.api.auth import get_current_user_flexible
 from ef_core.middleware.auth import require_role
 from ..models import OzonShop, OzonProduct, OzonPosting
 from ..utils.datetime_utils import utcnow
@@ -1123,27 +1123,17 @@ class SyncStatusResponse(BaseModel):
 async def upload_session(
     request: SessionUploadRequest,
     db: AsyncSession = Depends(get_async_session),
-    api_key_user: Optional[User] = Depends(get_current_user_from_api_key)
+    current_user: User = Depends(get_current_user_flexible)
 ):
     """
-    上传浏览器 Session Cookie（API Key 认证）
+    上传浏览器 Session Cookie（JWT Token 认证）
 
     浏览器扩展定期调用此接口上传最新的 OZON Cookie，
     后端使用这些 Cookie 访问 OZON 页面执行同步任务。
 
-    **认证方式**：在 Header 中传递 `X-API-Key`
+    **认证方式**：在 Header 中传递 `Authorization: Bearer <token>`
     """
     import json
-
-    # 验证 API Key
-    if not api_key_user:
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "code": "UNAUTHORIZED",
-                "message": "需要有效的 API Key（请在 Header 中传递 X-API-Key）"
-            }
-        )
 
     # 验证 Cookie 列表
     if not request.cookies:
@@ -1166,7 +1156,7 @@ async def upload_session(
     # 直接更新用户的 Cookie（用户登录 OZON 后可以切换多个店铺）
     from ef_core.models.users import User
 
-    stmt = select(User).where(User.id == api_key_user.id)
+    stmt = select(User).where(User.id == current_user.id)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
 
@@ -1186,13 +1176,13 @@ async def upload_session(
     await db.commit()
 
     logger.info(
-        f"Session uploaded for user {api_key_user.id} ({api_key_user.username})"
+        f"Session uploaded for user {current_user.id} ({current_user.username})"
     )
 
     return {
         "ok": True,
         "data": {
-            "message": f"Cookie 已保存到用户 {api_key_user.username}",
+            "message": f"Cookie 已保存到用户 {current_user.username}",
             "shops_updated": 1  # 保持接口兼容
         }
     }
@@ -1201,15 +1191,15 @@ async def upload_session(
 @router.get("/sync-status")
 async def get_sync_status(
     db: AsyncSession = Depends(get_async_session),
-    api_key_user: Optional[User] = Depends(get_current_user_from_api_key)
+    current_user: User = Depends(get_current_user_flexible)
 ):
     """
-    查询后端同步任务执行状态（API Key 认证）
+    查询后端同步任务执行状态（JWT Token 认证）
 
     浏览器扩展在执行任务前调用此接口，检查后端是否已成功执行。
     如果后端已成功，扩展可以跳过执行。
 
-    **认证方式**：在 Header 中传递 `X-API-Key`
+    **认证方式**：在 Header 中传递 `Authorization: Bearer <token>`
 
     返回三个任务的执行状态：
     - promo_cleaner: 促销清理（检查今天是否已执行）
@@ -1219,22 +1209,12 @@ async def get_sync_status(
     from ..models import OzonWebSyncLog
     from datetime import timedelta
 
-    # 验证 API Key
-    if not api_key_user:
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "code": "UNAUTHORIZED",
-                "message": "需要有效的 API Key（请在 Header 中传递 X-API-Key）"
-            }
-        )
-
     now = utcnow()
 
     # 查询各任务的最近成功记录
     async def get_last_success(task_type: str) -> Optional[OzonWebSyncLog]:
         stmt = select(OzonWebSyncLog).where(
-            OzonWebSyncLog.user_id == api_key_user.id,
+            OzonWebSyncLog.user_id == current_user.id,
             OzonWebSyncLog.task_type == task_type,
             OzonWebSyncLog.status == "success"
         ).order_by(OzonWebSyncLog.completed_at.desc()).limit(1)

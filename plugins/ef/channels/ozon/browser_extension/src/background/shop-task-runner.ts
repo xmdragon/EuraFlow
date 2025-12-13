@@ -22,6 +22,7 @@
 
 import { createEuraflowApi, type EuraflowApi } from '../shared/api/euraflow-api';
 import { configCache } from '../shared/config-cache';
+import { isAuthenticated, getAuthConfig } from '../shared/storage';
 import type { Shop } from '../shared/types';
 
 // ========== 任务接口定义 ==========
@@ -724,35 +725,24 @@ class ShopTaskRunner {
   ];
 
   /**
-   * 获取 API 配置
-   */
-  private getApiConfig(): Promise<{ apiUrl: string; apiKey: string }> {
-    return new Promise((resolve) => {
-      chrome.storage.sync.get(['apiUrl', 'apiKey'], (result) => {
-        resolve({
-          apiUrl: result.apiUrl || '',
-          apiKey: result.apiKey || '',
-        });
-      });
-    });
-  }
-
-  /**
    * 主入口：执行所有任务
    */
   async run(): Promise<void> {
     console.log('[ShopTaskRunner] 开始执行店铺任务...');
 
     try {
-      // 获取 API 配置
-      const apiConfig = await this.getApiConfig();
-      if (!apiConfig.apiUrl || !apiConfig.apiKey) {
-        console.log('[ShopTaskRunner] 跳过：缺少 API 配置');
+      // 检查是否已登录
+      const authenticated = await isAuthenticated();
+      if (!authenticated) {
+        console.log('[ShopTaskRunner] 跳过：未登录');
         return;
       }
 
+      // 获取认证配置（用于检查后端状态）
+      const authConfig = await getAuthConfig();
+
       // 创建 API 客户端
-      const api = createEuraflowApi(apiConfig.apiUrl, apiConfig.apiKey);
+      const api = await createEuraflowApi();
 
       // 过滤出需要执行的任务（两步过滤：本地条件 + 后端状态）
       const tasksToRun: ShopTask[] = [];
@@ -765,7 +755,7 @@ class ShopTaskRunner {
 
         // 第二步：检查后端状态（后端是否已成功执行）
         if (task.checkBackendStatus) {
-          const shouldRun = await task.checkBackendStatus(apiConfig.apiUrl, apiConfig.apiKey);
+          const shouldRun = await task.checkBackendStatus(authConfig.apiUrl, authConfig.accessToken || '');
           if (!shouldRun) {
             console.log(`[ShopTaskRunner] 跳过任务: ${task.name}（后端已执行）`);
             continue;

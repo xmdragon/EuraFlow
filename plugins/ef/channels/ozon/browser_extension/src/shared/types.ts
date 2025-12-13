@@ -89,7 +89,42 @@ export interface ProductData {
  */
 export interface ApiConfig {
   apiUrl: string;
-  apiKey: string;
+  apiKey: string;  // 已废弃，保留用于兼容
+}
+
+/**
+ * 认证配置（用户登录凭据）
+ */
+export interface AuthConfig {
+  apiUrl: string;
+  username: string;
+  accessToken?: string;
+  refreshToken?: string;
+  tokenExpiry?: number;  // access token 过期时间戳（毫秒）
+}
+
+/**
+ * 登录请求
+ */
+export interface LoginRequest {
+  username: string;
+  password: string;
+}
+
+/**
+ * 登录响应
+ */
+export interface LoginResponse {
+  success: boolean;
+  access_token?: string;
+  refresh_token?: string;
+  user?: {
+    id: number;
+    username: string;
+    role: string;
+  };
+  error?: string;
+  retry_after?: number;  // 被锁定时，需要等待的秒数
 }
 
 export interface CollectorConfig {

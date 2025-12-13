@@ -13,8 +13,12 @@ import {
   getOzonBuyerApi,
   getSpbangApi,
   createEuraflowApi,
+  createEuraflowApiWithParams,
   type SpbSalesData
 } from '../shared/api';
+
+// 导入认证相关存储函数
+import { isAuthenticated, getAuthConfig, setAuthConfig, clearAuthConfig } from '../shared/storage';
 
 // 导入自动采集模块
 import { registerAutoCollectorHandlers } from './auto-collector';
@@ -186,6 +190,38 @@ chrome.runtime.onStartup.addListener(() => {
 
 chrome.runtime.onMessage.addListener((message: any, _sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
 
+  // 认证检查
+  if (message.type === 'CHECK_AUTH') {
+    isAuthenticated()
+      .then(result => sendResponse({ success: true, data: result }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+    return true;
+  }
+
+  // EuraFlow 登录
+  if (message.type === 'EURAFLOW_LOGIN') {
+    handleEuraflowLogin(message.data)
+      .then(response => sendResponse({ success: true, data: response }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+    return true;
+  }
+
+  // EuraFlow 登出
+  if (message.type === 'EURAFLOW_LOGOUT') {
+    handleEuraflowLogout()
+      .then(() => sendResponse({ success: true }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+    return true;
+  }
+
+  // 获取当前登录用户信息
+  if (message.type === 'GET_AUTH_INFO') {
+    handleGetAuthInfo()
+      .then(response => sendResponse({ success: true, data: response }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+    return true;
+  }
+
   // EuraFlow API
   if (message.type === 'UPLOAD_PRODUCTS') {
     handleUploadProducts(message.data)
@@ -327,64 +363,135 @@ chrome.runtime.onMessage.addListener((message: any, _sender: chrome.runtime.Mess
 // EuraFlow API 处理函数
 // ============================================================================
 
-async function handleUploadProducts(data: { apiUrl: string; apiKey: string; products: any[] }) {
-  const { apiUrl, apiKey, products } = data;
-  const api = createEuraflowApi(apiUrl, apiKey);
-  return api.uploadProducts(products);
+/**
+ * 获取已登录的 EuraFlow API 客户端
+ * 如果未登录则抛出错误
+ */
+async function getAuthenticatedApi() {
+  const authConfig = await getAuthConfig();
+  if (!authConfig.accessToken) {
+    throw new Error('未登录，请先在扩展中登录');
+  }
+  return createEuraflowApiWithParams(
+    authConfig.apiUrl,
+    authConfig.accessToken,
+    authConfig.refreshToken,
+    authConfig.tokenExpiry
+  );
 }
 
-async function handleTestConnection(data: { apiUrl: string; apiKey: string }) {
-  const { apiUrl, apiKey } = data;
-  const api = createEuraflowApi(apiUrl, apiKey);
+async function handleUploadProducts(data: { products: any[]; batchName?: string; sourceId?: number }) {
+  const api = await getAuthenticatedApi();
+  return api.uploadProducts(data.products, data.batchName, data.sourceId);
+}
+
+async function handleTestConnection(_data: any) {
+  const api = await getAuthenticatedApi();
   return api.testConnection();
 }
 
-async function handleGetConfig(data: { apiUrl: string; apiKey: string }) {
-  const { apiUrl, apiKey } = data;
-  const api = createEuraflowApi(apiUrl, apiKey);
+async function handleGetConfig(_data: any) {
+  const api = await getAuthenticatedApi();
   return api.getConfig();
 }
 
 /**
  * 配置预加载（document_start 时调用）
- * 从 chrome.storage 获取 API 配置，并预加载 EuraFlow 配置
+ * 从 chrome.storage 获取认证配置，并预加载 EuraFlow 配置
  */
 async function handleGetConfigPrefetch(): Promise<any> {
-  const storageData = await new Promise<any>((resolve) => {
-    chrome.storage.sync.get(['apiUrl', 'apiKey'], resolve);
-  });
-
-  if (!storageData.apiUrl || !storageData.apiKey) {
-    return { apiUrl: null, apiKey: null, config: null };
+  const authenticated = await isAuthenticated();
+  if (!authenticated) {
+    return { authenticated: false, config: null };
   }
 
   // 预加载 EuraFlow 配置
-  const api = createEuraflowApi(storageData.apiUrl, storageData.apiKey);
+  const api = await createEuraflowApi();
   const config = await api.getConfig().catch(() => null);
 
   return {
-    apiUrl: storageData.apiUrl,
-    apiKey: storageData.apiKey,
+    authenticated: true,
     config
   };
 }
 
-async function handleFollowPdp(data: { apiUrl: string; apiKey: string; data: any }) {
-  const { apiUrl, apiKey, data: followData } = data;
-  const api = createEuraflowApi(apiUrl, apiKey);
-  return api.followPdp(followData);
+async function handleFollowPdp(data: { data: any }) {
+  const api = await getAuthenticatedApi();
+  return api.followPdp(data.data);
 }
 
-async function handleGetTaskStatus(data: { apiUrl: string; apiKey: string; taskId: string; shopId?: number }) {
-  const { apiUrl, apiKey, taskId, shopId } = data;
-  const api = createEuraflowApi(apiUrl, apiKey);
-  return api.getTaskStatus(taskId, shopId);
+async function handleGetTaskStatus(data: { taskId: string; shopId?: number }) {
+  const api = await getAuthenticatedApi();
+  return api.getTaskStatus(data.taskId, data.shopId);
 }
 
-async function handleCollectProduct(data: { apiUrl: string; apiKey: string; source_url: string; product_data: any }) {
-  const { apiUrl, apiKey, source_url, product_data } = data;
-  const api = createEuraflowApi(apiUrl, apiKey);
-  return api.collectProduct(source_url, product_data);
+async function handleCollectProduct(data: { source_url: string; product_data: any }) {
+  const api = await getAuthenticatedApi();
+  return api.collectProduct(data.source_url, data.product_data);
+}
+
+/**
+ * EuraFlow 登录处理
+ * 调用后端扩展登录接口，获取 JWT Token 并保存
+ */
+async function handleEuraflowLogin(data: { apiUrl: string; username: string; password: string }) {
+  const { apiUrl, username, password } = data;
+
+  // 确保 apiUrl 不以斜杠结尾
+  const baseUrl = apiUrl.replace(/\/+$/, '');
+
+  // 调用后端扩展登录接口
+  const response = await fetch(`${baseUrl}/api/ef/v1/ozon/extension/auth/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ username, password })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || errorData.message || `登录失败 (${response.status})`);
+  }
+
+  const result = await response.json();
+
+  // 保存认证信息到 storage
+  await setAuthConfig({
+    apiUrl: baseUrl,
+    username,
+    accessToken: result.access_token,
+    refreshToken: result.refresh_token,
+    tokenExpiry: Date.now() + (result.expires_in || 3600) * 1000
+  });
+
+  return {
+    success: true,
+    username,
+    message: '登录成功'
+  };
+}
+
+/**
+ * EuraFlow 登出处理
+ * 清除存储的认证信息
+ */
+async function handleEuraflowLogout() {
+  await clearAuthConfig();
+}
+
+/**
+ * 获取当前登录用户信息
+ */
+async function handleGetAuthInfo() {
+  const authConfig = await getAuthConfig();
+  const authenticated = await isAuthenticated();
+
+  return {
+    authenticated,
+    username: authConfig.username || null,
+    apiUrl: authConfig.apiUrl || null
+  };
 }
 
 // ============================================================================
@@ -630,7 +737,7 @@ async function handleFetchAllProductData(data: {
   }
 
   // 如果上品帮三级类目不完整，从商品属性中提取 Тип 并查询我们的 API
-  if (!hasAllCategories && euraflowConfig?.apiUrl && euraflowConfig?.apiKey) {
+  if (!hasAllCategories && euraflowConfig?.authenticated) {
     // 从商品属性中提取 Тип（类型属性，key = "Тип"）
     // 注意：attributes 中的 attribute_id 是哈希值，不是 OZON 原始 ID
     // 需要使用 productDetail.typeNameRu 或从 attributes 中找 key="Тип" 的值
@@ -638,8 +745,8 @@ async function handleFetchAllProductData(data: {
 
     if (typeNameRu) {
       try {
-        // 使用已导入的 createEuraflowApi（避免动态导入触发 modulePreload polyfill）
-        const api = createEuraflowApi(euraflowConfig.apiUrl, euraflowConfig.apiKey);
+        // 使用已登录的 API 客户端
+        const api = await createEuraflowApi();
         const categoryData = await api.getCategoryByRussianName(typeNameRu);
 
         if (categoryData) {
@@ -678,21 +785,22 @@ async function handleFetchAllProductData(data: {
 }
 
 /**
- * 获取 EuraFlow 配置
+ * 获取 EuraFlow 认证配置
+ * 返回 apiUrl 和认证状态（用于判断是否可以调用扩展 API）
  */
-async function getEuraflowConfig(): Promise<any> {
-  return new Promise((resolve) => {
-    chrome.storage.sync.get(['apiUrl', 'apiKey'], (result) => {
-      if (!result.apiUrl || !result.apiKey) {
-        resolve(null);
-        return;
-      }
-      resolve({
-        apiUrl: result.apiUrl,
-        apiKey: result.apiKey
-      });
-    });
-  });
+async function getEuraflowConfig(): Promise<{ apiUrl: string; authenticated: boolean } | null> {
+  const authenticated = await isAuthenticated();
+  if (!authenticated) {
+    return null;
+  }
+  const authConfig = await getAuthConfig();
+  if (!authConfig.apiUrl) {
+    return null;
+  }
+  return {
+    apiUrl: authConfig.apiUrl,
+    authenticated: true
+  };
 }
 
 // ============================================================================

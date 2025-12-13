@@ -7,7 +7,6 @@
 
 import type { ProductDetailData } from '../parsers/product-detail';
 import { createEuraflowApiProxy, type EuraflowApiProxy } from '../../shared/api';
-import { getApiConfig } from '../../shared/storage';
 import { calculateRealPriceCore } from '../price-calculator/calculator';
 import { configCache } from '../../shared/config-cache';
 import type { Shop, Warehouse, Watermark, QuickPublishVariant } from '../../shared/types';
@@ -440,14 +439,15 @@ export async function showPublishModal(product: any = null, currentRealPrice: nu
     currentModal = null;
   }
 
-  // 初始化 API 客户端
-  const config = await getApiConfig();
-  if (!config || !config.apiUrl || !config.apiKey) {
-    alert('请先在扩展弹窗中配置 API 地址和密钥');
+  // 初始化 API 客户端（通过 Service Worker 转发，自动处理认证）
+  apiClient = createEuraflowApiProxy();
+
+  // 检查是否已登录
+  const authenticated = await apiClient.isAuthenticated();
+  if (!authenticated) {
+    alert('请先在扩展弹窗中登录');
     return;
   }
-
-  apiClient = createEuraflowApiProxy(config.apiUrl, config.apiKey);
 
   // 显示加载提示
   showLoadingModal('正在加载配置数据...');
@@ -1589,12 +1589,6 @@ async function handleFollowPdp(): Promise<void> {
   }
 
   try {
-    // 获取 API 配置
-    const config = await getApiConfig();
-    if (!config || !config.apiUrl) {
-      throw new Error('API配置未初始化');
-    }
-
     // ========== 构建变体数据 ==========
     // 直接使用图片 URL，后端负责下载和处理
     const variantsData: QuickPublishVariant[] = enabledVariants.map((variant) => {
@@ -1638,11 +1632,10 @@ async function handleFollowPdp(): Promise<void> {
     };
 
     // 通过 Service Worker 调用跟卖接口（避免 CORS）
+    // Service Worker 会从存储中读取认证信息
     const response = await chrome.runtime.sendMessage({
       type: 'FOLLOW_PDP',
       data: {
-        apiUrl: config.apiUrl,
-        apiKey: config.apiKey || '',
         data: requestData,
       },
     });

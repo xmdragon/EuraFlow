@@ -1,11 +1,6 @@
 import { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import {
-  getApiConfig,
-  setApiConfig,
-  getCollectorConfig,
-  setCollectorConfig,
-  testApiConnection,
   getShangpinbangConfig,
   getDataPanelConfig,
   setDataPanelConfig,
@@ -17,7 +12,7 @@ import {
   getAutoCollectConfig,
   setAutoCollectConfig
 } from '../shared/storage';
-import type { ApiConfig, CollectorConfig, ShangpinbangConfig, DataPanelConfig, RateLimitConfig, FilterConfig, AutoCollectConfig } from '../shared/types';
+import type { ShangpinbangConfig, DataPanelConfig, RateLimitConfig, FilterConfig, AutoCollectConfig } from '../shared/types';
 import { FIELD_GROUPS, DEFAULT_FIELDS } from '../shared/types';
 import './popup.scss';
 
@@ -30,19 +25,29 @@ interface AutoCollectorState {
   errors: string[];
 }
 
+// 认证信息类型
+interface AuthInfo {
+  authenticated: boolean;
+  username: string | null;
+  apiUrl: string | null;
+}
+
 function Popup() {
   // 标签页状态
-  const [activeTab, setActiveTab] = useState<'api' | 'autoCollect' | 'filter' | 'rateLimit' | 'dataPanel'>('api');
+  const [activeTab, setActiveTab] = useState<'auth' | 'autoCollect' | 'filter' | 'rateLimit' | 'dataPanel'>('auth');
 
-  // API配置
-  const [apiConfig, setApiConfigState] = useState<ApiConfig>({
-    apiUrl: '',
-    apiKey: ''
+  // 认证状态
+  const [authInfo, setAuthInfo] = useState<AuthInfo>({
+    authenticated: false,
+    username: null,
+    apiUrl: null
   });
 
-  // 采集配置
-  const [collectorConfig, setCollectorConfigState] = useState<CollectorConfig>({
-    targetCount: 100
+  // 登录表单（服务器地址写死）
+  const API_URL = 'https://euraflow.hjdtrading.com';
+  const [loginForm, setLoginForm] = useState({
+    username: '',
+    password: ''
   });
 
   // 上品帮配置
@@ -98,8 +103,8 @@ function Popup() {
   });
 
   // UI状态
-  const [isTesting, setIsTesting] = useState(false);
-  const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
 
@@ -111,15 +116,17 @@ function Popup() {
   // 加载配置
   useEffect(() => {
     const loadConfig = async () => {
-      const api = await getApiConfig();
-      const collector = await getCollectorConfig();
+      // 加载认证信息
+      const authResponse = await chrome.runtime.sendMessage({ type: 'GET_AUTH_INFO' });
+      if (authResponse.success) {
+        setAuthInfo(authResponse.data);
+      }
+
       const spb = await getShangpinbangConfig();
       const dataPanel = await getDataPanelConfig();
       const rateLimit = await getRateLimitConfig();
       const filter = await getFilterConfig();
       const autoCollect = await getAutoCollectConfig();
-      setApiConfigState(api);
-      setCollectorConfigState(collector);
       setSpbConfig(spb);
       setDataPanelConfigState(dataPanel);
       setRateLimitConfigState(rateLimit);
@@ -150,40 +157,56 @@ function Popup() {
     return () => clearInterval(interval);
   }, []);
 
-  // 测试连接
-  const handleTestConnection = async () => {
-    if (!apiConfig.apiUrl || !apiConfig.apiKey) {
-      setTestResult('error');
+  // 登录处理
+  const handleLogin = async () => {
+    if (!loginForm.username || !loginForm.password) {
+      setLoginError('请填写用户名和密码');
       return;
     }
 
-    setIsTesting(true);
-    setTestResult(null);
+    setIsLoggingIn(true);
+    setLoginError(null);
 
     try {
-      const success = await testApiConnection(apiConfig.apiUrl, apiConfig.apiKey);
-      setTestResult(success ? 'success' : 'error');
-    } catch (error) {
-      setTestResult('error');
+      const response = await chrome.runtime.sendMessage({
+        type: 'EURAFLOW_LOGIN',
+        data: {
+          apiUrl: API_URL,
+          username: loginForm.username,
+          password: loginForm.password
+        }
+      });
+
+      if (response.success) {
+        // 更新认证状态
+        setAuthInfo({
+          authenticated: true,
+          username: loginForm.username,
+          apiUrl: API_URL
+        });
+        // 清空密码
+        setLoginForm(prev => ({ ...prev, password: '' }));
+      } else {
+        setLoginError(response.error || '登录失败');
+      }
+    } catch (error: any) {
+      setLoginError(error.message || '登录失败');
     } finally {
-      setIsTesting(false);
+      setIsLoggingIn(false);
     }
   };
 
-  // 保存配置
-  const handleSave = async () => {
-    setIsSaving(true);
-    setSaveMessage('');
-
+  // 登出处理
+  const handleLogout = async () => {
     try {
-      await setApiConfig(apiConfig);
-      await setCollectorConfig(collectorConfig);
-      setSaveMessage('配置已保存');
-      setTimeout(() => setSaveMessage(''), 3000);
-    } catch (error) {
-      setSaveMessage('保存失败');
-    } finally {
-      setIsSaving(false);
+      await chrome.runtime.sendMessage({ type: 'EURAFLOW_LOGOUT' });
+      setAuthInfo({
+        authenticated: false,
+        username: null,
+        apiUrl: null
+      });
+    } catch (error: any) {
+      console.error('登出失败:', error);
     }
   };
 
@@ -405,10 +428,10 @@ function Popup() {
       {/* 标签页导航 */}
       <nav className="tab-nav">
         <button
-          className={`tab-button ${activeTab === 'api' ? 'active' : ''}`}
-          onClick={() => setActiveTab('api')}
+          className={`tab-button ${activeTab === 'auth' ? 'active' : ''}`}
+          onClick={() => setActiveTab('auth')}
         >
-          API配置
+          {authInfo.authenticated ? '已登录' : '登录'}
         </button>
         <button
           className={`tab-button ${activeTab === 'autoCollect' ? 'active' : ''} ${autoCollectorState.isRunning ? 'running' : ''}`}
@@ -438,56 +461,70 @@ function Popup() {
 
       {/* 标签页内容 */}
       <div className="tab-content">
-        {/* API配置（含上品帮） */}
-        {activeTab === 'api' && (
+        {/* 登录/账户标签页 */}
+        {activeTab === 'auth' && (
           <div className="tab-panel">
-            {/* EuraFlow API 配置 */}
-            <h3 className="section-title">EuraFlow API</h3>
-            <div className="form-group">
-              <label className="form-label">API URL:</label>
-              <input
-                type="text"
-                className="form-input"
-                placeholder="https://euraflow.hjdtrading.com"
-                value={apiConfig.apiUrl}
-                onChange={(e) => setApiConfigState({ ...apiConfig, apiUrl: e.target.value })}
-              />
-              <p className="hint">只需填写域名，不需要带路径</p>
-            </div>
+            {/* EuraFlow 登录 */}
+            <h3 className="section-title">EuraFlow 账户</h3>
 
-            <div className="form-group">
-              <label className="form-label">API Key:</label>
-              <input
-                type="password"
-                className="form-input"
-                placeholder="your-api-key"
-                value={apiConfig.apiKey}
-                onChange={(e) => setApiConfigState({ ...apiConfig, apiKey: e.target.value })}
-              />
-            </div>
+            {authInfo.authenticated ? (
+              // 已登录状态
+              <div className="auth-status">
+                <div className="auth-info">
+                  <p className="auth-user">
+                    <span className="auth-icon">✓</span>
+                    已登录: <strong>{authInfo.username}</strong>
+                  </p>
+                  <p className="auth-server">{authInfo.apiUrl}</p>
+                </div>
+                <button
+                  className="btn btn-secondary"
+                  onClick={handleLogout}
+                >
+                  退出登录
+                </button>
+              </div>
+            ) : (
+              // 登录表单
+              <>
+                <div className="form-group">
+                  <label className="form-label">用户名:</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="输入用户名"
+                    value={loginForm.username}
+                    onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
+                    onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                  />
+                </div>
 
-            <div className="button-group">
-              <button
-                className="btn btn-secondary"
-                onClick={handleTestConnection}
-                disabled={isTesting || !apiConfig.apiUrl || !apiConfig.apiKey}
-              >
-                {isTesting ? '测试中...' : '测试连接'}
-              </button>
+                <div className="form-group">
+                  <label className="form-label">密码:</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    placeholder="输入密码"
+                    value={loginForm.password}
+                    onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                    onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                  />
+                </div>
 
-              <button
-                className="btn btn-primary"
-                onClick={handleSave}
-                disabled={isSaving}
-              >
-                {isSaving ? '保存中...' : '保存配置'}
-              </button>
-            </div>
+                <div className="button-group">
+                  <button
+                    className="btn btn-primary"
+                    onClick={handleLogin}
+                    disabled={isLoggingIn || !loginForm.username || !loginForm.password}
+                  >
+                    {isLoggingIn ? '登录中...' : '登录'}
+                  </button>
+                </div>
 
-            {testResult && (
-              <p className={`test-result ${testResult}`}>
-                {testResult === 'success' ? '✓ 连接成功' : '✗ 连接失败'}
-              </p>
+                {loginError && (
+                  <p className="test-result error">✗ {loginError}</p>
+                )}
+              </>
             )}
 
             {/* 上品帮配置 */}
@@ -687,7 +724,7 @@ function Popup() {
                   <button
                     className="btn btn-primary"
                     onClick={handleStartAutoCollect}
-                    disabled={!apiConfig.apiUrl || !apiConfig.apiKey}
+                    disabled={!authInfo.authenticated}
                   >
                     启动采集
                   </button>
@@ -702,8 +739,8 @@ function Popup() {
               )}
             </div>
 
-            {!apiConfig.apiUrl || !apiConfig.apiKey ? (
-              <p className="hint warning">请先在"API配置"中配置 EuraFlow API</p>
+            {!authInfo.authenticated ? (
+              <p className="hint warning">请先在"登录"中登录 EuraFlow 账户</p>
             ) : null}
 
             {saveMessage && (

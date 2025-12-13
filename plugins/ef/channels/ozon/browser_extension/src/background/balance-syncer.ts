@@ -12,6 +12,7 @@
 
 import { createEuraflowApi, type EuraflowApi } from '../shared/api/euraflow-api';
 import { configCache } from '../shared/config-cache';
+import { isAuthenticated } from '../shared/storage';
 import type { Shop } from '../shared/types';
 
 // 缓存键：记录最后执行时间戳
@@ -43,20 +44,6 @@ class BalanceSyncer {
   }
 
   /**
-   * 获取 API 配置
-   */
-  private getApiConfig(): Promise<{ apiUrl: string; apiKey: string }> {
-    return new Promise((resolve) => {
-      chrome.storage.sync.get(['apiUrl', 'apiKey'], (result) => {
-        resolve({
-          apiUrl: result.apiUrl || '',
-          apiKey: result.apiKey || '',
-        });
-      });
-    });
-  }
-
-  /**
    * 主入口：执行同步
    */
   async run(): Promise<void> {
@@ -69,15 +56,15 @@ class BalanceSyncer {
     }
 
     try {
-      // 获取 API 配置
-      const apiConfig = await this.getApiConfig();
-      if (!apiConfig.apiUrl || !apiConfig.apiKey) {
-        console.log('[BalanceSyncer] 跳过：缺少 API 配置');
+      // 检查是否已登录
+      const authenticated = await isAuthenticated();
+      if (!authenticated) {
+        console.log('[BalanceSyncer] 跳过：未登录');
         return;
       }
 
       // 创建 API 客户端
-      const api = createEuraflowApi(apiConfig.apiUrl, apiConfig.apiKey);
+      const api = await createEuraflowApi();
 
       console.log('[BalanceSyncer] 开始执行余额同步...');
 

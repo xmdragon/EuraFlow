@@ -64,16 +64,13 @@ export {
   EuraflowApi,
   EuraflowApiProxy,
   createEuraflowApi,
+  createEuraflowApiWithParams,
   createEuraflowApiProxy
 } from './euraflow-api';
 export type {
   Shop,
   Warehouse,
   Watermark,
-  QuickPublishRequest,
-  QuickPublishResponse,
-  QuickPublishBatchRequest,
-  QuickPublishBatchResponse,
   TaskStatus,
   ProductUploadData,
   CollectionSource

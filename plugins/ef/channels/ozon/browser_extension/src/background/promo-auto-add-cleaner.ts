@@ -14,6 +14,7 @@
 
 import { createEuraflowApi } from '../shared/api/euraflow-api';
 import { configCache } from '../shared/config-cache';
+import { isAuthenticated } from '../shared/storage';
 import type { Shop } from '../shared/types';
 
 // 缓存键：记录最后执行日期
@@ -56,20 +57,6 @@ class PromoAutoAddCleaner {
   }
 
   /**
-   * 获取 API 配置
-   */
-  private getApiConfig(): Promise<{ apiUrl: string; apiKey: string }> {
-    return new Promise((resolve) => {
-      chrome.storage.sync.get(['apiUrl', 'apiKey'], (result) => {
-        resolve({
-          apiUrl: result.apiUrl || '',
-          apiKey: result.apiKey || '',
-        });
-      });
-    });
-  }
-
-  /**
    * 主入口：执行清理
    */
   async run(): Promise<void> {
@@ -82,15 +69,15 @@ class PromoAutoAddCleaner {
     console.log('[PromoAutoAddCleaner] 开始执行促销自动拉取清理...');
 
     try {
-      // 获取 API 配置
-      const apiConfig = await this.getApiConfig();
-      if (!apiConfig.apiUrl || !apiConfig.apiKey) {
-        console.log('[PromoAutoAddCleaner] 未配置 API，跳过');
+      // 检查是否已登录
+      const authenticated = await isAuthenticated();
+      if (!authenticated) {
+        console.log('[PromoAutoAddCleaner] 未登录，跳过');
         return;
       }
 
       // 创建 API 客户端
-      const api = createEuraflowApi(apiConfig.apiUrl, apiConfig.apiKey);
+      const api = await createEuraflowApi();
 
       // 获取店铺列表（通过 configCache 统一管理）
       const shops = await configCache.getShops(api);

@@ -25,8 +25,13 @@ class AuthMiddleware(BaseHTTPMiddleware):
         "/api/ef/v1/auth/refresh",
         "/api/ef/v1/auth/captcha",  # 滑块验证码
         "/api/ef/v1/auth/captcha/verify",  # 验证码验证
-        "/api/ef/v1/ozon/webhook"  # Ozon webhook回调端点
+        "/api/ef/v1/ozon/webhook",  # Ozon webhook回调端点
+        "/api/ef/v1/ozon/extension/auth/login",  # 浏览器扩展登录
+        "/api/ef/v1/ozon/extension/auth/refresh",  # 浏览器扩展刷新令牌
     }
+
+    # 扩展登录专属路径前缀（auth_source: "extension" 只能访问这些）
+    EXTENSION_ONLY_PREFIX = "/api/ef/v1/ozon/extension"
 
     # 公开路径前缀（用于内部管理接口）
     PUBLIC_PREFIXES = [
@@ -59,14 +64,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if self._is_public_path(request.url.path):
             return await call_next(request)
 
-        # 1. 优先检查 X-API-Key 头（用于API Key认证）
-        api_key = request.headers.get("x-api-key")
-        if api_key:
-            # API Key 认证交给路由层处理
-            # 这里只是标记已提供认证凭据，不进行验证
-            return await call_next(request)
-
-        # 2. 检查 Authorization 头（JWT Token认证）
+        # 检查 Authorization 头（JWT Token认证）
         auth_header = request.headers.get("authorization", "")
 
         if not auth_header:
@@ -88,7 +86,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                             "type": "about:blank",
                             "title": "Unauthorized",
                             "status": 401,
-                            "detail": "Authorization header or X-API-Key header is required",
+                            "detail": "Authorization header is required",
                             "code": "MISSING_AUTH_HEADER"
                         }
                     }
@@ -164,6 +162,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         request.state.role = user_info.get("role", "sub_account")
         request.state.can_write = user_info.get("can_write", True)
         request.state.write_error = user_info.get("write_error", "")
+        request.state.auth_source = user_info.get("auth_source")  # extension 或 None
 
         # 设置克隆状态信息
         request.state.is_cloned = user_info.get("is_cloned", False)
@@ -186,6 +185,26 @@ class AuthMiddleware(BaseHTTPMiddleware):
                         }
                     }
                 )
+
+        # 检查扩展登录的访问限制
+        auth_source = user_info.get("auth_source")
+        is_extension_path = request.url.path.startswith(self.EXTENSION_ONLY_PREFIX)
+
+        if auth_source == "extension" and not is_extension_path:
+            # 扩展登录只能访问扩展 API
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "ok": False,
+                    "error": {
+                        "type": "about:blank",
+                        "title": "Forbidden",
+                        "status": 403,
+                        "detail": "扩展登录只能访问扩展相关API",
+                        "code": "EXTENSION_ACCESS_RESTRICTED"
+                    }
+                }
+            )
 
         # 检查写操作权限（对于 suspended 或 expired 账号）
         if request.method in ("POST", "PUT", "PATCH", "DELETE"):
@@ -298,7 +317,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     self.logger.info(f"Clone session expired: {clone_session_id}")
                     return None
 
-            # 返回用户信息（包含 shop_ids、session_token、写权限和克隆状态）
+            # 返回用户信息（包含 shop_ids、session_token、写权限、克隆状态和登录来源）
             return {
                 "user_id": user_id,
                 "shop_id": payload.get("shop_id"),
@@ -310,7 +329,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 "write_error": write_error,
                 "is_cloned": is_cloned,
                 "clone_session_id": clone_session_id,
-                "original_user_id": original_user_id
+                "original_user_id": original_user_id,
+                "auth_source": payload.get("auth_source"),  # extension 或 None（页面登录）
             }
 
         except Exception as e:
