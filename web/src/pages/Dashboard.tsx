@@ -658,15 +658,8 @@ const Dashboard: React.FC = () => {
               onClick={async () => {
                 try {
                   await restoreIdentity();
-                  // 如果当前在店铺管理或扫描单号页面，跳转到首页
-                  const currentPath = window.location.pathname;
-                  const restrictedPaths = ['/dashboard/shops', '/dashboard/ozon/scan-shipping'];
-                  const isRestrictedPage = restrictedPaths.some(p => currentPath.startsWith(p));
-                  if (isRestrictedPage) {
-                    window.location.href = '/dashboard';
-                  } else {
-                    window.location.reload();
-                  }
+                  // 一律跳转到首页，防止API和页面权限错误
+                  window.location.href = '/dashboard';
                 } catch {
                   window.location.href = '/login';
                 }

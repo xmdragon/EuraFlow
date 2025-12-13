@@ -14,9 +14,30 @@ export interface TestImageResponse {
 }
 
 /**
+ * 汇率信息类型
+ */
+export interface ExchangeRateInfo {
+  cny_to_rub?: string;
+  rub_to_cny?: string;
+  updated_at?: string;
+}
+
+/**
+ * 全局设置响应类型
+ */
+export interface GlobalSettingsResponse {
+  settings: Record<string, {
+    setting_key: string;
+    setting_value: Record<string, unknown>;
+    description?: string;
+  }>;
+  exchange_rate?: ExchangeRateInfo;
+}
+
+/**
  * 获取所有全局设置
  */
-export const getGlobalSettings = async (): Promise<unknown> => {
+export const getGlobalSettings = async (): Promise<GlobalSettingsResponse> => {
   const response = await apiClient.get("/ozon/global-settings");
   return response.data;
 };

@@ -12,7 +12,7 @@ import dayjs from 'dayjs';
 
 import { calculateMaxCost } from '@/pages/ozon/profitCalculator';
 import * as api from '@/services/productSelectionApi';
-import { getExchangeRate, type ExchangeRate } from '@/services/exchangeRateApi';
+import { useExchangeRate } from '@/hooks/useExchangeRate';
 import type { FieldConfig } from '@/components/ozon/selection/FieldConfigModal';
 import { defaultFieldConfig, FIELD_CONFIG_VERSION } from '@/components/ozon/selection/FieldConfigModal';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
@@ -321,13 +321,8 @@ export const useProductSelection = (): UseProductSelectionReturn => {
     enabled: activeTab === 'search' && isCalculated,
   });
 
-  const { data: exchangeRateData } = useQuery<ExchangeRate>({
-    queryKey: ['exchangeRate', 'CNY', 'RUB'],
-    queryFn: () => getExchangeRate('CNY', 'RUB', false),
-    staleTime: 30 * 60 * 1000,
-    gcTime: 60 * 60 * 1000,
-  });
-  const exchangeRate = exchangeRateData ? parseFloat(exchangeRateData.rate) : null;
+  // 汇率从 global-settings 读取，避免独立请求
+  const { cnyToRub: exchangeRate } = useExchangeRate();
 
   const { data: historyData, refetch: refetchHistory } = useQuery({
     queryKey: ['productSelectionHistory', historyPage],

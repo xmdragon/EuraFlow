@@ -438,8 +438,8 @@ const UserManagement: React.FC = () => {
         try {
           await cloneIdentity(user.id);
           notifySuccess('克隆成功', `已切换到 ${user.username} 身份`);
-          // 刷新页面以更新菜单和权限
-          window.location.reload();
+          // 跳转到首页，防止API和页面权限错误
+          window.location.href = '/dashboard';
         } catch (error) {
           let errorMsg = '克隆失败';
           if (error.response?.data?.error?.detail) {

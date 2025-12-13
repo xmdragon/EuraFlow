@@ -448,7 +448,7 @@ const PermissionManagement: React.FC = () => {
   // 保存权限配置
   const handleSavePermissions = async (roleId: number, roleName: string, permissionCodes: string[]) => {
     const result = await setRolePermissions(roleId, permissionCodes);
-    notifySuccess(`${roleName} 权限配置已保存`, `共 ${result.count} 个权限`);
+    notifySuccess('权限已保存', `${roleName}：共 ${result.count} 个权限`);
   };
 
   // 表格列定义

@@ -28,9 +28,7 @@ const getNotification = () => {
 
 // 通知框通用样式
 const notificationStyle = {
-  minWidth: 200,
-  maxWidth: 400,
-  padding: 10,
+  minWidth: 280,
 };
 
 /**

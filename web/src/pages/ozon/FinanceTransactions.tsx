@@ -27,6 +27,7 @@ import { ORDER_STATUS_CONFIG } from '@/config/ozon/orderStatusConfig';
 import { useCopy } from '@/hooks/useCopy';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useDateTime } from '@/hooks/useDateTime';
+import { useExchangeRate } from '@/hooks/useExchangeRate';
 import { useShopSelection } from '@/hooks/ozon/useShopSelection';
 import * as ozonApi from '@/services/ozon';
 import { notifyError, notifySuccess } from '@/utils/notification';
@@ -311,15 +312,8 @@ const FinanceTransactions: React.FC = () => {
     staleTime: 60000,
   });
 
-  // 查询汇率（RUB to CNY）
-  const { data: exchangeRateData } = useQuery({
-    queryKey: ['exchangeRate', 'RUB', 'CNY'],
-    queryFn: async () => {
-      const { getExchangeRate } = await import('@/services/exchangeRateApi');
-      return await getExchangeRate('RUB', 'CNY');
-    },
-    staleTime: 5 * 60 * 1000, // 5分钟缓存
-  });
+  // 汇率从 global-settings 读取，避免独立请求
+  const { rubToCny } = useExchangeRate();
 
   // 查询实收款（账单付款）
   const { data: invoicePaymentData } = useQuery({
@@ -671,9 +665,9 @@ const FinanceTransactions: React.FC = () => {
                   prefix="₽"
                   valueStyle={{ color: '#3f8600' }}
                 />
-                {exchangeRateData && (
+                {rubToCny && (
                   <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
-                    ≈ ¥{(parseFloat(summaryData.total_accruals_for_sale) * parseFloat(exchangeRateData.rate)).toFixed(2)}
+                    ≈ ¥{(parseFloat(summaryData.total_accruals_for_sale) * rubToCny).toFixed(2)}
                   </div>
                 )}
               </Card>
@@ -689,9 +683,9 @@ const FinanceTransactions: React.FC = () => {
                     color: parseFloat(summaryData.total_amount) >= 0 ? '#3f8600' : '#cf1322',
                   }}
                 />
-                {exchangeRateData && (
+                {rubToCny && (
                   <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
-                    ≈ ¥{(parseFloat(summaryData.total_amount) * parseFloat(exchangeRateData.rate)).toFixed(2)}
+                    ≈ ¥{(parseFloat(summaryData.total_amount) * rubToCny).toFixed(2)}
                   </div>
                 )}
               </Card>
@@ -705,9 +699,9 @@ const FinanceTransactions: React.FC = () => {
                   prefix="₽"
                   valueStyle={{ color: '#cf1322' }}
                 />
-                {exchangeRateData && (
+                {rubToCny && (
                   <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
-                    ≈ ¥{(parseFloat(summaryData.total_sale_commission) * parseFloat(exchangeRateData.rate)).toFixed(2)}
+                    ≈ ¥{(parseFloat(summaryData.total_sale_commission) * rubToCny).toFixed(2)}
                   </div>
                 )}
               </Card>
@@ -720,9 +714,9 @@ const FinanceTransactions: React.FC = () => {
                   precision={2}
                   prefix="₽"
                 />
-                {exchangeRateData && (
+                {rubToCny && (
                   <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
-                    ≈ ¥{(parseFloat(summaryData.total_delivery_charge) * parseFloat(exchangeRateData.rate)).toFixed(2)}
+                    ≈ ¥{(parseFloat(summaryData.total_delivery_charge) * rubToCny).toFixed(2)}
                   </div>
                 )}
               </Card>

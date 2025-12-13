@@ -4,12 +4,14 @@ Ozon全局设置API路由
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional
+from datetime import datetime, timezone
 import logging
 import re
 
 from ef_core.database import get_async_session
 from ef_core.models.users import User
 from ef_core.api.auth import get_current_user_flexible
+from ef_core.services.exchange_rate_service import ExchangeRateService
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 
@@ -54,9 +56,17 @@ class GlobalSettingUpdateRequest(BaseModel):
     }
 
 
+class ExchangeRateInfo(BaseModel):
+    """汇率信息"""
+    cny_to_rub: Optional[str] = None
+    rub_to_cny: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
 class GlobalSettingsListResponse(BaseModel):
     """全局设置列表响应"""
     settings: Dict[str, GlobalSettingResponse]
+    exchange_rate: Optional[ExchangeRateInfo] = None
 
 
 class TestImageResponse(BaseModel):
@@ -81,6 +91,10 @@ async def get_global_settings(
     获取所有全局设置
 
     权限：所有登录用户
+
+    返回：
+    - settings: 全局设置字典
+    - exchange_rate: 汇率信息（CNY<->RUB，从Redis缓存读取）
     """
     # 查询所有全局设置
     result = await db.execute(select(OzonGlobalSetting))
@@ -95,7 +109,23 @@ async def get_global_settings(
             description=setting.description
         )
 
-    return GlobalSettingsListResponse(settings=settings_dict)
+    # 获取汇率信息（从Redis缓存读取，无额外开销）
+    exchange_rate_info = None
+    try:
+        exchange_rate_service = ExchangeRateService()
+        cny_to_rub = await exchange_rate_service.get_cached_rate("CNY", "RUB")
+        rub_to_cny = await exchange_rate_service.get_cached_rate("RUB", "CNY")
+
+        if cny_to_rub or rub_to_cny:
+            exchange_rate_info = ExchangeRateInfo(
+                cny_to_rub=str(cny_to_rub) if cny_to_rub else None,
+                rub_to_cny=str(rub_to_cny) if rub_to_cny else None,
+                updated_at=datetime.now(timezone.utc).isoformat()
+            )
+    except Exception as e:
+        logger.warning(f"Failed to get cached exchange rate: {e}")
+
+    return GlobalSettingsListResponse(settings=settings_dict, exchange_rate=exchange_rate_info)
 
 
 @router.get(

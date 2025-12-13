@@ -1,6 +1,4 @@
- 
 import { CalculatorOutlined } from '@ant-design/icons';
-import { useQuery } from '@tanstack/react-query';
 import {
   Card,
   Form,
@@ -21,9 +19,8 @@ import styles from './ProfitCalculatorV2.module.scss';
 import ScenarioCard from './ScenarioCard';
 import { calculateDefaultShipping, formatPercentage, formatMoney } from './utils';
 
+import { useExchangeRate } from '@/hooks/useExchangeRate';
 import { formatNumber } from '@/utils/formatNumber';
-
-import { getExchangeRate } from '@/services/exchangeRateApi';
 
 import type { FormValues } from '@/types/common';
 
@@ -54,14 +51,8 @@ const ProfitCalculatorV2: React.FC = () => {
   // 存储当前活动场景的费用参数（从ScenarioCard获取）
   const [scenarioFeeData, setScenarioFeeData] = useState<FeeData | null>(null);
 
-  // 查询汇率（CNY → RUB），用于场景匹配
-  const { data: exchangeRateData } = useQuery({
-    queryKey: ['exchangeRate', 'CNY', 'RUB'],
-    queryFn: () => getExchangeRate('CNY', 'RUB', false),
-    staleTime: 30 * 60 * 1000, // 30分钟
-    gcTime: 60 * 60 * 1000, // 1小时
-  });
-  const exchangeRate = exchangeRateData ? parseFloat((exchangeRateData as { rate: string }).rate) : null;
+  // 汇率从 global-settings 读取，避免独立请求
+  const { cnyToRub: exchangeRate } = useExchangeRate();
 
   // 自动匹配所有符合条件的场景
   const matchedScenarios = useMemo(() => {

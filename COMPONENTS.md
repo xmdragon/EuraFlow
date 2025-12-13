@@ -118,6 +118,29 @@ const { currency, symbol, formatPrice } = useCurrency();
 <span>{formatPrice(price)}</span>  // 输出: ¥123.45
 ```
 
+#### `useExchangeRate`
+**路径**：`web/src/hooks/useExchangeRate.ts`
+**用途**：从 global-settings 读取汇率信息，避免多个页面重复请求汇率 API
+**API**：
+- `cnyToRub`: 人民币→卢布汇率（number | null）
+- `rubToCny`: 卢布→人民币汇率（number | null）
+- `updatedAt`: 汇率更新时间
+- `isLoading`: 是否加载中
+- `isError`: 是否有错误
+
+**使用示例**：
+```typescript
+const { cnyToRub, rubToCny, isLoading } = useExchangeRate();
+
+// 计算卢布价格
+const rubPrice = cnyPrice * (cnyToRub || 13);
+
+// 计算人民币价格
+const cnyPrice = rubPrice * (rubToCny || 0.074);
+```
+
+**注意**：汇率数据由后端定时任务更新，前端只读取缓存值，无需单独请求汇率 API。
+
 ---
 
 ### 店铺名称显示
@@ -732,6 +755,7 @@ const initiatorText = getCancellationInitiatorText('CLIENT');
 - **权限判断** → `usePermission`
 - **复制文本** → `useCopy`
 - **货币转换** → `useCurrency`
+- **汇率获取** → `useExchangeRate`
 - **店铺名称显示** → `useShopNameFormat`
 - **状态映射** → `OZON_ORDER_STATUS_MAP`
 - **通知提示** → `notification` 工具
@@ -919,6 +943,7 @@ const parentId = getDescriptionCategoryId(categoryPath);
 - **权限判断** → `usePermission`
 - **复制文本** → `useCopy`
 - **货币转换** → `useCurrency`
+- **汇率获取** → `useExchangeRate`
 - **店铺名称显示** → `useShopNameFormat`
 - **状态映射** → `OZON_ORDER_STATUS_MAP`
 - **通知提示** → `notification` 工具
