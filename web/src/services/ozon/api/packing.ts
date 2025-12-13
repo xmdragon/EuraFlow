@@ -54,6 +54,7 @@ export const getPackingStats = async (params?: PackingStatsParams): Promise<{
  * @param weights 各货件的包装重量，key为posting_number，value为重量(克)
  * @returns 批量打印结果，包含PDF URL和详细错误信息
  * @note shop_id自动从posting记录中获取，无需手动指定
+ * @note 此API仅获取PDF，积分扣除在confirmPrint中进行
  */
 export const batchPrintLabels = async (
   postingNumbers: string[],
@@ -65,6 +66,44 @@ export const batchPrintLabels = async (
 
   const response = await apiClient.post(
     "/ozon/packing/postings/batch-print-labels",
+    {
+      posting_numbers: postingNumbers,
+      weights: weights,
+    },
+  );
+  return response.data;
+};
+
+/**
+ * 确认打印结果
+ */
+export interface ConfirmPrintResult {
+  success: boolean;
+  billable_count: number;
+  reprint_count: number;
+  cost: string;
+}
+
+/**
+ * 确认打印（扣除积分并保存重量）
+ *
+ * 在用户填写完重量并点击"打印"时调用，执行：
+ * 1. 检查积分余额（首次打印需要积分）
+ * 2. 扣除积分（首次打印）
+ * 3. 保存包装重量
+ * 4. 更新打印次数和时间
+ *
+ * @param postingNumbers 货件编号列表
+ * @param weights 各货件的包装重量，key为posting_number，value为重量(克)
+ * @returns 确认结果
+ * @throws 402错误表示积分不足
+ */
+export const confirmPrint = async (
+  postingNumbers: string[],
+  weights: Record<string, number>,
+): Promise<ConfirmPrintResult> => {
+  const response = await apiClient.post(
+    "/ozon/packing/postings/confirm-print",
     {
       posting_numbers: postingNumbers,
       weights: weights,

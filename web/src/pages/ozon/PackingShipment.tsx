@@ -65,6 +65,7 @@ import { useQuickMenu } from '@/hooks/useQuickMenu';
 import { useBatchPrint } from '@/hooks/useBatchPrint';
 import { useBatchSync } from '@/hooks/useBatchSync';
 import * as ozonApi from '@/services/ozon';
+import * as creditApi from '@/services/credit';
 import { logger } from '@/utils/logger';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
 
@@ -262,6 +263,14 @@ const PackingShipment: React.FC = () => {
     queryKey: ['ozon', 'shops'],
     queryFn: () => ozonApi.getShops(),
     staleTime: 5 * 60 * 1000, // 5分钟缓存
+  });
+
+  // 获取额度余额信息（用于打印时显示费用）
+  const { data: creditBalance } = useQuery({
+    queryKey: ['credit-balance'],
+    queryFn: creditApi.getBalance,
+    staleTime: 30 * 1000,
+    retry: 1,
   });
 
   // 建立 shop_id → shop_name 的映射（根据用户设置格式化）
@@ -1417,6 +1426,10 @@ const PackingShipment: React.FC = () => {
           } catch (error) {
             notifyError('标记失败', `标记失败: ${error.response?.data?.error?.title || error.message}`);
           }
+        }}
+        creditBalance={creditBalance}
+        onCreditDeducted={() => {
+          queryClient.invalidateQueries({ queryKey: ['credit-balance'] });
         }}
       />
     </div>

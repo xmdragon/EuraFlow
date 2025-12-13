@@ -7,13 +7,26 @@
  * 2. 输入重量 → 按回车 → 自动点击"打印"按钮
  * 3. 打印后 → "标记已打印"按钮获得焦点
  * 4. 再次按回车 → 自动执行标记并关闭弹窗
+ *
+ * 积分扣除流程：
+ * - 点击"打印"时调用 confirmPrint API 进行积分扣除
+ * - 首次打印需要扣除积分，补打印免费
  */
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { Modal, Button, Spin, Table, InputNumber, Tooltip } from "antd";
-import { PrinterOutlined, CopyOutlined } from "@ant-design/icons";
+import { Modal, Button, Spin, Table, InputNumber, Tooltip, Typography, Space, Alert } from "antd";
+import { PrinterOutlined, CopyOutlined, WalletOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import type { PostingWithOrder, OrderItem } from "@/services/ozon/types/order";
 import { useCopy } from "@/hooks/useCopy";
+import { confirmPrint } from "@/services/ozon/api/packing";
+import { notifyError } from "@/utils/notification";
+
+const { Text } = Typography;
+
+interface CreditBalance {
+  balance: string;
+  credit_name: string;
+}
 
 interface PrintLabelModalProps {
   visible: boolean;
@@ -21,8 +34,12 @@ interface PrintLabelModalProps {
   postings: PostingWithOrder[];  // 当前打印的 posting 列表
   onClose: () => void;
   onAfterClose?: () => void;
-  onPrint: (weights: Record<string, number>) => void;  // 打印时传递重量
+  onPrint: (weights: Record<string, number>) => void;  // 打印完成后的回调（已废弃，保留兼容）
   onMarkPrinted: () => void;
+  /** 积分余额信息（可选，用于显示费用提示） */
+  creditBalance?: CreditBalance | null;
+  /** 积分扣除成功后的回调 */
+  onCreditDeducted?: () => void;
 }
 
 // 表格行数据结构
@@ -31,6 +48,7 @@ interface WeightTableRow {
   posting_number: string;
   items: OrderItem[];
   weight?: number;
+  isReprint: boolean;  // 是否为补打印
 }
 
 // 生成 SKU 签名（用于自动填充判断）
@@ -48,11 +66,40 @@ const PrintLabelModal: React.FC<PrintLabelModalProps> = ({
   onAfterClose,
   onPrint,
   onMarkPrinted,
+  creditBalance,
+  onCreditDeducted,
 }) => {
   const [weights, setWeights] = useState<Record<string, number | undefined>>({});
+  const [isConfirming, setIsConfirming] = useState(false);
   const { copyToClipboard } = useCopy();
   const firstInputRef = useRef<HTMLInputElement>(null);
   const markPrintedButtonRef = useRef<HTMLButtonElement>(null);
+
+  // 计算费用信息
+  const costInfo = useMemo(() => {
+    if (postings.length === 0) return null;
+
+    // 首次打印的订单（label_print_count 为 0 或 undefined）
+    const billablePostings = postings.filter(p => (p.label_print_count || 0) === 0);
+    const reprintPostings = postings.filter(p => (p.label_print_count || 0) > 0);
+
+    const billableCount = billablePostings.length;
+    const reprintCount = reprintPostings.length;
+    const unitCost = 1;
+    const totalCost = billableCount * unitCost;
+    const currentBalance = creditBalance ? parseFloat(creditBalance.balance) : 0;
+    const sufficient = !creditBalance || currentBalance >= totalCost;
+
+    return {
+      billableCount,
+      reprintCount,
+      unitCost,
+      totalCost,
+      currentBalance,
+      sufficient,
+      creditName: creditBalance?.credit_name || '积分',
+    };
+  }, [postings, creditBalance]);
 
   // 弹窗打开时从 posting 读取已有重量，关闭时清空
   useEffect(() => {
@@ -67,6 +114,7 @@ const PrintLabelModal: React.FC<PrintLabelModalProps> = ({
       setWeights(initialWeights);
     } else if (!visible) {
       setWeights({});
+      setIsConfirming(false);
     }
   }, [visible, postings]);
 
@@ -137,6 +185,7 @@ const PrintLabelModal: React.FC<PrintLabelModalProps> = ({
       posting_number: posting.posting_number,
       items: posting.items || posting.products || [],
       weight: weights[posting.posting_number],
+      isReprint: (posting.label_print_count || 0) > 0,
     }));
   }, [postings, weights]);
 
@@ -147,13 +196,16 @@ const PrintLabelModal: React.FC<PrintLabelModalProps> = ({
       dataIndex: "posting_number",
       key: "posting_number",
       width: 200,
-      render: (text: string) => (
+      render: (text: string, record) => (
         <span>
           {text}
           <CopyOutlined
             style={{ marginLeft: 6, color: '#1890ff', cursor: 'pointer' }}
             onClick={() => copyToClipboard(text, '货件编号')}
           />
+          {record.isReprint && (
+            <Text type="secondary" style={{ marginLeft: 8, fontSize: 12 }}>(补打)</Text>
+          )}
         </span>
       ),
     },
@@ -194,7 +246,7 @@ const PrintLabelModal: React.FC<PrintLabelModalProps> = ({
     },
   ];
 
-  const handlePrint = useCallback(() => {
+  const handlePrint = useCallback(async () => {
     if (!allWeightsFilled) return;
 
     // 构建重量数据
@@ -206,30 +258,64 @@ const PrintLabelModal: React.FC<PrintLabelModalProps> = ({
       }
     });
 
-    // 调用打印回调
-    onPrint(weightData);
+    const postingNumbers = postings.map(p => p.posting_number);
 
-    // 触发浏览器打印对话框
-    const iframe = document.getElementById(
-      "print-label-iframe",
-    ) as HTMLIFrameElement;
-    if (iframe?.contentWindow) {
-      iframe.contentWindow.print();
+    // 调用确认打印 API（扣除积分并保存重量）
+    setIsConfirming(true);
+    try {
+      await confirmPrint(postingNumbers, weightData);
+
+      // 通知积分已扣除
+      onCreditDeducted?.();
+
+      // 调用原有的打印回调（兼容）
+      onPrint(weightData);
+
+      // 触发浏览器打印对话框
+      const iframe = document.getElementById(
+        "print-label-iframe",
+      ) as HTMLIFrameElement;
+      if (iframe?.contentWindow) {
+        iframe.contentWindow.print();
+      }
+
+      // 打印后聚焦到"标记已打印"按钮，方便回车操作
+      setTimeout(() => {
+        markPrintedButtonRef.current?.focus();
+      }, 100);
+    } catch (error: unknown) {
+      const err = error as { response?: { status?: number; data?: { error?: { detail?: { message?: string; credit_name?: string } } } } };
+
+      // 处理积分不足错误
+      if (err.response?.status === 402) {
+        const detail = err.response.data?.error?.detail as { message?: string; credit_name?: string } | undefined;
+        const message = detail?.message || '积分不足，请充值后重试';
+        notifyError('积分不足', message);
+      } else {
+        notifyError('打印失败', '确认打印失败，请重试');
+      }
+    } finally {
+      setIsConfirming(false);
     }
-
-    // 打印后聚焦到"标记已打印"按钮，方便回车操作
-    setTimeout(() => {
-      markPrintedButtonRef.current?.focus();
-    }, 100);
-  }, [allWeightsFilled, postings, weights, onPrint]);
+  }, [allWeightsFilled, postings, weights, onPrint, onCreditDeducted]);
 
   // 处理重量输入框的回车事件
   const handleWeightKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && allWeightsFilled) {
+    if (e.key === 'Enter' && allWeightsFilled && !isConfirming) {
       e.preventDefault();
       handlePrint();
     }
-  }, [allWeightsFilled, handlePrint]);
+  }, [allWeightsFilled, isConfirming, handlePrint]);
+
+  // 判断打印按钮是否禁用
+  const printDisabled = !allWeightsFilled || isConfirming || (costInfo && !costInfo.sufficient);
+
+  // 打印按钮的提示信息
+  const getPrintTooltip = () => {
+    if (!allWeightsFilled) return "请先填写所有货件的包装重量";
+    if (costInfo && !costInfo.sufficient) return `${costInfo.creditName}不足，请充值`;
+    return undefined;
+  };
 
   return (
     <Modal
@@ -244,14 +330,15 @@ const PrintLabelModal: React.FC<PrintLabelModalProps> = ({
         </Button>,
         <Tooltip
           key="print-tooltip"
-          title={!allWeightsFilled ? "请先填写所有货件的包装重量" : undefined}
+          title={getPrintTooltip()}
         >
           <Button
             key="print"
             type="default"
             icon={<PrinterOutlined />}
             onClick={handlePrint}
-            disabled={!allWeightsFilled}
+            disabled={printDisabled}
+            loading={isConfirming}
           >
             打印
           </Button>
@@ -272,6 +359,44 @@ const PrintLabelModal: React.FC<PrintLabelModalProps> = ({
         </Tooltip>,
       ]}
     >
+      {/* 费用提示 */}
+      {costInfo && costInfo.billableCount > 0 && (
+        <Alert
+          type={costInfo.sufficient ? "info" : "error"}
+          showIcon
+          icon={<WalletOutlined />}
+          style={{ marginBottom: 16 }}
+          message={
+            <Space size={16}>
+              <span>
+                本次打印消耗 <Text strong style={{ color: costInfo.sufficient ? undefined : '#ff4d4f' }}>{costInfo.totalCost}</Text> {costInfo.creditName}
+                {costInfo.reprintCount > 0 && (
+                  <Text type="secondary">（{costInfo.reprintCount}个补打印免费）</Text>
+                )}
+              </span>
+              {creditBalance && (
+                <span>
+                  当前余额: <Text strong>{creditBalance.balance}</Text> {costInfo.creditName}
+                </span>
+              )}
+              {!costInfo.sufficient && (
+                <Text type="danger">余额不足，请充值</Text>
+              )}
+            </Space>
+          }
+        />
+      )}
+
+      {/* 补打印提示（全部为补打印时） */}
+      {costInfo && costInfo.billableCount === 0 && costInfo.reprintCount > 0 && (
+        <Alert
+          type="success"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message={`本次为补打印（${costInfo.reprintCount}个），不消耗${costInfo.creditName}`}
+        />
+      )}
+
       <div
         style={{
           width: "100%",

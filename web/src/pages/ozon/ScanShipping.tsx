@@ -921,12 +921,15 @@ const ScanShipping: React.FC = () => {
             searchInputRef.current?.focus();
           }, 100);
         }}
-        onPrint={async (weights) => {
-          const postingNumbers = printingPostings.map(p => p.posting_number);
-          if (postingNumbers.length === 0) return;
-          await batchPrint(postingNumbers, weights);
+        onPrint={() => {
+          // 积分扣除和重量保存已在 PrintLabelModal 内部通过 confirmPrint API 完成
         }}
         onMarkPrinted={handleMarkPrinted}
+        creditBalance={creditBalance}
+        onCreditDeducted={() => {
+          // 刷新积分余额
+          queryClient.invalidateQueries({ queryKey: ['credit-balance'] });
+        }}
       />
 
       {/* 编辑备注弹窗 */}

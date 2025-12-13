@@ -298,79 +298,8 @@ async def batch_print_labels(
                 }
             )
 
-        # 3.5 额度检查和扣费（首次打印才计费，补打印不扣费）
-        from ef_core.services.credit_service import CreditService, InsufficientCreditError
-
-        # 筛选需要计费的 posting（label_print_count == 0 或 None 表示首次打印）
-        billable_postings = [
-            pn for pn in posting_numbers
-            if pn in postings and (postings[pn].label_print_count or 0) == 0
-        ]
-
-        if billable_postings:
-            # 计算费用
-            cost_info = await CreditService.calculate_print_cost(
-                db, billable_postings, exclude_reprints=False  # 已经筛选过了
-            )
-
-            if cost_info["total_cost"] > 0:
-                # 获取主账号ID
-                master_user_id = current_user.parent_user_id or current_user.id
-
-                # 检查余额
-                sufficient, balance = await CreditService.check_balance(
-                    db, master_user_id, cost_info["total_cost"]
-                )
-
-                if not sufficient:
-                    credit_name = await CreditService.get_credit_name(db)
-                    raise HTTPException(
-                        status_code=402,  # Payment Required
-                        detail={
-                            "error": "INSUFFICIENT_CREDIT",
-                            "message": f"{credit_name}不足，当前余额 {balance}，需要 {cost_info['total_cost']}",
-                            "required": str(cost_info["total_cost"]),
-                            "balance": str(balance),
-                            "credit_name": credit_name
-                        }
-                    )
-
-                # 生成幂等键
-                idempotency_key = f"print:{','.join(sorted(billable_postings))}:{int(datetime.now().timestamp())}"
-
-                # 获取客户端IP
-                ip_address = request.client.host if request.client else None
-
-                # 扣费
-                try:
-                    await CreditService.consume(
-                        db=db,
-                        user_id=master_user_id,
-                        operator_user_id=current_user.id,
-                        module="print_label",
-                        amount=cost_info["total_cost"],
-                        details={
-                            "posting_numbers": billable_postings,
-                            "billable_count": len(billable_postings),
-                            "reprint_count": len(posting_numbers) - len(billable_postings)
-                        },
-                        idempotency_key=idempotency_key,
-                        ip_address=ip_address,
-                        notes=f"打印 {len(billable_postings)} 个面单"
-                    )
-                    logger.info(f"打印扣费成功: user={current_user.id}, amount={cost_info['total_cost']}, postings={billable_postings}")
-                except InsufficientCreditError as e:
-                    credit_name = await CreditService.get_credit_name(db)
-                    raise HTTPException(
-                        status_code=402,
-                        detail={
-                            "error": "INSUFFICIENT_CREDIT",
-                            "message": f"{credit_name}不足，当前余额 {e.balance}，需要 {e.required}",
-                            "required": str(e.required),
-                            "balance": str(e.balance),
-                            "credit_name": credit_name
-                        }
-                    )
+        # 注意：积分扣除已移至 /packing/postings/confirm-print API
+        # 此API仅负责获取标签PDF，积分在用户确认打印时扣除
 
         # 4. 获取所有涉及的店铺信息
         shop_ids = {p.shop_id for p in postings.values()}
@@ -410,17 +339,13 @@ async def batch_print_labels(
         success_postings = []
         pdf_files = []
 
-        # 5.1 添加已缓存的PDF（并记录打印）
+        # 5.1 添加已缓存的PDF
         for pn in cached_postings:
             posting = postings.get(pn)
             if posting and posting.label_pdf_path:
                 pdf_files.append(posting.label_pdf_path)
                 success_postings.append(pn)
-
-                # 更新打印追踪字段
-                if posting.label_printed_at is None:
-                    posting.label_printed_at = utcnow()
-                posting.label_print_count = (posting.label_print_count or 0) + 1
+                # 注意：打印追踪字段在 confirm-print API 中更新
 
         # 5.2 获取未缓存的标签（逐个调用，避免一个失败影响全部）
         from ..client import OzonAPIClient
@@ -463,11 +388,7 @@ async def batch_print_labels(
 
                 pdf_files.append(download_result["pdf_path"])
                 success_postings.append(pn)
-
-                # 更新打印追踪字段
-                if posting.label_printed_at is None:
-                    posting.label_printed_at = utcnow()
-                posting.label_print_count = (posting.label_print_count or 0) + 1
+                # 注意：打印追踪字段在 confirm-print API 中更新
 
             except httpx.HTTPStatusError as e:
                 # 捕获HTTP错误，解析OZON API返回的错误信息
@@ -533,42 +454,10 @@ async def batch_print_labels(
         for client in api_clients.values():
             await client.close()
 
-        # 6. 记录审计日志（批量记录所有成功打印的操作）
-        request_ip = request.client.host if request.client else None
-        user_agent = request.headers.get("user-agent")
-        request_id = request.headers.get("x-request-id")
+        # 注意：审计日志、积分扣除、重量更新已移至 confirm-print API
+        # 此API仅负责获取标签PDF
 
-        for pn in success_postings:
-            posting = postings.get(pn)
-            if posting:
-                try:
-                    is_reprint = (posting.label_print_count or 0) > 1
-                    await AuditService.log_print(
-                        db=db,
-                        user_id=current_user.id,
-                        username=current_user.username,
-                        posting_number=pn,
-                        print_count=posting.label_print_count or 1,
-                        is_reprint=is_reprint,
-                        ip_address=request_ip,
-                        user_agent=user_agent,
-                        request_id=request_id,
-                    )
-                except Exception as e:
-                    # 审计日志失败不应阻塞主流程
-                    logger.error(f"记录打印审计日志失败 {pn}: {str(e)}")
-
-        # 更新包装重量（如果提供了weights参数）
-        if weights:
-            for pn in success_postings:
-                posting = postings.get(pn)
-                if posting and pn in weights:
-                    posting.package_weight = weights[pn]
-                    logger.info(f"更新包装重量 {pn}: {weights[pn]}g")
-
-        await db.commit()
-
-        # 7. 处理PDF文件（单个直接返回，多个合并）
+        # 6. 处理PDF文件（单个直接返回，多个合并）
         pdf_url = None
         if pdf_files:
             if len(pdf_files) == 1:
@@ -603,7 +492,7 @@ async def batch_print_labels(
                     # 合并失败不影响结果，只是没有合并后的PDF
                     pdf_url = None
 
-        # 8. 返回结果
+        # 7. 返回结果
         if failed_postings and not success_postings:
             # 全部失败
             raise HTTPException(
@@ -656,5 +545,155 @@ async def batch_print_labels(
         except Exception:
             pass  # traceback也可能包含二进制内容，忽略记录错误
         raise HTTPException(status_code=500, detail=f"打印失败: {error_msg}")
+
+
+class ConfirmPrintRequest(BaseModel):
+    """确认打印请求（包含积分扣除和重量保存）"""
+    posting_numbers: List[str] = Field(..., max_items=20, description="货件编号列表")
+    weights: Dict[str, int] = Field(..., description="各货件的包装重量，key为posting_number，value为重量(克)")
+
+
+@router.post("/packing/postings/confirm-print")
+async def confirm_print(
+    request: Request,
+    body: ConfirmPrintRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("sub_account"))
+):
+    """
+    确认打印（扣除积分并保存重量）
+
+    此API在用户填写完重量并点击"打印"时调用，执行：
+    1. 检查积分余额（首次打印需要积分）
+    2. 扣除积分（首次打印）
+    3. 保存包装重量
+    4. 更新打印次数和时间
+
+    Returns:
+        成功：{ "success": true, "billable_count": 3, "cost": 3 }
+        余额不足：402 错误
+    """
+    from datetime import datetime
+    from ef_core.services.credit_service import CreditService, InsufficientCreditError
+
+    posting_numbers = body.posting_numbers
+    weights = body.weights
+
+    logger.info(f"确认打印请求 - posting_numbers: {posting_numbers}, weights: {weights}")
+
+    try:
+        # 1. 查询所有posting
+        postings_result = await db.execute(
+            select(OzonPosting).where(
+                OzonPosting.posting_number.in_(posting_numbers)
+            )
+        )
+        postings = {p.posting_number: p for p in postings_result.scalars().all()}
+
+        if not postings:
+            raise HTTPException(status_code=404, detail="未找到任何货件记录")
+
+        # 2. 筛选需要计费的 posting（label_print_count == 0 或 None 表示首次打印）
+        billable_postings = [
+            pn for pn in posting_numbers
+            if pn in postings and (postings[pn].label_print_count or 0) == 0
+        ]
+
+        total_cost = Decimal("0")
+
+        if billable_postings:
+            # 3. 计算费用
+            cost_info = await CreditService.calculate_print_cost(
+                db, billable_postings, exclude_reprints=False
+            )
+
+            if cost_info["total_cost"] > 0:
+                total_cost = cost_info["total_cost"]
+
+                # 获取主账号ID
+                master_user_id = current_user.parent_user_id or current_user.id
+
+                # 检查余额
+                sufficient, balance = await CreditService.check_balance(
+                    db, master_user_id, total_cost
+                )
+
+                if not sufficient:
+                    credit_name = await CreditService.get_credit_name(db)
+                    raise HTTPException(
+                        status_code=402,  # Payment Required
+                        detail={
+                            "error": "INSUFFICIENT_CREDIT",
+                            "message": f"{credit_name}不足，当前余额 {balance}，需要 {total_cost}",
+                            "required": str(total_cost),
+                            "balance": str(balance),
+                            "credit_name": credit_name
+                        }
+                    )
+
+                # 4. 生成幂等键
+                idempotency_key = f"print:{','.join(sorted(billable_postings))}:{int(datetime.now().timestamp())}"
+
+                # 获取客户端IP
+                ip_address = request.client.host if request.client else None
+
+                # 5. 扣费
+                try:
+                    await CreditService.consume(
+                        db=db,
+                        user_id=master_user_id,
+                        operator_user_id=current_user.id,
+                        module="print_label",
+                        amount=total_cost,
+                        details={
+                            "posting_numbers": billable_postings,
+                            "billable_count": len(billable_postings),
+                            "reprint_count": len(posting_numbers) - len(billable_postings)
+                        },
+                        idempotency_key=idempotency_key,
+                        ip_address=ip_address,
+                        notes=f"打印 {len(billable_postings)} 个面单"
+                    )
+                    logger.info(f"打印扣费成功: user={current_user.id}, amount={total_cost}, postings={billable_postings}")
+                except InsufficientCreditError as e:
+                    credit_name = await CreditService.get_credit_name(db)
+                    raise HTTPException(
+                        status_code=402,
+                        detail={
+                            "error": "INSUFFICIENT_CREDIT",
+                            "message": f"{credit_name}不足，当前余额 {e.balance}，需要 {e.required}",
+                            "required": str(e.required),
+                            "balance": str(e.balance),
+                            "credit_name": credit_name
+                        }
+                    )
+
+        # 6. 更新包装重量和打印追踪字段
+        for pn in posting_numbers:
+            posting = postings.get(pn)
+            if posting:
+                # 更新重量
+                if pn in weights:
+                    posting.package_weight = weights[pn]
+
+                # 更新打印追踪
+                if posting.label_printed_at is None:
+                    posting.label_printed_at = utcnow()
+                posting.label_print_count = (posting.label_print_count or 0) + 1
+
+        await db.commit()
+
+        return {
+            "success": True,
+            "billable_count": len(billable_postings),
+            "reprint_count": len(posting_numbers) - len(billable_postings),
+            "cost": str(total_cost)
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"确认打印失败: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"确认打印失败: {str(e)}")
 
 
