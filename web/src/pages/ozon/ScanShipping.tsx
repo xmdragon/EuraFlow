@@ -471,6 +471,7 @@ const ScanShipping: React.FC = () => {
     setShowPrintModal(false);
     setPrintPdfUrl('');
     setPrintingPostings([]);
+    setSearchValue(''); // 清空搜索框
     setTimeout(() => {
       searchInputRef.current?.focus();
     }, 100);
