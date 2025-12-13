@@ -9,7 +9,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from ef_core.services.auth_service import get_auth_service
-from ef_core.services.api_key_service import get_api_key_service
 from ef_core.services.audit_service import AuditService
 from ef_core.services.captcha_service import get_captcha_service
 from ef_core.database import get_async_session, get_db_manager
@@ -152,8 +151,8 @@ class CreateUserRequest(BaseModel):
 
     @validator('role')
     def validate_role(cls, v):
-        if v not in ['main_account', 'sub_account']:
-            raise ValueError('只能创建main_account或sub_account角色')
+        if v not in ['main_account', 'sub_account', 'shipper']:
+            raise ValueError('只能创建main_account、sub_account或shipper角色')
         return v
 
     @validator('account_status')
@@ -220,55 +219,15 @@ class ChangeUsernameRequest(BaseModel):
 
 # ========== 依赖函数 ==========
 
-async def get_current_user_from_api_key(
-    request: Request,
-    session: AsyncSession = Depends(get_async_session)
-) -> Optional[User]:
-    """
-    通过API Key认证用户（从X-API-Key Header）
-
-    Returns:
-        验证成功返回User对象，否则返回None
-    """
-    api_key = request.headers.get("X-API-Key")
-    if not api_key:
-        return None
-
-    try:
-        api_key_service = get_api_key_service()
-        user = await api_key_service.validate_api_key(session, api_key)
-
-        if user:
-            # 设置请求状态（供中间件使用）
-            request.state.user_id = user.id
-            request.state.shop_id = user.primary_shop_id
-            request.state.permissions = user.permissions
-            request.state.auth_method = "api_key"
-            logger.info(f"API Key认证成功: user_id={user.id}")
-
-        return user
-    except Exception as e:
-        logger.error(f"API Key认证错误: {e}", exc_info=True)
-        return None
-
-
 async def get_current_user_flexible(
     request: Request,
     session: AsyncSession = Depends(get_async_session)
 ) -> User:
     """
-    获取当前认证用户（支持 JWT Token 或 API Key）
-
-    优先检查 API Key (X-API-Key header)，如果不存在则尝试 JWT Token
+    获取当前认证用户（JWT Token）
 
     性能优化：从 JWT 中读取 shop_ids，避免数据库查询
     """
-    # 1. 尝试 API Key 认证
-    user = await get_current_user_from_api_key(request, session)
-    if user:
-        return user
-
-    # 2. 尝试 JWT Token 认证
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         raise UnauthorizedError(
@@ -586,35 +545,9 @@ async def get_current_user_info(request: Request):
     """
     获取当前用户信息
 
-    - 支持 JWT Token (Authorization: Bearer <token>) 或 API Key (X-API-Key: <key>)
+    - 使用 JWT Token (Authorization: Bearer <token>) 认证
     - 返回用户基本信息、关联的店铺和用户设置
     """
-    # 1. 优先尝试 API Key 认证
-    api_key = request.headers.get("X-API-Key")
-    if api_key:
-        db_manager = get_db_manager()
-        async with db_manager.get_session() as session:
-            api_key_service = get_api_key_service()
-            user = await api_key_service.validate_api_key(session, api_key)
-
-            if user:
-                # 重新加载用户以包含 shops 关系
-                stmt = select(User).where(User.id == user.id).options(
-                    selectinload(User.primary_shop),
-                    selectinload(User.shops)
-                )
-                result = await session.execute(stmt)
-                user = result.scalar_one_or_none()
-
-                if user:
-                    user_data = user.to_dict()
-                    user_data["phone"] = mask_phone(user_data.get("phone"))  # 手机号脱敏
-                    user_data["shop_ids"] = [shop.id for shop in user.shops] if user.shops else []
-                    user_data["settings"] = await _get_user_settings(session, user.id)
-                    logger.info("API Key认证成功")
-                    return UserResponse(**user_data)
-
-    # 2. 降级到 JWT Token 认证
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail={"code": "MISSING_AUTH", "message": "Missing authorization"})

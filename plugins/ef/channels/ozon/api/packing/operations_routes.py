@@ -808,6 +808,14 @@ async def mark_posting_printed(
         posting.operation_status = 'printed'
         posting.operation_time = utcnow()
 
+        # 如果还没有记录打印信息，记录打印操作人
+        if posting.label_printed_at is None:
+            posting.label_printed_at = utcnow()
+            posting.label_printed_by = current_user.id
+        elif posting.label_printed_by is None:
+            # 兼容旧数据：如果有打印时间但没有操作人，补充操作人
+            posting.label_printed_by = current_user.id
+
         await db.commit()
         await db.refresh(posting)
 

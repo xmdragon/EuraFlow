@@ -679,6 +679,7 @@ async def confirm_print(
                 # 更新打印追踪
                 if posting.label_printed_at is None:
                     posting.label_printed_at = utcnow()
+                    posting.label_printed_by = current_user.id  # 记录首次打印操作人
                 posting.label_print_count = (posting.label_print_count or 0) + 1
 
         await db.commit()

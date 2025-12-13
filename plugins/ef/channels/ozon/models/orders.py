@@ -126,6 +126,7 @@ class OzonPosting(Base):
     # 打印追踪字段
     label_printed_at = Column(DateTime(timezone=True), comment="标签首次打印时间")
     label_print_count = Column(Integer, nullable=False, default=0, server_default='0', comment="标签打印次数")
+    label_printed_by = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), comment="标签打印操作人ID")
 
     # 包装重量
     package_weight = Column(Integer, comment="包装重量（克），用于跨境物流申报")
@@ -351,6 +352,7 @@ class OzonPosting(Base):
             # 打印状态
             'label_printed_at': self.label_printed_at.isoformat() if self.label_printed_at else None,
             'label_print_count': self.label_print_count or 0,
+            'label_printed_by': self.label_printed_by,
 
             # 包装重量
             'package_weight': self.package_weight,

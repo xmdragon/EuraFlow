@@ -633,6 +633,10 @@ async def get_print_history(
             OzonPosting.label_printed_at.isnot(None)
         ]
 
+        # 发货员只能查看自己打印的记录
+        if access_result.is_shipper:
+            base_conditions.append(OzonPosting.label_printed_by == current_user.id)
+
         # 日期范围过滤
         if date_from:
             try:

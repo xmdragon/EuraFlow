@@ -207,6 +207,20 @@ def create_app() -> FastAPI:
         # 记录验证错误详情
         logger.error(f"验证错误 - URL: {request.url.path}")
         logger.error(f"验证错误详情: {exc.errors()}")
+
+        # 清理错误对象，移除无法JSON序列化的字段（如 ctx 中的 ValueError 对象）
+        def sanitize_error(error: dict) -> dict:
+            sanitized = {
+                "type": error.get("type"),
+                "loc": error.get("loc"),
+                "msg": error.get("msg"),
+                "input": error.get("input"),
+            }
+            # 只保留可序列化的字段
+            return {k: v for k, v in sanitized.items() if v is not None}
+
+        sanitized_errors = [sanitize_error(e) for e in exc.errors()]
+
         return JSONResponse(
             status_code=422,  # FastAPI标准是422
             content={
@@ -217,7 +231,7 @@ def create_app() -> FastAPI:
                     "status": 422,
                     "detail": "Request validation failed",
                     "code": "VALIDATION_ERROR",
-                    "validation_errors": exc.errors()
+                    "validation_errors": sanitized_errors
                 }
             }
         )
