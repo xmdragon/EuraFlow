@@ -282,7 +282,12 @@ class PostingProcessor:
         posting.substatus = posting_data.get("substatus")
         posting.shipment_date = parse_datetime(posting_data.get("shipment_date"))
         posting.in_process_at = parse_datetime(posting_data.get("in_process_at"))
-        posting.shipped_at = parse_datetime(posting_data.get("shipment_date"))
+
+        # shipped_at: 状态变为运输中的时间（由 webhook 或状态同步设置）
+        # 仅当当前状态为 delivering 且 shipped_at 为空时才设置
+        if posting_data.get("status") in ("sent_by_seller", "delivering") and not posting.shipped_at:
+            posting.shipped_at = utcnow()
+
         posting.delivered_at = parse_datetime(posting_data.get("delivering_date"))
 
         # 配送方式信息

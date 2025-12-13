@@ -98,4 +98,9 @@ web/public/downloads/labels/*.pdf
 # Temporary CSV files
 *.csv
 !web/src/**/*.csv
-web/dist.tar.gz
+# 部署打包文件
+dist.tar.gz
+*.tar.gz
+
+# 归档的一次性脚本
+scripts/archive/

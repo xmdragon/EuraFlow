@@ -17,31 +17,22 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # 使用 CONCURRENTLY 创建索引，避免锁表
-    # 注意：CONCURRENTLY 不能在事务中执行，需要设置 autocommit
+    # 使用 IF NOT EXISTS 避免重复创建索引
+    # 这些索引可能已在 init_001 中创建
     op.execute("COMMIT")  # 结束当前事务
-    
-    op.create_index(
-        'idx_ozon_products_shop_status',
-        'ozon_products',
-        ['shop_id', 'status'],
-        unique=False,
-        postgresql_concurrently=True
-    )
-    op.create_index(
-        'idx_ozon_products_shop_created',
-        'ozon_products',
-        ['shop_id', 'created_at'],
-        unique=False,
-        postgresql_concurrently=True
-    )
-    op.create_index(
-        'idx_ozon_products_shop_updated',
-        'ozon_products',
-        ['shop_id', 'updated_at'],
-        unique=False,
-        postgresql_concurrently=True
-    )
+
+    op.execute("""
+        CREATE INDEX IF NOT EXISTS idx_ozon_products_shop_status
+        ON ozon_products (shop_id, status)
+    """)
+    op.execute("""
+        CREATE INDEX IF NOT EXISTS idx_ozon_products_shop_created
+        ON ozon_products (shop_id, created_at)
+    """)
+    op.execute("""
+        CREATE INDEX IF NOT EXISTS idx_ozon_products_shop_updated
+        ON ozon_products (shop_id, updated_at)
+    """)
 
 
 def downgrade() -> None:

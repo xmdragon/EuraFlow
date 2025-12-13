@@ -285,6 +285,7 @@
     font-size: 13px;
     font-weight: 500;
     color: #666;
+    -webkit-user-select: none;
     user-select: none;
 
     &:hover {

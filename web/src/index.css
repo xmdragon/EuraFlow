@@ -13,7 +13,9 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* 防止移动端字体自动缩放 */
   -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 html, body {

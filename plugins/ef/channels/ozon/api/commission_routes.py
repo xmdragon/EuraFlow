@@ -87,7 +87,7 @@ class CSVImportResponse(BaseModel):
 )
 async def get_category_commissions(
     page: int = Query(1, ge=1, description="页码"),
-    page_size: int = Query(20, ge=1, le=100, description="每页数量"),
+    page_size: int = Query(20, ge=1, le=1000, description="每页数量"),
     module: str | None = Query(None, description="类目模块筛选"),
     search: str | None = Query(None, description="类目名称搜索"),
     db: AsyncSession = Depends(get_async_session),

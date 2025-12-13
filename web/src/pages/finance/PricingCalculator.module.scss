@@ -1,0 +1,123 @@
+.container {
+  padding: 16px 0;
+}
+
+.inputCard {
+  height: 100%;
+
+  :global(.ant-card-body) {
+    padding: 16px;
+  }
+}
+
+.resultCard {
+  height: 100%;
+
+  :global(.ant-card-body) {
+    padding: 16px;
+  }
+}
+
+.addonAfter {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 11px;
+  background: #fafafa;
+  border: 1px solid #d9d9d9;
+  border-left: 0;
+  border-radius: 0 6px 6px 0;
+  height: 32px;
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.priceSection {
+  text-align: center;
+  padding: 16px;
+  background: linear-gradient(135deg, #e6f7ff 0%, #f0f5ff 100%);
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.priceBox {
+  padding: 12px;
+}
+
+.mainPrice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.priceValue {
+  font-size: 28px;
+  font-weight: 600;
+  color: #1890ff;
+}
+
+.priceValueStrike {
+  font-size: 28px;
+  font-weight: 600;
+  color: #ffaaa5;
+  text-decoration: line-through;
+}
+
+.copyIcon {
+  cursor: pointer;
+  color: #1890ff;
+  font-size: 16px;
+
+  &:hover {
+    color: #40a9ff;
+  }
+}
+
+.subPrice {
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.rateInfo {
+  margin-top: 12px;
+  font-size: 12px;
+  text-align: center;
+}
+
+.detailSection {
+  padding: 0 8px;
+}
+
+.detailTable {
+  width: 100%;
+  border-collapse: collapse;
+
+  td {
+    padding: 10px 8px;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 14px;
+  }
+
+  .category {
+    width: 80px;
+    color: rgba(0, 0, 0, 0.45);
+    font-weight: 500;
+    vertical-align: top;
+    background: #fafafa;
+    border-right: 1px solid #f0f0f0;
+  }
+
+  .valueCell {
+    text-align: right;
+    width: 120px;
+    font-weight: 500;
+  }
+}
+
+.emptyResult {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  color: rgba(0, 0, 0, 0.45);
+}

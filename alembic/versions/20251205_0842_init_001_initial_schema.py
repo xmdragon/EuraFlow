@@ -423,9 +423,7 @@ def upgrade() -> None:
     # ========================================
     # 3. 创建表（按依赖顺序）
     # ========================================
-    op.execute('''CREATE TABLE alembic_version (
-    version_num character varying(32) NOT NULL
-);''')
+    # alembic_version 由 alembic 自动管理，无需手动创建
 
     op.execute('''CREATE TABLE aliyun_oss_configs (
     id integer NOT NULL,
@@ -2216,6 +2214,81 @@ def upgrade() -> None:
     op.execute('''CREATE INDEX ix_watermark_tasks_shop_id ON watermark_tasks USING btree (shop_id);''')
     op.execute('''CREATE INDEX ix_watermark_tasks_status ON watermark_tasks USING btree (status);''')
     op.execute('''CREATE UNIQUE INDEX uq_watermark_task_processing ON watermark_tasks USING btree (shop_id, product_id, status) WHERE ((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('processing'::character varying)::text]));''')
+
+    # ========================================
+    # 5.5 关联序列到表的 id 列
+    # ========================================
+    sequence_table_mapping = [
+        ('aliyun_oss_configs_id_seq', 'aliyun_oss_configs'),
+        ('aliyun_translation_configs_id_seq', 'aliyun_translation_configs'),
+        ('api_keys_id_seq', 'api_keys'),
+        ('audit_logs_archive_id_seq', 'audit_logs_archive'),
+        ('audit_logs_id_seq', 'audit_logs'),
+        ('chatgpt_translation_configs_id_seq', 'chatgpt_translation_configs'),
+        ('cloudinary_configs_id_seq', 'cloudinary_configs'),
+        ('exchange_rate_config_id_seq', 'exchange_rate_config'),
+        ('exchange_rates_id_seq', 'exchange_rates'),
+        ('inventories_id_seq', 'inventories'),
+        ('kuajing84_global_config_id_seq', 'kuajing84_global_config'),
+        ('kuajing84_sync_logs_id_seq', 'kuajing84_sync_logs'),
+        ('listings_id_seq', 'listings'),
+        ('order_items_id_seq', 'order_items'),
+        ('orders_id_seq', 'orders'),
+        ('ozon_attribute_dictionary_values_id_seq', 'ozon_attribute_dictionary_values'),
+        ('ozon_cancellations_id_seq', 'ozon_cancellations'),
+        ('ozon_categories_id_seq', 'ozon_categories'),
+        ('ozon_categories_category_id_seq', 'ozon_categories', 'category_id'),
+        ('ozon_category_attributes_id_seq', 'ozon_category_attributes'),
+        ('ozon_category_commissions_id_seq', 'ozon_category_commissions'),
+        ('ozon_chat_messages_id_seq', 'ozon_chat_messages'),
+        ('ozon_chats_id_seq', 'ozon_chats'),
+        ('ozon_collection_sources_id_seq', 'ozon_collection_sources'),
+        ('ozon_daily_stats_id_seq', 'ozon_daily_stats'),
+        ('ozon_domestic_tracking_numbers_id_seq', 'ozon_domestic_tracking_numbers'),
+        ('ozon_finance_sync_watermarks_id_seq', 'ozon_finance_sync_watermarks'),
+        ('ozon_finance_transactions_id_seq', 'ozon_finance_transactions'),
+        ('ozon_global_settings_id_seq', 'ozon_global_settings'),
+        ('ozon_media_import_logs_id_seq', 'ozon_media_import_logs'),
+        ('ozon_order_items_id_seq', 'ozon_order_items'),
+        ('ozon_orders_id_seq', 'ozon_orders'),
+        ('ozon_postings_id_seq', 'ozon_postings'),
+        ('ozon_price_update_logs_id_seq', 'ozon_price_update_logs'),
+        ('ozon_product_collection_records_id_seq', 'ozon_product_collection_records'),
+        ('ozon_product_import_logs_id_seq', 'ozon_product_import_logs'),
+        ('ozon_product_selection_import_history_id_seq', 'ozon_product_selection_import_history'),
+        ('ozon_product_selection_items_id_seq', 'ozon_product_selection_items'),
+        ('ozon_product_sync_errors_id_seq', 'ozon_product_sync_errors'),
+        ('ozon_product_templates_id_seq', 'ozon_product_templates'),
+        ('ozon_products_id_seq', 'ozon_products'),
+        ('ozon_promotion_actions_id_seq', 'ozon_promotion_actions'),
+        ('ozon_promotion_products_id_seq', 'ozon_promotion_products'),
+        ('ozon_refunds_id_seq', 'ozon_refunds'),
+        ('ozon_returns_id_seq', 'ozon_returns'),
+        ('ozon_shipment_packages_id_seq', 'ozon_shipment_packages'),
+        ('ozon_shops_id_seq', 'ozon_shops'),
+        ('ozon_stock_update_logs_id_seq', 'ozon_stock_update_logs'),
+        ('ozon_sync_checkpoints_id_seq', 'ozon_sync_checkpoints'),
+        ('ozon_sync_logs_id_seq', 'ozon_sync_logs'),
+        ('ozon_warehouses_id_seq', 'ozon_warehouses'),
+        ('ozon_webhook_events_id_seq', 'ozon_webhook_events'),
+        ('packages_id_seq', 'packages'),
+        ('refunds_id_seq', 'refunds'),
+        ('returns_id_seq', 'returns'),
+        ('shipments_id_seq', 'shipments'),
+        ('sync_service_logs_id_seq', 'sync_service_logs'),
+        ('sync_services_id_seq', 'sync_services'),
+        ('user_settings_id_seq', 'user_settings'),
+        ('users_id_seq', 'users'),
+        ('watermark_configs_id_seq', 'watermark_configs'),
+        ('xiangjifanyi_configs_id_seq', 'xiangjifanyi_configs'),
+    ]
+
+    for item in sequence_table_mapping:
+        seq_name = item[0]
+        table_name = item[1]
+        col_name = item[2] if len(item) > 2 else 'id'
+        op.execute(f"ALTER TABLE {table_name} ALTER COLUMN {col_name} SET DEFAULT nextval('{seq_name}');")
+        op.execute(f"ALTER SEQUENCE {seq_name} OWNED BY {table_name}.{col_name};")
 
     # ========================================
     # 6. 创建默认管理员用户

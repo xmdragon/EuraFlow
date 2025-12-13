@@ -11,7 +11,7 @@ import ErrorBoundary from '@/components/ErrorBoundary';
 import NotificationInitializer from '@/components/NotificationInitializer';
 import { AuthProvider } from '@/hooks/useAuth';
 import { initHMRErrorHandler } from '@/utils/hmrErrorHandler';
-import { initPerformanceMonitoring } from '@/utils/performanceMonitoring';
+// import { initPerformanceMonitoring } from '@/utils/performanceMonitoring';
 import './services/simpleAxios'; // 导入简化的axios配置
 import './index.css';
 
@@ -19,9 +19,10 @@ import './index.css';
 initHMRErrorHandler();
 
 // 开发环境性能监控（react-scan + stats.js）
-if (import.meta.env.MODE === 'development') {
-  initPerformanceMonitoring();
-}
+// 暂时关闭：react-scan 按钮存在无障碍性问题
+// if (import.meta.env.MODE === 'development') {
+//   initPerformanceMonitoring();
+// }
 
 const queryClient = new QueryClient({
   defaultOptions: {

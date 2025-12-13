@@ -2,9 +2,11 @@
 安全中间件
 
 提供：
-- 安全响应头（X-Content-Type-Options, X-Frame-Options, X-XSS-Protection）
+- 安全响应头（X-Content-Type-Options, X-Frame-Options, Referrer-Policy）
 - 请求大小限制
 - 全局速率限制（使用 slowapi）
+
+注意：X-XSS-Protection 已弃用，现代浏览器有内置 XSS 防护
 """
 from typing import Callable
 
@@ -29,7 +31,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # 添加安全响应头
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "SAMEORIGIN"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
+        # X-XSS-Protection 已弃用，现代浏览器有内置 XSS 防护，不再需要此头部
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
         return response

@@ -28,6 +28,7 @@ from .cancel_return import OzonCancellation, OzonReturn
 from .stats import OzonDailyStats
 from .collection_source import OzonCollectionSource
 from .ozon_web_sync_log import OzonWebSyncLog
+from .shipping_rates import OzonShippingRate
 
 __all__ = [
     "OzonShop",
@@ -80,4 +81,6 @@ __all__ = [
     "OzonCollectionSource",
     # Web sync logs
     "OzonWebSyncLog",
+    # Shipping rates
+    "OzonShippingRate",
 ]

@@ -1,4 +1,4 @@
-import { CalculatorOutlined, DollarOutlined, TruckOutlined, PlusOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { CalculatorOutlined, DollarOutlined, TruckOutlined, PlusOutlined, CheckCircleOutlined, TagOutlined } from '@ant-design/icons';
 import { Tabs, Button } from 'antd';
 import React from 'react';
 
@@ -6,6 +6,7 @@ import PageTitle from '@/components/PageTitle';
 import { useQuickMenu } from '@/hooks/useQuickMenu';
 import ProfitCalculatorV2 from './ProfitCalculatorV2';
 import ShippingDetailCalculator from './ShippingDetailCalculator';
+import PricingCalculator from './PricingCalculator';
 
 const FinanceCalculator: React.FC = () => {
   const { isInQuickMenu, addQuickMenu } = useQuickMenu();
@@ -51,6 +52,11 @@ const FinanceCalculator: React.FC = () => {
       key: 'profit',
       label: createTabLabel('profit', <DollarOutlined />, '利润计算'),
       children: <ProfitCalculatorV2 />,
+    },
+    {
+      key: 'pricing',
+      label: createTabLabel('pricing', <TagOutlined />, '定价器'),
+      children: <PricingCalculator />,
     },
     {
       key: 'shipping',
