@@ -12,6 +12,7 @@ import {
   ScanOutlined,
   SyncOutlined,
   WalletOutlined,
+  HistoryOutlined,
 } from '@ant-design/icons';
 import {
   Card,
@@ -21,9 +22,11 @@ import {
   Empty,
   Spin,
   Select,
-  message,
   Typography,
   App,
+  Tabs,
+  DatePicker,
+  Pagination,
 } from 'antd';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
@@ -80,7 +83,7 @@ interface ManagedShop {
 
 const ScanShipping: React.FC = () => {
   const queryClient = useQueryClient();
-  const { modal } = App.useApp();
+  const { modal, message } = App.useApp();
   const { canOperate, isShipper } = usePermission();
   const { formatDateTime } = useDateTime();
   const { copyToClipboard } = useCopy();
@@ -128,6 +131,15 @@ const ScanShipping: React.FC = () => {
   // 使用批量打印 hook
   const { isPrinting, batchPrint } = useBatchPrint();
 
+  // 标签页状态
+  const [activeTab, setActiveTab] = useState<'scan' | 'history'>('scan');
+
+  // 历史记录状态
+  const [historySearch, setHistorySearch] = useState('');
+  const [historyDateRange, setHistoryDateRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPageSize, setHistoryPageSize] = useState(20);
+
   const searchInputRef = useRef<InputRef>(null);
   const batchPrintButtonRef = useRef<HTMLButtonElement>(null);
   // 延迟聚焦的 timer ref
@@ -139,6 +151,41 @@ const ScanShipping: React.FC = () => {
     queryFn: creditApi.getBalance,
     staleTime: 30 * 1000,
     retry: 1,
+  });
+
+  // 获取打印历史记录
+  const {
+    data: historyData,
+    isLoading: historyLoading,
+    refetch: refetchHistory,
+  } = useQuery({
+    queryKey: [
+      'print-history',
+      historySearch,
+      historyDateRange?.[0]?.format('YYYY-MM-DD'),
+      historyDateRange?.[1]?.format('YYYY-MM-DD'),
+      historyPage,
+      historyPageSize,
+    ],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (historySearch) params.append('search', historySearch);
+      if (historyDateRange?.[0]) params.append('date_from', historyDateRange[0].format('YYYY-MM-DD'));
+      if (historyDateRange?.[1]) params.append('date_to', historyDateRange[1].format('YYYY-MM-DD'));
+      params.append('offset', String((historyPage - 1) * historyPageSize));
+      params.append('limit', String(historyPageSize));
+
+      const response = await axios.get(`/api/ef/v1/ozon/scan-shipping/history?${params.toString()}`);
+      return response.data as {
+        data: ozonApi.PostingWithOrder[];
+        total: number;
+        offset: number;
+        limit: number;
+        has_more: boolean;
+      };
+    },
+    enabled: activeTab === 'history',
+    staleTime: 30 * 1000,
   });
 
   // 计算选中订单的打印费用
@@ -616,138 +663,252 @@ const ScanShipping: React.FC = () => {
   // 判断是否可以操作（发货员也可以）
   const canAction = canOperate || isShipper;
 
+  // 历史记录搜索处理
+  const handleHistorySearch = useCallback(() => {
+    setHistoryPage(1);
+    refetchHistory();
+  }, [refetchHistory]);
+
+  // 历史记录日期范围变化
+  const handleHistoryDateChange = useCallback((dates: [dayjs.Dayjs | null, dayjs.Dayjs | null] | null) => {
+    setHistoryDateRange(dates);
+    setHistoryPage(1);
+  }, []);
+
+  // 历史记录分页变化
+  const handleHistoryPageChange = useCallback((page: number, pageSize: number) => {
+    setHistoryPage(page);
+    setHistoryPageSize(pageSize);
+  }, []);
+
   return (
     <div className={styles.container}>
       <PageTitle title="扫描单号" />
 
-      {/* 搜索区域 */}
-      <Card className={styles.filterCard}>
-        <Space direction="vertical" style={{ width: '100%' }} size="middle">
-          <Space wrap>
-            <Input
-              ref={searchInputRef}
-              placeholder="输入追踪号码/国内单号/货件编号"
-              prefix={<ScanOutlined />}
-              style={{ width: 320 }}
-              value={searchValue}
-              onChange={handleInputChange}
-              onFocus={handleInputFocus}
-              onKeyDown={handleKeyDown}
-              suffix={
-                searchValue ? (
-                  <CloseCircleOutlined
-                    onClick={handleClearInput}
-                    style={{ color: '#999', cursor: 'pointer' }}
-                  />
-                ) : null
-              }
-            />
-            <Select
-              value={printStatus}
-              onChange={handlePrintStatusChange}
-              style={{ width: 100 }}
-              options={[
-                { value: 'all', label: '全部' },
-                { value: 'unprinted', label: '未打印' },
-                { value: 'printed', label: '已打印' },
-              ]}
-            />
-            <Button type="primary" icon={<SearchOutlined />} onClick={handleSearch} loading={loading}>
-              搜索
-            </Button>
-          </Space>
-
-          {/* 批量操作 */}
-          {scanResults.length > 0 && canAction && (
-            <Space>
-              {/* 打印费用提示 */}
-              {printCostInfo && printCostInfo.billableCount > 0 && (
-                <Space size={4}>
-                  <WalletOutlined style={{ color: printCostInfo.sufficient ? '#1890ff' : '#ff4d4f' }} />
-                  <Text style={{ fontSize: 13 }}>
-                    本次消耗 <Text strong style={{ color: printCostInfo.sufficient ? undefined : '#ff4d4f' }}>{printCostInfo.totalCost}</Text> {printCostInfo.creditName}
-                    {printCostInfo.reprintCount > 0 && (
-                      <Text type="secondary">（{printCostInfo.reprintCount}个补打印免费）</Text>
-                    )}
-                  </Text>
-                  {!printCostInfo.sufficient && (
-                    <Text type="danger" style={{ fontSize: 13 }}>余额不足</Text>
-                  )}
-                </Space>
-              )}
-              <Button
-                type={selectedPostings.length === scanResults.length && scanResults.length > 0 ? 'primary' : 'default'}
-                onClick={handleToggleSelectAll}
-                disabled={scanResults.length === 0}
-              >
-                {selectedPostings.length === scanResults.length && scanResults.length > 0 ? '取消全选' : '全选'}
-              </Button>
-              <Button
-                ref={batchPrintButtonRef}
-                type="primary"
-                icon={<PrinterOutlined />}
-                loading={isPrinting}
-                disabled={selectedPostings.length === 0 || (printCostInfo && !printCostInfo.sufficient)}
-                onClick={handleBatchPrint}
-              >
-                批量打印 ({selectedPostings.length}/{scanResults.length})
-              </Button>
-            </Space>
-          )}
-        </Space>
-      </Card>
-
-      {/* 结果区域 */}
-      <Card className={styles.tableCard}>
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: '50px 0' }}>
-            <Spin size="large" />
-          </div>
-        ) : scanResults.length === 0 ? (
-          <Empty
-            description={
+      <Tabs
+        activeKey={activeTab}
+        onChange={(key) => setActiveTab(key as 'scan' | 'history')}
+        items={[
+          {
+            key: 'scan',
+            label: (
               <span>
-                {isShipper
-                  ? '请扫描单号查询订单（仅显示启用发货托管的店铺订单）'
-                  : '请扫描单号查询订单'}
+                <ScanOutlined />
+                扫描单号
               </span>
-            }
-          />
-        ) : (
-          <>
-            <ScanResultTable
-              scanResults={scanResults}
-              scanSelectedPostings={selectedPostings}
-              onSelectedPostingsChange={setSelectedPostings}
-              onPrintSingle={handlePrintSingle}
-              onOpenEditNotes={handleOpenEditNotes}
-              onOpenDomesticTracking={handleOpenDomesticTracking}
-              onShowDetail={handleShowDetail}
-              onOpenPriceHistory={handleOpenPriceHistory}
-              shopNameMap={shopNameMap}
-              canOperate={canAction}
-              isPrinting={isPrinting}
-              onCopy={handleCopy}
-            />
-            {/* 加载更多 */}
-            {isLoadingMore && (
-              <div className={styles.loadingMore}>
-                <SyncOutlined spin /> 加载更多...
-              </div>
-            )}
-            {scanHasMore && !isLoadingMore && (
-              <div style={{ textAlign: 'center', marginTop: 16 }}>
-                <Button onClick={handleLoadMore}>加载更多</Button>
-              </div>
-            )}
-            {!scanHasMore && scanResults.length > 0 && scanTotal > 20 && (
-              <div className={styles.loadingMore}>
-                <Text type="secondary">已加载全部 {scanResults.length} 条结果</Text>
-              </div>
-            )}
-          </>
-        )}
-      </Card>
+            ),
+            children: (
+              <>
+                {/* 搜索区域 */}
+                <Card className={styles.filterCard}>
+                  <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                    <Space wrap>
+                      <Input
+                        ref={searchInputRef}
+                        placeholder="输入追踪号码/国内单号/货件编号"
+                        prefix={<ScanOutlined />}
+                        style={{ width: 320 }}
+                        value={searchValue}
+                        onChange={handleInputChange}
+                        onFocus={handleInputFocus}
+                        onKeyDown={handleKeyDown}
+                        suffix={
+                          searchValue ? (
+                            <CloseCircleOutlined
+                              onClick={handleClearInput}
+                              style={{ color: '#999', cursor: 'pointer' }}
+                            />
+                          ) : null
+                        }
+                      />
+                      <Select
+                        value={printStatus}
+                        onChange={handlePrintStatusChange}
+                        style={{ width: 100 }}
+                        options={[
+                          { value: 'all', label: '全部' },
+                          { value: 'unprinted', label: '未打印' },
+                          { value: 'printed', label: '已打印' },
+                        ]}
+                      />
+                      <Button type="primary" icon={<SearchOutlined />} onClick={handleSearch} loading={loading}>
+                        搜索
+                      </Button>
+                    </Space>
+
+                    {/* 批量操作 */}
+                    {scanResults.length > 0 && canAction && (
+                      <Space>
+                        {/* 打印费用提示 */}
+                        {printCostInfo && printCostInfo.billableCount > 0 && (
+                          <Space size={4}>
+                            <WalletOutlined style={{ color: printCostInfo.sufficient ? '#1890ff' : '#ff4d4f' }} />
+                            <Text style={{ fontSize: 13 }}>
+                              本次消耗 <Text strong style={{ color: printCostInfo.sufficient ? undefined : '#ff4d4f' }}>{printCostInfo.totalCost}</Text> {printCostInfo.creditName}
+                              {printCostInfo.reprintCount > 0 && (
+                                <Text type="secondary">（{printCostInfo.reprintCount}个补打印免费）</Text>
+                              )}
+                            </Text>
+                            {!printCostInfo.sufficient && (
+                              <Text type="danger" style={{ fontSize: 13 }}>余额不足</Text>
+                            )}
+                          </Space>
+                        )}
+                        <Button
+                          type={selectedPostings.length === scanResults.length && scanResults.length > 0 ? 'primary' : 'default'}
+                          onClick={handleToggleSelectAll}
+                          disabled={scanResults.length === 0}
+                        >
+                          {selectedPostings.length === scanResults.length && scanResults.length > 0 ? '取消全选' : '全选'}
+                        </Button>
+                        <Button
+                          ref={batchPrintButtonRef}
+                          type="primary"
+                          icon={<PrinterOutlined />}
+                          loading={isPrinting}
+                          disabled={selectedPostings.length === 0 || (printCostInfo && !printCostInfo.sufficient)}
+                          onClick={handleBatchPrint}
+                        >
+                          批量打印 ({selectedPostings.length}/{scanResults.length})
+                        </Button>
+                      </Space>
+                    )}
+                  </Space>
+                </Card>
+
+                {/* 结果区域 */}
+                <Card className={styles.tableCard}>
+                  {loading ? (
+                    <div style={{ textAlign: 'center', padding: '50px 0' }}>
+                      <Spin size="large" />
+                    </div>
+                  ) : scanResults.length === 0 ? (
+                    <Empty
+                      description={
+                        <span>
+                          {isShipper
+                            ? '请扫描单号查询订单（仅显示启用发货托管的店铺订单）'
+                            : '请扫描单号查询订单'}
+                        </span>
+                      }
+                    />
+                  ) : (
+                    <>
+                      <ScanResultTable
+                        scanResults={scanResults}
+                        scanSelectedPostings={selectedPostings}
+                        onSelectedPostingsChange={setSelectedPostings}
+                        onPrintSingle={handlePrintSingle}
+                        onOpenEditNotes={handleOpenEditNotes}
+                        onOpenDomesticTracking={handleOpenDomesticTracking}
+                        onShowDetail={handleShowDetail}
+                        onOpenPriceHistory={handleOpenPriceHistory}
+                        shopNameMap={shopNameMap}
+                        canOperate={canAction}
+                        isPrinting={isPrinting}
+                        onCopy={handleCopy}
+                      />
+                      {/* 加载更多 */}
+                      {isLoadingMore && (
+                        <div className={styles.loadingMore}>
+                          <SyncOutlined spin /> 加载更多...
+                        </div>
+                      )}
+                      {scanHasMore && !isLoadingMore && (
+                        <div style={{ textAlign: 'center', marginTop: 16 }}>
+                          <Button onClick={handleLoadMore}>加载更多</Button>
+                        </div>
+                      )}
+                      {!scanHasMore && scanResults.length > 0 && scanTotal > 20 && (
+                        <div className={styles.loadingMore}>
+                          <Text type="secondary">已加载全部 {scanResults.length} 条结果</Text>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </Card>
+              </>
+            ),
+          },
+          {
+            key: 'history',
+            label: (
+              <span>
+                <HistoryOutlined />
+                历史记录
+              </span>
+            ),
+            children: (
+              <>
+                {/* 历史记录搜索区域 */}
+                <Card className={styles.filterCard}>
+                  <Space wrap>
+                    <Input
+                      placeholder="搜索单号（货件编号/国内单号/追踪号码）"
+                      prefix={<SearchOutlined />}
+                      style={{ width: 320 }}
+                      value={historySearch}
+                      onChange={(e) => setHistorySearch(e.target.value)}
+                      onPressEnter={handleHistorySearch}
+                      allowClear
+                    />
+                    <DatePicker.RangePicker
+                      value={historyDateRange}
+                      onChange={handleHistoryDateChange}
+                      placeholder={['开始日期', '结束日期']}
+                      style={{ width: 240 }}
+                    />
+                    <Button type="primary" icon={<SearchOutlined />} onClick={handleHistorySearch}>
+                      搜索
+                    </Button>
+                  </Space>
+                </Card>
+
+                {/* 历史记录列表 */}
+                <Card className={styles.tableCard}>
+                  {historyLoading ? (
+                    <div style={{ textAlign: 'center', padding: '50px 0' }}>
+                      <Spin size="large" />
+                    </div>
+                  ) : !historyData?.data || historyData.data.length === 0 ? (
+                    <Empty description="暂无打印历史记录" />
+                  ) : (
+                    <>
+                      <ScanResultTable
+                        scanResults={historyData.data}
+                        scanSelectedPostings={[]}
+                        onSelectedPostingsChange={() => {}}
+                        onPrintSingle={handlePrintSingle}
+                        onOpenEditNotes={handleOpenEditNotes}
+                        onOpenDomesticTracking={handleOpenDomesticTracking}
+                        onShowDetail={handleShowDetail}
+                        onOpenPriceHistory={handleOpenPriceHistory}
+                        shopNameMap={shopNameMap}
+                        canOperate={false}
+                        isPrinting={false}
+                        onCopy={handleCopy}
+                        hideCheckbox
+                      />
+                      {/* 分页 */}
+                      <div style={{ textAlign: 'right', marginTop: 16 }}>
+                        <Pagination
+                          current={historyPage}
+                          pageSize={historyPageSize}
+                          total={historyData.total}
+                          onChange={handleHistoryPageChange}
+                          showSizeChanger
+                          showTotal={(total) => `共 ${total} 条记录`}
+                          pageSizeOptions={['10', '20', '50', '100']}
+                        />
+                      </div>
+                    </>
+                  )}
+                </Card>
+              </>
+            ),
+          },
+        ]}
+      />
 
       {/* 打印标签弹窗 */}
       <PrintLabelModal

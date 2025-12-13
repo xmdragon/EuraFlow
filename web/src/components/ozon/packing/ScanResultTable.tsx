@@ -52,6 +52,8 @@ interface ScanResultTableProps {
   canOperate: boolean;
   isPrinting: boolean;
   onCopy: (text: string, label: string) => void;
+  /** 隐藏复选框列（用于历史记录展示） */
+  hideCheckbox?: boolean;
 }
 
 const ScanResultTable: React.FC<ScanResultTableProps> = ({
@@ -67,6 +69,7 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
   canOperate,
   isPrinting,
   onCopy,
+  hideCheckbox = false,
 }) => {
   const { formatDateTime } = useDateTime();
 
@@ -140,7 +143,7 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
         return classes.join(' ');
       }}
       rowSelection={
-        canOperate
+        canOperate && !hideCheckbox
           ? {
               selectedRowKeys,
               onChange: (newSelectedRowKeys) => {

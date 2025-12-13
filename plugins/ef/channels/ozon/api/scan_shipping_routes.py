@@ -583,3 +583,176 @@ async def check_scan_shipping_access(
         "is_shipper": access_result.is_shipper,
         "shop_count": shop_count
     }
+
+
+@router.get("/scan-shipping/history")
+async def get_print_history(
+    search: Optional[str] = Query(None, description="搜索关键词（货件编号/国内单号/追踪号码）"),
+    date_from: Optional[str] = Query(None, description="开始日期（YYYY-MM-DD）"),
+    date_to: Optional[str] = Query(None, description="结束日期（YYYY-MM-DD）"),
+    offset: int = Query(0, ge=0, description="分页偏移量"),
+    limit: int = Query(20, ge=1, le=100, description="每页数量"),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
+):
+    """
+    获取打印历史记录
+
+    返回用户可访问店铺中已打印的订单，支持：
+    - 单号搜索（货件编号、国内快递单号、追踪号码）
+    - 日期范围过滤（按打印时间）
+    - 分页
+    """
+    try:
+        # 获取用户可访问的店铺
+        access_result = await get_shipping_allowed_shop_ids(current_user, db)
+
+        # 对于发货员，使用托管店铺；对于其他角色，合并托管和非托管店铺
+        if access_result.is_shipper:
+            allowed_shop_ids = access_result.allowed_shop_ids
+        else:
+            # 非发货员可以查看所有授权店铺的打印历史
+            allowed_shop_ids = list(set(
+                (access_result.allowed_shop_ids or []) +
+                (access_result.managed_shop_ids or [])
+            ))
+
+        if not allowed_shop_ids:
+            return {
+                "data": [],
+                "total": 0,
+                "offset": offset,
+                "limit": limit,
+                "has_more": False
+            }
+
+        # 构建基础查询条件
+        base_conditions = [
+            OzonPosting.shop_id.in_(allowed_shop_ids),
+            OzonPosting.operation_status == 'printed',
+            OzonPosting.label_printed_at.isnot(None)
+        ]
+
+        # 日期范围过滤
+        if date_from:
+            try:
+                from_dt = datetime.strptime(date_from, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                base_conditions.append(OzonPosting.label_printed_at >= from_dt)
+            except ValueError:
+                pass
+
+        if date_to:
+            try:
+                to_dt = datetime.strptime(date_to, "%Y-%m-%d").replace(
+                    hour=23, minute=59, second=59, tzinfo=timezone.utc
+                )
+                base_conditions.append(OzonPosting.label_printed_at <= to_dt)
+            except ValueError:
+                pass
+
+        # 搜索条件
+        search_conditions = None
+        if search:
+            search_value = search.strip().upper()
+            if search_value:
+                # 构建搜索子查询
+                # 1. 货件编号匹配
+                posting_number_cond = OzonPosting.posting_number.ilike(f"%{search_value}%")
+
+                # 2. 追踪号码匹配（从packages表）
+                tracking_subquery = (
+                    select(OzonShipmentPackage.posting_id)
+                    .where(OzonShipmentPackage.tracking_number.ilike(f"%{search_value}%"))
+                )
+
+                # 3. 国内单号匹配
+                domestic_subquery = (
+                    select(OzonDomesticTracking.posting_id)
+                    .where(OzonDomesticTracking.tracking_number.ilike(f"%{search_value}%"))
+                )
+
+                search_conditions = or_(
+                    posting_number_cond,
+                    OzonPosting.id.in_(tracking_subquery),
+                    OzonPosting.id.in_(domestic_subquery)
+                )
+
+        # 查询总数
+        count_query = select(func.count(OzonPosting.id)).where(*base_conditions)
+        if search_conditions is not None:
+            count_query = count_query.where(search_conditions)
+        count_result = await db.execute(count_query)
+        total = count_result.scalar() or 0
+
+        # 分页查询
+        query = (
+            select(OzonPosting)
+            .options(
+                selectinload(OzonPosting.packages),
+                selectinload(OzonPosting.domestic_trackings)
+            )
+            .where(*base_conditions)
+        )
+        if search_conditions is not None:
+            query = query.where(search_conditions)
+
+        query = query.order_by(OzonPosting.label_printed_at.desc()).offset(offset).limit(limit)
+
+        result = await db.execute(query)
+        postings = result.scalars().all()
+
+        # 收集offer_id用于查询图片
+        all_offer_ids = set()
+        for posting in postings:
+            if posting.raw_payload and 'products' in posting.raw_payload:
+                for product in posting.raw_payload['products']:
+                    if product.get('offer_id'):
+                        all_offer_ids.add(product.get('offer_id'))
+
+        # 批量查询商品图片
+        offer_id_images = {}
+        if all_offer_ids:
+            product_query = select(OzonProduct.offer_id, OzonProduct.images).where(
+                OzonProduct.offer_id.in_(list(all_offer_ids))
+            )
+            products_result = await db.execute(product_query)
+            for offer_id, images in products_result:
+                if offer_id and images:
+                    if isinstance(images, dict):
+                        if images.get("primary"):
+                            offer_id_images[offer_id] = images["primary"]
+                        elif images.get("main") and isinstance(images["main"], list) and images["main"]:
+                            offer_id_images[offer_id] = images["main"][0]
+                    elif isinstance(images, list) and images:
+                        offer_id_images[offer_id] = images[0]
+
+        # 构建返回数据
+        result_list = []
+        for posting in postings:
+            order_dict = posting.to_packing_dict()
+
+            # 补充商品图片
+            if order_dict.get('items'):
+                for item in order_dict['items']:
+                    offer_id = item.get('offer_id')
+                    if offer_id:
+                        item['image'] = offer_id_images.get(offer_id)
+            if order_dict.get('products'):
+                for product in order_dict['products']:
+                    offer_id = product.get('offer_id')
+                    if offer_id:
+                        product['image'] = offer_id_images.get(offer_id)
+
+            result_list.append(order_dict)
+
+        return {
+            "data": result_list,
+            "total": total,
+            "offset": offset,
+            "limit": limit,
+            "has_more": (offset + limit) < total
+        }
+
+    except Exception as e:
+        logger.error(f"获取打印历史失败: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
