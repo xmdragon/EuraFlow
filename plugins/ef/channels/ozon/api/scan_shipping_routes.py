@@ -760,3 +760,90 @@ async def get_print_history(
     except Exception as e:
         logger.error(f"获取打印历史失败: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
+
+
+@router.get("/scan-shipping/print-stats")
+async def get_print_stats(
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
+):
+    """
+    获取当前用户的打印统计
+
+    返回各时间段的打印数量：
+    - today: 今天
+    - yesterday: 昨天
+    - last_7_days: 最近7天
+    - this_month: 本月
+    - last_month: 上月
+    """
+    try:
+        # 获取用户可访问的店铺
+        access_result = await get_shipping_allowed_shop_ids(current_user, db)
+
+        # 对于发货员，使用托管店铺；对于其他角色，合并托管和非托管店铺
+        if access_result.is_shipper:
+            allowed_shop_ids = access_result.allowed_shop_ids
+        else:
+            allowed_shop_ids = list(set(
+                (access_result.allowed_shop_ids or []) +
+                (access_result.managed_shop_ids or [])
+            ))
+
+        if not allowed_shop_ids:
+            return {
+                "today": 0,
+                "yesterday": 0,
+                "last_7_days": 0,
+                "this_month": 0,
+                "last_month": 0
+            }
+
+        # 计算时间范围（使用 UTC）
+        now = datetime.now(timezone.utc)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        yesterday_start = today_start - timedelta(days=1)
+        last_7_days_start = today_start - timedelta(days=6)  # 包含今天共7天
+        this_month_start = today_start.replace(day=1)
+        last_month_end = this_month_start - timedelta(seconds=1)
+        last_month_start = last_month_end.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        # 基础条件
+        base_conditions = [
+            OzonPosting.shop_id.in_(allowed_shop_ids),
+            OzonPosting.label_printed_at.isnot(None)
+        ]
+
+        # 发货员只统计自己打印的
+        if access_result.is_shipper:
+            base_conditions.append(OzonPosting.label_printed_by == current_user.id)
+
+        # 定义统计查询函数
+        async def count_in_range(start: datetime, end: datetime = None) -> int:
+            conditions = base_conditions.copy()
+            conditions.append(OzonPosting.label_printed_at >= start)
+            if end:
+                conditions.append(OzonPosting.label_printed_at < end)
+            result = await db.execute(
+                select(func.count(OzonPosting.id)).where(*conditions)
+            )
+            return result.scalar() or 0
+
+        # 并行查询各时间段（使用单次查询优化）
+        today_count = await count_in_range(today_start)
+        yesterday_count = await count_in_range(yesterday_start, today_start)
+        last_7_days_count = await count_in_range(last_7_days_start)
+        this_month_count = await count_in_range(this_month_start)
+        last_month_count = await count_in_range(last_month_start, this_month_start)
+
+        return {
+            "today": today_count,
+            "yesterday": yesterday_count,
+            "last_7_days": last_7_days_count,
+            "this_month": this_month_count,
+            "last_month": last_month_count
+        }
+
+    except Exception as e:
+        logger.error(f"获取打印统计失败: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")

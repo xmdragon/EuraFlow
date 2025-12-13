@@ -1153,6 +1153,15 @@ async def extension_login(
                 error="用户名或密码错误"
             )
 
+        # 2.5 检查角色：只允许主账号和子账号登录扩展
+        allowed_roles = ("main_account", "sub_account")
+        if user.role not in allowed_roles:
+            logger.warning(f"Extension login rejected: role not allowed, ip={client_ip}, username={login_data.username}, role={user.role}")
+            return ExtensionLoginResponse(
+                success=False,
+                error="该账号类型不支持扩展登录"
+            )
+
         # 3. 登录成功，清除失败计数
         await ExtensionLoginRateLimiter.clear_on_success(
             auth_service.redis_client, client_ip, login_data.username

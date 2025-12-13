@@ -55,7 +55,7 @@ interface ShopTask {
   /** 检查任务是否应该执行（全局级别，如：今天是否已执行、时间限制） */
   shouldRun(): Promise<boolean>;
   /** 检查后端是否已执行（在获取 API 配置后调用） */
-  checkBackendStatus?(apiUrl: string, apiKey: string): Promise<boolean>;
+  checkBackendStatus?(apiUrl: string, accessToken: string): Promise<boolean>;
   /** 检查特定店铺是否需要执行此任务 */
   shouldRunForShop?(shop: Shop, api: EuraflowApi): Promise<boolean>;
   /** 执行任务 */
@@ -93,11 +93,11 @@ interface SyncStatus {
 /**
  * 获取后端同步状态
  */
-async function fetchBackendSyncStatus(apiUrl: string, apiKey: string): Promise<SyncStatus | null> {
+async function fetchBackendSyncStatus(apiUrl: string, accessToken: string): Promise<SyncStatus | null> {
   try {
     const response = await fetch(`${apiUrl}/api/ef/v1/ozon/extension/sync-status`, {
       method: 'GET',
-      headers: { 'X-API-Key': apiKey },
+      headers: { 'Authorization': `Bearer ${accessToken}` },
     });
 
     if (!response.ok) {
@@ -170,8 +170,8 @@ class PromoCleanerTask implements ShopTask {
   /**
    * 检查后端状态（在获取 API 配置后调用）
    */
-  async checkBackendStatus(apiUrl: string, apiKey: string): Promise<boolean> {
-    const status = await fetchBackendSyncStatus(apiUrl, apiKey);
+  async checkBackendStatus(apiUrl: string, accessToken: string): Promise<boolean> {
+    const status = await fetchBackendSyncStatus(apiUrl, accessToken);
     if (status?.promo_cleaner?.today_executed) {
       console.log('[PromoCleanerTask] 跳过：后端今天已成功执行');
       return false;
@@ -358,8 +358,8 @@ class InvoiceSyncerTask implements ShopTask {
   /**
    * 检查后端状态（在获取 API 配置后调用）
    */
-  async checkBackendStatus(apiUrl: string, apiKey: string): Promise<boolean> {
-    const status = await fetchBackendSyncStatus(apiUrl, apiKey);
+  async checkBackendStatus(apiUrl: string, accessToken: string): Promise<boolean> {
+    const status = await fetchBackendSyncStatus(apiUrl, accessToken);
     if (status?.invoice_sync?.current_window_executed) {
       console.log('[InvoiceSyncerTask] 跳过：后端当前窗口期已成功执行');
       return false;
@@ -371,9 +371,9 @@ class InvoiceSyncerTask implements ShopTask {
     // 首次调用时获取需要同步的店铺列表
     if (this.shopsToSync.length === 0) {
       try {
-        const response = await fetch(`${(api as any).baseUrl}/api/ef/v1/ozon/extension/invoice-payments/should-sync`, {
+        const response = await fetch(`${api.getBaseUrl()}/api/ef/v1/ozon/extension/invoice-payments/should-sync`, {
           method: 'GET',
-          headers: { 'X-API-Key': (api as any).apiKey }
+          headers: { 'Authorization': `Bearer ${api.getAccessToken()}` }
         });
 
         if (response.ok) {
@@ -455,11 +455,11 @@ class InvoiceSyncerTask implements ShopTask {
   }
 
   private async uploadPayments(api: EuraflowApi, clientId: string, payments: any[]): Promise<void> {
-    const response = await fetch(`${(api as any).baseUrl}/api/ef/v1/ozon/extension/invoice-payments/sync`, {
+    const response = await fetch(`${api.getBaseUrl()}/api/ef/v1/ozon/extension/invoice-payments/sync`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-API-Key': (api as any).apiKey
+        'Authorization': `Bearer ${api.getAccessToken()}`
       },
       body: JSON.stringify({ client_id: clientId, payments })
     });
@@ -508,8 +508,8 @@ class BalanceSyncerTask implements ShopTask {
   /**
    * 检查后端状态（在获取 API 配置后调用）
    */
-  async checkBackendStatus(apiUrl: string, apiKey: string): Promise<boolean> {
-    const status = await fetchBackendSyncStatus(apiUrl, apiKey);
+  async checkBackendStatus(apiUrl: string, accessToken: string): Promise<boolean> {
+    const status = await fetchBackendSyncStatus(apiUrl, accessToken);
     if (status?.balance_sync?.current_hour_executed) {
       console.log('[BalanceSyncerTask] 跳过：后端当前小时已成功执行');
       return false;
@@ -594,11 +594,11 @@ class BalanceSyncerTask implements ShopTask {
   }
 
   private async uploadBalance(api: EuraflowApi, clientId: string, balance: number): Promise<void> {
-    const response = await fetch(`${(api as any).baseUrl}/api/ef/v1/ozon/extension/shop-balance/update`, {
+    const response = await fetch(`${api.getBaseUrl()}/api/ef/v1/ozon/extension/shop-balance/update`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-API-Key': (api as any).apiKey
+        'Authorization': `Bearer ${api.getAccessToken()}`
       },
       body: JSON.stringify({ client_id: clientId, balance_rub: balance })
     });

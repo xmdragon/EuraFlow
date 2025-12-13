@@ -87,6 +87,20 @@ export class EuraflowApi extends BaseApiClient {
   }
 
   /**
+   * 获取 Base URL（供外部使用）
+   */
+  getBaseUrl(): string {
+    return this.baseUrl;
+  }
+
+  /**
+   * 获取 Access Token（供外部使用）
+   */
+  getAccessToken(): string | undefined {
+    return this.accessToken;
+  }
+
+  /**
    * 获取认证头
    */
   private getAuthHeaders(): Record<string, string> {

@@ -148,6 +148,25 @@ export const markPostingPrinted = async (postingNumber: string) => {
 };
 
 /**
+ * 打印统计数据
+ */
+export interface PrintStats {
+  today: number;
+  yesterday: number;
+  last_7_days: number;
+  this_month: number;
+  last_month: number;
+}
+
+/**
+ * 获取打印统计
+ */
+export const getPrintStats = async (): Promise<PrintStats> => {
+  const response = await apiClient.get("/ozon/scan-shipping/print-stats");
+  return response.data;
+};
+
+/**
  * 从跨境巴士同步单个发货单的打包费用
  */
 export const syncMaterialCost = async (postingNumber: string) => {

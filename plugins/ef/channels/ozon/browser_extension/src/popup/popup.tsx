@@ -44,7 +44,7 @@ function Popup() {
   });
 
   // 登录表单（服务器地址写死）
-  const API_URL = 'https://euraflow.hjdtrading.com';
+  const API_URL = 'http://localhost';
   const [loginForm, setLoginForm] = useState({
     username: '',
     password: ''

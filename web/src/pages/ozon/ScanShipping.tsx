@@ -27,6 +27,10 @@ import {
   Tabs,
   DatePicker,
   Pagination,
+  Tag,
+  Statistic,
+  Row,
+  Col,
 } from 'antd';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
@@ -186,6 +190,13 @@ const ScanShipping: React.FC = () => {
     },
     enabled: activeTab === 'history',
     staleTime: 30 * 1000,
+  });
+
+  // 获取打印统计
+  const { data: printStats } = useQuery({
+    queryKey: ['print-stats'],
+    queryFn: ozonApi.getPrintStats,
+    staleTime: 60 * 1000, // 1分钟缓存
   });
 
   // 计算选中订单的打印费用
@@ -840,6 +851,32 @@ const ScanShipping: React.FC = () => {
             ),
             children: (
               <>
+                {/* 打印统计 */}
+                {printStats && (
+                  <Card className={styles.filterCard} style={{ marginBottom: 12 }}>
+                    <Row gutter={[16, 8]} align="middle">
+                      <Col>
+                        <Text strong>打印统计：</Text>
+                      </Col>
+                      <Col>
+                        <Tag color="blue">今天 {printStats.today}</Tag>
+                      </Col>
+                      <Col>
+                        <Tag color="cyan">昨天 {printStats.yesterday}</Tag>
+                      </Col>
+                      <Col>
+                        <Tag color="green">近7天 {printStats.last_7_days}</Tag>
+                      </Col>
+                      <Col>
+                        <Tag color="purple">本月 {printStats.this_month}</Tag>
+                      </Col>
+                      <Col>
+                        <Tag color="default">上月 {printStats.last_month}</Tag>
+                      </Col>
+                    </Row>
+                  </Card>
+                )}
+
                 {/* 历史记录搜索区域 */}
                 <Card className={styles.filterCard}>
                   <Space wrap>
