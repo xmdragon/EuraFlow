@@ -220,6 +220,7 @@ PERMISSION_NAMES_CN = {
 
     # 主账号级别
     "account-levels.list": "获取主账号级别列表",
+    "account-levels.detail": "获取主账号级别详情",
     "account-levels.create": "创建主账号级别",
     "account-levels.put": "修改主账号级别",
     "account-levels.delete": "删除主账号级别",

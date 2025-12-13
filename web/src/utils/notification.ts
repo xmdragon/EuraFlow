@@ -28,11 +28,9 @@ const getNotification = () => {
 
 // 通知框通用样式
 const notificationStyle = {
-  width: 'auto',
   minWidth: 200,
-  maxWidth: 500,
+  maxWidth: 400,
   padding: 10,
-  whiteSpace: 'nowrap' as const,
 };
 
 /**
